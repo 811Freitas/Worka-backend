@@ -8,16 +8,13 @@ function httpsPost(body) {
   return new Promise(function(resolve, reject) {
     const u = new URL(PIX_URL);
     const data = JSON.stringify(body);
-    const options = {
+    const opts = {
       hostname: u.hostname,
       path: u.pathname,
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(data)
-      }
+      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) }
     };
-    const req = https.request(options, function(res) {
+    const req = https.request(opts, function(res) {
       let raw = "";
       res.on("data", function(c) { raw += c; });
       res.on("end", function() {
@@ -34,9 +31,8 @@ function httpsPost(body) {
 function httpsGet(transactionId) {
   return new Promise(function(resolve, reject) {
     const u = new URL(PIX_URL);
-    const path = u.pathname + "?transactionId=" + encodeURIComponent(transactionId);
-    const options = { hostname: u.hostname, path: path, method: "GET" };
-    const req = https.request(options, function(res) {
+    const opts = { hostname: u.hostname, path: u.pathname + "?transactionId=" + encodeURIComponent(transactionId), method: "GET" };
+    const req = https.request(opts, function(res) {
       let raw = "";
       res.on("data", function(c) { raw += c; });
       res.on("end", function() {
@@ -46,6 +42,15 @@ function httpsGet(transactionId) {
     });
     req.on("error", reject);
     req.end();
+  });
+}
+
+function getBody(req) {
+  return new Promise(function(resolve, reject) {
+    let raw = "";
+    req.on("data", function(c) { raw += c; });
+    req.on("end", function() { resolve(raw); });
+    req.on("error", reject);
   });
 }
 
@@ -64,42 +69,32 @@ const server = http.createServer(function(req, res) {
 
   if (req.method === "GET" && urlObj.pathname === "/pix") {
     const tid = urlObj.searchParams.get("transactionId");
-    if (!tid) {
-      res.writeHead(400);
-      return res.end(JSON.stringify({ error: "transactionId obrigatorio." }));
-    }
-    httpsGet(tid).then(function(result) {
-      res.writeHead(result.status);
-      res.end(JSON.stringify(result.body));
-    }).catch(function(e) {
-      res.writeHead(502);
-      res.end(JSON.stringify({ error: e.message }));
-    });
+    if (!tid) { res.writeHead(400); return res.end(JSON.stringify({ error: "transactionId obrigatorio." })); }
+    httpsGet(tid).then(function(r) {
+      res.writeHead(r.status);
+      res.end(JSON.stringify(r.body));
+    }).catch(function(e) { res.writeHead(502); res.end(JSON.stringify({ error: e.message })); });
     return;
   }
 
   if (req.method === "POST" && urlObj.pathname === "/pix") {
-    let raw = "";
-    req.on("data", function(c) { raw += c; });
-    req.on("end", function() {
+    getBody(req).then(function(raw) {
+      console.log("Raw body recebido:", raw);
       let data;
       try { data = JSON.parse(raw); }
-      catch(e) {
-        res.writeHead(400);
-        return res.end(JSON.stringify({ error: "Body invalido." }));
-      }
+      catch(e) { res.writeHead(400); return res.end(JSON.stringify({ error: "JSON invalido: " + raw })); }
 
-      console.log("Dados recebidos:", JSON.stringify(data));
+      console.log("Dados parseados:", JSON.stringify(data));
 
-      var name = data.name;
-      var document = data.document;
-      var email = data.email;
-      var phone = data.phone;
+      var name = data.name || data.nome || "";
+      var document = data.document || data.documento || "";
+      var email = data.email || "";
+      var phone = data.phone || data.telefone || "";
       var utm = data.utm || "";
 
       if (!name || !document || !email || !phone) {
         res.writeHead(400);
-        return res.end(JSON.stringify({ error: "Campos faltando: " + JSON.stringify({name:!!name, document:!!document, email:!!email, phone:!!phone}) }));
+        return res.end(JSON.stringify({ error: "Faltando: name=" + name + " doc=" + document + " email=" + email + " phone=" + phone }));
       }
 
       var docDigits = document.replace(/\D/g, "");
@@ -113,25 +108,15 @@ const server = http.createServer(function(req, res) {
         utm: utm
       };
 
-      console.log("Enviando para Duttyfy:", JSON.stringify(payload));
+      console.log("Enviando Duttyfy:", JSON.stringify(payload));
 
-      httpsPost(payload).then(function(result) {
-        console.log("Resposta Duttyfy:", result.status, JSON.stringify(result.body));
-        if (result.status >= 400) {
-          res.writeHead(result.status);
-          return res.end(JSON.stringify({ error: JSON.stringify(result.body) }));
-        }
+      httpsPost(payload).then(function(r) {
+        console.log("Duttyfy respondeu:", r.status, JSON.stringify(r.body));
+        if (r.status >= 400) { res.writeHead(r.status); return res.end(JSON.stringify({ error: JSON.stringify(r.body) })); }
         res.writeHead(200);
-        res.end(JSON.stringify({
-          pixCode: result.body.pixCode,
-          transactionId: result.body.transactionId,
-          status: result.body.status
-        }));
-      }).catch(function(e) {
-        res.writeHead(502);
-        res.end(JSON.stringify({ error: e.message }));
-      });
-    });
+        res.end(JSON.stringify({ pixCode: r.body.pixCode, transactionId: r.body.transactionId, status: r.body.status }));
+      }).catch(function(e) { res.writeHead(502); res.end(JSON.stringify({ error: e.message })); });
+    }).catch(function(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); });
     return;
   }
 
@@ -139,7 +124,4 @@ const server = http.createServer(function(req, res) {
   res.end(JSON.stringify({ error: "Rota nao encontrada." }));
 });
 
-server.listen(PORT, function() {
-  console.log("Worka backend rodando na porta " + PORT);
-});
-
+server.listen(PORT, function() { console.log("Worka rodando na porta " + PORT); });
