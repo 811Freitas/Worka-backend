@@ -968,10 +968,10 @@ async function gerarPix() {
   const utm = window.location.search.replace(/^\?/,'');
 
   const body = {
-    amount: 2490,
-    customer: { name: nome, document: doc, email: email, phone: tel },
-    item: { title: "Plano Completo Worka", price: 2490, quantity: 1 },
-    paymentMethod: "PIX",
+    name: nome,
+    document: doc,
+    email: email,
+    phone: tel,
     utm: utm || ""
   };
 
