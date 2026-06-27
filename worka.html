@@ -988,7 +988,7 @@ async function gerarPix() {
       if (res.ok) { resposta = await res.json(); break; }
       if (res.status >= 400 && res.status < 500) {
         const err = await res.json().catch(() => ({}));
-        mostrarErro('Erro nos dados: ' + (err.message || res.status));
+        mostrarErro('Erro gateway: ' + JSON.stringify(err));
         btn.disabled = false;
         btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
         return;
@@ -999,7 +999,7 @@ async function gerarPix() {
   }
 
   if (!resposta || !resposta.pixCode) {
-    mostrarErro('Erro técnico: ' + (window._erroWorka || 'sem resposta do backend. Verifique se o Render está Live.'));
+    mostrarErro('Sem resposta: ' + (window._erroWorka || BACKEND_URL));
     btn.disabled = false;
     btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
     return;
@@ -1081,3 +1081,4 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 </body>
 </html>
+
