@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Worka — Gestão de Equipe para Pequenas Empresas</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green-900: #0a2e1a;
+      --green-800: #0f3d22;
+      --green-600: #16622f;
+      --green-500: #1e8a40;
+      --green-400: #25b251;
+      --green-300: #3dd669;
+      --green-100: #d4f5de;
+      --green-50:  #edfaf2;
+      --white:     #ffffff;
+      --gray-50:   #f7f8f7;
+      --gray-100:  #eff0ef;
+      --gray-300:  #c4c7c4;
+      --gray-500:  #6b7068;
+      --gray-700:  #3a3d39;
+      --gray-900:  #1a1c1a;
+      --font-display: 'Syne', sans-serif;
+      --font-body:    'Inter', sans-serif;
+      --radius:   12px;
+      --radius-lg: 20px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--white);
+      color: var(--gray-900);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 6vw;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--gray-100);
+    }
+    .nav-logo {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--green-600);
+      letter-spacing: -0.5px;
+    }
+    .nav-logo span { color: var(--green-400); }
+    .nav-links { display: flex; gap: 32px; list-style: none; }
+    .nav-links a {
+      font-size: 0.875rem; font-weight: 500;
+      color: var(--gray-700); text-decoration: none;
+      transition: color .2s;
+    }
+    .nav-links a:hover { color: var(--green-500); }
+    .nav-cta {
+      background: var(--green-500); color: var(--white);
+      padding: 10px 22px; border-radius: 8px;
+      font-size: 0.875rem; font-weight: 600; text-decoration: none;
+      transition: background .2s, transform .15s;
+    }
+    .nav-cta:hover { background: var(--green-400); transform: translateY(-1px); }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh;
+      background: linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 55%, var(--green-600) 100%);
+      display: flex; align-items: center;
+      padding: 120px 6vw 80px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2325b251' fill-opacity='0.06'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+    .hero-inner {
+      position: relative; z-index: 1;
+      max-width: 1200px; margin: 0 auto; width: 100%;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+      color: var(--green-300); padding: 6px 14px; border-radius: 100px;
+      font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    .hero-badge::before { content: '●'; font-size: 0.5rem; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    .hero h1 {
+      font-family: var(--font-display);
+      font-size: clamp(2.4rem, 4.5vw, 3.6rem);
+      font-weight: 800; color: var(--white);
+      line-height: 1.1; letter-spacing: -1.5px;
+      margin-bottom: 20px;
+    }
+    .hero h1 em {
+      font-style: normal; color: var(--green-300);
+    }
+    .hero-sub {
+      font-size: 1.05rem; color: rgba(255,255,255,0.7);
+      max-width: 480px; margin-bottom: 36px; line-height: 1.7;
+    }
+    .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; }
+    .btn-primary {
+      background: var(--green-400); color: var(--white);
+      padding: 14px 28px; border-radius: var(--radius);
+      font-weight: 700; font-size: 0.95rem; text-decoration: none;
+      transition: background .2s, transform .15s, box-shadow .2s;
+      box-shadow: 0 4px 20px rgba(37,178,81,0.4);
+    }
+    .btn-primary:hover { background: var(--green-300); transform: translateY(-2px); box-shadow: 0 8px 28px rgba(37,178,81,0.5); }
+    .btn-ghost {
+      background: transparent; color: var(--white);
+      padding: 14px 24px; border-radius: var(--radius);
+      font-weight: 600; font-size: 0.95rem; text-decoration: none;
+      border: 1.5px solid rgba(255,255,255,0.3);
+      transition: border-color .2s, background .2s;
+    }
+    .btn-ghost:hover { border-color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.07); }
+
+    .hero-price {
+      margin-top: 28px;
+      display: flex; align-items: baseline; gap: 6px;
+      color: rgba(255,255,255,0.9);
+    }
+    .hero-price strong { font-size: 2rem; font-weight: 800; color: var(--green-300); }
+    .hero-price span { font-size: 0.9rem; color: rgba(255,255,255,0.55); }
+
+    /* Dashboard mockup */
+    .hero-visual {
+      position: relative;
+    }
+    .dashboard-card {
+      background: var(--white);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.35);
+      position: relative;
+    }
+    .dash-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .dash-logo {
+      font-family: var(--font-display);
+      font-weight: 800; font-size: 1rem; color: var(--green-600);
+    }
+    .dash-status {
+      font-size: 0.7rem; background: var(--green-50); color: var(--green-600);
+      padding: 4px 10px; border-radius: 100px; font-weight: 600;
+    }
+    .dash-stats {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px;
+    }
+    .dash-stat {
+      background: var(--gray-50); border-radius: 10px; padding: 12px;
+      text-align: center;
+    }
+    .dash-stat-num {
+      font-family: var(--font-display);
+      font-size: 1.4rem; font-weight: 700; color: var(--green-600);
+    }
+    .dash-stat-lbl { font-size: 0.65rem; color: var(--gray-500); margin-top: 2px; }
+    .dash-tasks { display: flex; flex-direction: column; gap: 8px; }
+    .dash-task {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--gray-50); border-radius: 8px; padding: 10px 12px;
+    }
+    .dash-task-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .dot-green { background: var(--green-400); }
+    .dot-yellow { background: #f5a623; }
+    .dot-blue { background: #3b82f6; }
+    .dash-task-text { font-size: 0.75rem; color: var(--gray-700); flex: 1; }
+    .dash-task-badge {
+      font-size: 0.65rem; padding: 2px 8px; border-radius: 100px;
+      font-weight: 600;
+    }
+    .badge-done { background: var(--green-100); color: var(--green-600); }
+    .badge-pend { background: #fff3dc; color: #b07d00; }
+    .badge-rev  { background: #dbeafe; color: #1e40af; }
+
+    .float-pill {
+      position: absolute; left: -24px; bottom: 40px;
+      background: var(--white); border-radius: var(--radius);
+      padding: 12px 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .float-avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--green-400), var(--green-600));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.8rem; font-weight: 700; color: white;
+    }
+    .float-text { font-size: 0.72rem; line-height: 1.4; }
+    .float-text strong { display: block; color: var(--gray-900); }
+    .float-text span { color: var(--gray-500); }
+
+    /* ── SECTIONS ── */
+    section { padding: 96px 6vw; }
+    .section-inner { max-width: 1200px; margin: 0 auto; }
+
+    .section-eyebrow {
+      font-size: 0.75rem; font-weight: 700; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--green-500); margin-bottom: 12px;
+    }
+    .section-title {
+      font-family: var(--font-display);
+      font-size: clamp(1.8rem, 3vw, 2.6rem);
+      font-weight: 800; letter-spacing: -1px;
+      color: var(--gray-900); line-height: 1.15; margin-bottom: 16px;
+    }
+    .section-sub {
+      font-size: 1rem; color: var(--gray-500);
+      max-width: 540px; line-height: 1.7;
+    }
+    .section-head { margin-bottom: 56px; }
+
+    /* ── HOW IT WORKS ── */
+    .how { background: var(--gray-50); }
+    .steps {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 32px; position: relative;
+    }
+    .steps::before {
+      content: '';
+      position: absolute; top: 28px; left: calc(16.6% + 16px); right: calc(16.6% + 16px);
+      height: 2px;
+      background: linear-gradient(90deg, var(--green-300) 0%, var(--green-400) 100%);
+    }
+    .step {
+      background: var(--white); border-radius: var(--radius-lg);
+      padding: 32px 28px;
+      border: 1.5px solid var(--gray-100);
+      transition: border-color .2s, transform .2s;
+    }
+    .step:hover { border-color: var(--green-300); transform: translateY(-4px); }
+    .step-num {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--green-500); color: var(--white);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-display); font-size: 1.3rem; font-weight: 800;
+      margin-bottom: 20px; position: relative; z-index: 1;
+    }
+    .step h3 { font-size: 1.05rem; font-weight: 700; color: var(--gray-900); margin-bottom: 8px; }
+    .step p { font-size: 0.875rem; color: var(--gray-500); line-height: 1.65; }
+
+    /* ── FEATURES ── */
+    .features-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;
+    }
+    .feature-card {
+      border: 1.5px solid var(--gray-100); border-radius: var(--radius-lg);
+      padding: 32px; transition: border-color .2s, box-shadow .2s;
+    }
+    .feature-card:hover { border-color: var(--green-300); box-shadow: 0 8px 32px rgba(30,138,64,0.08); }
+    .feature-icon {
+      width: 48px; height: 48px; border-radius: var(--radius);
+      background: var(--green-50); display: flex; align-items: center;
+      justify-content: center; font-size: 1.4rem; margin-bottom: 18px;
+    }
+    .feature-card h3 { font-size: 1.05rem; font-weight: 700; color: var(--gray-900); margin-bottom: 8px; }
+    .feature-card p { font-size: 0.875rem; color: var(--gray-500); line-height: 1.65; }
+    .feature-tag {
+      display: inline-block; margin-top: 14px;
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px;
+      text-transform: uppercase; color: var(--green-600);
+      background: var(--green-50); padding: 4px 10px; border-radius: 100px;
+    }
+
+    /* ── PERMISSIONS ── */
+    .perms-section { background: var(--green-900); }
+    .perms-section .section-title { color: var(--white); }
+    .perms-section .section-eyebrow { color: var(--green-300); }
+    .perms-section .section-sub { color: rgba(255,255,255,0.6); }
+
+    .perms-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center;
+    }
+    .perms-visual {
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-lg); padding: 28px;
+    }
+    .cargo-title {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 1px;
+      text-transform: uppercase; color: var(--green-300); margin-bottom: 16px;
+    }
+    .perm-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .perm-row:last-child { border-bottom: none; }
+    .perm-label { font-size: 0.8rem; color: rgba(255,255,255,0.75); }
+    .toggle {
+      width: 36px; height: 20px; border-radius: 100px;
+      display: flex; align-items: center; padding: 2px;
+      cursor: pointer; transition: background .2s;
+    }
+    .toggle.on { background: var(--green-400); justify-content: flex-end; }
+    .toggle.off { background: rgba(255,255,255,0.2); justify-content: flex-start; }
+    .toggle-dot {
+      width: 16px; height: 16px; background: white; border-radius: 50%;
+    }
+    .perms-list { display: flex; flex-direction: column; gap: 16px; }
+    .perm-item {
+      display: flex; gap: 14px;
+    }
+    .perm-bullet {
+      width: 24px; height: 24px; border-radius: 50%; background: var(--green-500);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem; color: white; flex-shrink: 0; margin-top: 2px;
+    }
+    .perm-item h4 { font-size: 0.9rem; font-weight: 600; color: var(--white); margin-bottom: 2px; }
+    .perm-item p { font-size: 0.8rem; color: rgba(255,255,255,0.55); line-height: 1.5; }
+
+    /* ── INTEGRATION ── */
+    .integrations { background: var(--gray-50); }
+    .int-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center;
+    }
+    .int-card {
+      background: var(--white); border: 1.5px solid var(--gray-100);
+      border-radius: var(--radius-lg); padding: 28px;
+    }
+    .int-card h3 { font-size: 1rem; font-weight: 700; color: var(--gray-900); margin-bottom: 6px; }
+    .int-card p { font-size: 0.85rem; color: var(--gray-500); line-height: 1.6; margin-bottom: 20px; }
+    .int-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      font-size: 0.75rem; font-weight: 600; color: var(--gray-700);
+      background: var(--gray-100); padding: 5px 12px; border-radius: 100px;
+    }
+    .int-stat-box {
+      background: linear-gradient(135deg, var(--green-600), var(--green-900));
+      border-radius: var(--radius-lg); padding: 32px; color: white;
+      margin-bottom: 16px;
+    }
+    .int-stat-box h4 { font-size: 0.8rem; color: var(--green-300); margin-bottom: 12px; font-weight: 600; letter-spacing: 0.5px; }
+    .stat-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .stat-row:last-child { border-bottom: none; }
+    .stat-row-lbl { font-size: 0.8rem; color: rgba(255,255,255,0.7); }
+    .stat-row-val { font-size: 0.9rem; font-weight: 700; color: white; }
+
+    /* ── WHITE LABEL ── */
+    .wl-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center;
+    }
+    .wl-colors { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+    .wl-color {
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+      cursor: pointer; transition: transform .2s;
+    }
+    .wl-color:hover { transform: scale(1.2); }
+    .wl-mockup {
+      background: var(--gray-50); border-radius: var(--radius-lg);
+      padding: 20px; border: 1.5px solid var(--gray-100);
+    }
+    .wl-app-bar {
+      border-radius: 10px; padding: 14px 18px;
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .wl-app-name { font-weight: 800; font-size: 0.95rem; color: white; font-family: var(--font-display); }
+    .wl-circles { display: flex; gap: 6px; }
+    .wl-circle { width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,0.25); }
+    .wl-body { display: flex; flex-direction: column; gap: 8px; }
+    .wl-btn {
+      padding: 10px 16px; border-radius: 8px; font-size: 0.8rem;
+      font-weight: 600; color: white; text-align: center;
+    }
+    .wl-row { display: flex; gap: 8px; }
+    .wl-row .wl-btn { flex: 1; }
+
+    /* ── PRICING ── */
+    .pricing { background: var(--green-900); }
+    .pricing .section-title { color: white; }
+    .pricing .section-eyebrow { color: var(--green-300); }
+    .pricing .section-sub { color: rgba(255,255,255,0.6); }
+    .pricing-card {
+      max-width: 480px; margin: 0 auto;
+      background: white; border-radius: var(--radius-lg);
+      padding: 48px; text-align: center;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.3);
+    }
+    .price-amount {
+      font-family: var(--font-display);
+      font-size: 3.5rem; font-weight: 800;
+      color: var(--green-600); letter-spacing: -2px; margin: 16px 0 4px;
+    }
+    .price-period { font-size: 0.875rem; color: var(--gray-500); margin-bottom: 32px; }
+    .price-features { list-style: none; text-align: left; margin-bottom: 32px; display: flex; flex-direction: column; gap: 12px; }
+    .price-features li {
+      display: flex; align-items: flex-start; gap: 10px;
+      font-size: 0.9rem; color: var(--gray-700);
+    }
+    .price-features li::before {
+      content: '✓'; font-weight: 800; color: var(--green-500);
+      flex-shrink: 0; margin-top: 1px;
+    }
+    .btn-block {
+      display: block; width: 100%;
+      background: var(--green-500); color: white;
+      padding: 16px; border-radius: var(--radius);
+      font-size: 1rem; font-weight: 700; text-decoration: none;
+      text-align: center; transition: background .2s;
+    }
+    .btn-block:hover { background: var(--green-400); }
+    .price-note { font-size: 0.8rem; color: var(--gray-500); margin-top: 16px; }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--gray-900); color: var(--gray-300);
+      padding: 48px 6vw 32px;
+    }
+    .footer-inner {
+      max-width: 1200px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: gap;
+    }
+    .footer-logo {
+      font-family: var(--font-display); font-size: 1.3rem; font-weight: 800; color: white;
+    }
+    .footer-logo span { color: var(--green-400); }
+    .footer-copy { font-size: 0.8rem; color: var(--gray-500); margin-top: 24px; text-align: center; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+      .hero-inner, .features-grid, .perms-grid, .int-grid, .wl-grid { grid-template-columns: 1fr; }
+      .steps { grid-template-columns: 1fr; }
+      .steps::before { display: none; }
+      .hero-visual { display: none; }
+      nav .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">Work<span>a</span></div>
+  <ul class="nav-links">
+    <li><a href="#como-funciona">Como funciona</a></li>
+    <li><a href="#funcionalidades">Funcionalidades</a></li>
+    <li><a href="#integracao">Integração</a></li>
+    <li><a href="#preco">Preço</a></li>
+  </ul>
+  <a href="#" onclick="abrirCheckout();return false;" class="nav-cta">Começar agora</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-content">
+      <div class="hero-badge">Plataforma SaaS • White Label</div>
+      <h1>Gerencie sua equipe com <em>simplicidade total</em></h1>
+      <p class="hero-sub">Ponto digital, tarefas com comprovação, alerta de validade e integração com qualquer sistema — tudo customizável com a sua marca.</p>
+      <div class="hero-actions">
+        <a href="#" onclick="abrirCheckout();return false;" class="btn-primary">Testar grátis por 7 dias</a>
+        <a href="#funcionalidades" class="btn-ghost">Ver funcionalidades</a>
+      </div>
+      <div class="hero-price">
+        <strong>R$ 24,90</strong>
+        <span>/mês · valor fixo · cancele quando quiser</span>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="dashboard-card">
+        <div class="dash-header">
+          <div class="dash-logo">Worka</div>
+          <div class="dash-status">● 7 online agora</div>
+        </div>
+        <div class="dash-stats">
+          <div class="dash-stat">
+            <div class="dash-stat-num">12</div>
+            <div class="dash-stat-lbl">Funcionários</div>
+          </div>
+          <div class="dash-stat">
+            <div class="dash-stat-num">94<span style="font-size:.8rem">%</span></div>
+            <div class="dash-stat-lbl">Pontualidade</div>
+          </div>
+          <div class="dash-stat">
+            <div class="dash-stat-num">8</div>
+            <div class="dash-stat-lbl">Tarefas hoje</div>
+          </div>
+        </div>
+        <div class="dash-tasks">
+          <div class="dash-task">
+            <div class="dash-task-dot dot-green"></div>
+            <div class="dash-task-text">Limpeza do salão — João</div>
+            <div class="dash-task-badge badge-done">Concluída</div>
+          </div>
+          <div class="dash-task">
+            <div class="dash-task-dot dot-yellow"></div>
+            <div class="dash-task-text">Reposição de estoque</div>
+            <div class="dash-task-badge badge-pend">Pendente</div>
+          </div>
+          <div class="dash-task">
+            <div class="dash-task-dot dot-blue"></div>
+            <div class="dash-task-text">Auditoria de caixa</div>
+            <div class="dash-task-badge badge-rev">Em revisão</div>
+          </div>
+        </div>
+      </div>
+      <div class="float-pill">
+        <div class="float-avatar">M</div>
+        <div class="float-text">
+          <strong>Maria entrou na equipe</strong>
+          <span>aguardando aprovação...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMO FUNCIONA -->
+<section class="how" id="como-funciona">
+  <div class="section-inner">
+    <div class="section-head">
+      <div class="section-eyebrow">Jornada do cliente</div>
+      <h2 class="section-title">Três passos até sua equipe rodando</h2>
+      <p class="section-sub">Do cadastro ao painel personalizado, o onboarding é rápido e pensado para quem tem negócio pra tocar.</p>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>Cadastro e ramo de atividade</h3>
+        <p>Você escolhe o segmento do seu negócio — alimentação, estética, varejo, clínica e muito mais. O Worka já configura modelos de tarefas e cargos sugeridos para o seu tipo de empresa.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>Assine por R$ 24,90/mês</h3>
+        <p>Valor fixo, sem pegadinhas. Um único plano dá acesso a todas as funcionalidades da plataforma, incluindo a API de integração com seus sistemas atuais.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>Sua marca, suas cores</h3>
+        <p>Personalize o nome do app, logotipo, banner e todas as cores do sistema via variáveis CSS dinâmicas. Seus funcionários veem a identidade visual da sua empresa, não a do Worka.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FUNCIONALIDADES -->
+<section id="funcionalidades">
+  <div class="section-inner">
+    <div class="section-head">
+      <div class="section-eyebrow">Funcionalidades</div>
+      <h2 class="section-title">Tudo o que você precisa, nada que atrapalhe</h2>
+      <p class="section-sub">Ferramentas pensadas para a rotina real de quem gerencia uma pequena empresa.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">⏱️</div>
+        <h3>Controle de Ponto Digital</h3>
+        <p>Entrada, intervalo, retorno e saída registrados pelo celular. Os dados chegam em tempo real no painel do gestor, sem planilha, sem papel, sem erro.</p>
+        <span class="feature-tag">Tempo real</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📋</div>
+        <h3>Tarefas com Comprovação Visual</h3>
+        <p>Crie tarefas, delegue por nome ou cargo e defina prazo. Ative "exigir foto ou vídeo" para que o funcionário só consiga fechar a tarefa enviando uma mídia como comprovante.</p>
+        <span class="feature-tag">Com evidência</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔔</div>
+        <h3>Alerta de Validade de Produtos</h3>
+        <p>Cadastre lotes com data de vencimento e defina com quantos dias quer ser avisado. O sistema envia notificação e cria automaticamente uma tarefa de alta prioridade para a equipe.</p>
+        <span class="feature-tag">Automático</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🎨</div>
+        <h3>White Label Total</h3>
+        <p>Nome do app, logotipo, foto de banner e todas as cores do sistema são suas. Seus colaboradores vivem dentro de uma plataforma com a cara da sua empresa.</p>
+        <span class="feature-tag">Sua marca</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PERMISSÕES -->
+<section class="perms-section">
+  <div class="section-inner">
+    <div class="perms-grid">
+      <div>
+        <div class="section-eyebrow">Hierarquia dinâmica</div>
+        <h2 class="section-title">Crie os cargos que o seu negócio precisa</h2>
+        <p class="section-sub">Chame de Gerente, Supervisor, Atendente — o nome e as permissões são seus. Defina exatamente o que cada cargo pode ver e fazer no sistema.</p>
+        <div class="perms-list">
+          <div class="perm-item">
+            <div class="perm-bullet">✓</div>
+            <div>
+              <h4>Entrada segura por ID</h4>
+              <p>Cada empresa ganha um código único. O funcionário só entra na equipe após ser aprovado pelo gestor.</p>
+            </div>
+          </div>
+          <div class="perm-item">
+            <div class="perm-bullet">✓</div>
+            <div>
+              <h4>Permissões por checkbox</h4>
+              <p>Faturamento, aprovação de ponto, edição visual e muito mais — você liga ou desliga para cada cargo.</p>
+            </div>
+          </div>
+          <div class="perm-item">
+            <div class="perm-bullet">✓</div>
+            <div>
+              <h4>Aprovação de novos membros</h4>
+              <p>Nenhum colaborador acessa a equipe sem autorização. Controle total desde o primeiro acesso.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="perms-visual">
+        <div class="cargo-title">Cargo: Supervisor de Loja</div>
+        <div class="perm-row">
+          <span class="perm-label">Visualizar faturamento</span>
+          <div class="toggle on"><div class="toggle-dot"></div></div>
+        </div>
+        <div class="perm-row">
+          <span class="perm-label">Aprovar novos funcionários</span>
+          <div class="toggle on"><div class="toggle-dot"></div></div>
+        </div>
+        <div class="perm-row">
+          <span class="perm-label">Criar e delegar tarefas</span>
+          <div class="toggle on"><div class="toggle-dot"></div></div>
+        </div>
+        <div class="perm-row">
+          <span class="perm-label">Editar identidade visual</span>
+          <div class="toggle off"><div class="toggle-dot"></div></div>
+        </div>
+        <div class="perm-row">
+          <span class="perm-label">Gerenciar ponto da equipe</span>
+          <div class="toggle on"><div class="toggle-dot"></div></div>
+        </div>
+        <div class="perm-row">
+          <span class="perm-label">Acessar integração de API</span>
+          <div class="toggle off"><div class="toggle-dot"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- INTEGRAÇÃO -->
+<section class="integrations" id="integracao">
+  <div class="section-inner">
+    <div class="int-grid">
+      <div>
+        <div class="section-eyebrow">Dashboard Unificado</div>
+        <h2 class="section-title">Conecte qualquer sistema que você já usa</h2>
+        <p class="section-sub">Via Chave API, o Worka lê os dados do seu PDV, ERP ou emissor de notas e cruza tudo com a escala de funcionários — em um único painel.</p>
+        <div class="int-card" style="margin-top:28px">
+          <h3>Compatível com qualquer sistema</h3>
+          <p>Se tem documentação de API, o Worka conecta. Os módulos de relatório se adaptam automaticamente ao que a API externa oferece.</p>
+          <div class="int-chips">
+            <span class="chip">Sistemas de Caixa</span>
+            <span class="chip">ERPs</span>
+            <span class="chip">Emissores de NF</span>
+            <span class="chip">Controle de Estoque</span>
+            <span class="chip">Outras APIs</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="int-stat-box">
+          <h4>Relatório unificado — Hoje</h4>
+          <div class="stat-row">
+            <span class="stat-row-lbl">Faturamento do dia</span>
+            <span class="stat-row-val">R$ 3.840</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-row-lbl">Funcionários na escala</span>
+            <span class="stat-row-val">7 de 9</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-row-lbl">Clientes atendidos</span>
+            <span class="stat-row-val">48</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-row-lbl">Itens em estoque crítico</span>
+            <span class="stat-row-val" style="color:#f87171">3 alertas</span>
+          </div>
+        </div>
+        <p style="font-size:.8rem;color:var(--gray-500);text-align:center">Dados de faturamento + escala + estoque, lado a lado.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WHITE LABEL -->
+<section>
+  <div class="section-inner">
+    <div class="wl-grid">
+      <div>
+        <div class="section-eyebrow">White Label</div>
+        <h2 class="section-title">Seu app. Suas cores. Sua identidade.</h2>
+        <p class="section-sub">Após a assinatura, personalize cada detalhe visual da plataforma. Seus funcionários vão usar o app sem nem saber que é o Worka por baixo.</p>
+        <p style="margin-top:16px;font-size:.875rem;color:var(--gray-500)">Altere as cores em tempo real pelo painel de personalização:</p>
+        <div class="wl-colors">
+          <div class="wl-color" style="background:#16622f"></div>
+          <div class="wl-color" style="background:#1e40af"></div>
+          <div class="wl-color" style="background:#7c3aed"></div>
+          <div class="wl-color" style="background:#b45309"></div>
+          <div class="wl-color" style="background:#be123c"></div>
+          <div class="wl-color" style="background:#0f766e"></div>
+        </div>
+      </div>
+      <div class="wl-mockup">
+        <div class="wl-app-bar" style="background:linear-gradient(135deg,#16622f,#1e8a40)">
+          <span class="wl-app-name">Barbearia Silva</span>
+          <div class="wl-circles"><div class="wl-circle"></div><div class="wl-circle"></div></div>
+        </div>
+        <div class="wl-body">
+          <div class="wl-btn" style="background:#16622f">Registrar ponto ▶</div>
+          <div class="wl-row">
+            <div class="wl-btn" style="background:#1e8a40">Minhas tarefas</div>
+            <div class="wl-btn" style="background:#25b251">Comunicados</div>
+          </div>
+          <div style="background:white;border-radius:8px;padding:12px">
+            <div style="font-size:.7rem;font-weight:700;color:#16622f;margin-bottom:8px">PRÓXIMAS TAREFAS</div>
+            <div style="font-size:.75rem;color:#3a3d39;padding:6px 0;border-bottom:1px solid #f0f0f0">✅ Limpeza da vitrine</div>
+            <div style="font-size:.75rem;color:#3a3d39;padding:6px 0">⏳ Conferir estoque</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="pricing" id="preco">
+  <div class="section-inner" style="text-align:center">
+    <div class="section-eyebrow">Preço</div>
+    <h2 class="section-title" style="text-align:center">Um plano. Tudo incluído.</h2>
+    <p class="section-sub" style="margin:0 auto 48px;text-align:center">Sem cobrança por funcionalidade, sem surpresas no boleto.</p>
+    <div class="pricing-card">
+      <div style="font-size:.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--green-500)">Plano Completo</div>
+      <div class="price-amount">R$ 24,90</div>
+      <div class="price-period">por mês · assinatura recorrente</div>
+      <ul class="price-features">
+        <li>Controle de ponto digital em tempo real</li>
+        <li>Tarefas com comprovação por foto ou vídeo</li>
+        <li>Alerta automático de validade de produtos</li>
+        <li>Hierarquia e permissões customizáveis</li>
+        <li>White Label completo (logo, cores, nome do app)</li>
+        <li>Integração via API com qualquer sistema externo</li>
+        <li>Dashboard unificado de faturamento e escala</li>
+        <li>Entrada segura de funcionários por ID</li>
+        <li>Tarefas recorrentes (diárias, semanais, mensais)</li>
+      </ul>
+      <a href="#" onclick="abrirCheckout();return false;" class="btn-block">Criar minha conta grátis</a>
+      <p class="price-note">7 dias de teste gratuito · Cancele a qualquer momento</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     MODAL DE CHECKOUT PIX
+══════════════════════════════════════════ -->
+<div id="checkout-overlay" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(10,46,26,0.7);backdrop-filter:blur(6px);overflow-y:auto;padding:24px 16px;">
+  <div id="checkout-modal" style="max-width:480px;margin:0 auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,0.3);">
+
+    <!-- Header do modal -->
+    <div style="background:linear-gradient(135deg,#0a2e1a,#1e8a40);padding:24px 28px;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:#fff;">Worka</div>
+        <div style="font-size:0.75rem;color:rgba(255,255,255,0.65);margin-top:2px;">Plano Completo · R$ 24,90/mês</div>
+      </div>
+      <button onclick="fecharCheckout()" style="background:rgba(255,255,255,0.15);border:none;color:white;width:36px;height:36px;border-radius:50%;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>
+
+    <!-- PASSO 1: Formulário -->
+    <div id="step-form" style="padding:28px;">
+      <div style="font-size:0.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1e8a40;margin-bottom:20px;">Seus dados</div>
+
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <!-- Nome -->
+        <div>
+          <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">Nome completo ou empresa *</label>
+          <input id="f-nome" type="text" placeholder="Ex: João Silva / Barbearia Silva" style="width:100%;padding:12px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
+        </div>
+
+        <!-- CPF/CNPJ -->
+        <div>
+          <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">CPF ou CNPJ *</label>
+          <input id="f-doc" type="text" placeholder="000.000.000-00 ou 00.000.000/0001-00" maxlength="18" style="width:100%;padding:12px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'" oninput="mascaraDoc(this)">
+        </div>
+
+        <!-- Email -->
+        <div>
+          <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">E-mail *</label>
+          <input id="f-email" type="email" placeholder="seu@email.com" style="width:100%;padding:12px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
+        </div>
+
+        <!-- Telefone -->
+        <div>
+          <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">WhatsApp / Telefone *</label>
+          <input id="f-tel" type="tel" placeholder="(11) 98765-4321" maxlength="15" style="width:100%;padding:12px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'" oninput="mascaraTel(this)">
+        </div>
+      </div>
+
+      <!-- Erro -->
+      <div id="form-erro" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;font-size:0.82rem;color:#dc2626;margin-top:14px;"></div>
+
+      <!-- Resumo -->
+      <div style="background:#edfaf2;border-radius:10px;padding:14px 16px;margin-top:20px;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-size:0.78rem;color:#6b7068;">Plano Completo Worka</div>
+          <div style="font-size:0.75rem;color:#6b7068;">Assinatura mensal recorrente</div>
+        </div>
+        <div style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:#16622f;">R$ 24,90</div>
+      </div>
+
+      <button onclick="gerarPix()" id="btn-gerar" style="width:100%;margin-top:16px;background:#1e8a40;color:white;border:none;padding:15px;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:background .2s;display:flex;align-items:center;justify-content:center;gap:8px;">
+        <span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>
+      </button>
+      <div style="font-size:0.75rem;color:#6b7068;text-align:center;margin-top:10px;">🔒 Pagamento 100% seguro via PIX</div>
+    </div>
+
+    <!-- PASSO 2: QR Code PIX -->
+    <div id="step-pix" style="display:none;padding:28px;text-align:center;">
+      <div style="font-size:0.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1e8a40;margin-bottom:8px;">PIX gerado com sucesso!</div>
+      <p style="font-size:0.88rem;color:#6b7068;margin-bottom:20px;">Escaneie o QR Code ou copie o código PIX no seu banco</p>
+
+      <!-- QR Code -->
+      <div id="qrcode-container" style="display:flex;justify-content:center;margin-bottom:20px;">
+        <div id="qrcode" style="width:200px;height:200px;border:2px solid #eff0ef;border-radius:12px;display:flex;align-items:center;justify-content:center;"></div>
+      </div>
+
+      <!-- Status -->
+      <div id="pix-status" style="background:#fff3dc;border-radius:8px;padding:10px 14px;font-size:0.82rem;color:#b07d00;margin-bottom:16px;display:flex;align-items:center;gap:6px;justify-content:center;">
+        <span id="status-spinner" style="display:inline-block;animation:spin 1s linear infinite;">⏳</span>
+        <span id="status-txt">Aguardando pagamento...</span>
+      </div>
+
+      <!-- Copiar código -->
+      <div style="background:#f7f8f7;border-radius:10px;padding:12px;margin-bottom:14px;">
+        <div style="font-size:0.72rem;color:#6b7068;margin-bottom:6px;text-align:left;">PIX Copia e Cola</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div id="pix-code-txt" style="font-size:0.72rem;color:#3a3d39;flex:1;word-break:break-all;text-align:left;line-height:1.4;max-height:60px;overflow:hidden;"></div>
+          <button onclick="copiarPix()" style="background:#1e8a40;color:white;border:none;padding:8px 14px;border-radius:8px;font-size:0.78rem;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;">Copiar</button>
+        </div>
+      </div>
+
+      <div style="font-size:0.75rem;color:#6b7068;">⏱ O código expira em 15 minutos</div>
+    </div>
+
+    <!-- PASSO 3: Confirmação -->
+    <div id="step-ok" style="display:none;padding:40px 28px;text-align:center;">
+      <div style="width:72px;height:72px;background:#edfaf2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:2rem;">✅</div>
+      <div style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:#16622f;margin-bottom:8px;">Pagamento confirmado!</div>
+      <p style="font-size:0.9rem;color:#6b7068;margin-bottom:24px;">Seu acesso ao Worka foi liberado. Verifique seu e-mail para as próximas etapas.</p>
+      <button onclick="fecharCheckout()" style="background:#1e8a40;color:white;border:none;padding:14px 32px;border-radius:10px;font-size:0.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Acessar o Worka →</button>
+    </div>
+
+  </div>
+</div>
+
+<style>
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #btn-gerar:hover { background: #25b251; }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+// ⚠️ Após o deploy, substitua pela URL real da sua Edge Function
+// Formato: https://worka-backend-awng.onrender.com/pix
+const BACKEND_URL = "https://worka-backend-awng.onrender.com/pix";
+let pollingInterval = null;
+let pollingTimeout  = null;
+
+// ── Abrir / fechar modal ──────────────────────────────────────
+function abrirCheckout() {
+  document.getElementById('checkout-overlay').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+}
+function fecharCheckout() {
+  document.getElementById('checkout-overlay').style.display = 'none';
+  document.body.style.overflow = '';
+  pararPolling();
+  resetModal();
+}
+function resetModal() {
+  mostrarStep('form');
+  document.getElementById('form-erro').style.display = 'none';
+  document.getElementById('f-nome').value  = '';
+  document.getElementById('f-doc').value   = '';
+  document.getElementById('f-email').value = '';
+  document.getElementById('f-tel').value   = '';
+  document.getElementById('qrcode').innerHTML = '';
+  document.getElementById('btn-gerar').disabled = false;
+  document.getElementById('btn-gerar').innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
+}
+function mostrarStep(s) {
+  ['form','pix','ok'].forEach(id => {
+    document.getElementById('step-'+id).style.display = (id === s ? 'block' : 'none');
+  });
+}
+
+// ── Fechar clicando fora ──────────────────────────────────────
+document.getElementById('checkout-overlay').addEventListener('click', function(e) {
+  if (e.target === this) fecharCheckout();
+});
+
+// ── Máscaras ──────────────────────────────────────────────────
+function mascaraDoc(el) {
+  let v = el.value.replace(/\D/g,'');
+  if (v.length <= 11) {
+    v = v.replace(/(\d{3})(\d)/,'$1.$2')
+         .replace(/(\d{3})(\d)/,'$1.$2')
+         .replace(/(\d{3})(\d{1,2})$/,'$1-$2');
+  } else {
+    v = v.replace(/^(\d{2})(\d)/,'$1.$2')
+         .replace(/^(\d{2})\.(\d{3})(\d)/,'$1.$2.$3')
+         .replace(/\.(\d{3})(\d)/,'.$1/$2')
+         .replace(/(\d{4})(\d)/,'$1-$2');
+  }
+  el.value = v;
+}
+function mascaraTel(el) {
+  let v = el.value.replace(/\D/g,'');
+  if (v.length <= 10)
+    v = v.replace(/(\d{2})(\d{4})(\d{0,4})/,'($1) $2-$3');
+  else
+    v = v.replace(/(\d{2})(\d{5})(\d{0,4})/,'($1) $2-$3');
+  el.value = v;
+}
+
+// ── Somente dígitos ───────────────────────────────────────────
+function apenasDigitos(s) { return s.replace(/\D/g,''); }
+
+// ── Gerar PIX ─────────────────────────────────────────────────
+async function gerarPix() {
+  const nome  = document.getElementById('f-nome').value.trim();
+  const doc   = apenasDigitos(document.getElementById('f-doc').value);
+  const email = document.getElementById('f-email').value.trim();
+  const tel   = apenasDigitos(document.getElementById('f-tel').value);
+  const erro  = document.getElementById('form-erro');
+
+  // Validação
+  if (!nome)                          { mostrarErro('Informe seu nome completo ou empresa.'); return; }
+  if (doc.length !== 11 && doc.length !== 14) { mostrarErro('CPF deve ter 11 dígitos ou CNPJ 14 dígitos.'); return; }
+  if (!email.includes('@'))           { mostrarErro('Informe um e-mail válido.'); return; }
+  if (tel.length < 10 || tel.length > 11) { mostrarErro('Informe um telefone válido com DDD.'); return; }
+
+  erro.style.display = 'none';
+  const btn = document.getElementById('btn-gerar');
+  btn.disabled = true;
+  btn.innerHTML = '<span style="animation:spin 1s linear infinite;display:inline-block;">⏳</span> Gerando PIX...';
+
+  const utm = window.location.search.replace(/^\?/,'');
+
+  const body = {
+    amount: 2490,
+    customer: { name: nome, document: doc, email: email, phone: tel },
+    item: { title: "Plano Completo Worka", price: 2490, quantity: 1 },
+    paymentMethod: "PIX",
+    utm: utm || ""
+  };
+
+  let tentativas = 0;
+  let resposta = null;
+
+  while (tentativas < 3) {
+    try {
+      const res = await fetch(BACKEND_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) { resposta = await res.json(); break; }
+      if (res.status >= 400 && res.status < 500) {
+        const err = await res.json().catch(() => ({}));
+        mostrarErro('Erro nos dados: ' + (err.message || res.status));
+        btn.disabled = false;
+        btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
+        return;
+      }
+    } catch(e) { erroDetalhado = 'Conexao: ' + e.message; }
+    tentativas++;
+    if (tentativas < 3) await sleep(Math.pow(2, tentativas - 1) * 1000);
+  }
+
+  if (!resposta || !resposta.pixCode) {
+    mostrarErro('Erro técnico: ' + (window._erroWorka || 'sem resposta do backend. Verifique se o Render está Live.'));
+    btn.disabled = false;
+    btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
+    return;
+  }
+
+  // Exibir QR Code
+  const { pixCode, transactionId } = resposta;
+  document.getElementById('pix-code-txt').textContent = pixCode;
+  document.getElementById('qrcode').innerHTML = '';
+  new QRCode(document.getElementById('qrcode'), {
+    text: pixCode,
+    width: 196,
+    height: 196,
+    colorDark: '#0a2e1a',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+
+  mostrarStep('pix');
+  iniciarPolling(transactionId);
+}
+
+// ── Polling de status ─────────────────────────────────────────
+function iniciarPolling(transactionId) {
+  pararPolling();
+  pollingInterval = setInterval(async () => {
+    try {
+      const res = await fetch(BACKEND_URL + '?transactionId=' + encodeURIComponent(transactionId));
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.status === 'COMPLETED') {
+        pararPolling();
+        mostrarStep('ok');
+      }
+    } catch(e) { erroDetalhado = 'Conexao: ' + e.message; }
+  }, 5000);
+
+  // Timeout de 15 min
+  pollingTimeout = setTimeout(() => {
+    pararPolling();
+    document.getElementById('status-txt').textContent = 'PIX expirado. Feche e tente novamente.';
+    document.getElementById('pix-status').style.background = '#fef2f2';
+    document.getElementById('pix-status').style.color = '#dc2626';
+    document.getElementById('status-spinner').textContent = '❌';
+    document.getElementById('status-spinner').style.animation = 'none';
+  }, 15 * 60 * 1000);
+}
+function pararPolling() {
+  if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
+  if (pollingTimeout)  { clearTimeout(pollingTimeout);  pollingTimeout  = null; }
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+function mostrarErro(msg) {
+  const el = document.getElementById('form-erro');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function copiarPix() {
+  const code = document.getElementById('pix-code-txt').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    const btn = event.target;
+    btn.textContent = 'Copiado! ✓';
+    btn.style.background = '#16622f';
+    setTimeout(() => { btn.textContent = 'Copiar'; btn.style.background = '#1e8a40'; }, 2000);
+  });
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-logo">Work<span>a</span></div>
+    <div style="font-size:.85rem;color:var(--gray-500)">Gestão de equipe para quem tem negócio pra tocar.</div>
+  </div>
+  <div class="footer-copy">© 2025 Worka · Todos os direitos reservados</div>
+</footer>
+
+</body>
+</html>
