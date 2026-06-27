@@ -89,26 +89,23 @@ const server = http.createServer(function(req, res) {
         return res.end(JSON.stringify({ error: "Body invalido." }));
       }
 
-      const name = data.name;
-      const document = data.document;
-      const email = data.email;
-      const phone = data.phone;
-      const utm = data.utm || "";
+      console.log("Dados recebidos:", JSON.stringify(data));
+
+      var name = data.name;
+      var document = data.document;
+      var email = data.email;
+      var phone = data.phone;
+      var utm = data.utm || "";
 
       if (!name || !document || !email || !phone) {
         res.writeHead(400);
-        return res.end(JSON.stringify({ error: "Campos obrigatorios faltando." }));
+        return res.end(JSON.stringify({ error: "Campos faltando: " + JSON.stringify({name:!!name, document:!!document, email:!!email, phone:!!phone}) }));
       }
 
-      const docDigits = document.replace(/\D/g, "");
-      const phoneDigits = phone.replace(/\D/g, "");
+      var docDigits = document.replace(/\D/g, "");
+      var phoneDigits = phone.replace(/\D/g, "");
 
-      if (docDigits.length !== 11 && docDigits.length !== 14) {
-        res.writeHead(400);
-        return res.end(JSON.stringify({ error: "CPF 11 digitos ou CNPJ 14 digitos." }));
-      }
-
-      const payload = {
+      var payload = {
         amount: 2490,
         customer: { name: name.trim(), document: docDigits, email: email.trim(), phone: phoneDigits },
         item: { title: "Plano Completo Worka", price: 2490, quantity: 1 },
@@ -116,12 +113,14 @@ const server = http.createServer(function(req, res) {
         utm: utm
       };
 
-      httpsPost(payload).then(function(result) {
-        if  (result.status >= 400) {
-  res.writeHead(result.status);
-  return res.end(JSON.stringify({ error: JSON.stringify(result.body) }));
-      }
+      console.log("Enviando para Duttyfy:", JSON.stringify(payload));
 
+      httpsPost(payload).then(function(result) {
+        console.log("Resposta Duttyfy:", result.status, JSON.stringify(result.body));
+        if (result.status >= 400) {
+          res.writeHead(result.status);
+          return res.end(JSON.stringify({ error: JSON.stringify(result.body) }));
+        }
         res.writeHead(200);
         res.end(JSON.stringify({
           pixCode: result.body.pixCode,
@@ -143,3 +142,4 @@ const server = http.createServer(function(req, res) {
 server.listen(PORT, function() {
   console.log("Worka backend rodando na porta " + PORT);
 });
+
