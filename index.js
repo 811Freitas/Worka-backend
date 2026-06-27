@@ -117,10 +117,11 @@ const server = http.createServer(function(req, res) {
       };
 
       httpsPost(payload).then(function(result) {
-        if (result.status >= 400) {
-          res.writeHead(result.status);
-          return res.end(JSON.stringify({ error: result.body && result.body.message ? result.body.message : "Erro no gateway." }));
-        }
+        if  (result.status >= 400) {
+  res.writeHead(result.status);
+  return res.end(JSON.stringify({ error: JSON.stringify(result.body) }));
+      }
+
         res.writeHead(200);
         res.end(JSON.stringify({
           pixCode: result.body.pixCode,
