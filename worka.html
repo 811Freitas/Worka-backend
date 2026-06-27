@@ -834,6 +834,40 @@
       <div style="font-size:0.75rem;color:#6b7068;text-align:center;margin-top:10px;">🔒 Pagamento 100% seguro via PIX</div>
     </div>
 
+
+    <!-- PASSO 1.5: Verificação de e-mail -->
+    <div id="step-verify" style="display:none;padding:28px;">
+      <div style="text-align:center;margin-bottom:24px;">
+        <div style="font-size:3rem;margin-bottom:12px;">📧</div>
+        <div style="font-size:0.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1e8a40;margin-bottom:8px;">Verificação de segurança</div>
+        <p style="font-size:0.9rem;color:#3a3d39;margin-bottom:4px;">Enviamos um código de 6 dígitos para</p>
+        <p id="verify-email-txt" style="font-size:0.9rem;font-weight:700;color:#16622f;"></p>
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:8px;">Digite o código recebido</label>
+        <input id="f-codigo" type="number" placeholder="000000" maxlength="6"
+          style="width:100%;padding:16px;border:2px solid #eff0ef;border-radius:12px;font-size:1.5rem;font-weight:700;text-align:center;letter-spacing:8px;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;"
+          onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
+      </div>
+
+      <div id="verify-erro" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;font-size:0.82rem;color:#dc2626;margin-bottom:14px;"></div>
+
+      <button onclick="confirmarCodigo()" id="btn-confirmar" style="width:100%;background:#1e8a40;color:white;border:none;padding:15px;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:12px;">
+        Confirmar código ✓
+      </button>
+
+      <div style="text-align:center;">
+        <button onclick="reenviarCodigo()" id="btn-reenviar" style="background:none;border:none;color:#1e8a40;font-size:0.85rem;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">
+          Reenviar código
+        </button>
+        <div id="reenviar-timer" style="font-size:0.8rem;color:#6b7068;margin-top:4px;display:none;"></div>
+      </div>
+
+      <div style="font-size:0.75rem;color:#6b7068;text-align:center;margin-top:16px;">
+        ⏱ O código expira em 10 minutos
+      </div>
+    </div>
     <!-- PASSO 2: QR Code PIX -->
     <div id="step-pix" style="display:none;padding:28px;text-align:center;">
       <div style="font-size:0.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1e8a40;margin-bottom:8px;">PIX gerado com sucesso!</div>
@@ -909,7 +943,7 @@ function resetModal() {
   document.getElementById('btn-gerar').innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
 }
 function mostrarStep(s) {
-  ['form','pix','ok'].forEach(id => {
+  ['form','verify','pix','ok'].forEach(id => {
     document.getElementById('step-'+id).style.display = (id === s ? 'block' : 'none');
   });
 }
@@ -947,6 +981,9 @@ function mascaraTel(el) {
 function apenasDigitos(s) { return s.replace(/\D/g,''); }
 
 // ── Gerar PIX ─────────────────────────────────────────────────
+// Dados globais do formulário
+var dadosFormulario = {};
+
 async function gerarPix() {
   const nome  = document.getElementById('f-nome').value.trim();
   const doc   = apenasDigitos(document.getElementById('f-doc').value);
@@ -963,16 +1000,117 @@ async function gerarPix() {
   erro.style.display = 'none';
   const btn = document.getElementById('btn-gerar');
   btn.disabled = true;
-  btn.innerHTML = '<span style="animation:spin 1s linear infinite;display:inline-block;">⏳</span> Gerando PIX...';
+  btn.innerHTML = '<span style="animation:spin 1s linear infinite;display:inline-block;">⏳</span> Enviando código...';
 
-  const utm = window.location.search.replace(/^\?/,'');
+  // Salvar dados
+  dadosFormulario = { name: nome, document: doc, email: email, phone: tel, utm: window.location.search.replace(/^\?/,'') };
 
+  // Enviar código de verificação
+  try {
+    const res = await fetch(BACKEND_URL.replace('/pix','/enviar-codigo'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: nome, email: email })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      mostrarErro('Erro ao enviar código: ' + (data.error || res.status));
+      btn.disabled = false;
+      btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
+      return;
+    }
+    // Mostrar tela de verificação
+    document.getElementById('verify-email-txt').textContent = email;
+    document.getElementById('f-codigo').value = '';
+    document.getElementById('verify-erro').style.display = 'none';
+    mostrarStep('verify');
+    btn.disabled = false;
+    btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
+    iniciarTimerReenvio();
+  } catch(e) {
+    mostrarErro('Erro de conexão: ' + e.message);
+    btn.disabled = false;
+    btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
+  }
+}
+
+async function confirmarCodigo() {
+  const codigo = document.getElementById('f-codigo').value.trim();
+  const erroEl = document.getElementById('verify-erro');
+  if (codigo.length !== 6) {
+    erroEl.textContent = 'Digite o código de 6 dígitos.';
+    erroEl.style.display = 'block';
+    return;
+  }
+  erroEl.style.display = 'none';
+  const btn = document.getElementById('btn-confirmar');
+  btn.disabled = true;
+  btn.textContent = '⏳ Verificando...';
+
+  try {
+    const res = await fetch(BACKEND_URL.replace('/pix','/verificar-codigo'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: dadosFormulario.email, codigo: codigo })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      erroEl.textContent = data.error || 'Código inválido.';
+      erroEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Confirmar código ✓';
+      return;
+    }
+    // Código válido — gerar PIX
+    btn.textContent = '✓ Verificado! Gerando PIX...';
+    await gerarPixReal();
+  } catch(e) {
+    erroEl.textContent = 'Erro de conexão: ' + e.message;
+    erroEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Confirmar código ✓';
+  }
+}
+
+async function reenviarCodigo() {
+  const btn = document.getElementById('btn-reenviar');
+  btn.disabled = true;
+  try {
+    await fetch(BACKEND_URL.replace('/pix','/enviar-codigo'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: dadosFormulario.name, email: dadosFormulario.email })
+    });
+    iniciarTimerReenvio();
+  } catch(e) {}
+  btn.disabled = false;
+}
+
+function iniciarTimerReenvio() {
+  const timer = document.getElementById('reenviar-timer');
+  const btnR = document.getElementById('btn-reenviar');
+  btnR.style.display = 'none';
+  timer.style.display = 'block';
+  let seg = 60;
+  const iv = setInterval(function() {
+    seg--;
+    timer.textContent = 'Reenviar em ' + seg + 's';
+    if (seg <= 0) {
+      clearInterval(iv);
+      timer.style.display = 'none';
+      btnR.style.display = 'inline';
+    }
+  }, 1000);
+}
+
+async function gerarPixReal() {
+  const utm = dadosFormulario.utm || '';
   const body = {
-    name: nome,
-    document: doc,
-    email: email,
-    phone: tel,
-    utm: utm || ""
+    name: dadosFormulario.name,
+    document: dadosFormulario.document,
+    email: dadosFormulario.email,
+    phone: dadosFormulario.phone,
+    utm: utm
   };
 
   let tentativas = 0;
@@ -1070,6 +1208,151 @@ function copiarPix() {
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 </script>
 
+
+<!-- FUNIL DE VENDAS -->
+<div id="funil-overlay" style="display:none;position:fixed;inset:0;z-index:998;background:#0a2e1a;overflow-y:auto;">
+  <div style="position:sticky;top:0;z-index:10;background:#0a2e1a;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.1);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <div style="font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:#fff;">Work<span style="color:#3dd669">a</span></div>
+      <button onclick="fecharFunil()" style="background:rgba(255,255,255,0.1);border:none;color:white;width:32px;height:32px;border-radius:50%;font-size:1rem;cursor:pointer;">✕</button>
+    </div>
+    <div style="background:rgba(255,255,255,0.15);border-radius:100px;height:4px;">
+      <div id="funil-progress" style="height:4px;border-radius:100px;background:linear-gradient(90deg,#25b251,#3dd669);transition:width .4s;width:0%"></div>
+    </div>
+    <div id="funil-step-label" style="font-size:0.7rem;color:rgba(255,255,255,0.5);margin-top:6px;text-align:center;">Passo 1 de 6</div>
+  </div>
+  <div style="max-width:480px;margin:0 auto;padding:32px 20px 60px;">
+
+    <div id="funil-1" class="funil-step">
+      <div style="font-size:2rem;margin-bottom:12px;">👋</div>
+      <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:12px;">Qual é o seu tipo de negócio?</h2>
+      <p style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-bottom:28px;">Vamos personalizar a experiência do Worka para o seu segmento.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="seg-card" onclick="escolherSegmento('Alimentação')">🍔 Alimentação</div>
+        <div class="seg-card" onclick="escolherSegmento('Estética')">💅 Estética</div>
+        <div class="seg-card" onclick="escolherSegmento('Varejo')">🛍️ Varejo</div>
+        <div class="seg-card" onclick="escolherSegmento('Oficina')">🔧 Oficina</div>
+        <div class="seg-card" onclick="escolherSegmento('Clínica')">🏥 Clínica</div>
+        <div class="seg-card" onclick="escolherSegmento('Outro')">🏢 Outro</div>
+      </div>
+    </div>
+
+    <div id="funil-2" class="funil-step" style="display:none;">
+      <div style="font-size:2rem;margin-bottom:12px;">😩</div>
+      <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:12px;">Você ainda perde tempo com isso?</h2>
+      <p style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-bottom:24px;">A maioria dos donos de <span id="seg-nome" style="color:#3dd669;font-weight:700"></span> sofre com isso todo dia:</p>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:32px;">
+        <div class="dor-card">😤 Funcionário falta e você fica sabendo depois</div>
+        <div class="dor-card">📋 Tarefa delegada que ninguém comprova ter feito</div>
+        <div class="dor-card">🧾 Produto vencido descoberto na hora errada</div>
+        <div class="dor-card">📊 Sem ideia de como o faturamento se relaciona com a equipe</div>
+        <div class="dor-card">🔑 Sem controle de quem pode ver o quê no sistema</div>
+      </div>
+      <button onclick="irParaPasso(3)" class="funil-btn">Isso acontece comigo →</button>
+    </div>
+
+    <div id="funil-3" class="funil-step" style="display:none;">
+      <div style="font-size:2rem;margin-bottom:12px;">✅</div>
+      <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:12px;">O Worka resolve tudo isso por você</h2>
+      <p style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-bottom:24px;">Plataforma completa de gestão de equipe, feita para quem tem negócio pra tocar.</p>
+      <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:32px;">
+        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;">⏱</span><div><strong>Ponto digital em tempo real</strong><p>Funcionário bate o ponto pelo celular. Você vê na hora.</p></div></div>
+        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;">📸</span><div><strong>Tarefas com foto de comprovação</strong><p>Ninguém fecha tarefa sem enviar evidência.</p></div></div>
+        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;">🔔</span><div><strong>Alerta automático de validade</strong><p>O sistema avisa antes do produto vencer.</p></div></div>
+        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;">🎨</span><div><strong>Sua marca, suas cores</strong><p>O app fica com o nome e visual da sua empresa.</p></div></div>
+      </div>
+      <button onclick="irParaPasso(4)" class="funil-btn">Quero saber mais →</button>
+    </div>
+
+    <div id="funil-4" class="funil-step" style="display:none;">
+      <div style="font-size:2rem;margin-bottom:12px;">🚀</div>
+      <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:20px;">Diferenciais que você não encontra em outro lugar</h2>
+      <div style="display:flex;flex-direction:column;gap:16px;margin-bottom:32px;">
+        <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:20px;"><div style="font-size:1.3rem;margin-bottom:8px;">🔗</div><div style="font-weight:700;color:#fff;margin-bottom:4px;">Integração com qualquer sistema</div><div style="font-size:0.82rem;color:rgba(255,255,255,0.6);">Conecta via API com seu PDV, ERP ou emissor de nota.</div></div>
+        <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:20px;"><div style="font-size:1.3rem;margin-bottom:8px;">🔐</div><div style="font-weight:700;color:#fff;margin-bottom:4px;">Hierarquia e permissões customizáveis</div><div style="font-size:0.82rem;color:rgba(255,255,255,0.6);">Crie os cargos que seu negócio precisa com permissões por checkbox.</div></div>
+        <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:20px;"><div style="font-size:1.3rem;margin-bottom:8px;">📱</div><div style="font-weight:700;color:#fff;margin-bottom:4px;">Entrada segura por ID único</div><div style="font-size:0.82rem;color:rgba(255,255,255,0.6);">Nenhum funcionário entra sem sua aprovação.</div></div>
+      </div>
+      <button onclick="irParaPasso(5)" class="funil-btn">Ver depoimentos →</button>
+    </div>
+
+    <div id="funil-5" class="funil-step" style="display:none;">
+      <div style="font-size:2rem;margin-bottom:12px;">💬</div>
+      <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:20px;">Quem já usa, não volta atrás</h2>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:28px;">
+        <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:18px;"><div style="font-size:0.85rem;color:rgba(255,255,255,0.85);margin-bottom:10px;">"Antes perdia horas tentando saber quem estava trabalhando. Hoje abro o Worka e vejo tudo."</div><div style="font-size:0.75rem;color:#3dd669;font-weight:600;">— Carla M. · Salão de Beleza</div></div>
+        <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:18px;"><div style="font-size:0.85rem;color:rgba(255,255,255,0.85);margin-bottom:10px;">"Meu estoque nunca mais venceu desde que ativei o alerta automático. Vale cada centavo."</div><div style="font-size:0.75rem;color:#3dd669;font-weight:600;">— Roberto S. · Restaurante</div></div>
+        <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:18px;"><div style="font-size:0.85rem;color:rgba(255,255,255,0.85);margin-bottom:10px;">"Customizei com as cores da minha empresa. Meus funcionários acham que mandei fazer um app!"</div><div style="font-size:0.75rem;color:#3dd669;font-weight:600;">— Ana P. · Clínica Estética</div></div>
+      </div>
+      <button onclick="irParaPasso(6)" class="funil-btn">Ver o preço →</button>
+    </div>
+
+    <div id="funil-6" class="funil-step" style="display:none;">
+      <div style="font-size:2rem;margin-bottom:12px;">🎯</div>
+      <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:8px;">Tudo isso por menos de R$ 1 por dia</h2>
+      <p style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-bottom:24px;">Um plano único. Sem cobranças extras. Sem surpresas.</p>
+      <div style="background:white;border-radius:20px;padding:28px;margin-bottom:16px;text-align:center;">
+        <div style="font-size:0.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1e8a40;margin-bottom:8px;">Plano Completo</div>
+        <div style="font-family:'Syne',sans-serif;font-size:3rem;font-weight:800;color:#16622f;letter-spacing:-2px;">R$ 24,90</div>
+        <div style="font-size:0.85rem;color:#6b7068;margin-bottom:20px;">/mês · cancele quando quiser</div>
+        <div style="text-align:left;display:flex;flex-direction:column;gap:8px;margin-bottom:24px;">
+          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Ponto digital em tempo real</div>
+          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Tarefas com foto/vídeo de comprovação</div>
+          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Alerta automático de validade</div>
+          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> White Label completo</div>
+          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Hierarquia e permissões customizáveis</div>
+          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Integração via API</div>
+          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> 7 dias grátis para testar</div>
+        </div>
+        <button onclick="fecharFunil();setTimeout(abrirCheckout,300);" style="width:100%;background:#1e8a40;color:white;border:none;padding:16px;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Assinar agora — R$ 24,90/mês ⚡</button>
+        <div style="font-size:0.75rem;color:#6b7068;margin-top:10px;">🔒 Pagamento 100% seguro via PIX</div>
+      </div>
+      <div style="background:rgba(255,200,0,0.1);border:1px solid rgba(255,200,0,0.3);border-radius:12px;padding:14px;text-align:center;">
+        <div style="font-size:0.82rem;color:#ffd966;font-weight:600;">⏰ Oferta especial de lançamento</div>
+        <div style="font-size:0.75rem;color:rgba(255,255,255,0.6);margin-top:4px;">Garanta o preço de R$ 24,90 antes do reajuste</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<style>
+.funil-step{animation:fadeInUp .3s ease}
+@keyframes fadeInUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.seg-card{background:rgba(255,255,255,0.08);border:1.5px solid rgba(255,255,255,0.15);border-radius:14px;padding:16px 12px;color:white;font-size:0.9rem;font-weight:600;text-align:center;cursor:pointer;transition:background .2s,border-color .2s}
+.seg-card:active{background:rgba(61,214,105,0.15);border-color:#3dd669}
+.dor-card{background:rgba(255,255,255,0.07);border-radius:12px;padding:14px 16px;color:rgba(255,255,255,0.85);font-size:0.875rem;line-height:1.5}
+.sol-card{display:flex;gap:14px;align-items:flex-start;background:rgba(255,255,255,0.07);border-radius:14px;padding:16px}
+.sol-card strong{display:block;color:white;font-size:0.9rem;margin-bottom:4px}
+.sol-card p{font-size:0.78rem;color:rgba(255,255,255,0.6);margin:0}
+.funil-btn{width:100%;background:#1e8a40;color:white;border:none;padding:16px;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:background .2s}
+.funil-btn:active{background:#25b251}
+</style>
+
+<script>
+var passoAtual=1;
+var totalPassos=6;
+function abrirFunil(){document.getElementById("funil-overlay").style.display="block";document.body.style.overflow="hidden";irParaPasso(1);}
+function fecharFunil(){document.getElementById("funil-overlay").style.display="none";document.body.style.overflow="";}
+function escolherSegmento(seg){document.getElementById("seg-nome").textContent=seg;irParaPasso(2);}
+function irParaPasso(n){
+  document.querySelectorAll(".funil-step").forEach(function(el){el.style.display="none";});
+  var el=document.getElementById("funil-"+n);
+  if(el){el.style.display="block";}
+  passoAtual=n;
+  document.getElementById("funil-progress").style.width=((n/totalPassos)*100)+"%";
+  document.getElementById("funil-step-label").textContent="Passo "+n+" de "+totalPassos;
+  document.getElementById("funil-overlay").scrollTo({top:0,behavior:"smooth"});
+}
+document.addEventListener("DOMContentLoaded",function(){
+  document.querySelectorAll("a").forEach(function(btn){
+    var txt=btn.textContent.trim();
+    if(txt.includes("Testar")||txt.includes("Começar")||txt.includes("Criar")){
+      btn.onclick=function(e){e.preventDefault();abrirFunil();};
+    }
+  });
+});
+</script>
+
 <!-- FOOTER -->
 <footer>
   <div class="footer-inner">
@@ -1081,4 +1364,3 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 </body>
 </html>
-
