@@ -473,7 +473,7 @@
       <h1>Gerencie sua equipe com <em>simplicidade total</em></h1>
       <p class="hero-sub">Ponto digital, tarefas com comprovação, alerta de validade e integração com qualquer sistema — tudo customizável com a sua marca.</p>
       <div class="hero-actions">
-        <a href="#" onclick="abrirCheckout();return false;" class="btn-primary">Testar grátis por 7 dias</a>
+        <a href="#" onclick="abrirCheckout();return false;" class="btn-primary">Teste grátis — 15 dias</a>
         <a href="#funcionalidades" class="btn-ghost">Ver funcionalidades</a>
       </div>
       <div class="hero-price">
@@ -590,6 +590,12 @@
         <h3>White Label Total</h3>
         <p>Nome do app, logotipo, foto de banner e todas as cores do sistema são suas. Seus colaboradores vivem dentro de uma plataforma com a cara da sua empresa.</p>
         <span class="feature-tag">Sua marca</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📍</div>
+        <h3>Localização no Ponto</h3>
+        <p>Cada batida de ponto captura automaticamente a localização do funcionário. O gestor vê exatamente onde cada entrada, intervalo e saída foi registrada — direto no Google Maps, em tempo real.</p>
+        <span class="feature-tag">Geolocalização</span>
       </div>
     </div>
   </div>
@@ -763,10 +769,11 @@
         <li>Integração via API com qualquer sistema externo</li>
         <li>Dashboard unificado de faturamento e escala</li>
         <li>Entrada segura de funcionários por ID</li>
+        <li>Localização do ponto no Google Maps</li>
         <li>Tarefas recorrentes (diárias, semanais, mensais)</li>
       </ul>
       <a href="#" onclick="abrirCheckout();return false;" class="btn-block">Criar minha conta grátis</a>
-      <p class="price-note">7 dias de teste gratuito · Cancele a qualquer momento</p>
+      <p class="price-note">15 dias de teste gratuito · Cancele a qualquer momento</p>
     </div>
   </div>
 </section>
@@ -1209,6 +1216,95 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 </script>
 
 
+
+<!-- MODAL DE ACESSO AO PAINEL -->
+<div id="acesso-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(10,46,26,0.85);backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:20px;">
+  <div style="background:white;border-radius:20px;padding:40px 32px;width:100%;max-width:400px;box-shadow:0 32px 80px rgba(0,0,0,0.4);position:relative;">
+    <button onclick="fecharAcesso()" style="position:absolute;top:16px;right:16px;background:var(--gray100);border:none;width:32px;height:32px;border-radius:50%;font-size:1rem;cursor:pointer;">✕</button>
+    <div style="font-family:'Syne',sans-serif;font-size:1.8rem;font-weight:800;color:#16622f;text-align:center;margin-bottom:4px;">Work<span style="color:#25b251">a</span></div>
+    <div style="text-align:center;font-size:0.85rem;color:#6b7068;margin-bottom:24px;">Acesse sua conta ou crie uma nova</div>
+
+    <div style="display:flex;background:#f7f8f7;border-radius:10px;padding:4px;margin-bottom:20px;gap:4px;">
+      <div id="tab-empresa" onclick="setAcessoTipo('dono')" style="flex:1;padding:8px;text-align:center;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;background:white;color:#16622f;box-shadow:0 1px 4px rgba(0,0,0,0.1);">Empresa</div>
+      <div id="tab-func" onclick="setAcessoTipo('funcionario')" style="flex:1;padding:8px;text-align:center;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;color:#6b7068;">Funcionário</div>
+    </div>
+
+    <div id="acesso-dono">
+      <div style="margin-bottom:12px;">
+        <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">E-mail</label>
+        <input id="ac-email" type="email" placeholder="seu@email.com" style="width:100%;padding:11px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">Senha</label>
+        <input id="ac-senha" type="password" placeholder="••••••••" style="width:100%;padding:11px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
+      </div>
+    </div>
+
+    <div id="acesso-func" style="display:none;">
+      <div style="margin-bottom:12px;">
+        <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">ID da Equipe</label>
+        <input type="text" placeholder="#WK-0000" style="width:100%;padding:11px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">E-mail</label>
+        <input type="email" placeholder="seu@email.com" style="width:100%;padding:11px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">Senha</label>
+        <input type="password" placeholder="••••••••" style="width:100%;padding:11px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;">
+      </div>
+    </div>
+
+    <div id="acesso-erro" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px;font-size:0.8rem;color:#dc2626;margin-bottom:12px;"></div>
+
+    <button onclick="entrarNoApp()" style="width:100%;background:#1e8a40;color:white;border:none;padding:13px;border-radius:10px;font-size:0.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:12px;">Entrar no Worka →</button>
+    <div style="text-align:center;font-size:0.78rem;color:#6b7068;">Não tem conta? <a href="#" onclick="fecharAcesso();abrirFunil();return false;" style="color:#1e8a40;font-weight:600;">Assinar por R$ 24,90/mês</a></div>
+  </div>
+</div>
+
+<script>
+var acessoTipo = 'dono';
+function abrirAcesso(){
+  document.getElementById('acesso-overlay').style.display='flex';
+  document.body.style.overflow='hidden';
+}
+function fecharAcesso(){
+  document.getElementById('acesso-overlay').style.display='none';
+  document.body.style.overflow='';
+}
+function setAcessoTipo(tipo){
+  acessoTipo=tipo;
+  document.getElementById('acesso-dono').style.display=tipo==='dono'?'block':'none';
+  document.getElementById('acesso-func').style.display=tipo==='funcionario'?'block':'none';
+  document.getElementById('tab-empresa').style.background=tipo==='dono'?'white':'transparent';
+  document.getElementById('tab-empresa').style.color=tipo==='dono'?'#16622f':'#6b7068';
+  document.getElementById('tab-empresa').style.boxShadow=tipo==='dono'?'0 1px 4px rgba(0,0,0,0.1)':'none';
+  document.getElementById('tab-func').style.background=tipo==='funcionario'?'white':'transparent';
+  document.getElementById('tab-func').style.color=tipo==='funcionario'?'#16622f':'#6b7068';
+  document.getElementById('tab-func').style.boxShadow=tipo==='funcionario'?'0 1px 4px rgba(0,0,0,0.1)':'none';
+}
+function entrarNoApp(){
+  var email = document.getElementById('ac-email') ? document.getElementById('ac-email').value.trim().toLowerCase() : '';
+  var senha = document.getElementById('ac-senha') ? document.getElementById('ac-senha').value : '';
+  // Login owner
+  if(email==='workappoficial@gmail.com'&&senha==='ale98798798798'){
+    fecharAcesso();
+    window.location.href='worka-app.html?role=owner&email='+encodeURIComponent(email);
+    return;
+  }
+  // Login demo dono
+  if(email&&senha){
+    fecharAcesso();
+    window.location.href='worka-app.html?role=dono&email='+encodeURIComponent(email);
+    return;
+  }
+  var erro=document.getElementById('acesso-erro');
+  erro.textContent='Preencha e-mail e senha para continuar.';
+  erro.style.display='block';
+}
+document.getElementById('acesso-overlay').addEventListener('click',function(e){if(e.target===this)fecharAcesso();});
+</script>
+
 <!-- FUNIL DE VENDAS -->
 <div id="funil-overlay" style="display:none;position:fixed;inset:0;z-index:998;background:#0a2e1a;overflow-y:auto;">
   <div style="position:sticky;top:0;z-index:10;background:#0a2e1a;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.1);">
@@ -1247,6 +1343,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
         <div class="dor-card">🧾 Produto vencido descoberto na hora errada</div>
         <div class="dor-card">📊 Sem ideia de como o faturamento se relaciona com a equipe</div>
         <div class="dor-card">🔑 Sem controle de quem pode ver o quê no sistema</div>
+        <div class="dor-card">📍 Funcionário bate ponto de casa e você não sabe</div>
       </div>
       <button onclick="irParaPasso(3)" class="funil-btn">Isso acontece comigo →</button>
     </div>
@@ -1260,6 +1357,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
         <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;">📸</span><div><strong>Tarefas com foto de comprovação</strong><p>Ninguém fecha tarefa sem enviar evidência.</p></div></div>
         <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;">🔔</span><div><strong>Alerta automático de validade</strong><p>O sistema avisa antes do produto vencer.</p></div></div>
         <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;">🎨</span><div><strong>Sua marca, suas cores</strong><p>O app fica com o nome e visual da sua empresa.</p></div></div>
+        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;">📍</span><div><strong>Localização na batida de ponto</strong><p>Veja no Google Maps exatamente onde cada funcionário bateu o ponto.</p></div></div>
       </div>
       <button onclick="irParaPasso(4)" class="funil-btn">Quero saber mais →</button>
     </div>
@@ -1301,7 +1399,8 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
           <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> White Label completo</div>
           <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Hierarquia e permissões customizáveis</div>
           <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Integração via API</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> 7 dias grátis para testar</div>
+          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Localização no ponto via Google Maps</div>
+          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> 15 dias grátis para testar</div>
         </div>
         <button onclick="fecharFunil();setTimeout(abrirCheckout,300);" style="width:100%;background:#1e8a40;color:white;border:none;padding:16px;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Assinar agora — R$ 24,90/mês ⚡</button>
         <div style="font-size:0.75rem;color:#6b7068;margin-top:10px;">🔒 Pagamento 100% seguro via PIX</div>
