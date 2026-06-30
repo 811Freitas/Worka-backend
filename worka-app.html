@@ -1,0 +1,2896 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Worka — Sistema de Gestão</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --g900:#0a2e1a;--g800:#0f3d22;--g600:#16622f;--g500:#1e8a40;--g400:#25b251;--g300:#3dd669;--g100:#d4f5de;--g50:#edfaf2;
+  --w:#fff;--gray50:#f7f8f7;--gray100:#eff0ef;--gray300:#c4c7c4;--gray500:#6b7068;--gray700:#3a3d39;--gray900:#1a1c1a;
+  --red:#ef4444;--yellow:#f59e0b;--blue:#3b82f6;--purple:#8b5cf6;
+  --font:'Inter',sans-serif;--display:'Syne',sans-serif;
+  --r:10px;--rl:16px;
+  /* Empresa customizável */
+  --brand-bg:#0a2e1a;--brand-btn:#1e8a40;--brand-accent:#3dd669;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--gray50);color:var(--gray900);line-height:1.5;overflow-x:hidden}
+
+/* ── LOGIN ── */
+#tela-login{display:flex;min-height:100vh;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--g900),var(--g600));padding:20px}
+.login-card{background:white;border-radius:20px;padding:40px 32px;width:100%;max-width:400px;box-shadow:0 32px 80px rgba(0,0,0,0.3)}
+.login-logo{font-family:var(--display);font-size:1.8rem;font-weight:800;color:var(--g600);text-align:center;margin-bottom:8px}
+.login-logo span{color:var(--g400)}
+.login-sub{text-align:center;font-size:0.85rem;color:var(--gray500);margin-bottom:28px}
+.login-tabs{display:flex;background:var(--gray50);border-radius:var(--r);padding:4px;margin-bottom:24px;gap:4px}
+.login-tab{flex:1;padding:8px;text-align:center;border-radius:8px;font-size:0.8rem;font-weight:600;cursor:pointer;color:var(--gray500);transition:.2s}
+.login-tab.active{background:white;color:var(--g600);box-shadow:0 1px 4px rgba(0,0,0,0.1)}
+.field{margin-bottom:14px}
+.field label{font-size:0.78rem;font-weight:600;color:var(--gray700);display:block;margin-bottom:5px}
+.field input,.field select{width:100%;padding:11px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-size:0.9rem;font-family:var(--font);outline:none;transition:border-color .2s;background:white}
+.field input:focus,.field select:focus{border-color:var(--g500)}
+.btn-full{width:100%;background:var(--g500);color:white;border:none;padding:13px;border-radius:var(--r);font-size:0.95rem;font-weight:700;cursor:pointer;font-family:var(--font);transition:background .2s}
+.btn-full:hover{background:var(--g400)}
+.login-erro{background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px;font-size:0.8rem;color:var(--red);margin-bottom:14px;display:none}
+
+/* ── LAYOUT PRINCIPAL ── */
+#app{display:none;min-height:100vh}
+.app-layout{display:flex;min-height:100vh}
+
+/* ── SIDEBAR ── */
+.sidebar{width:240px;background:var(--brand-bg);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:50;transition:transform .3s}
+.sidebar-logo{padding:20px;border-bottom:1px solid rgba(255,255,255,0.1)}
+.sidebar-logo-txt{font-family:var(--display);font-size:1.3rem;font-weight:800;color:white}
+.sidebar-logo-txt span{color:var(--brand-accent)}
+.sidebar-company{font-size:0.72rem;color:rgba(255,255,255,0.5);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sidebar-nav{flex:1;padding:12px 0;overflow-y:auto}
+.nav-section{padding:6px 16px 4px;font-size:0.65rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,0.3);margin-top:8px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;color:rgba(255,255,255,0.65);font-size:0.85rem;font-weight:500;transition:.15s;border-left:3px solid transparent;margin:1px 0}
+.nav-item:hover{background:rgba(255,255,255,0.07);color:white}
+.nav-item.active{background:rgba(61,214,105,0.15);color:var(--brand-accent);border-left-color:var(--brand-accent)}
+.nav-item .icon{font-size:1rem;width:20px;text-align:center;flex-shrink:0}
+.sidebar-footer{padding:16px;border-top:1px solid rgba(255,255,255,0.1)}
+.user-info{display:flex;align-items:center;gap:10px}
+.user-avatar{width:36px;height:36px;border-radius:50%;background:var(--g500);display:flex;align-items:center;justify-content:center;font-size:0.85rem;font-weight:700;color:white;flex-shrink:0}
+.user-name{font-size:0.8rem;font-weight:600;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-role{font-size:0.7rem;color:rgba(255,255,255,0.4)}
+.btn-logout{margin-top:10px;width:100%;background:rgba(255,255,255,0.08);border:none;color:rgba(255,255,255,0.6);padding:8px;border-radius:8px;font-size:0.78rem;cursor:pointer;font-family:var(--font)}
+.btn-logout:hover{background:rgba(255,255,255,0.14);color:white}
+
+/* ── CONTEÚDO ── */
+.main-content{margin-left:240px;flex:1;min-height:100vh;display:flex;flex-direction:column}
+.topbar{background:white;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--gray100);position:sticky;top:0;z-index:40}
+.topbar-title{font-family:var(--display);font-size:1.1rem;font-weight:800;color:var(--gray900)}
+.topbar-actions{display:flex;align-items:center;gap:10px}
+.notif-btn{background:var(--gray50);border:1px solid var(--gray100);width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;position:relative}
+.notif-badge{position:absolute;top:-2px;right:-2px;width:16px;height:16px;background:var(--red);border-radius:50%;font-size:0.6rem;font-weight:700;color:white;display:flex;align-items:center;justify-content:center}
+.page{display:none;padding:24px;flex:1}
+.page.active{display:block}
+
+/* ── CARDS ── */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:24px}
+.stat-card{background:white;border-radius:var(--rl);padding:20px;border:1px solid var(--gray100)}
+.stat-card-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;margin-bottom:12px}
+.stat-card-num{font-family:var(--display);font-size:1.8rem;font-weight:800;color:var(--gray900);line-height:1}
+.stat-card-lbl{font-size:0.78rem;color:var(--gray500);margin-top:4px}
+.stat-card-sub{font-size:0.72rem;margin-top:6px;font-weight:600}
+.sub-green{color:var(--g500)}
+.sub-red{color:var(--red)}
+.sub-yellow{color:var(--yellow)}
+
+/* ── TABELA ── */
+.card{background:white;border-radius:var(--rl);border:1px solid var(--gray100);overflow:hidden;margin-bottom:20px}
+.card-header{padding:16px 20px;border-bottom:1px solid var(--gray100);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:0.9rem;font-weight:700;color:var(--gray900)}
+.card-body{padding:20px}
+table{width:100%;border-collapse:collapse}
+th{font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray500);padding:10px 12px;text-align:left;border-bottom:1px solid var(--gray100)}
+td{padding:12px;border-bottom:1px solid var(--gray50);font-size:0.85rem;color:var(--gray700);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--gray50)}
+
+/* ── BADGES ── */
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:100px;font-size:0.72rem;font-weight:700}
+.badge-green{background:var(--g50);color:var(--g600)}
+.badge-red{background:#fef2f2;color:#dc2626}
+.badge-yellow{background:#fffbeb;color:#92400e}
+.badge-blue{background:#eff6ff;color:#1e40af}
+.badge-purple{background:#f5f3ff;color:#6d28d9}
+.badge-gray{background:var(--gray100);color:var(--gray500)}
+
+/* ── BOTÕES ── */
+.btn{padding:8px 16px;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;border:none;font-family:var(--font);transition:.15s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--g500);color:white}
+.btn-primary:hover{background:var(--g400)}
+.btn-secondary{background:var(--gray50);color:var(--gray700);border:1px solid var(--gray100)}
+.btn-secondary:hover{background:var(--gray100)}
+.btn-danger{background:#fef2f2;color:#dc2626}
+.btn-danger:hover{background:#fee2e2}
+.btn-sm{padding:5px 10px;font-size:0.75rem}
+
+/* ── FORMULÁRIOS ── */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-full{grid-column:1/-1}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.open{display:flex}
+.modal{background:white;border-radius:var(--rl);padding:28px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto}
+.modal-title{font-family:var(--display);font-size:1.1rem;font-weight:800;color:var(--gray900);margin-bottom:20px}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+
+/* ── PONTO ── */
+.ponto-card{background:linear-gradient(135deg,var(--g900),var(--g600));border-radius:var(--rl);padding:28px;color:white;text-align:center;margin-bottom:20px;min-height:auto}
+.ponto-time{font-family:var(--display);font-size:3rem;font-weight:800;letter-spacing:-2px;margin:12px 0;font-variant-numeric:tabular-nums;min-width:200px;display:inline-block}
+.ponto-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px}
+.ponto-btn{padding:12px 20px;border-radius:var(--r);border:none;font-size:0.85rem;font-weight:700;cursor:pointer;font-family:var(--font);transition:.15s}
+.ponto-btn-entrada{background:#3dd669;color:#0a2e1a}
+.ponto-btn-intervalo{background:#f59e0b;color:white}
+.ponto-btn-retorno{background:#3b82f6;color:white}
+.ponto-btn-saida{background:#ef4444;color:white}
+.ponto-btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* ── TAREFAS ── */
+.tarefa-card{background:white;border:1px solid var(--gray100);border-radius:var(--r);padding:16px;margin-bottom:10px;transition:.15s}
+.tarefa-card:hover{border-color:var(--g300);box-shadow:0 2px 8px rgba(30,138,64,.08)}
+.tarefa-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
+.tarefa-title{font-size:0.9rem;font-weight:600;color:var(--gray900)}
+.tarefa-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tarefa-meta span{font-size:0.75rem;color:var(--gray500)}
+
+/* ── VALIDADE ── */
+.validade-card{background:white;border:1px solid var(--gray100);border-radius:var(--r);padding:16px;margin-bottom:10px;display:flex;align-items:center;gap:14px}
+.validade-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0}
+.validade-info{flex:1}
+.validade-nome{font-size:0.9rem;font-weight:600;color:var(--gray900)}
+.validade-data{font-size:0.78rem;color:var(--gray500);margin-top:2px}
+.validade-dias{font-size:0.8rem;font-weight:700}
+
+/* ── MAPA ── */
+.mapa-container{background:var(--gray100);border-radius:var(--r);overflow:hidden;position:relative}
+.mapa-placeholder{height:200px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:var(--gray500)}
+
+/* ── OWNER ── */
+.empresa-card{background:white;border:1px solid var(--gray100);border-radius:var(--r);padding:16px;display:flex;align-items:center;gap:14px;margin-bottom:10px;transition:.15s;cursor:pointer}
+.empresa-card:hover{border-color:var(--g300);box-shadow:0 2px 8px rgba(30,138,64,.08)}
+.empresa-avatar{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--g500),var(--g600));display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
+.empresa-info{flex:1}
+.empresa-nome{font-size:0.9rem;font-weight:700;color:var(--gray900)}
+.empresa-meta{font-size:0.75rem;color:var(--gray500);margin-top:2px}
+
+/* ── WHITE LABEL PREVIEW ── */
+.wl-preview{border:2px solid var(--gray100);border-radius:var(--rl);overflow:hidden}
+.wl-topbar{padding:12px 16px;display:flex;align-items:center;justify-content:space-between}
+.wl-appname{font-family:var(--display);font-weight:800;font-size:0.95rem;color:white}
+
+/* ── PERMISSÕES ── */
+.perm-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--gray100)}
+.perm-row:last-child{border-bottom:none}
+.perm-label{font-size:0.85rem;color:var(--gray700)}
+.toggle-sw{width:40px;height:22px;border-radius:100px;cursor:pointer;position:relative;transition:.2s;border:none;flex-shrink:0}
+.toggle-sw.on{background:var(--g400)}
+.toggle-sw.off{background:var(--gray300)}
+.toggle-dot{position:absolute;top:3px;width:16px;height:16px;background:white;border-radius:50%;transition:.2s}
+.toggle-sw.on .toggle-dot{left:21px}
+.toggle-sw.off .toggle-dot{left:3px}
+
+/* ── NOTIFICAÇÕES ── */
+.notif-item{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--gray50)}
+.notif-item:last-child{border-bottom:none}
+.notif-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:6px}
+.notif-txt{font-size:0.82rem;color:var(--gray700);line-height:1.5}
+.notif-time{font-size:0.72rem;color:var(--gray400);margin-top:2px}
+
+/* ── MOBILE ── */
+.menu-toggle{display:none;background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--gray700)}
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%)}
+  .sidebar.open{transform:translateX(0)}
+  .main-content{margin-left:0}
+  .menu-toggle{display:block}
+  .stats-grid{grid-template-columns:1fr 1fr}
+  .form-grid{grid-template-columns:1fr}
+  table{font-size:0.78rem}
+  th,td{padding:8px}
+}
+
+/* ── MISC ── */
+.divider{height:1px;background:var(--gray100);margin:16px 0}
+.empty-state{text-align:center;padding:40px 20px;color:var(--gray500)}
+.empty-state .icon{font-size:2.5rem;margin-bottom:12px}
+.empty-state p{font-size:0.875rem}
+.search-bar{background:var(--gray50);border:1px solid var(--gray100);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:8px;flex:1;max-width:280px}
+.search-bar input{background:none;border:none;outline:none;font-size:0.85rem;font-family:var(--font);color:var(--gray700);width:100%}
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:var(--gray100);color:var(--gray600)}
+.progress-bar{height:6px;background:var(--gray100);border-radius:100px;overflow:hidden}
+.progress-fill{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--g500),var(--g300));transition:width .3s}
+.avatar-stack{display:flex}
+.avatar-stack .av{width:28px;height:28px;border-radius:50%;border:2px solid white;margin-left:-8px;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;color:white;flex-shrink:0}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+@media(max-width:768px){.grid-2,.grid-3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════
+     TELA DE LOGIN
+═══════════════════════════════════════════ -->
+<div id="tela-login">
+  <div class="login-card">
+    <div class="login-logo">Work<span>a</span></div>
+    <div class="login-sub">Gestão de equipe simplificada</div>
+
+    <div class="login-tabs">
+      <div class="login-tab active" onclick="setLoginTipo('dono')">Empresa</div>
+      <div class="login-tab" onclick="setLoginTipo('funcionario')">Funcionário</div>
+    </div>
+
+    <div id="login-dono">
+      <div class="field"><label>E-mail</label><input id="l-email" type="email" placeholder="seu@email.com" value="alexandrevascode@gmail.com"></div>
+      <div class="field"><label>Senha</label><input id="l-senha" type="password" placeholder="••••••••" value="ale98798"></div>
+    </div>
+
+    <div id="login-funcionario" style="display:none">
+      <div class="field"><label>ID da Equipe</label><input id="l-id" type="text" placeholder="#WK-0000" value="#WK-8932"></div>
+      <div class="field"><label>E-mail</label><input type="email" placeholder="seu@email.com"></div>
+      <div class="field"><label>Senha</label><input type="password" placeholder="••••••••"></div>
+    </div>
+
+
+    <div class="login-erro" id="login-erro">Credenciais inválidas. Tente novamente.</div>
+    <button class="btn-full" onclick="fazerLogin()">Entrar no Worka</button>
+    <div style="text-align:center;margin-top:16px;font-size:0.78rem;color:var(--gray500)">Não tem conta? <a href="#" style="color:var(--g500);font-weight:600">Assine por R$ 24,90/mês</a></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     APP PRINCIPAL
+═══════════════════════════════════════════ -->
+<div id="app">
+<div class="app-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-txt" id="sidebar-appname">Work<span>a</span></div>
+      <div class="sidebar-company" id="sidebar-company">Minha Empresa</div>
+    </div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div style="position:relative;cursor:pointer" onclick="abrirFotoPerfil()">
+        <div class="user-avatar" id="user-avatar-icon" style="overflow:hidden">
+          <img id="foto-perfil-img" src="" style="width:100%;height:100%;object-fit:cover;display:none">
+          <span id="foto-perfil-letra">A</span>
+        </div>
+        <div style="position:absolute;bottom:-2px;right:-2px;width:14px;height:14px;background:var(--g400);border-radius:50%;border:2px solid var(--brand-bg);display:flex;align-items:center;justify-content:center;font-size:.5rem">📷</div>
+      </div>
+        <div>
+          <div class="user-name" id="user-name-display">Alexandre</div>
+          <div class="user-role" id="user-role-display">Dono</div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="fazerLogout()">Sair da conta</button>
+    </div>
+  </aside>
+
+  <!-- CONTEÚDO -->
+  <div class="main-content">
+    <div class="topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+        <div class="topbar-title" id="topbar-title">Dashboard</div>
+      </div>
+      <div class="topbar-actions">
+        <div class="search-bar"><span>🔍</span><input placeholder="Buscar..."></div>
+        <div class="notif-btn" onclick="abrirPagina('notificacoes')">🔔<div class="notif-badge" id="notif-count">3</div></div>
+      </div>
+    </div>
+
+    <!-- ── PÁGINAS ── -->
+
+    <!-- DASHBOARD DONO -->
+    <div class="page active" id="pg-dashboard">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:#edfaf2">👥</div>
+          <div class="stat-card-num" id="stat-funcionarios">8</div>
+          <div class="stat-card-lbl">Funcionários</div>
+          <div class="stat-card-sub sub-green">↑ 2 este mês</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:#eff6ff">⏱</div>
+          <div class="stat-card-num">6</div>
+          <div class="stat-card-lbl">Online agora</div>
+          <div class="stat-card-sub sub-green">75% da equipe</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:#fffbeb">📋</div>
+          <div class="stat-card-num">12</div>
+          <div class="stat-card-lbl">Tarefas hoje</div>
+          <div class="stat-card-sub sub-yellow">4 pendentes</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:#fef2f2">⚠️</div>
+          <div class="stat-card-num" id="stat-alertas">3</div>
+          <div class="stat-card-lbl">Alertas validade</div>
+          <div class="stat-card-sub sub-red">Ação necessária</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Ponto de hoje</div>
+            <span class="badge badge-green">Ao vivo</span>
+          </div>
+          <div class="card-body" style="padding:0">
+            <table>
+              <thead><tr><th>Funcionário</th><th>Entrada</th><th>Status</th><th>Local</th></tr></thead>
+              <tbody id="tabela-ponto-hoje">
+                <tr><td><div style="display:flex;align-items:center;gap:8px"><div style="width:28px;height:28px;border-radius:50%;background:#edfaf2;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:var(--g600)">M</div>Maria S.</div></td><td>08:02</td><td><span class="badge badge-green">Trabalhando</span></td><td><a href="#" onclick="verMapa(-15.7942,-47.8825,'Maria S.')" style="color:var(--g500);font-size:.8rem">📍 Ver</a></td></tr>
+                <tr><td><div style="display:flex;align-items:center;gap:8px"><div style="width:28px;height:28px;border-radius:50%;background:#eff6ff;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#1e40af">J</div>João P.</div></td><td>08:15</td><td><span class="badge badge-yellow">Intervalo</span></td><td><a href="#" onclick="verMapa(-15.7842,-47.8725,'João P.')" style="color:var(--g500);font-size:.8rem">📍 Ver</a></td></tr>
+                <tr><td><div style="display:flex;align-items:center;gap:8px"><div style="width:28px;height:28px;border-radius:50%;background:#f5f3ff;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#6d28d9">A</div>Ana L.</div></td><td>07:58</td><td><span class="badge badge-green">Trabalhando</span></td><td><a href="#" onclick="verMapa(-15.8042,-47.8625,'Ana L.')" style="color:var(--g500);font-size:.8rem">📍 Ver</a></td></tr>
+                <tr><td><div style="display:flex;align-items:center;gap:8px"><div style="width:28px;height:28px;border-radius:50%;background:#fef2f2;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#dc2626">C</div>Carlos R.</div></td><td>—</td><td><span class="badge badge-red">Ausente</span></td><td>—</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Tarefas recentes</div>
+            <button class="btn btn-sm btn-primary" onclick="abrirPagina('tarefas')">Ver todas</button>
+          </div>
+          <div class="card-body" style="padding:0">
+            <table>
+              <thead><tr><th>Tarefa</th><th>Responsável</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td>Limpeza do salão</td><td>Maria S.</td><td><span class="badge badge-green">Concluída ✓</span></td></tr>
+                <tr><td>Reposição estoque</td><td>João P.</td><td><span class="badge badge-yellow">Pendente</span></td></tr>
+                <tr><td>Auditoria caixa</td><td>Ana L.</td><td><span class="badge badge-blue">Em revisão</span></td></tr>
+                <tr><td>Conferir validades</td><td>Carlos R.</td><td><span class="badge badge-red">Atrasada</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">⚠️ Alertas de validade urgentes</div>
+          <button class="btn btn-sm btn-secondary" onclick="abrirPagina('validade')">Gerenciar</button>
+        </div>
+        <div class="card-body" style="padding:12px 0">
+          <div class="validade-card" style="border-left:3px solid var(--red);margin:0 16px 8px">
+            <div class="validade-icon" style="background:#fef2f2">🥛</div>
+            <div class="validade-info"><div class="validade-nome">Leite integral — Lote #A203</div><div class="validade-data">Vence em 28/06/2026</div></div>
+            <div class="validade-dias" style="color:var(--red)">1 dia</div>
+          </div>
+          <div class="validade-card" style="border-left:3px solid var(--yellow);margin:0 16px 8px">
+            <div class="validade-icon" style="background:#fffbeb">🧴</div>
+            <div class="validade-info"><div class="validade-nome">Creme hidratante — Lote #B441</div><div class="validade-data">Vence em 02/07/2026</div></div>
+            <div class="validade-dias" style="color:var(--yellow)">5 dias</div>
+          </div>
+          <div class="validade-card" style="border-left:3px solid var(--yellow);margin:0 16px">
+            <div class="validade-icon" style="background:#fffbeb">💊</div>
+            <div class="validade-info"><div class="validade-nome">Anestésico tópico — Lote #C118</div><div class="validade-data">Vence em 05/07/2026</div></div>
+            <div class="validade-dias" style="color:var(--yellow)">8 dias</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FUNCIONÁRIOS -->
+    <div class="page" id="pg-funcionarios">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div class="search-bar" style="max-width:100%"><span>🔍</span><input placeholder="Buscar funcionário..."></div>
+        <button class="btn btn-primary" onclick="abrirModal('modal-add-func')">+ Adicionar</button>
+      </div>
+
+      <!-- Aprovações pendentes -->
+      <div class="card" id="card-aprovacoes" style="display:none">
+        <div class="card-header"><div class="card-title">🕐 Aguardando aprovação</div></div>
+        <div class="card-body" style="padding:0">
+          <table><thead><tr><th>Nome</th><th>E-mail</th><th>Solicitado em</th><th>Ação</th></tr></thead>
+          <tbody><tr>
+            <td>Pedro Alves</td><td>pedro@email.com</td><td>Hoje, 14:32</td>
+            <td><div style="display:flex;gap:6px"><button class="btn btn-sm btn-primary" onclick="aprovarFunc(this)">✓ Aprovar</button><button class="btn btn-sm btn-danger" onclick="recusarFunc(this)">✗ Recusar</button></div></td>
+          </tr></tbody></table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">Equipe ativa</div><span class="badge badge-green" id="badge-total-func">8 membros</span></div>
+        <div class="card-body" style="padding:0">
+          <table>
+            <thead><tr><th>Funcionário</th><th>Cargo</th><th>Status</th><th>Ponto hoje</th><th>Ações</th></tr></thead>
+            <tbody id="lista-funcionarios">
+              <tr><td><div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:50%;background:var(--g50);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--g600)">M</div><div><div style="font-weight:600">Maria Silva</div><div style="font-size:.72rem;color:var(--gray500)">maria@email.com</div></div></div></td><td><span class="badge badge-purple">Gerente</span></td><td><span class="badge badge-green">● Ativo</span></td><td>08:02 — Em andamento</td><td><div style="display:flex;gap:6px"><button class="btn btn-sm btn-secondary" onclick="verFuncionario('Maria Silva')">Ver</button><button class="btn btn-sm btn-danger" onclick="excluirFuncionario(this,'Maria Silva')">🗑</button></div></td></tr>
+              <tr><td><div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:50%;background:#eff6ff;display:flex;align-items:center;justify-content:center;font-weight:700;color:#1e40af">J</div><div><div style="font-weight:600">João Pedro</div><div style="font-size:.72rem;color:var(--gray500)">joao@email.com</div></div></div></td><td><span class="badge badge-blue">Atendente</span></td><td><span class="badge badge-yellow">Intervalo</span></td><td>08:15 — Intervalo</td><td><div style="display:flex;gap:6px"><button class="btn btn-sm btn-secondary">Ver</button><button class="btn btn-sm btn-danger">🗑</button></div></td></tr>
+              <tr><td><div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:50%;background:#f5f3ff;display:flex;align-items:center;justify-content:center;font-weight:700;color:#6d28d9">A</div><div><div style="font-weight:600">Ana Lima</div><div style="font-size:.72rem;color:var(--gray500)">ana@email.com</div></div></div></td><td><span class="badge badge-green">Caixa</span></td><td><span class="badge badge-green">● Ativo</span></td><td>07:58 — Em andamento</td><td><div style="display:flex;gap:6px"><button class="btn btn-sm btn-secondary">Ver</button><button class="btn btn-sm btn-danger">🗑</button></div></td></tr>
+              <tr><td><div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:50%;background:#fef2f2;display:flex;align-items:center;justify-content:center;font-weight:700;color:#dc2626">C</div><div><div style="font-weight:600">Carlos Reis</div><div style="font-size:.72rem;color:var(--gray500)">carlos@email.com</div></div></div></td><td><span class="badge badge-yellow">Estoquista</span></td><td><span class="badge badge-red">Ausente</span></td><td>Não registrado</td><td><div style="display:flex;gap:6px"><button class="btn btn-sm btn-secondary">Ver</button><button class="btn btn-sm btn-danger">🗑</button></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PONTO -->
+    <div class="page" id="pg-ponto">
+      <div class="ponto-card">
+        <div style="font-size:.85rem;color:rgba(255,255,255,.6)">Horário atual</div>
+        <div class="ponto-time" id="relogio">00:00:00</div>
+        <div style="font-size:.85rem;color:rgba(255,255,255,.7)" id="ponto-data"></div>
+        <div class="ponto-btns">
+          <button class="ponto-btn ponto-btn-entrada" id="btn-entrada" onclick="baterPonto('entrada')">▶ Entrada</button>
+          <button class="ponto-btn ponto-btn-intervalo" id="btn-intervalo" onclick="baterPonto('intervalo')" disabled>☕ Intervalo</button>
+          <button class="ponto-btn ponto-btn-retorno" id="btn-retorno" onclick="baterPonto('retorno')" disabled>↩ Retorno</button>
+          <button class="ponto-btn ponto-btn-saida" id="btn-saida" onclick="baterPonto('saida')" disabled>■ Saída</button>
+        </div>
+        <div id="ponto-status" style="margin-top:14px;font-size:.8rem;color:rgba(255,255,255,.7)"></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><div class="card-title">Registro de hoje</div></div>
+          <div class="card-body" style="padding:0">
+            <table>
+              <thead><tr><th>Evento</th><th>Horário</th><th>Localização</th></tr></thead>
+              <tbody id="tabela-registro-ponto">
+                <tr><td colspan="3" style="text-align:center;color:var(--gray500);padding:20px;font-size:.85rem">Nenhum registro hoje</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><div class="card-title">📍 Localização da última batida</div></div>
+          <div class="card-body">
+            <div class="mapa-container">
+              <div class="mapa-placeholder" id="mapa-ponto">
+                <span style="font-size:2rem">📍</span>
+                <span>Bata o ponto para ver a localização</span>
+              </div>
+              <iframe id="mapa-iframe" src="" style="width:100%;height:200px;border:none;display:none" allowfullscreen></iframe>
+            </div>
+            <div id="mapa-info" style="margin-top:10px;font-size:.8rem;color:var(--gray500)"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Histórico do mês</div>
+          <button class="btn btn-sm btn-secondary">Exportar</button>
+        </div>
+        <div class="card-body" style="padding:0">
+          <table>
+            <thead><tr><th>Data</th><th>Entrada</th><th>Intervalo</th><th>Retorno</th><th>Saída</th><th>Total</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>27/06</td><td>08:02</td><td>12:00</td><td>13:00</td><td>17:05</td><td>8h03m</td><td><span class="badge badge-green">Normal</span></td></tr>
+              <tr><td>26/06</td><td>08:10</td><td>12:05</td><td>13:05</td><td>17:00</td><td>7h55m</td><td><span class="badge badge-green">Normal</span></td></tr>
+              <tr><td>25/06</td><td>08:45</td><td>12:00</td><td>13:00</td><td>17:00</td><td>7h15m</td><td><span class="badge badge-yellow">Atraso</span></td></tr>
+              <tr><td>24/06</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td><span class="badge badge-red">Falta</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAREFAS -->
+    <div class="page" id="pg-tarefas">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm btn-primary" onclick="filtrarTarefas('todas')">Todas</button>
+          <button class="btn btn-sm btn-secondary" onclick="filtrarTarefas('pendente')">Pendentes</button>
+          <button class="btn btn-sm btn-secondary" onclick="filtrarTarefas('concluida')">Concluídas</button>
+          <button class="btn btn-sm btn-secondary" onclick="filtrarTarefas('atrasada')">Atrasadas</button>
+        </div>
+        <button class="btn btn-primary" onclick="abrirModal('modal-add-tarefa')">+ Nova tarefa</button>
+      </div>
+
+      <div id="lista-tarefas">
+        <div class="tarefa-card" data-status="concluida">
+          <div class="tarefa-header"><div class="tarefa-title">✅ Limpeza completa do salão</div><span class="badge badge-green">Concluída</span></div>
+          <div class="tarefa-meta"><span>👤 Maria Silva</span><span>📅 Prazo: hoje</span><span>📷 Com foto</span></div>
+          <div style="margin-top:10px"><button class="btn btn-sm btn-secondary" onclick="verComprovacao()">Ver comprovação 📷</button></div>
+        </div>
+        <div class="tarefa-card" data-status="pendente">
+          <div class="tarefa-header"><div class="tarefa-title">📦 Reposição de estoque — corredor 3</div><span class="badge badge-yellow">Pendente</span></div>
+          <div class="tarefa-meta"><span>👤 João Pedro</span><span>📅 Prazo: hoje 18h</span><span>🔄 Diária</span></div>
+        </div>
+        <div class="tarefa-card" data-status="revisao">
+          <div class="tarefa-header"><div class="tarefa-title">💰 Auditoria do caixa</div><span class="badge badge-blue">Em revisão</span></div>
+          <div class="tarefa-meta"><span>👤 Ana Lima</span><span>📅 Prazo: hoje 17h</span></div>
+          <div style="margin-top:10px"><div style="display:flex;gap:6px"><button class="btn btn-sm btn-primary" onclick="aprovarTarefa(this)">✓ Aprovar</button><button class="btn btn-sm btn-danger" onclick="rejeitarTarefa(this)">↩ Pedir refação</button></div></div>
+        </div>
+        <div class="tarefa-card" data-status="atrasada" style="border-left:3px solid var(--red)">
+          <div class="tarefa-header"><div class="tarefa-title">🏷️ Conferir validades do freezer</div><span class="badge badge-red">Atrasada</span></div>
+          <div class="tarefa-meta"><span>👤 Carlos Reis</span><span>📅 Venceu: ontem</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VALIDADE -->
+    <div class="page" id="pg-validade">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm btn-danger">⚠️ Urgente (3)</button>
+          <button class="btn btn-sm btn-secondary">Todos</button>
+        </div>
+        <button class="btn btn-primary" onclick="abrirModal('modal-add-produto')">+ Cadastrar produto</button>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header"><div class="card-title">⚠️ Vencimento próximo</div></div>
+        <div class="card-body" style="padding:12px">
+          <div class="validade-card" style="border-left:3px solid var(--red)">
+            <div class="validade-icon" style="background:#fef2f2">🥛</div>
+            <div class="validade-info"><div class="validade-nome">Leite integral — Lote #A203</div><div class="validade-data">Vence: 28/06/2026 · Qtd: 24 unidades</div></div>
+            <div><div class="validade-dias" style="color:var(--red)">1 dia</div><button class="btn btn-sm btn-danger" style="margin-top:4px" onclick="criarTarefaValidade('Leite integral')">Criar tarefa</button></div>
+          </div>
+          <div class="validade-card" style="border-left:3px solid var(--yellow)">
+            <div class="validade-icon" style="background:#fffbeb">🧴</div>
+            <div class="validade-info"><div class="validade-nome">Creme hidratante — Lote #B441</div><div class="validade-data">Vence: 02/07/2026 · Qtd: 8 unidades</div></div>
+            <div><div class="validade-dias" style="color:var(--yellow)">5 dias</div><button class="btn btn-sm btn-secondary" style="margin-top:4px" onclick="criarTarefaValidade('Creme hidratante')">Criar tarefa</button></div>
+          </div>
+          <div class="validade-card" style="border-left:3px solid var(--yellow)">
+            <div class="validade-icon" style="background:#fffbeb">💊</div>
+            <div class="validade-info"><div class="validade-nome">Anestésico tópico — Lote #C118</div><div class="validade-data">Vence: 05/07/2026 · Qtd: 3 unidades</div></div>
+            <div><div class="validade-dias" style="color:var(--yellow)">8 dias</div><button class="btn btn-sm btn-secondary" style="margin-top:4px">Criar tarefa</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">Todos os produtos</div></div>
+        <div class="card-body" style="padding:0">
+          <table>
+            <thead><tr><th>Produto</th><th>Lote</th><th>Vencimento</th><th>Qtd</th><th>Aviso</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>Leite integral</td><td>#A203</td><td>28/06/2026</td><td>24 un</td><td>7 dias antes</td><td><span class="badge badge-red">Urgente</span></td></tr>
+              <tr><td>Creme hidratante</td><td>#B441</td><td>02/07/2026</td><td>8 un</td><td>15 dias antes</td><td><span class="badge badge-yellow">Atenção</span></td></tr>
+              <tr><td>Anestésico tópico</td><td>#C118</td><td>05/07/2026</td><td>3 un</td><td>30 dias antes</td><td><span class="badge badge-yellow">Atenção</span></td></tr>
+              <tr><td>Shampoo neutro</td><td>#D220</td><td>15/08/2026</td><td>12 un</td><td>30 dias antes</td><td><span class="badge badge-green">Normal</span></td></tr>
+              <tr><td>Tinta cabelo #4</td><td>#E301</td><td>10/09/2026</td><td>20 un</td><td>30 dias antes</td><td><span class="badge badge-green">Normal</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARGOS E PERMISSÕES -->
+    <div class="page" id="pg-cargos">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div></div>
+        <button class="btn btn-primary" onclick="abrirModal('modal-add-cargo')">+ Novo cargo</button>
+      </div>
+
+      <div class="grid-2">
+        <div>
+          <div class="card" style="margin-bottom:14px">
+            <div class="card-header"><div class="card-title">👑 Dono</div><span class="badge badge-purple">Nível máximo</span></div>
+            <div class="card-body">
+              <p style="font-size:.82rem;color:var(--gray500);margin-bottom:12px">Acesso total e irrestrito. Não pode ser modificado.</p>
+              <div class="perm-row"><span class="perm-label">Ver faturamento</span><button class="toggle-sw on"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Aprovar funcionários</span><button class="toggle-sw on"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Criar e delegar tarefas</span><button class="toggle-sw on"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Editar identidade visual</span><button class="toggle-sw on"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Gerenciar ponto</span><button class="toggle-sw on"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Acessar integração API</span><button class="toggle-sw on"><div class="toggle-dot"></div></button></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><div class="card-title">🔵 Gerente</div><button class="btn btn-sm btn-secondary">Editar</button></div>
+            <div class="card-body">
+              <div class="perm-row"><span class="perm-label">Ver faturamento</span><button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Aprovar funcionários</span><button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Criar e delegar tarefas</span><button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Editar identidade visual</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Gerenciar ponto</span><button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Acessar integração API</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card" style="margin-bottom:14px">
+            <div class="card-header"><div class="card-title">🟡 Atendente</div><button class="btn btn-sm btn-secondary">Editar</button></div>
+            <div class="card-body">
+              <div class="perm-row"><span class="perm-label">Ver faturamento</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Aprovar funcionários</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Criar e delegar tarefas</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Editar identidade visual</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Gerenciar ponto</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Acessar integração API</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><div class="card-title">🟢 Estoquista</div><button class="btn btn-sm btn-secondary">Editar</button></div>
+            <div class="card-body">
+              <div class="perm-row"><span class="perm-label">Ver faturamento</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Aprovar funcionários</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Criar e delegar tarefas</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Editar identidade visual</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Gerenciar ponto</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Gerenciar validades</span><button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- IDENTIDADE VISUAL -->
+    <div class="page" id="pg-visual">
+      <div class="grid-2">
+        <div>
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-header"><div class="card-title">Nome e logo</div></div>
+            <div class="card-body">
+              <div class="field"><label>Nome do app / portal</label><input id="wl-appname" value="Worka" oninput="atualizarPreview()"></div>
+              <div class="field"><label>Logo da empresa</label><input type="file" accept="image/*" style="padding:8px"></div>
+              <div class="field"><label>Foto de banner</label><input type="file" accept="image/*" style="padding:8px"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><div class="card-title">Paleta de cores</div></div>
+            <div class="card-body">
+              <div class="field"><label>Cor de fundo / menu</label><div style="display:flex;gap:8px;align-items:center"><input type="color" id="wl-bg" value="#0a2e1a" oninput="atualizarPreview()" style="width:40px;height:40px;border:none;border-radius:8px;cursor:pointer"><input id="wl-bg-hex" value="#0a2e1a" style="flex:1;padding:8px 12px;border:1.5px solid var(--gray100);border-radius:8px;font-family:var(--font)"></div></div>
+              <div class="field"><label>Cor dos botões</label><div style="display:flex;gap:8px;align-items:center"><input type="color" id="wl-btn" value="#1e8a40" oninput="atualizarPreview()" style="width:40px;height:40px;border:none;border-radius:8px;cursor:pointer"><input id="wl-btn-hex" value="#1e8a40" style="flex:1;padding:8px 12px;border:1.5px solid var(--gray100);border-radius:8px;font-family:var(--font)"></div></div>
+              <div class="field"><label>Cor de destaque</label><div style="display:flex;gap:8px;align-items:center"><input type="color" id="wl-accent" value="#3dd669" oninput="atualizarPreview()" style="width:40px;height:40px;border:none;border-radius:8px;cursor:pointer"><input id="wl-accent-hex" value="#3dd669" style="flex:1;padding:8px 12px;border:1.5px solid var(--gray100);border-radius:8px;font-family:var(--font)"></div></div>
+              <div style="display:flex;gap:8px;margin-top:4px">
+                <button class="btn btn-secondary btn-sm" onclick="aplicarTema('#1e3a5f','#2563eb','#60a5fa')">🔵 Azul</button>
+                <button class="btn btn-secondary btn-sm" onclick="aplicarTema('#3b0764','#7c3aed','#a78bfa')">🟣 Roxo</button>
+                <button class="btn btn-secondary btn-sm" onclick="aplicarTema('#7f1d1d','#dc2626','#f87171')">🔴 Vermelho</button>
+                <button class="btn btn-secondary btn-sm" onclick="aplicarTema('#713f12','#d97706','#fbbf24')">🟠 Laranja</button>
+              </div>
+              <button class="btn btn-primary" style="margin-top:14px;width:100%" onclick="salvarVisual()">Salvar identidade visual</button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">Preview do app</div></div>
+            <div class="card-body">
+              <div class="wl-preview">
+                <div class="wl-topbar" id="wl-topbar-preview" style="background:#0a2e1a">
+                  <div class="wl-appname" id="wl-appname-preview">Worka</div>
+                  <div style="display:flex;gap:6px">
+                    <div style="width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.2)"></div>
+                    <div style="width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.2)"></div>
+                  </div>
+                </div>
+                <div style="background:#f7f8f7;padding:16px">
+                  <div style="background:white;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+                    <div style="font-size:.7rem;font-weight:700;color:var(--gray500);margin-bottom:8px">BOM DIA, FUNCIONÁRIO</div>
+                    <div id="wl-btn-preview" style="background:#1e8a40;color:white;border-radius:8px;padding:10px;text-align:center;font-size:.82rem;font-weight:700;cursor:pointer">▶ Registrar entrada</div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                    <div style="background:white;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.06)"><div style="font-size:1.3rem;font-weight:800;color:#1a1c1a">3</div><div style="font-size:.7rem;color:var(--gray500)">Tarefas hoje</div></div>
+                    <div style="background:white;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.06)"><div id="wl-accent-preview" style="font-size:1.3rem;font-weight:800;color:#3dd669">●</div><div style="font-size:.7rem;color:var(--gray500)">Online</div></div>
+                  </div>
+                </div>
+              </div>
+              <div style="margin-top:10px;font-size:.75rem;color:var(--gray500);text-align:center">As cores são aplicadas em tempo real</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NOTIFICAÇÕES -->
+    <div class="page" id="pg-notificacoes">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Central de notificações</div><button class="btn btn-sm btn-secondary">Marcar todas como lidas</button></div>
+        <div class="card-body">
+          <div class="notif-item"><div class="notif-dot" style="background:var(--red)"></div><div><div class="notif-txt">⚠️ <strong>Leite integral Lote #A203</strong> vence amanhã! Providencie a retirada do estoque.</div><div class="notif-time">Hoje, 08:00</div></div></div>
+          <div class="notif-item"><div class="notif-dot" style="background:var(--g500)"></div><div><div class="notif-txt">👤 <strong>Pedro Alves</strong> solicitou entrada na equipe com o ID #WK-8932.</div><div class="notif-time">Hoje, 07:45</div></div></div>
+          <div class="notif-item"><div class="notif-dot" style="background:var(--yellow)"></div><div><div class="notif-txt">📋 Tarefa <strong>"Conferir validades do freezer"</strong> está atrasada. Responsável: Carlos Reis.</div><div class="notif-time">Ontem, 18:00</div></div></div>
+          <div class="notif-item" style="opacity:.5"><div class="notif-dot" style="background:var(--gray300)"></div><div><div class="notif-txt">✅ <strong>Maria Silva</strong> concluiu a tarefa "Limpeza do salão" com foto de comprovação.</div><div class="notif-time">Hoje, 09:15</div></div></div>
+          <div class="notif-item" style="opacity:.5"><div class="notif-dot" style="background:var(--gray300)"></div><div><div class="notif-txt">⏱ <strong>João Pedro</strong> registrou entrada às 08:15.</div><div class="notif-time">Hoje, 08:15</div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAINEL OWNER WORKA -->
+    <div class="page" id="pg-owner">
+
+      <!-- MÉTRICAS GERAIS -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:#edfaf2">🏢</div>
+          <div class="stat-card-num">47</div>
+          <div class="stat-card-lbl">Empresas ativas</div>
+          <div class="stat-card-sub sub-green">↑ 3 este mês</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:#eff6ff">💰</div>
+          <div class="stat-card-num">R$ 1.170</div>
+          <div class="stat-card-lbl">MRR</div>
+          <div class="stat-card-sub sub-green">↑ 6,7% este mês</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:#fffbeb">👥</div>
+          <div class="stat-card-num">312</div>
+          <div class="stat-card-lbl">Usuários na plataforma</div>
+          <div class="stat-card-sub sub-green">Funcionários ativos</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:#f5f3ff">📈</div>
+          <div class="stat-card-num">94%</div>
+          <div class="stat-card-lbl">Taxa de retenção</div>
+          <div class="stat-card-sub sub-green">Últimos 30 dias</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:#fef2f2">🔄</div>
+          <div class="stat-card-num">3</div>
+          <div class="stat-card-lbl">Cancelamentos</div>
+          <div class="stat-card-sub sub-red">Este mês</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:#edfaf2">⚡</div>
+          <div class="stat-card-num">99,8%</div>
+          <div class="stat-card-lbl">Uptime plataforma</div>
+          <div class="stat-card-sub sub-green">Últimos 30 dias</div>
+        </div>
+      </div>
+
+      <!-- ABAS DO PAINEL OWNER -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+        <button class="btn btn-primary btn-sm owner-tab active" onclick="ownerTab('assinantes')">🏢 Assinantes</button>
+        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('financeiro')">💰 Financeiro</button>
+        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('plataforma')">⚙️ Plataforma</button>
+        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('suporte')">🎧 Suporte</button>
+        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('marketing')">📣 Marketing</button>
+        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('logs')">📋 Logs</button>
+        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('api')">🔌 API</button>
+        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('configuracoes')">🛠️ Configurações</button>
+      </div>
+
+      <!-- ABA: ASSINANTES -->
+      <div id="owner-assinantes">
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header">
+            <div class="card-title">Empresas cadastradas</div>
+            <div style="display:flex;gap:8px">
+              <select class="btn btn-secondary btn-sm" style="border:1px solid var(--gray100)">
+                <option>Todos os status</option>
+                <option>Ativas</option>
+                <option>Trial</option>
+                <option>Inadimplentes</option>
+                <option>Canceladas</option>
+              </select>
+              <select class="btn btn-secondary btn-sm" style="border:1px solid var(--gray100)">
+                <option>Todos os ramos</option>
+                <option>Alimentação</option>
+                <option>Estética</option>
+                <option>Varejo</option>
+                <option>Saúde</option>
+                <option>Oficina</option>
+              </select>
+            </div>
+          </div>
+          <div class="card-body" style="padding:0">
+            <table>
+              <thead><tr><th>Empresa</th><th>Ramo</th><th>Desde</th><th>Funcionários</th><th>Status</th><th>Ações</th></tr></thead>
+              <tbody>
+                <tr><td><div style="font-weight:600">Barbearia Silva</div><div style="font-size:.72rem;color:var(--gray500)">Cadastro: Jan/2026</div></td><td><span class="tag">Barbearia</span></td><td>Jan 2026</td><td>5</td><td><span class="badge badge-green">Ativa</span></td><td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-secondary" onclick="ownerAcaoEmpresa('suspender')">Suspender</button><button class="btn btn-sm btn-danger" onclick="ownerAcaoEmpresa('cancelar')">Cancelar</button></div></td></tr>
+                <tr><td><div style="font-weight:600">Restaurante Sabor+</div><div style="font-size:.72rem;color:var(--gray500)">Cadastro: Fev/2026</div></td><td><span class="tag">Alimentação</span></td><td>Fev 2026</td><td>12</td><td><span class="badge badge-green">Ativa</span></td><td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-secondary" onclick="ownerAcaoEmpresa('suspender')">Suspender</button><button class="btn btn-sm btn-danger" onclick="ownerAcaoEmpresa('cancelar')">Cancelar</button></div></td></tr>
+                <tr><td><div style="font-weight:600">Farmácia Saúde Bem</div><div style="font-size:.72rem;color:var(--gray500)">Cadastro: Mar/2026</div></td><td><span class="tag">Saúde</span></td><td>Mar 2026</td><td>8</td><td><span class="badge badge-green">Ativa</span></td><td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-secondary" onclick="ownerAcaoEmpresa('suspender')">Suspender</button><button class="btn btn-sm btn-danger" onclick="ownerAcaoEmpresa('cancelar')">Cancelar</button></div></td></tr>
+                <tr><td><div style="font-weight:600">Auto Peças Roda Viva</div><div style="font-size:.72rem;color:var(--gray500)">Cadastro: Abr/2026</div></td><td><span class="tag">Oficina</span></td><td>Abr 2026</td><td>6</td><td><span class="badge badge-yellow">Trial</span></td><td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-primary" onclick="ownerAcaoEmpresa('ativar')">Ativar</button><button class="btn btn-sm btn-danger" onclick="ownerAcaoEmpresa('cancelar')">Cancelar</button></div></td></tr>
+                <tr><td><div style="font-weight:600">Clínica Estética Luz</div><div style="font-size:.72rem;color:var(--gray500)">Cadastro: Mai/2026</div></td><td><span class="tag">Estética</span></td><td>Mai 2026</td><td>4</td><td><span class="badge badge-red">Inadimplente</span></td><td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-secondary" onclick="ownerAcaoEmpresa('notificar')">Notificar</button><button class="btn btn-sm btn-danger" onclick="ownerAcaoEmpresa('suspender')">Suspender</button></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Distribuição por ramo</div></div>
+            <div class="card-body">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Alimentação</span><span style="font-weight:600">14 empresas · 30%</span></div><div class="progress-bar"><div class="progress-fill" style="width:30%"></div></div></div>
+                <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Estética</span><span style="font-weight:600">9 empresas · 19%</span></div><div class="progress-bar"><div class="progress-fill" style="width:19%"></div></div></div>
+                <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Varejo</span><span style="font-weight:600">8 empresas · 17%</span></div><div class="progress-bar"><div class="progress-fill" style="width:17%"></div></div></div>
+                <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Saúde</span><span style="font-weight:600">7 empresas · 15%</span></div><div class="progress-bar"><div class="progress-fill" style="width:15%"></div></div></div>
+                <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Outros</span><span style="font-weight:600">9 empresas · 19%</span></div><div class="progress-bar"><div class="progress-fill" style="width:19%"></div></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">Novos assinantes — Junho</div></div>
+            <div class="card-body" style="padding:0">
+              <table>
+                <thead><tr><th>Empresa</th><th>Data</th><th>Ramo</th></tr></thead>
+                <tbody>
+                  <tr><td>Delivery Rápido</td><td>27/06</td><td><span class="tag">Delivery</span></td></tr>
+                  <tr><td>Mercado Central</td><td>26/06</td><td><span class="tag">Varejo</span></td></tr>
+                  <tr><td>Salão Glow</td><td>25/06</td><td><span class="tag">Estética</span></td></tr>
+                  <tr><td>Clínica Vet Pet</td><td>24/06</td><td><span class="tag">Saúde</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA: FINANCEIRO -->
+      <div id="owner-financeiro" style="display:none">
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2">💰</div><div class="stat-card-num">R$ 1.170</div><div class="stat-card-lbl">MRR atual</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff">📈</div><div class="stat-card-num">R$ 14.040</div><div class="stat-card-lbl">ARR projetado</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb">⚠️</div><div class="stat-card-num">R$ 99,60</div><div class="stat-card-lbl">Inadimplência</div><div class="stat-card-sub sub-red">4 empresas</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2">🔄</div><div class="stat-card-num">R$ 74,70</div><div class="stat-card-lbl">Churn MRR</div><div class="stat-card-sub sub-red">Este mês</div></div>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header"><div class="card-title">Histórico de receita mensal</div><button class="btn btn-sm btn-secondary">Exportar CSV</button></div>
+          <div class="card-body">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;align-items:center;justify-content:space-between;font-size:.85rem"><span style="color:var(--gray500);width:50px">Jun/26</span><div style="flex:1;margin:0 12px"><div class="progress-bar"><div class="progress-fill" style="width:85%"></div></div></div><span style="font-weight:700;color:var(--g600)">R$ 1.170 · 47 emp.</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;font-size:.85rem"><span style="color:var(--gray500);width:50px">Mai/26</span><div style="flex:1;margin:0 12px"><div class="progress-bar"><div class="progress-fill" style="width:78%"></div></div></div><span style="font-weight:700;color:var(--g600)">R$ 1.096 · 44 emp.</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;font-size:.85rem"><span style="color:var(--gray500);width:50px">Abr/26</span><div style="flex:1;margin:0 12px"><div class="progress-bar"><div class="progress-fill" style="width:65%"></div></div></div><span style="font-weight:700;color:var(--g600)">R$ 921 · 37 emp.</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;font-size:.85rem"><span style="color:var(--gray500);width:50px">Mar/26</span><div style="flex:1;margin:0 12px"><div class="progress-bar"><div class="progress-fill" style="width:50%"></div></div></div><span style="font-weight:700;color:var(--g600)">R$ 697 · 28 emp.</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;font-size:.85rem"><span style="color:var(--gray500);width:50px">Fev/26</span><div style="flex:1;margin:0 12px"><div class="progress-bar"><div class="progress-fill" style="width:35%"></div></div></div><span style="font-weight:700;color:var(--g600)">R$ 498 · 20 emp.</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;font-size:.85rem"><span style="color:var(--gray500);width:50px">Jan/26</span><div style="flex:1;margin:0 12px"><div class="progress-bar"><div class="progress-fill" style="width:20%"></div></div></div><span style="font-weight:700;color:var(--g600)">R$ 249 · 10 emp.</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Empresas inadimplentes</div><button class="btn btn-sm btn-danger">Notificar todas</button></div>
+          <div class="card-body" style="padding:0">
+            <table>
+              <thead><tr><th>Empresa</th><th>Vencimento</th><th>Dias em atraso</th><th>Ação</th></tr></thead>
+              <tbody>
+                <tr><td>Clínica Estética Luz</td><td>01/06/2026</td><td style="color:var(--red);font-weight:700">27 dias</td><td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-secondary" onclick="ownerAcaoEmpresa('notificar')">📧 Notificar</button><button class="btn btn-sm btn-danger" onclick="ownerAcaoEmpresa('suspender')">Suspender</button></div></td></tr>
+                <tr><td>Loja de Roupas Moda</td><td>05/06/2026</td><td style="color:var(--red);font-weight:700">23 dias</td><td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-secondary" onclick="ownerAcaoEmpresa('notificar')">📧 Notificar</button><button class="btn btn-sm btn-danger" onclick="ownerAcaoEmpresa('suspender')">Suspender</button></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA: PLATAFORMA -->
+      <div id="owner-plataforma" style="display:none">
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2">⚡</div><div class="stat-card-num">99,8%</div><div class="stat-card-lbl">Uptime</div><div class="stat-card-sub sub-green">Últimos 30 dias</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff">🚀</div><div class="stat-card-num">142ms</div><div class="stat-card-lbl">Latência média</div><div class="stat-card-sub sub-green">API resposta</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb">📊</div><div class="stat-card-num">18.4k</div><div class="stat-card-lbl">Requisições/dia</div><div class="stat-card-sub sub-green">Hoje</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2">🗄️</div><div class="stat-card-num">2.3GB</div><div class="stat-card-lbl">Uso de storage</div><div class="stat-card-sub sub-green">de 10GB livres</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Status dos serviços</div></div>
+            <div class="card-body">
+              <div class="perm-row"><span class="perm-label">🟢 API Backend (Render)</span><span class="badge badge-green">Online</span></div>
+              <div class="perm-row"><span class="perm-label">🟢 Site institucional (GitHub Pages)</span><span class="badge badge-green">Online</span></div>
+              <div class="perm-row"><span class="perm-label">🟢 Gateway PIX (Duttyfy)</span><span class="badge badge-green">Online</span></div>
+              <div class="perm-row"><span class="perm-label">🟢 E-mail (Gmail SMTP)</span><span class="badge badge-green">Online</span></div>
+              <div class="perm-row"><span class="perm-label">🟡 Banco de dados</span><span class="badge badge-yellow">Pendente config</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">Versão da plataforma</div><button class="btn btn-sm btn-primary">Deploy</button></div>
+            <div class="card-body">
+              <div class="perm-row"><span class="perm-label">Versão atual</span><span style="font-weight:700;color:var(--g600)">v1.0.0</span></div>
+              <div class="perm-row"><span class="perm-label">Último deploy</span><span style="font-size:.82rem;color:var(--gray500)">27/06/2026 18:01</span></div>
+              <div class="perm-row"><span class="perm-label">Ambiente</span><span class="badge badge-green">Produção</span></div>
+              <div class="perm-row"><span class="perm-label">Node.js</span><span style="font-size:.82rem;color:var(--gray500)">v18.x</span></div>
+              <div class="perm-row"><span class="perm-label">Commits pendentes</span><span class="badge badge-yellow">2 pendentes</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Manutenção programada</div><button class="btn btn-sm btn-primary" onclick="ownerAcao('agendar-manutencao')">Agendar</button></div>
+          <div class="card-body">
+            <div style="background:var(--gray50);border-radius:var(--r);padding:16px;text-align:center;color:var(--gray500);font-size:.85rem">Nenhuma manutenção agendada. A plataforma está operando normalmente.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA: SUPORTE -->
+      <div id="owner-suporte" style="display:none">
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2">🎧</div><div class="stat-card-num">4</div><div class="stat-card-lbl">Tickets abertos</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff">✅</div><div class="stat-card-num">28</div><div class="stat-card-lbl">Resolvidos este mês</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb">⏱</div><div class="stat-card-num">2h 14m</div><div class="stat-card-lbl">Tempo médio resposta</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2">⭐</div><div class="stat-card-num">4,8</div><div class="stat-card-lbl">Satisfação média</div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Tickets em aberto</div><button class="btn btn-sm btn-primary">+ Novo ticket</button></div>
+          <div class="card-body" style="padding:0">
+            <table>
+              <thead><tr><th>Empresa</th><th>Assunto</th><th>Prioridade</th><th>Aberto em</th><th>Ação</th></tr></thead>
+              <tbody>
+                <tr><td>Restaurante Sabor+</td><td>Erro ao bater ponto</td><td><span class="badge badge-red">Alta</span></td><td>Hoje 10:32</td><td><button class="btn btn-sm btn-primary" onclick="ownerAcao('responder-ticket')">Responder</button></td></tr>
+                <tr><td>Barbearia Silva</td><td>Como personalizar cores?</td><td><span class="badge badge-yellow">Média</span></td><td>Ontem 15:00</td><td><button class="btn btn-sm btn-primary" onclick="ownerAcao('responder-ticket')">Responder</button></td></tr>
+                <tr><td>Auto Peças Roda Viva</td><td>Adicionar novo funcionário</td><td><span class="badge badge-blue">Baixa</span></td><td>26/06 09:15</td><td><button class="btn btn-sm btn-primary" onclick="ownerAcao('responder-ticket')">Responder</button></td></tr>
+                <tr><td>Farmácia Saúde Bem</td><td>Integração com sistema de caixa</td><td><span class="badge badge-yellow">Média</span></td><td>25/06 14:40</td><td><button class="btn btn-sm btn-primary" onclick="ownerAcao('responder-ticket')">Responder</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">📢 Enviar comunicado para todas as empresas</div></div>
+          <div class="card-body">
+            <div class="field"><label>Assunto</label><input placeholder="Ex: Nova funcionalidade disponível!"></div>
+            <div class="field"><label>Mensagem</label><textarea placeholder="Escreva o comunicado..." style="width:100%;padding:10px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-family:var(--font);font-size:.9rem;resize:vertical;min-height:100px;outline:none"></textarea></div>
+            <div class="field"><label>Destinatários</label><select><option>Todas as empresas (47)</option><option>Apenas ativas (44)</option><option>Apenas trial (3)</option><option>Inadimplentes (4)</option></select></div>
+            <button class="btn btn-primary" onclick="ownerAcao('enviar-comunicado')">📧 Enviar comunicado</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA: MARKETING -->
+      <div id="owner-marketing" style="display:none">
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2">🔗</div><div class="stat-card-num">1.240</div><div class="stat-card-lbl">Visitas no site</div><div class="stat-card-sub sub-green">Este mês</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff">🎯</div><div class="stat-card-num">3,8%</div><div class="stat-card-lbl">Taxa de conversão</div><div class="stat-card-sub sub-green">Visita → Trial</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb">💸</div><div class="stat-card-num">R$ 6,55</div><div class="stat-card-lbl">CAC médio</div><div class="stat-card-sub sub-green">Custo aquisição</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#f5f3ff">♾️</div><div class="stat-card-num">R$ 298</div><div class="stat-card-lbl">LTV médio</div><div class="stat-card-sub sub-green">12 meses</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Fontes de aquisição</div></div>
+            <div class="card-body">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Orgânico / Direto</span><span style="font-weight:600">18 · 38%</span></div><div class="progress-bar"><div class="progress-fill" style="width:38%"></div></div></div>
+                <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Instagram / Meta</span><span style="font-weight:600">14 · 30%</span></div><div class="progress-bar"><div class="progress-fill" style="width:30%"></div></div></div>
+                <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Indicação</span><span style="font-weight:600">10 · 21%</span></div><div class="progress-bar"><div class="progress-fill" style="width:21%"></div></div></div>
+                <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>WhatsApp / Outros</span><span style="font-weight:600">5 · 11%</span></div><div class="progress-bar"><div class="progress-fill" style="width:11%"></div></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">UTMs mais eficientes</div></div>
+            <div class="card-body" style="padding:0">
+              <table>
+                <thead><tr><th>Campanha</th><th>Conversões</th><th>Taxa</th></tr></thead>
+                <tbody>
+                  <tr><td>instagram_stories_jun</td><td>8</td><td style="color:var(--g600);font-weight:600">5,2%</td></tr>
+                  <tr><td>whatsapp_dono_mai</td><td>6</td><td style="color:var(--g600);font-weight:600">4,8%</td></tr>
+                  <tr><td>facebook_feed_jun</td><td>6</td><td style="color:var(--g600);font-weight:600">3,1%</td></tr>
+                  <tr><td>google_organico</td><td>4</td><td style="color:var(--g600);font-weight:600">2,9%</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Links de rastreamento (UTM)</div><button class="btn btn-sm btn-primary" onclick="ownerAcao('gerar-utm')">+ Gerar link</button></div>
+          <div class="card-body">
+            <div class="field"><label>Campanha</label><input placeholder="Ex: instagram_junho" id="utm-campanha"></div>
+            <div class="field"><label>Mídia</label><select id="utm-midia"><option>instagram</option><option>facebook</option><option>whatsapp</option><option>tiktok</option><option>google</option><option>email</option></select></div>
+            <div style="background:var(--gray50);border-radius:var(--r);padding:12px;font-size:.82rem;color:var(--gray700);font-family:monospace;word-break:break-all" id="utm-resultado">
+              https://811freitas.github.io/Worka-backend/worka.html?utm_source=instagram&utm_medium=cpc&utm_campaign=lancamento
+            </div>
+            <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="copiarUTM()">📋 Copiar link</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA: LOGS -->
+      <div id="owner-logs" style="display:none">
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header"><div class="card-title">Log de atividades da plataforma</div><button class="btn btn-sm btn-secondary">Exportar</button></div>
+          <div class="card-body" style="padding:0">
+            <table>
+              <thead><tr><th>Data/Hora</th><th>Evento</th><th>Empresa</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td style="font-size:.75rem;color:var(--gray500)">27/06 18:01</td><td>Deploy backend</td><td>—</td><td><span class="badge badge-green">Sucesso</span></td></tr>
+                <tr><td style="font-size:.75rem;color:var(--gray500)">27/06 17:10</td><td>Novo assinante PIX confirmado</td><td>Delivery Rápido</td><td><span class="badge badge-green">Pago</span></td></tr>
+                <tr><td style="font-size:.75rem;color:var(--gray500)">27/06 14:32</td><td>Solicitação de suporte</td><td>Restaurante Sabor+</td><td><span class="badge badge-yellow">Aberto</span></td></tr>
+                <tr><td style="font-size:.75rem;color:var(--gray500)">27/06 12:00</td><td>Pagamento PIX gerado</td><td>—</td><td><span class="badge badge-blue">Pendente</span></td></tr>
+                <tr><td style="font-size:.75rem;color:var(--gray500)">26/06 23:59</td><td>Alerta de inadimplência disparado</td><td>Clínica Estética Luz</td><td><span class="badge badge-red">Atraso</span></td></tr>
+                <tr><td style="font-size:.75rem;color:var(--gray500)">26/06 18:00</td><td>Backup automático</td><td>—</td><td><span class="badge badge-green">Sucesso</span></td></tr>
+                <tr><td style="font-size:.75rem;color:var(--gray500)">26/06 10:15</td><td>Novo assinante PIX confirmado</td><td>Mercado Central</td><td><span class="badge badge-green">Pago</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Erros recentes</div></div>
+          <div class="card-body">
+            <div style="background:var(--gray50);border-radius:var(--r);padding:16px;text-align:center;color:var(--gray500);font-size:.85rem">✅ Nenhum erro crítico nas últimas 24 horas.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA: API -->
+      <div id="owner-api" style="display:none">
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2">🔌</div><div class="stat-card-num">18.4k</div><div class="stat-card-lbl">Chamadas hoje</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff">⚡</div><div class="stat-card-num">142ms</div><div class="stat-card-lbl">Latência média</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2">✅</div><div class="stat-card-num">99,2%</div><div class="stat-card-lbl">Taxa de sucesso</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2">❌</div><div class="stat-card-num">147</div><div class="stat-card-lbl">Erros hoje</div><div class="stat-card-sub sub-red">0,8% das chamadas</div></div>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header"><div class="card-title">Endpoints mais usados</div></div>
+          <div class="card-body" style="padding:0">
+            <table>
+              <thead><tr><th>Endpoint</th><th>Chamadas</th><th>Latência</th><th>Erros</th></tr></thead>
+              <tbody>
+                <tr><td><code>POST /pix</code></td><td>1.240</td><td>890ms</td><td style="color:var(--g600)">0,3%</td></tr>
+                <tr><td><code>GET /pix?transactionId</code></td><td>8.920</td><td>210ms</td><td style="color:var(--g600)">0,1%</td></tr>
+                <tr><td><code>POST /enviar-codigo</code></td><td>1.180</td><td>1.2s</td><td style="color:var(--yellow)">1,2%</td></tr>
+                <tr><td><code>POST /verificar-codigo</code></td><td>1.060</td><td>95ms</td><td style="color:var(--g600)">0,4%</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Chaves de API ativas</div><button class="btn btn-sm btn-primary" onclick="ownerAcao('gerar-chave')">+ Gerar chave</button></div>
+          <div class="card-body">
+            <div style="background:var(--gray50);border-radius:var(--r);padding:14px;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <div><div style="font-size:.82rem;font-weight:600">Chave de produção</div><div style="font-size:.75rem;color:var(--gray500);font-family:monospace">wk_live_••••••••••••••••••••••••8f2a</div></div>
+              <span class="badge badge-green">Ativa</span>
+            </div>
+            <div style="background:var(--gray50);border-radius:var(--r);padding:14px;display:flex;align-items:center;justify-content:space-between">
+              <div><div style="font-size:.82rem;font-weight:600">Chave de sandbox</div><div style="font-size:.75rem;color:var(--gray500);font-family:monospace">wk_test_••••••••••••••••••••••••3c1b</div></div>
+              <span class="badge badge-yellow">Teste</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA: CONFIGURAÇÕES -->
+      <div id="owner-configuracoes" style="display:none">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header"><div class="card-title">⚙️ Configurações gerais</div></div>
+            <div class="card-body">
+              <div class="field"><label>Nome da plataforma</label><input value="Worka"></div>
+              <div class="field"><label>E-mail de suporte</label><input value="suporte@worka.app"></div>
+              <div class="field"><label>Preço mensal (R$)</label><input type="number" value="24.90" step="0.01"></div>
+              <div class="field"><label>Dias de trial gratuito</label><input type="number" value="7"></div>
+              <div class="divider"></div>
+              <div class="perm-row"><span class="perm-label">Novos cadastros abertos</span><button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">E-mail de verificação obrigatório</span><button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Modo manutenção</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+              <button class="btn btn-primary" style="margin-top:14px" onclick="ownerAcao('salvar-config')">Salvar configurações</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">🔐 Segurança</div></div>
+            <div class="card-body">
+              <div class="field"><label>Senha atual do Owner</label><input type="password" placeholder="••••••••"></div>
+              <div class="field"><label>Nova senha</label><input type="password" placeholder="••••••••"></div>
+              <div class="field"><label>Confirmar nova senha</label><input type="password" placeholder="••••••••"></div>
+              <button class="btn btn-primary" onclick="ownerAcao('alterar-senha')">Alterar senha</button>
+              <div class="divider"></div>
+              <div class="perm-row"><span class="perm-label">Autenticação 2 fatores</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+              <div class="perm-row"><span class="perm-label">Alerta de novo login</span><button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">📧 Configurações de e-mail</div></div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="field"><label>Gmail SMTP</label><input value="workappoficial@gmail.com"></div>
+              <div class="field"><label>Senha de app</label><input type="password" value="••••••••••••••••"></div>
+              <div class="field form-full"><label>E-mail remetente exibido</label><input value="Worka &lt;noreply@worka.app&gt;"></div>
+            </div>
+            <button class="btn btn-secondary" onclick="ownerAcao('testar-email')">📧 Enviar e-mail de teste</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <!-- FIM PAINEL OWNER -->
+
+    <!-- PAINEL FUNCIONÁRIO -->
+    <div class="page" id="pg-meu-painel">
+      <div class="ponto-card">
+        <div style="font-size:.85rem;color:rgba(255,255,255,.6)" id="saudacao-func">Bom dia!</div>
+        <div style="font-size:1rem;color:rgba(255,255,255,.8);margin:4px 0" id="func-data"></div>
+        <div class="ponto-time" id="func-relogio">00:00:00</div>
+        <div class="ponto-btns">
+          <button class="ponto-btn ponto-btn-entrada" onclick="baterPonto('entrada')">▶ Entrada</button>
+          <button class="ponto-btn ponto-btn-intervalo" onclick="baterPonto('intervalo')">☕ Intervalo</button>
+          <button class="ponto-btn ponto-btn-retorno" onclick="baterPonto('retorno')">↩ Retorno</button>
+          <button class="ponto-btn ponto-btn-saida" onclick="baterPonto('saida')">■ Saída</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header"><div class="card-title">Minhas tarefas de hoje</div><span class="badge badge-yellow">2 pendentes</span></div>
+        <div class="card-body" style="padding:12px">
+          <div class="tarefa-card">
+            <div class="tarefa-header"><div class="tarefa-title">📦 Reposição de estoque — corredor 3</div><span class="badge badge-yellow">Pendente</span></div>
+            <div class="tarefa-meta"><span>📅 Prazo: hoje 18h</span><span>📷 Requer foto</span></div>
+            <div style="margin-top:10px"><button class="btn btn-sm btn-primary" onclick="concluirTarefa(this)">Concluir com foto 📷</button></div>
+          </div>
+          <div class="tarefa-card">
+            <div class="tarefa-header"><div class="tarefa-title">🧹 Limpeza do banheiro</div><span class="badge badge-yellow">Pendente</span></div>
+            <div class="tarefa-meta"><span>📅 Prazo: hoje 20h</span></div>
+            <div style="margin-top:10px"><button class="btn btn-sm btn-primary" onclick="concluirTarefa(this)">Marcar como concluída</button></div>
+          </div>
+          <div class="tarefa-card" style="opacity:.6">
+            <div class="tarefa-header"><div class="tarefa-title">✅ Abertura do caixa</div><span class="badge badge-green">Concluída</span></div>
+            <div class="tarefa-meta"><span>📅 Concluída às 08:30</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">📢 Comunicados da empresa</div></div>
+        <div class="card-body">
+          <div style="padding:12px;background:var(--g50);border-radius:var(--r);border-left:3px solid var(--g400);margin-bottom:10px">
+            <div style="font-size:.82rem;font-weight:600;color:var(--g600)">Reunião de equipe</div>
+            <div style="font-size:.8rem;color:var(--gray700);margin-top:4px">Reunião obrigatória na segunda-feira às 08h antes da abertura. Presença confirmada com o gerente.</div>
+            <div style="font-size:.72rem;color:var(--gray500);margin-top:6px">Postado pelo Dono · hoje</div>
+          </div>
+          <div style="padding:12px;background:var(--gray50);border-radius:var(--r);border-left:3px solid var(--gray300)">
+            <div style="font-size:.82rem;font-weight:600;color:var(--gray700)">Novo protocolo de limpeza</div>
+            <div style="font-size:.8rem;color:var(--gray700);margin-top:4px">A partir de segunda, o checklist de limpeza deve ser fotografado ao final de cada turno.</div>
+            <div style="font-size:.72rem;color:var(--gray500);margin-top:6px">Postado pela Gerente · ontem</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ── PÁGINA: SALÁRIOS ── -->
+    <div class="page" id="pg-salarios">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div></div>
+        <button class="btn btn-primary" onclick="abrirModal('modal-add-salario')">+ Definir salário</button>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2">💰</div><div class="stat-card-num">R$ 12.400</div><div class="stat-card-lbl">Folha total/mês</div></div>
+        <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb">⚠️</div><div class="stat-card-num">3</div><div class="stat-card-lbl">Pagamentos este mês</div><div class="stat-card-sub sub-yellow">Próximo: 05/07</div></div>
+        <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2">📉</div><div class="stat-card-num">2</div><div class="stat-card-lbl">Faltas este mês</div><div class="stat-card-sub sub-red">R$ 200 descontados</div></div>
+        <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff">📈</div><div class="stat-card-num">1</div><div class="stat-card-lbl">Aumentos este mês</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">Folha de pagamento</div><button class="btn btn-sm btn-secondary">Exportar</button></div>
+        <div class="card-body" style="padding:0">
+          <table>
+            <thead><tr><th>Funcionário</th><th>Cargo</th><th>Salário base</th><th>Faltas</th><th>Desconto</th><th>Líquido</th><th>Pagamento</th><th>Ações</th></tr></thead>
+            <tbody id="tabela-salarios">
+              <tr>
+                <td><div style="font-weight:600">Maria Silva</div></td>
+                <td><span class="badge badge-purple">Gerente</span></td>
+                <td>R$ 2.500</td>
+                <td>0</td>
+                <td style="color:var(--g600)">R$ 0</td>
+                <td style="font-weight:700;color:var(--g600)">R$ 2.500</td>
+                <td><span class="badge badge-yellow">05/07</span></td>
+                <td><div style="display:flex;gap:4px">
+                  <button class="btn btn-sm btn-primary" onclick="darAumento('Maria Silva', 2500)">↑ Aumentar</button>
+                  <button class="btn btn-sm btn-secondary" onclick="darAjuste('Maria Silva', 2500, 'baixar')">↓ Ajustar</button>
+                  <button class="btn btn-sm btn-secondary" onclick="marcarPago('Maria Silva')">✓ Pago</button>
+                </div></td>
+              </tr>
+              <tr>
+                <td><div style="font-weight:600">João Pedro</div></td>
+                <td><span class="badge badge-blue">Atendente</span></td>
+                <td>R$ 1.800</td>
+                <td>1</td>
+                <td style="color:var(--red)">R$ 82</td>
+                <td style="font-weight:700;color:var(--g600)">R$ 1.718</td>
+                <td><span class="badge badge-yellow">05/07</span></td>
+                <td><div style="display:flex;gap:4px">
+                  <button class="btn btn-sm btn-primary" onclick="darAumento('João Pedro', 1800)">↑ Aumentar</button>
+                  <button class="btn btn-sm btn-secondary" onclick="marcarPago('João Pedro')">✓ Pago</button>
+                </div></td>
+              </tr>
+              <tr>
+                <td><div style="font-weight:600">Ana Lima</div></td>
+                <td><span class="badge badge-green">Caixa</span></td>
+                <td>R$ 1.600</td>
+                <td>0</td>
+                <td style="color:var(--g600)">R$ 0</td>
+                <td style="font-weight:700;color:var(--g600)">R$ 1.600</td>
+                <td><span class="badge badge-green">Pago ✓</span></td>
+                <td><div style="display:flex;gap:4px">
+                  <button class="btn btn-sm btn-primary" onclick="darAumento('Ana Lima', 1600)">↑ Aumentar</button>
+                </div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">🔔 Alertas de pagamento</div><button class="btn btn-sm btn-primary" onclick="abrirModal('modal-alerta-pagamento')">+ Configurar alerta</button></div>
+        <div class="card-body">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="background:var(--g50);border-radius:var(--r);padding:14px;display:flex;align-items:center;justify-content:space-between">
+              <div><div style="font-size:.85rem;font-weight:600;color:var(--g600)">💰 Pagamento dia 05/07</div><div style="font-size:.75rem;color:var(--gray500);margin-top:2px">Aviso 3 dias antes • Todos os funcionários</div></div>
+              <span class="badge badge-green">Ativo</span>
+            </div>
+            <div style="background:var(--gray50);border-radius:var(--r);padding:14px;display:flex;align-items:center;justify-content:space-between">
+              <div><div style="font-size:.85rem;font-weight:600;color:var(--gray700)">📊 Relatório mensal de folha</div><div style="font-size:.75rem;color:var(--gray500);margin-top:2px">Enviado por e-mail no último dia do mês</div></div>
+              <span class="badge badge-green">Ativo</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PÁGINA: AUSÊNCIAS ── -->
+    <div class="page" id="pg-ausencias">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div class="stats-grid" style="flex:1;margin-bottom:0;margin-right:16px">
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2">❌</div><div class="stat-card-num">2</div><div class="stat-card-lbl">Faltas este mês</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb">📝</div><div class="stat-card-num">1</div><div class="stat-card-lbl">Justificadas</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2">⚠️</div><div class="stat-card-num">1</div><div class="stat-card-lbl">Sem justificativa</div></div>
+        </div>
+        <button class="btn btn-primary" onclick="abrirModal('modal-reg-ausencia')">+ Registrar ausência</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">Registro de ausências</div></div>
+        <div class="card-body" style="padding:0">
+          <table>
+            <thead><tr><th>Funcionário</th><th>Data</th><th>Tipo</th><th>Motivo</th><th>Desconto</th><th>Registrado por</th><th>Ações</th></tr></thead>
+            <tbody id="tabela-ausencias">
+              <tr>
+                <td><div style="font-weight:600">Carlos Reis</div></td>
+                <td>27/06/2026</td>
+                <td><span class="badge badge-red">Falta</span></td>
+                <td>Sem justificativa</td>
+                <td style="color:var(--red);font-weight:600">R$ 100</td>
+                <td style="font-size:.75rem;color:var(--gray500)">Sistema automático</td>
+                <td><button class="btn btn-sm btn-secondary" onclick="justificarAusencia(this)">Justificar</button></td>
+              </tr>
+              <tr>
+                <td><div style="font-weight:600">João Pedro</div></td>
+                <td>24/06/2026</td>
+                <td><span class="badge badge-yellow">Atestado</span></td>
+                <td>Consulta médica</td>
+                <td style="color:var(--g600);font-weight:600">Isento</td>
+                <td style="font-size:.75rem;color:var(--gray500)">João Pedro</td>
+                <td><span class="badge badge-green">Aprovada</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">⚙️ Configurar valor por falta</div></div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="field"><label>Tipo de desconto por falta</label>
+              <select id="tipo-desconto-falta">
+                <option value="fixo">Valor fixo por falta</option>
+                <option value="diaria">Desconto diário (salário ÷ dias úteis)</option>
+                <option value="sem-desconto">Sem desconto automático</option>
+              </select>
+            </div>
+            <div class="field"><label>Valor fixo por falta (R$)</label><input type="number" id="valor-falta" placeholder="100" value="100"></div>
+            <div class="field form-full">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="criar-tarefa-falta" checked> Criar tarefa automática ao registrar falta injustificada
+              </label>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="salvarConfigFalta()">Salvar configuração</button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ── PÁGINA: INTEGRAÇÃO API UNIVERSAL ── -->
+    <div class="page" id="pg-integracao">
+
+      <!-- ABAS INTERNAS -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+        <button class="btn btn-primary btn-sm integ-tab" onclick="integTab('conexoes')">🔗 Conexões</button>
+        <button class="btn btn-secondary btn-sm integ-tab" onclick="integTab('endpoints')">⚡ Endpoints</button>
+        <button class="btn btn-secondary btn-sm integ-tab" onclick="integTab('mapeamento')">🗺 Mapeamento</button>
+        <button class="btn btn-secondary btn-sm integ-tab" onclick="integTab('sync')">🔄 Sincronização</button>
+        <button class="btn btn-secondary btn-sm integ-tab" onclick="integTab('webhooks')">🪝 Webhooks</button>
+        <button class="btn btn-secondary btn-sm integ-tab" onclick="integTab('logs')">📋 Logs</button>
+        <button class="btn btn-secondary btn-sm integ-tab" onclick="integTab('swagger')">📖 OpenAPI</button>
+      </div>
+
+      <!-- ── ABA: CONEXÕES ── -->
+      <div id="integ-conexoes">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div style="font-size:.85rem;color:var(--gray500)">Gerencie todas as integrações com sistemas externos</div>
+          <button class="btn btn-primary" onclick="abrirModal('modal-nova-integracao')">+ Nova integração</button>
+        </div>
+
+        <div id="lista-integracoes">
+          <div class="card" style="margin-bottom:12px;border-left:4px solid var(--g400)">
+            <div class="card-body" style="padding:16px">
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+                <div style="display:flex;align-items:center;gap:12px">
+                  <div style="width:42px;height:42px;border-radius:10px;background:var(--g50);display:flex;align-items:center;justify-content:center;font-size:1.3rem">🛒</div>
+                  <div>
+                    <div style="font-weight:700;color:var(--gray900)">iFood — Delivery</div>
+                    <div style="font-size:.75rem;color:var(--gray500)">https://merchant-api.ifood.com.br · Bearer Token</div>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span class="badge badge-green">● Conectada</span>
+                  <span style="font-size:.72rem;color:var(--gray500)">Sync: há 5min</span>
+                  <button class="btn btn-sm btn-secondary" onclick="sincronizarAgora('ifood')">🔄 Sync</button>
+                  <button class="btn btn-sm btn-secondary" onclick="editarIntegracao('ifood')">✏️</button>
+                  <button class="btn btn-sm btn-danger" onclick="removerIntegracao('ifood')">🗑</button>
+                </div>
+              </div>
+              <div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap">
+                <span class="tag">📦 Pedidos</span><span class="tag">💰 Financeiro</span><span class="tag">👥 Clientes</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom:12px;border-left:4px solid var(--blue)">
+            <div class="card-body" style="padding:16px">
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+                <div style="display:flex;align-items:center;gap:12px">
+                  <div style="width:42px;height:42px;border-radius:10px;background:#eff6ff;display:flex;align-items:center;justify-content:center;font-size:1.3rem">📊</div>
+                  <div>
+                    <div style="font-weight:700;color:var(--gray900)">Bling ERP</div>
+                    <div style="font-size:.75rem;color:var(--gray500)">https://www.bling.com.br/Api/v3 · Bearer Token</div>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span class="badge badge-yellow">⚠ Erro auth</span>
+                  <button class="btn btn-sm btn-primary" onclick="reconectarIntegracao('bling')">Reconectar</button>
+                  <button class="btn btn-sm btn-secondary" onclick="editarIntegracao('bling')">✏️</button>
+                  <button class="btn btn-sm btn-danger" onclick="removerIntegracao('bling')">🗑</button>
+                </div>
+              </div>
+              <div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap">
+                <span class="tag">📦 Estoque</span><span class="tag">🏷 Produtos</span><span class="tag">🧾 NF-e</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px">
+          <div class="stat-card" style="flex:1;min-width:140px">
+            <div class="stat-card-icon" style="background:#edfaf2">🔗</div>
+            <div class="stat-card-num" id="int-total-conexoes">2</div>
+            <div class="stat-card-lbl">Integrações</div>
+          </div>
+          <div class="stat-card" style="flex:1;min-width:140px">
+            <div class="stat-card-icon" style="background:#edfaf2">✅</div>
+            <div class="stat-card-num" id="int-ativas">1</div>
+            <div class="stat-card-lbl">Ativas</div>
+          </div>
+          <div class="stat-card" style="flex:1;min-width:140px">
+            <div class="stat-card-icon" style="background:#fef2f2">❌</div>
+            <div class="stat-card-num" id="int-erros">1</div>
+            <div class="stat-card-lbl">Com erro</div>
+          </div>
+          <div class="stat-card" style="flex:1;min-width:140px">
+            <div class="stat-card-icon" style="background:#eff6ff">🔄</div>
+            <div class="stat-card-num" id="int-req-hoje">1.240</div>
+            <div class="stat-card-lbl">Requisições hoje</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ABA: ENDPOINTS ── -->
+      <div id="integ-endpoints" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div>
+            <label style="font-size:.82rem;font-weight:600;color:var(--gray700);margin-right:8px">Sistema:</label>
+            <select id="endpoint-sistema" onchange="carregarEndpoints()" style="padding:6px 10px;border:1.5px solid var(--gray100);border-radius:8px;font-family:var(--font);font-size:.82rem">
+              <option value="ifood">iFood</option>
+              <option value="bling">Bling ERP</option>
+              <option value="custom">Customizado</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="abrirModal('modal-add-endpoint')">+ Endpoint</button>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header"><div class="card-title">🧪 Testar endpoint</div></div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="field">
+                <label>Método</label>
+                <select id="req-metodo" style="width:100%;padding:10px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-family:var(--font);font-size:.9rem">
+                  <option value="GET">GET</option>
+                  <option value="POST">POST</option>
+                  <option value="PUT">PUT</option>
+                  <option value="DELETE">DELETE</option>
+                  <option value="PATCH">PATCH</option>
+                </select>
+              </div>
+              <div class="field"><label>URL do endpoint</label><input id="req-url" placeholder="/orders ou URL completa"></div>
+              <div class="field form-full"><label>Headers adicionais (JSON)</label><input id="req-headers" placeholder='{"Content-Type":"application/json"}'></div>
+              <div class="field form-full"><label>Body (para POST/PUT)</label><textarea id="req-body" placeholder='{"campo":"valor"}' style="width:100%;padding:10px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-family:monospace;font-size:.82rem;resize:vertical;min-height:80px;outline:none"></textarea></div>
+            </div>
+            <button class="btn btn-primary" onclick="executarRequisicao()">▶ Executar requisição</button>
+            <div id="req-resultado" style="margin-top:14px;display:none">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <span style="font-size:.8rem;font-weight:600;color:var(--gray700)">Resposta</span>
+                <div id="req-status-badge"></div>
+              </div>
+              <div id="req-body-result" style="background:var(--gray900);border-radius:var(--r);padding:14px;font-family:monospace;font-size:.78rem;color:#a3e635;overflow-x:auto;max-height:300px;overflow-y:auto;white-space:pre-wrap;line-height:1.6"></div>
+              <div style="font-size:.72rem;color:var(--gray500);margin-top:6px" id="req-tempo"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><div class="card-title">Endpoints configurados</div></div>
+          <div class="card-body" style="padding:0">
+            <table>
+              <thead><tr><th>Método</th><th>Endpoint</th><th>Módulo Worka</th><th>Sync</th><th>Status</th><th>Ações</th></tr></thead>
+              <tbody id="tabela-endpoints">
+                <tr><td><span class="badge badge-green">GET</span></td><td><code>/order/v1.0/events</code></td><td>Pedidos</td><td>5min</td><td><span class="badge badge-green">Ativo</span></td><td><button class="btn btn-sm btn-secondary" onclick="executarEndpoint('/order/v1.0/events','GET')">▶</button></td></tr>
+                <tr><td><span class="badge badge-blue">GET</span></td><td><code>/financial/v1.0/reports</code></td><td>Financeiro</td><td>1h</td><td><span class="badge badge-green">Ativo</span></td><td><button class="btn btn-sm btn-secondary" onclick="executarEndpoint('/financial/v1.0/reports','GET')">▶</button></td></tr>
+                <tr><td><span class="badge badge-purple">POST</span></td><td><code>/order/v1.0/confirm</code></td><td>Confirmação</td><td>Manual</td><td><span class="badge badge-green">Ativo</span></td><td><button class="btn btn-sm btn-secondary">▶</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ABA: MAPEAMENTO ── -->
+      <div id="integ-mapeamento" style="display:none">
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header"><div class="card-title">🗺 Mapeamento de campos</div><span style="font-size:.78rem;color:var(--gray500)">Campo externo → Campo Worka</span></div>
+          <div class="card-body">
+            <div style="display:grid;grid-template-columns:1fr auto 1fr auto;gap:8px;align-items:center;margin-bottom:8px">
+              <div style="font-size:.72rem;font-weight:700;color:var(--gray500);text-transform:uppercase">Campo da API externa</div>
+              <div></div>
+              <div style="font-size:.72rem;font-weight:700;color:var(--gray500);text-transform:uppercase">Campo Worka</div>
+              <div></div>
+            </div>
+            <div id="lista-mapeamentos">
+              <div class="mapeamento-row" style="display:grid;grid-template-columns:1fr auto 1fr auto;gap:8px;align-items:center;margin-bottom:8px">
+                <input value="order_id" style="padding:8px 12px;border:1.5px solid var(--gray100);border-radius:8px;font-family:monospace;font-size:.82rem;outline:none">
+                <span style="color:var(--g500);font-weight:700">→</span>
+                <select style="padding:8px 12px;border:1.5px solid var(--gray100);border-radius:8px;font-family:var(--font);font-size:.82rem">
+                  <option>pedido_id</option><option>cliente_id</option><option>produto_id</option><option>valor_total</option><option>status</option><option>data_criacao</option>
+                </select>
+                <button class="btn btn-sm btn-danger" onclick="this.closest('.mapeamento-row').remove()">✕</button>
+              </div>
+              <div class="mapeamento-row" style="display:grid;grid-template-columns:1fr auto 1fr auto;gap:8px;align-items:center;margin-bottom:8px">
+                <input value="customer.name" style="padding:8px 12px;border:1.5px solid var(--gray100);border-radius:8px;font-family:monospace;font-size:.82rem;outline:none">
+                <span style="color:var(--g500);font-weight:700">→</span>
+                <select style="padding:8px 12px;border:1.5px solid var(--gray100);border-radius:8px;font-family:var(--font);font-size:.82rem">
+                  <option>pedido_id</option><option selected>cliente_nome</option><option>produto_id</option><option>valor_total</option><option>status</option>
+                </select>
+                <button class="btn btn-sm btn-danger" onclick="this.closest('.mapeamento-row').remove()">✕</button>
+              </div>
+              <div class="mapeamento-row" style="display:grid;grid-template-columns:1fr auto 1fr auto;gap:8px;align-items:center;margin-bottom:8px">
+                <input value="total_price" style="padding:8px 12px;border:1.5px solid var(--gray100);border-radius:8px;font-family:monospace;font-size:.82rem;outline:none">
+                <span style="color:var(--g500);font-weight:700">→</span>
+                <select style="padding:8px 12px;border:1.5px solid var(--gray100);border-radius:8px;font-family:var(--font);font-size:.82rem">
+                  <option>pedido_id</option><option>cliente_id</option><option>produto_id</option><option selected>valor_total</option><option>status</option>
+                </select>
+                <button class="btn btn-sm btn-danger" onclick="this.closest('.mapeamento-row').remove()">✕</button>
+              </div>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="adicionarMapeamento()" style="margin-top:4px">+ Adicionar campo</button>
+            <button class="btn btn-primary" onclick="salvarMapeamento()" style="margin-top:4px;margin-left:8px">💾 Salvar mapeamento</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><div class="card-title">📋 Campos disponíveis no Worka</div></div>
+          <div class="card-body">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
+              <div style="background:var(--gray50);border-radius:8px;padding:10px">
+                <div style="font-size:.72rem;font-weight:700;color:var(--g600);margin-bottom:6px">PEDIDOS</div>
+                <div style="font-size:.75rem;color:var(--gray700);line-height:1.8;font-family:monospace">pedido_id<br>cliente_id<br>valor_total<br>status<br>data_criacao<br>itens[]</div>
+              </div>
+              <div style="background:var(--gray50);border-radius:8px;padding:10px">
+                <div style="font-size:.72rem;font-weight:700;color:var(--blue);margin-bottom:6px">CLIENTES</div>
+                <div style="font-size:.75rem;color:var(--gray700);line-height:1.8;font-family:monospace">cliente_id<br>cliente_nome<br>cliente_email<br>cliente_telefone<br>cliente_cpf</div>
+              </div>
+              <div style="background:var(--gray50);border-radius:8px;padding:10px">
+                <div style="font-size:.72rem;font-weight:700;color:var(--yellow);margin-bottom:6px">PRODUTOS</div>
+                <div style="font-size:.75rem;color:var(--gray700);line-height:1.8;font-family:monospace">produto_id<br>produto_nome<br>produto_preco<br>produto_estoque<br>produto_sku</div>
+              </div>
+              <div style="background:var(--gray50);border-radius:8px;padding:10px">
+                <div style="font-size:.72rem;font-weight:700;color:var(--purple);margin-bottom:6px">FINANCEIRO</div>
+                <div style="font-size:.75rem;color:var(--gray700);line-height:1.8;font-family:monospace">fat_total<br>fat_periodo<br>ticket_medio<br>qtd_vendas<br>custo_total</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ABA: SINCRONIZAÇÃO ── -->
+      <div id="integ-sync" style="display:none">
+        <div class="stats-grid" style="margin-bottom:16px">
+          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2">✅</div><div class="stat-card-num" id="sync-sucesso">1.198</div><div class="stat-card-lbl">Syncs com sucesso</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2">❌</div><div class="stat-card-num" id="sync-falha">42</div><div class="stat-card-lbl">Falhas</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb">⏳</div><div class="stat-card-num" id="sync-fila">3</div><div class="stat-card-lbl">Na fila</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff">⏱</div><div class="stat-card-num">142ms</div><div class="stat-card-lbl">Latência média</div></div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header"><div class="card-title">⚙️ Configurar sincronização automática</div></div>
+          <div class="card-body">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div class="perm-row"><span class="perm-label">📦 Pedidos</span>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <select style="padding:5px 8px;border:1.5px solid var(--gray100);border-radius:6px;font-size:.8rem;font-family:var(--font)"><option>A cada 5 min</option><option>A cada 15 min</option><option>A cada 1h</option><option>Manual</option></select>
+                  <button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button>
+                </div>
+              </div>
+              <div class="perm-row"><span class="perm-label">💰 Financeiro</span>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <select style="padding:5px 8px;border:1.5px solid var(--gray100);border-radius:6px;font-size:.8rem;font-family:var(--font)"><option>A cada 5 min</option><option selected>A cada 1h</option><option>Diário</option><option>Manual</option></select>
+                  <button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button>
+                </div>
+              </div>
+              <div class="perm-row"><span class="perm-label">📦 Estoque</span>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <select style="padding:5px 8px;border:1.5px solid var(--gray100);border-radius:6px;font-size:.8rem;font-family:var(--font)"><option>A cada 5 min</option><option>A cada 15 min</option><option selected>A cada 1h</option><option>Manual</option></select>
+                  <button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button>
+                </div>
+              </div>
+              <div class="perm-row"><span class="perm-label">👥 Clientes</span>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <select style="padding:5px 8px;border:1.5px solid var(--gray100);border-radius:6px;font-size:.8rem;font-family:var(--font)"><option>A cada 5 min</option><option>A cada 1h</option><option selected>Diário</option><option>Manual</option></select>
+                  <button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button>
+                </div>
+              </div>
+              <div class="perm-row"><span class="perm-label">🏷 Produtos / Catálogo</span>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <select style="padding:5px 8px;border:1.5px solid var(--gray100);border-radius:6px;font-size:.8rem;font-family:var(--font)"><option>A cada 1h</option><option selected>Diário</option><option>Manual</option></select>
+                  <button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button>
+                </div>
+              </div>
+              <div class="perm-row"><span class="perm-label">🚚 Fornecedores</span>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <select style="padding:5px 8px;border:1.5px solid var(--gray100);border-radius:6px;font-size:.8rem;font-family:var(--font)"><option>Diário</option><option selected>Semanal</option><option>Manual</option></select>
+                  <button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top:14px;display:flex;gap:8px">
+              <button class="btn btn-primary" onclick="salvarConfigSync()">💾 Salvar configuração</button>
+              <button class="btn btn-secondary" onclick="sincronizarTudo()">🔄 Sincronizar tudo agora</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><div class="card-title">⚙️ Rate Limiting e Retry</div></div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="field"><label>Máx. requisições por minuto</label><input type="number" value="60" id="rate-limit"></div>
+              <div class="field"><label>Tentativas de retry em falha</label><input type="number" value="3" id="retry-count"></div>
+              <div class="field"><label>Backoff entre tentativas</label>
+                <select id="retry-backoff">
+                  <option>1s, 2s, 4s (exponencial)</option>
+                  <option>5s, 5s, 5s (fixo)</option>
+                  <option>1s, 5s, 30s (crescente)</option>
+                </select>
+              </div>
+              <div class="field"><label>Timeout por requisição</label>
+                <select><option>10 segundos</option><option selected>15 segundos</option><option>30 segundos</option></select>
+              </div>
+            </div>
+            <button class="btn btn-primary" onclick="salvarRateLimit()">Salvar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ABA: WEBHOOKS ── -->
+      <div id="integ-webhooks" style="display:none">
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header"><div class="card-title">🪝 URL de recebimento de webhooks</div></div>
+          <div class="card-body">
+            <p style="font-size:.85rem;color:var(--gray700);margin-bottom:12px">Configure esta URL no sistema externo para receber eventos em tempo real:</p>
+            <div style="background:var(--gray900);border-radius:var(--r);padding:14px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+              <code style="color:#a3e635;font-size:.82rem;word-break:break-all" id="webhook-url">https://worka-backend-awng.onrender.com/webhook/{sua-empresa-id}</code>
+              <button class="btn btn-sm btn-secondary" style="flex-shrink:0" onclick="copiarWebhook()">📋 Copiar</button>
+            </div>
+            <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+              <div style="background:var(--gray50);border-radius:8px;padding:10px 14px;flex:1;min-width:160px">
+                <div style="font-size:.72rem;font-weight:700;color:var(--gray500);margin-bottom:4px">SEGURANÇA</div>
+                <div style="font-size:.8rem;color:var(--gray700)">Secret para validação de assinatura HMAC</div>
+                <input type="password" value="wk_whsec_abc123..." style="width:100%;padding:6px 10px;border:1.5px solid var(--gray100);border-radius:6px;font-family:monospace;font-size:.75rem;margin-top:6px;outline:none">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div class="card-title">Eventos configurados</div>
+          <button class="btn btn-primary" onclick="abrirModal('modal-add-webhook')">+ Novo evento</button>
+        </div>
+
+        <div class="card">
+          <div class="card-body" style="padding:0">
+            <table>
+              <thead><tr><th>Evento</th><th>Sistema</th><th>Ação Worka</th><th>Recebidos</th><th>Status</th><th>Ações</th></tr></thead>
+              <tbody>
+                <tr><td><code>order.placed</code></td><td>iFood</td><td>Criar tarefa urgente</td><td>284</td><td><span class="badge badge-green">Ativo</span></td><td><button class="btn btn-sm btn-secondary">Editar</button></td></tr>
+                <tr><td><code>order.concluded</code></td><td>iFood</td><td>Atualizar faturamento</td><td>271</td><td><span class="badge badge-green">Ativo</span></td><td><button class="btn btn-sm btn-secondary">Editar</button></td></tr>
+                <tr><td><code>stock.low</code></td><td>Bling</td><td>Alerta de estoque crítico</td><td>12</td><td><span class="badge badge-yellow">Pausado</span></td><td><button class="btn btn-sm btn-secondary">Editar</button></td></tr>
+                <tr><td><code>payment.received</code></td><td>Qualquer</td><td>Registrar no financeiro</td><td>198</td><td><span class="badge badge-green">Ativo</span></td><td><button class="btn btn-sm btn-secondary">Editar</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ABA: LOGS ── -->
+      <div id="integ-logs" style="display:none">
+        <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+          <select style="padding:7px 12px;border:1.5px solid var(--gray100);border-radius:8px;font-family:var(--font);font-size:.82rem">
+            <option>Todos os sistemas</option><option>iFood</option><option>Bling ERP</option>
+          </select>
+          <select style="padding:7px 12px;border:1.5px solid var(--gray100);border-radius:8px;font-family:var(--font);font-size:.82rem">
+            <option>Todos os status</option><option>200 OK</option><option>Erros (4xx/5xx)</option><option>Timeout</option>
+          </select>
+          <button class="btn btn-secondary btn-sm">🔄 Atualizar</button>
+          <button class="btn btn-secondary btn-sm">📥 Exportar</button>
+        </div>
+
+        <div class="card">
+          <div class="card-body" style="padding:0">
+            <table>
+              <thead><tr><th>Hora</th><th>Sistema</th><th>Método</th><th>Endpoint</th><th>Status</th><th>Duração</th><th>Detalhes</th></tr></thead>
+              <tbody id="tabela-logs-api">
+                <tr><td style="font-size:.72rem;color:var(--gray500)">18:05:32</td><td>iFood</td><td><span class="badge badge-green" style="font-size:.65rem">GET</span></td><td><code style="font-size:.72rem">/order/v1.0/events</code></td><td><span class="badge badge-green">200</span></td><td>142ms</td><td><button class="btn btn-sm btn-secondary" onclick="verLogDetalhe()">Ver</button></td></tr>
+                <tr><td style="font-size:.72rem;color:var(--gray500)">18:00:31</td><td>iFood</td><td><span class="badge badge-green" style="font-size:.65rem">GET</span></td><td><code style="font-size:.72rem">/order/v1.0/events</code></td><td><span class="badge badge-green">200</span></td><td>98ms</td><td><button class="btn btn-sm btn-secondary" onclick="verLogDetalhe()">Ver</button></td></tr>
+                <tr><td style="font-size:.72rem;color:var(--gray500)">17:55:18</td><td>Bling</td><td><span class="badge badge-green" style="font-size:.65rem">GET</span></td><td><code style="font-size:.72rem">/estoques</code></td><td><span class="badge badge-red">401</span></td><td>204ms</td><td><button class="btn btn-sm btn-danger" onclick="verLogDetalhe()">Erro</button></td></tr>
+                <tr><td style="font-size:.72rem;color:var(--gray500)">17:55:19</td><td>Bling</td><td><span class="badge badge-green" style="font-size:.65rem">GET</span></td><td><code style="font-size:.72rem">/estoques</code></td><td><span class="badge badge-red">401</span></td><td>189ms</td><td><span style="font-size:.72rem;color:var(--yellow)">Retry 1/3</span></td></tr>
+                <tr><td style="font-size:.72rem;color:var(--gray500)">17:55:21</td><td>Bling</td><td><span class="badge badge-green" style="font-size:.65rem">GET</span></td><td><code style="font-size:.72rem">/estoques</code></td><td><span class="badge badge-red">401</span></td><td>201ms</td><td><span style="font-size:.72rem;color:var(--red)">Falhou</span></td></tr>
+                <tr><td style="font-size:.72rem;color:var(--gray500)">17:30:00</td><td>iFood</td><td><span class="badge badge-purple" style="font-size:.65rem">POST</span></td><td><code style="font-size:.72rem">/order/v1.0/confirm</code></td><td><span class="badge badge-green">202</span></td><td>310ms</td><td><button class="btn btn-sm btn-secondary" onclick="verLogDetalhe()">Ver</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-header"><div class="card-title">⏳ Fila de processamento</div><button class="btn btn-sm btn-secondary" onclick="limparFila()">Limpar fila</button></div>
+          <div class="card-body" style="padding:0">
+            <table>
+              <thead><tr><th>Requisição</th><th>Sistema</th><th>Tentativas</th><th>Próxima tentativa</th><th>Ações</th></tr></thead>
+              <tbody>
+                <tr><td><code style="font-size:.75rem">GET /estoques</code></td><td>Bling</td><td><span class="badge badge-yellow">2/3</span></td><td>em 4 segundos</td><td><button class="btn btn-sm btn-primary" onclick="reprocessar(this)">↩ Reprocessar</button></td></tr>
+                <tr><td><code style="font-size:.75rem">GET /pedidos/vendas</code></td><td>Bling</td><td><span class="badge badge-yellow">1/3</span></td><td>em 2 segundos</td><td><button class="btn btn-sm btn-primary" onclick="reprocessar(this)">↩ Reprocessar</button></td></tr>
+                <tr><td><code style="font-size:.75rem">POST /webhook/confirm</code></td><td>iFood</td><td><span class="badge badge-gray">0/3</span></td><td>em 1 segundo</td><td><button class="btn btn-sm btn-primary" onclick="reprocessar(this)">↩ Reprocessar</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ABA: OPENAPI/SWAGGER ── -->
+      <div id="integ-swagger" style="display:none">
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header"><div class="card-title">📖 Importar especificação OpenAPI / Swagger</div></div>
+          <div class="card-body">
+            <p style="font-size:.85rem;color:var(--gray500);margin-bottom:16px">Cole a URL do Swagger/OpenAPI ou cole o JSON diretamente. O Worka vai importar todos os endpoints automaticamente.</p>
+            <div class="field"><label>URL do Swagger (swagger.json / openapi.yaml)</label>
+              <div style="display:flex;gap:8px">
+                <input id="swagger-url" placeholder="https://api.seusistema.com/swagger.json" style="flex:1;padding:10px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-family:var(--font);font-size:.9rem;outline:none">
+                <button class="btn btn-primary" onclick="importarSwaggerURL()">Importar URL</button>
+              </div>
+            </div>
+            <div style="text-align:center;color:var(--gray300);font-size:.82rem;margin:12px 0">— ou cole o JSON abaixo —</div>
+            <div class="field"><label>Spec JSON / YAML</label>
+              <textarea id="swagger-json" placeholder='{"openapi":"3.0.0","info":{...},"paths":{...}}' style="width:100%;padding:10px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-family:monospace;font-size:.78rem;resize:vertical;min-height:140px;outline:none"></textarea>
+            </div>
+            <button class="btn btn-primary" onclick="importarSwaggerJSON()">📥 Importar especificação</button>
+          </div>
+        </div>
+
+        <div class="card" id="swagger-resultado" style="display:none">
+          <div class="card-header"><div class="card-title">✅ Endpoints importados</div><button class="btn btn-sm btn-primary" onclick="ativarTodosEndpoints()">Ativar todos</button></div>
+          <div class="card-body" style="padding:0">
+            <table>
+              <thead><tr><th>Método</th><th>Path</th><th>Descrição</th><th>Ativar</th></tr></thead>
+              <tbody id="swagger-endpoints"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><div class="card-title">🛠 Configuração manual</div><span style="font-size:.75rem;color:var(--gray500)">Para sistemas sem documentação</span></div>
+          <div class="card-body">
+            <p style="font-size:.85rem;color:var(--gray500);margin-bottom:14px">Não tem documentação OpenAPI? Configure manualmente cada endpoint que deseja consumir.</p>
+            <button class="btn btn-secondary" onclick="abrirModal('modal-add-endpoint')">+ Adicionar endpoint manualmente</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <!-- FIM INTEGRAÇÃO -->
+
+    <!-- ── MODAIS DE INTEGRAÇÃO ── -->
+    <div class="modal-overlay" id="modal-nova-integracao">
+      <div class="modal" style="max-width:560px">
+        <div class="modal-title">🔗 Nova integração</div>
+        <div class="form-grid">
+          <div class="field"><label>Nome da integração</label><input id="ni-nome" placeholder="Ex: iFood Loja Principal"></div>
+          <div class="field"><label>Tipo de sistema</label>
+            <select id="ni-tipo" onchange="preencherTemplateIntegracao()">
+              <option value="">Selecione...</option>
+              <option value="ifood">iFood</option>
+              <option value="bling">Bling ERP</option>
+              <option value="tiny">Tiny ERP</option>
+              <option value="woocommerce">WooCommerce</option>
+              <option value="shopify">Shopify</option>
+              <option value="omie">Omie</option>
+              <option value="totvs">TOTVS</option>
+              <option value="linx">Linx Commerce</option>
+              <option value="vtex">VTEX</option>
+              <option value="pdv">PDV Genérico</option>
+              <option value="erp">ERP Genérico</option>
+              <option value="custom">Customizado</option>
+            </select>
+          </div>
+          <div class="field form-full"><label>URL base da API</label><input id="ni-url" placeholder="https://api.seusistema.com.br/v1"></div>
+          <div class="field"><label>Tipo de autenticação</label>
+            <select id="ni-auth" onchange="mostrarCamposAuth()">
+              <option value="bearer">Bearer Token</option>
+              <option value="apikey">API Key</option>
+              <option value="basic">Basic Auth (usuário/senha)</option>
+              <option value="jwt">JWT</option>
+              <option value="oauth2">OAuth2</option>
+              <option value="custom">Header customizado</option>
+            </select>
+          </div>
+          <div class="field" id="campo-auth-token"><label>Token / Chave</label><input type="password" id="ni-token" placeholder="Sua chave de API"></div>
+          <div class="field" id="campo-auth-user" style="display:none"><label>Usuário</label><input id="ni-user" placeholder="username"></div>
+          <div class="field" id="campo-auth-pass" style="display:none"><label>Senha</label><input type="password" id="ni-pass" placeholder="password"></div>
+          <div class="field" id="campo-auth-header" style="display:none"><label>Nome do Header</label><input id="ni-header-name" placeholder="Ex: X-API-Key"></div>
+          <div class="field" id="campo-oauth" style="display:none"><label>Client ID</label><input id="ni-client-id" placeholder="client_id"></div>
+          <div class="field" id="campo-oauth-secret" style="display:none"><label>Client Secret</label><input type="password" id="ni-client-secret" placeholder="client_secret"></div>
+          <div class="field" id="campo-oauth-url" style="display:none"><label>URL de token OAuth2</label><input id="ni-oauth-url" placeholder="https://api.sistema.com/oauth/token"></div>
+          <div class="field form-full"><label>Módulos a sincronizar</label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+              <label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox" checked> 📦 Pedidos</label>
+              <label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox" checked> 💰 Financeiro</label>
+              <label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox"> 📦 Estoque</label>
+              <label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox"> 👥 Clientes</label>
+              <label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox"> 🏷 Produtos</label>
+              <label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox"> 🚚 Fornecedores</label>
+            </div>
+          </div>
+        </div>
+        <div id="ni-teste-result" style="display:none;margin-top:12px"></div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="fecharModal('modal-nova-integracao')">Cancelar</button>
+          <button class="btn btn-secondary" onclick="testarNovaIntegracao()">🔌 Testar conexão</button>
+          <button class="btn btn-primary" onclick="salvarNovaIntegracao()">💾 Salvar integração</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="modal-add-endpoint">
+      <div class="modal">
+        <div class="modal-title">Adicionar endpoint</div>
+        <div class="form-grid">
+          <div class="field"><label>Método HTTP</label>
+            <select style="width:100%;padding:10px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-family:var(--font)">
+              <option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option><option>PATCH</option>
+            </select>
+          </div>
+          <div class="field"><label>Path do endpoint</label><input placeholder="/orders ou /api/v1/products"></div>
+          <div class="field"><label>Módulo Worka</label>
+            <select style="width:100%;padding:10px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-family:var(--font)">
+              <option>Pedidos</option><option>Financeiro</option><option>Estoque</option><option>Clientes</option><option>Produtos</option><option>Fornecedores</option>
+            </select>
+          </div>
+          <div class="field"><label>Frequência de sync</label>
+            <select style="width:100%;padding:10px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-family:var(--font)">
+              <option>A cada 5 min</option><option>A cada 15 min</option><option>A cada 1h</option><option>Diário</option><option>Manual</option>
+            </select>
+          </div>
+          <div class="field form-full"><label>Descrição</label><input placeholder="O que este endpoint faz?"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="fecharModal('modal-add-endpoint')">Cancelar</button>
+          <button class="btn btn-primary" onclick="fecharModal('modal-add-endpoint')">Adicionar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="modal-add-webhook">
+      <div class="modal">
+        <div class="modal-title">🪝 Configurar evento webhook</div>
+        <div class="field"><label>Nome do evento</label><input placeholder="Ex: order.placed, payment.received"></div>
+        <div class="field"><label>Sistema de origem</label>
+          <select style="width:100%;padding:10px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-family:var(--font)">
+            <option>iFood</option><option>Bling</option><option>Qualquer sistema</option>
+          </select>
+        </div>
+        <div class="field"><label>Ação no Worka</label>
+          <select style="width:100%;padding:10px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-family:var(--font)">
+            <option>Criar tarefa automática</option>
+            <option>Atualizar faturamento</option>
+            <option>Alerta de estoque crítico</option>
+            <option>Notificar gestor</option>
+            <option>Registrar no financeiro</option>
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="fecharModal('modal-add-webhook')">Cancelar</button>
+          <button class="btn btn-primary" onclick="fecharModal('modal-add-webhook')">Salvar evento</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="modal-log-detalhe">
+      <div class="modal" style="max-width:600px">
+        <div class="modal-title">Detalhes da requisição</div>
+        <div id="log-detalhe-content"></div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="fecharModal('modal-log-detalhe')">Fechar</button>
+          <button class="btn btn-primary" onclick="fecharModal('modal-log-detalhe')">↩ Reprocessar</button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ── PÁGINA: MURAL / COMUNICADOS ── -->
+    <div class="page" id="pg-mural">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div></div>
+        <button class="btn btn-primary" onclick="abrirModal('modal-add-comunicado')">+ Novo comunicado</button>
+      </div>
+      <div id="lista-comunicados">
+        <div style="background:white;border:1px solid var(--gray100);border-radius:var(--r);padding:18px;margin-bottom:12px;border-left:4px solid var(--g400)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+            <div style="font-weight:700;color:var(--gray900)">📅 Reunião de equipe — Segunda-feira</div>
+            <span class="badge badge-green">Geral</span>
+          </div>
+          <p style="font-size:.85rem;color:var(--gray700);line-height:1.6">Reunião obrigatória na segunda-feira às 08h antes da abertura. Presença confirmada com o gerente. Pauta: metas do mês e escala de férias.</p>
+          <div style="font-size:.72rem;color:var(--gray500);margin-top:10px">Postado pelo Dono · hoje às 09:00 · 👁 6 visualizações</div>
+        </div>
+        <div style="background:white;border:1px solid var(--gray100);border-radius:var(--r);padding:18px;margin-bottom:12px;border-left:4px solid var(--yellow)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+            <div style="font-weight:700;color:var(--gray900)">🧹 Novo protocolo de limpeza</div>
+            <span class="badge badge-yellow">Operacional</span>
+          </div>
+          <p style="font-size:.85rem;color:var(--gray700);line-height:1.6">A partir de segunda, o checklist de limpeza deve ser fotografado ao final de cada turno e enviado no sistema como comprovação de tarefa.</p>
+          <div style="font-size:.72rem;color:var(--gray500);margin-top:10px">Postado pela Gerente · ontem · 👁 8 visualizações</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PÁGINA: ESCALA ── -->
+    <div class="page" id="pg-escala">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div></div>
+        <button class="btn btn-primary" onclick="abrirModal('modal-add-escala')">+ Definir escala</button>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Escala da semana</div></div>
+        <div class="card-body" style="padding:0;overflow-x:auto">
+          <table>
+            <thead><tr><th>Funcionário</th><th>Seg</th><th>Ter</th><th>Qua</th><th>Qui</th><th>Sex</th><th>Sáb</th><th>Dom</th></tr></thead>
+            <tbody>
+              <tr><td style="font-weight:600">Maria Silva</td><td><span class="badge badge-green" style="font-size:.65rem">08-17h</span></td><td><span class="badge badge-green" style="font-size:.65rem">08-17h</span></td><td><span class="badge badge-green" style="font-size:.65rem">08-17h</span></td><td><span class="badge badge-green" style="font-size:.65rem">08-17h</span></td><td><span class="badge badge-green" style="font-size:.65rem">08-17h</span></td><td><span class="badge badge-gray" style="font-size:.65rem">Folga</span></td><td><span class="badge badge-gray" style="font-size:.65rem">Folga</span></td></tr>
+              <tr><td style="font-weight:600">João Pedro</td><td><span class="badge badge-green" style="font-size:.65rem">12-21h</span></td><td><span class="badge badge-green" style="font-size:.65rem">12-21h</span></td><td><span class="badge badge-gray" style="font-size:.65rem">Folga</span></td><td><span class="badge badge-green" style="font-size:.65rem">12-21h</span></td><td><span class="badge badge-green" style="font-size:.65rem">12-21h</span></td><td><span class="badge badge-green" style="font-size:.65rem">10-18h</span></td><td><span class="badge badge-gray" style="font-size:.65rem">Folga</span></td></tr>
+              <tr><td style="font-weight:600">Ana Lima</td><td><span class="badge badge-green" style="font-size:.65rem">08-17h</span></td><td><span class="badge badge-gray" style="font-size:.65rem">Folga</span></td><td><span class="badge badge-green" style="font-size:.65rem">08-17h</span></td><td><span class="badge badge-green" style="font-size:.65rem">08-17h</span></td><td><span class="badge badge-green" style="font-size:.65rem">08-17h</span></td><td><span class="badge badge-green" style="font-size:.65rem">08-13h</span></td><td><span class="badge badge-gray" style="font-size:.65rem">Folga</span></td></tr>
+              <tr><td style="font-weight:600">Carlos Reis</td><td><span class="badge badge-gray" style="font-size:.65rem">Folga</span></td><td><span class="badge badge-green" style="font-size:.65rem">09-18h</span></td><td><span class="badge badge-green" style="font-size:.65rem">09-18h</span></td><td><span class="badge badge-green" style="font-size:.65rem">09-18h</span></td><td><span class="badge badge-green" style="font-size:.65rem">09-18h</span></td><td><span class="badge badge-green" style="font-size:.65rem">09-15h</span></td><td><span class="badge badge-gray" style="font-size:.65rem">Folga</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PÁGINA: RELATÓRIOS ── -->
+    <div class="page" id="pg-relatorios">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><div class="card-title">📊 Pontualidade por funcionário</div></div>
+          <div class="card-body">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Maria Silva</span><span style="font-weight:600;color:var(--g600)">98%</span></div><div class="progress-bar"><div class="progress-fill" style="width:98%"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Ana Lima</span><span style="font-weight:600;color:var(--g600)">95%</span></div><div class="progress-bar"><div class="progress-fill" style="width:95%"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>João Pedro</span><span style="font-weight:600;color:var(--yellow)">82%</span></div><div class="progress-bar"><div class="progress-fill" style="width:82%;background:var(--yellow)"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Carlos Reis</span><span style="font-weight:600;color:var(--red)">68%</span></div><div class="progress-bar"><div class="progress-fill" style="width:68%;background:var(--red)"></div></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">📋 Tarefas por funcionário (mês)</div></div>
+          <div class="card-body">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Maria Silva</span><span style="font-weight:600">42 / 44 ✅</span></div><div class="progress-bar"><div class="progress-fill" style="width:95%"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Ana Lima</span><span style="font-weight:600">38 / 40 ✅</span></div><div class="progress-bar"><div class="progress-fill" style="width:95%"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>João Pedro</span><span style="font-weight:600">28 / 36 ⚠️</span></div><div class="progress-bar"><div class="progress-fill" style="width:78%;background:var(--yellow)"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Carlos Reis</span><span style="font-weight:600">20 / 32 ❌</span></div><div class="progress-bar"><div class="progress-fill" style="width:62%;background:var(--red)"></div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">📅 Resumo do mês</div><button class="btn btn-sm btn-secondary">📥 Exportar PDF</button></div>
+        <div class="card-body" style="padding:0">
+          <table>
+            <thead><tr><th>Funcionário</th><th>Dias trabalhados</th><th>Horas totais</th><th>Faltas</th><th>Atrasos</th><th>Tarefas</th><th>Avaliação</th></tr></thead>
+            <tbody>
+              <tr><td style="font-weight:600">Maria Silva</td><td>22</td><td>176h</td><td>0</td><td>0</td><td>42/44</td><td>⭐⭐⭐⭐⭐</td></tr>
+              <tr><td style="font-weight:600">Ana Lima</td><td>22</td><td>174h</td><td>0</td><td>1</td><td>38/40</td><td>⭐⭐⭐⭐⭐</td></tr>
+              <tr><td style="font-weight:600">João Pedro</td><td>20</td><td>158h</td><td>1</td><td>3</td><td>28/36</td><td>⭐⭐⭐</td></tr>
+              <tr><td style="font-weight:600">Carlos Reis</td><td>18</td><td>142h</td><td>2</td><td>5</td><td>20/32</td><td>⭐⭐</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── MODAL FOTO DE PERFIL ── -->
+    <div class="modal-overlay" id="modal-foto-perfil">
+      <div class="modal" style="max-width:360px;text-align:center">
+        <div class="modal-title">Foto de perfil</div>
+        <div style="width:100px;height:100px;border-radius:50%;background:var(--g50);margin:0 auto 16px;overflow:hidden;border:3px solid var(--g300)">
+          <img id="preview-foto" src="" style="width:100%;height:100%;object-fit:cover;display:none">
+          <div id="preview-letra" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2.5rem;font-weight:800;color:var(--g600)">A</div>
+        </div>
+        <input type="file" id="input-foto" accept="image/*" style="display:none" onchange="previewFoto(this)">
+        <button class="btn btn-secondary" style="width:100%;margin-bottom:8px" onclick="document.getElementById('input-foto').click()">📷 Escolher foto</button>
+        <button class="btn btn-primary" style="width:100%" onclick="salvarFotoPerfil()">Salvar foto</button>
+        <button class="btn btn-secondary btn-sm" style="width:100%;margin-top:8px" onclick="fecharModal('modal-foto-perfil')">Cancelar</button>
+      </div>
+    </div>
+
+    <!-- ── MODAL AUMENTO ── -->
+    <div class="modal-overlay" id="modal-aumento">
+      <div class="modal" style="max-width:400px">
+        <div class="modal-title">💰 Definir novo salário</div>
+        <div id="aumento-nome" style="font-size:.85rem;color:var(--gray500);margin-bottom:16px"></div>
+        <div class="field"><label>Salário atual</label><input type="number" id="salario-atual" readonly style="background:var(--gray50)"></div>
+        <div class="field"><label>Novo salário (R$)</label><input type="number" id="salario-novo" placeholder="0,00"></div>
+        <div id="aumento-tipo" style="font-size:.82rem;margin-top:8px;font-weight:600"></div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="fecharModal('modal-aumento')">Cancelar</button>
+          <button class="btn btn-primary" onclick="confirmarAumento()">Confirmar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── MODAL AUSÊNCIA ── -->
+    <div class="modal-overlay" id="modal-reg-ausencia">
+      <div class="modal">
+        <div class="modal-title">Registrar ausência</div>
+        <div class="form-grid">
+          <div class="field"><label>Funcionário</label><select><option>Carlos Reis</option><option>João Pedro</option><option>Maria Silva</option><option>Ana Lima</option></select></div>
+          <div class="field"><label>Data</label><input type="date"></div>
+          <div class="field"><label>Tipo</label>
+            <select>
+              <option>Falta injustificada</option>
+              <option>Atestado médico</option>
+              <option>Falta justificada</option>
+              <option>Licença</option>
+              <option>Suspensão</option>
+            </select>
+          </div>
+          <div class="field"><label>Motivo</label><input placeholder="Descreva o motivo"></div>
+          <div class="field form-full">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="checkbox" checked> Aplicar desconto automático no salário
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="fecharModal('modal-reg-ausencia')">Cancelar</button>
+          <button class="btn btn-primary" onclick="registrarAusencia()">Registrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── MODAL SALÁRIO ── -->
+    <div class="modal-overlay" id="modal-add-salario">
+      <div class="modal">
+        <div class="modal-title">Definir salário</div>
+        <div class="form-grid">
+          <div class="field"><label>Funcionário</label><select><option>Maria Silva</option><option>João Pedro</option><option>Ana Lima</option><option>Carlos Reis</option></select></div>
+          <div class="field"><label>Salário base (R$)</label><input type="number" placeholder="0,00"></div>
+          <div class="field"><label>Dia de pagamento</label><input type="number" min="1" max="31" placeholder="Ex: 5"></div>
+          <div class="field"><label>Forma de pagamento</label><select><option>PIX</option><option>Transferência</option><option>Dinheiro</option></select></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="fecharModal('modal-add-salario')">Cancelar</button>
+          <button class="btn btn-primary" onclick="fecharModal('modal-add-salario')">Salvar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── MODAL ALERTA PAGAMENTO ── -->
+    <div class="modal-overlay" id="modal-alerta-pagamento">
+      <div class="modal">
+        <div class="modal-title">🔔 Configurar alerta de pagamento</div>
+        <div class="field"><label>Avisar quantos dias antes?</label><select><option>1 dia antes</option><option>2 dias antes</option><option>3 dias antes</option><option>5 dias antes</option><option>7 dias antes</option></select></div>
+        <div class="field"><label>Como avisar?</label><select><option>Notificação no sistema</option><option>E-mail</option><option>Ambos</option></select></div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="fecharModal('modal-alerta-pagamento')">Cancelar</button>
+          <button class="btn btn-primary" onclick="fecharModal('modal-alerta-pagamento')">Salvar alerta</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── MODAL COMUNICADO ── -->
+    <div class="modal-overlay" id="modal-add-comunicado">
+      <div class="modal">
+        <div class="modal-title">Novo comunicado</div>
+        <div class="field"><label>Título</label><input placeholder="Título do comunicado"></div>
+        <div class="field"><label>Mensagem</label><textarea placeholder="Escreva o comunicado..." style="width:100%;padding:10px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-family:var(--font);font-size:.9rem;resize:vertical;min-height:100px;outline:none"></textarea></div>
+        <div class="field"><label>Categoria</label><select><option>Geral</option><option>Operacional</option><option>Urgente</option><option>Financeiro</option></select></div>
+        <div class="field"><label>Destinatários</label><select><option>Toda a equipe</option><option>Apenas gerentes</option><option>Apenas atendentes</option></select></div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="fecharModal('modal-add-comunicado')">Cancelar</button>
+          <button class="btn btn-primary" onclick="fecharModal('modal-add-comunicado')">Publicar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── MODAL ESCALA ── -->
+    <div class="modal-overlay" id="modal-add-escala">
+      <div class="modal">
+        <div class="modal-title">Definir escala</div>
+        <div class="field"><label>Funcionário</label><select><option>Maria Silva</option><option>João Pedro</option><option>Ana Lima</option><option>Carlos Reis</option></select></div>
+        <div class="form-grid">
+          <div class="field"><label>Entrada</label><input type="time" value="08:00"></div>
+          <div class="field"><label>Saída</label><input type="time" value="17:00"></div>
+        </div>
+        <div class="field"><label>Dias da semana</label>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+            <label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox" checked> Seg</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox" checked> Ter</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox" checked> Qua</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox" checked> Qui</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox" checked> Sex</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox"> Sáb</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox"> Dom</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="fecharModal('modal-add-escala')">Cancelar</button>
+          <button class="btn btn-primary" onclick="fecharModal('modal-add-escala')">Salvar escala</button>
+        </div>
+      </div>
+    </div>
+
+
+  </div><!-- fim main-content -->
+</div><!-- fim app-layout -->
+</div><!-- fim app -->
+
+<!-- ═══════════════════════════════════════════
+     MODAIS
+═══════════════════════════════════════════ -->
+
+<!-- Modal add funcionário -->
+<div class="modal-overlay" id="modal-add-func">
+  <div class="modal">
+    <div class="modal-title">Adicionar funcionário</div>
+    <div class="form-grid">
+      <div class="field form-full"><label>Nome completo</label><input placeholder="Nome do funcionário"></div>
+      <div class="field"><label>E-mail</label><input type="email" placeholder="email@email.com"></div>
+      <div class="field"><label>Telefone</label><input placeholder="(00) 00000-0000"></div>
+      <div class="field"><label>Cargo</label><select><option>Gerente</option><option>Atendente</option><option>Caixa</option><option>Estoquista</option><option>Entregador</option></select></div>
+      <div class="field"><label>Senha inicial</label><input type="password" placeholder="••••••••"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="fecharModal('modal-add-func')">Cancelar</button>
+      <button class="btn btn-primary" onclick="fecharModal('modal-add-func')">Adicionar funcionário</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal add tarefa -->
+<div class="modal-overlay" id="modal-add-tarefa">
+  <div class="modal">
+    <div class="modal-title">Nova tarefa</div>
+    <div class="form-grid">
+      <div class="field form-full"><label>Título da tarefa</label><input placeholder="Ex: Limpeza do salão"></div>
+      <div class="field form-full"><label>Descrição</label><textarea placeholder="Detalhes da tarefa..." style="width:100%;padding:10px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-family:var(--font);font-size:.9rem;resize:vertical;min-height:80px;outline:none"></textarea></div>
+      <div class="field"><label>Responsável</label><select><option>Maria Silva</option><option>João Pedro</option><option>Ana Lima</option><option>Carlos Reis</option></select></div>
+      <div class="field"><label>Prazo</label><input type="datetime-local"></div>
+      <div class="field"><label>Prioridade</label><select><option>Normal</option><option>Alta</option><option>Urgente</option></select></div>
+      <div class="field"><label>Recorrência</label><select><option>Não repete</option><option>Diária</option><option>Semanal</option><option>Mensal</option></select></div>
+      <div class="field form-full">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="requer-foto"> Exigir foto ou vídeo para concluir
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="fecharModal('modal-add-tarefa')">Cancelar</button>
+      <button class="btn btn-primary" onclick="fecharModal('modal-add-tarefa')">Criar tarefa</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal add produto -->
+<div class="modal-overlay" id="modal-add-produto">
+  <div class="modal">
+    <div class="modal-title">Cadastrar produto</div>
+    <div class="form-grid">
+      <div class="field form-full"><label>Nome do produto</label><input placeholder="Ex: Leite integral"></div>
+      <div class="field"><label>Número do lote</label><input placeholder="Ex: #A203"></div>
+      <div class="field"><label>Data de vencimento</label><input type="date"></div>
+      <div class="field"><label>Quantidade</label><input type="number" placeholder="0"></div>
+      <div class="field"><label>Unidade</label><select><option>Unidades</option><option>Kg</option><option>Litros</option><option>Caixas</option></select></div>
+      <div class="field"><label>Avisar com quantos dias de antecedência</label><select><option>3 dias</option><option>7 dias</option><option>15 dias</option><option>30 dias</option><option>60 dias</option></select></div>
+      <div class="field form-full"><label>Categoria</label><select><option>Alimentos</option><option>Medicamentos</option><option>Cosméticos</option><option>Limpeza</option><option>Outros</option></select></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="fecharModal('modal-add-produto')">Cancelar</button>
+      <button class="btn btn-primary" onclick="fecharModal('modal-add-produto')">Cadastrar produto</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal add cargo -->
+<div class="modal-overlay" id="modal-add-cargo">
+  <div class="modal">
+    <div class="modal-title">Criar novo cargo</div>
+    <div class="field"><label>Nome do cargo</label><input placeholder="Ex: Supervisor, Motorista, Balconista..."></div>
+    <div class="divider"></div>
+    <div style="font-size:.82rem;font-weight:700;color:var(--gray700);margin-bottom:12px">Permissões</div>
+    <div class="perm-row"><span class="perm-label">Ver faturamento e dados financeiros</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+    <div class="perm-row"><span class="perm-label">Aprovar/recusar novos funcionários</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+    <div class="perm-row"><span class="perm-label">Criar, agendar e delegar tarefas</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+    <div class="perm-row"><span class="perm-label">Editar identidade visual do app</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+    <div class="perm-row"><span class="perm-label">Gerenciar e justificar pontos</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+    <div class="perm-row"><span class="perm-label">Acessar integração de API</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+    <div class="perm-row"><span class="perm-label">Gerenciar validade de produtos</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+    <div class="perm-row"><span class="perm-label">Ver relatórios e histórico</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="fecharModal('modal-add-cargo')">Cancelar</button>
+      <button class="btn btn-primary" onclick="fecharModal('modal-add-cargo')">Criar cargo</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal ver mapa -->
+<div class="modal-overlay" id="modal-mapa">
+  <div class="modal">
+    <div class="modal-title" id="modal-mapa-title">Localização do ponto</div>
+    <div style="border-radius:var(--r);overflow:hidden;margin-bottom:14px">
+      <iframe id="modal-mapa-frame" src="" style="width:100%;height:280px;border:none" allowfullscreen></iframe>
+    </div>
+    <div id="modal-mapa-info" style="font-size:.82rem;color:var(--gray500)"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="fecharModal('modal-mapa')">Fechar</button>
+      <a id="modal-mapa-link" href="#" target="_blank" class="btn btn-primary">Abrir no Google Maps ↗</a>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════
+// DADOS E ESTADO
+// ═══════════════════════════════════
+var usuarioAtual = null;
+var tipoLogin = 'dono';
+
+var menus = {
+  dono: [
+    {sec:'Principal'},
+    {id:'dashboard',icon:'📊',label:'Dashboard'},
+    {id:'funcionarios',icon:'👥',label:'Funcionários'},
+    {id:'ponto',icon:'⏱',label:'Controle de Ponto'},
+    {id:'tarefas',icon:'📋',label:'Tarefas'},
+    {sec:'Gestão'},
+    {id:'salarios',icon:'💰',label:'Salários e Pagamentos'},
+    {id:'ausencias',icon:'❌',label:'Ausências e Faltas'},
+    {id:'escala',icon:'📅',label:'Escala de Trabalho'},
+    {id:'relatorios',icon:'📈',label:'Relatórios'},
+    {sec:'Recursos'},
+    {id:'validade',icon:'⚠️',label:'Validade de Produtos'},
+    {id:'mural',icon:'📢',label:'Mural / Comunicados'},
+    {id:'cargos',icon:'🔐',label:'Cargos e Permissões'},
+    {id:'integracao',icon:'🔗',label:'Integração API'},
+    {sec:'Configurações'},
+    {id:'visual',icon:'🎨',label:'Identidade Visual'},
+    {id:'notificacoes',icon:'🔔',label:'Notificações'},
+  ],
+  funcionario: [
+    {sec:'Meu espaço'},
+    {id:'meu-painel',icon:'🏠',label:'Início'},
+    {id:'ponto',icon:'⏱',label:'Meu Ponto'},
+    {id:'tarefas',icon:'📋',label:'Minhas Tarefas'},
+    {id:'mural',icon:'📢',label:'Comunicados'},
+    {id:'notificacoes',icon:'🔔',label:'Notificações'},
+  ],
+  owner: [
+    {sec:'Worka Admin'},
+    {id:'owner',icon:'👑',label:'Painel Owner'},
+    {id:'notificacoes',icon:'🔔',label:'Notificações'},
+  ]
+};
+
+// ═══════════════════════════════════
+// LOGIN
+// ═══════════════════════════════════
+function setLoginTipo(tipo) {
+  tipoLogin = tipo;
+  document.querySelectorAll('.login-tab').forEach(function(t,i){t.classList.remove('active')});
+  event.target.classList.add('active');
+  ['dono','funcionario','owner'].forEach(function(t){
+    document.getElementById('login-'+t).style.display = t===tipo?'block':'none';
+  });
+}
+
+function fazerLogin() {
+  // Detectar login do Owner automaticamente
+  var emailInput = document.querySelector('#login-dono input[type=email]') || 
+                   document.querySelector('#login-owner input[type=email]') ||
+                   document.querySelector('#login-funcionario input[type=email]');
+  var senhaInput = document.querySelector('#login-dono input[type=password]') ||
+                   document.querySelector('#login-owner input[type=password]') ||
+                   document.querySelector('#login-funcionario input[type=password]');
+
+  var emailVal = '';
+  var senhaVal = '';
+  
+  // Pegar email e senha do painel ativo
+  var painelAtivo = document.getElementById('login-'+tipoLogin);
+  if(painelAtivo) {
+    var emailEl = painelAtivo.querySelector('input[type=email]');
+    var senhaEl = painelAtivo.querySelector('input[type=password]');
+    if(emailEl) emailVal = emailEl.value.trim().toLowerCase();
+    if(senhaEl) senhaVal = senhaEl.value;
+  }
+
+  // Login owner master
+  if(emailVal === 'workappoficial@gmail.com' && senhaVal === 'ale98798798798') {
+    tipoLogin = 'owner';
+    usuarioAtual = {nome:'Alexandre Freitas', cargo:'Owner Worka', empresa:'Worka HQ', avatar:'W', tipo:'owner'};
+    document.getElementById('tela-login').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('user-name-display').textContent = usuarioAtual.nome;
+    document.getElementById('user-role-display').textContent = usuarioAtual.cargo;
+    document.getElementById('user-avatar-icon').textContent = usuarioAtual.avatar;
+    document.getElementById('sidebar-appname').innerHTML = 'Work<span style="color:var(--brand-accent)">a</span>';
+    document.getElementById('sidebar-company').textContent = 'Worka — Admin Master';
+    var nav = document.getElementById('sidebar-nav');
+    nav.innerHTML = '';
+    (menus['owner']).forEach(function(item){
+      if(item.sec){
+        var s=document.createElement('div');s.className='nav-section';s.textContent=item.sec;nav.appendChild(s);
+      } else {
+        var el=document.createElement('div');
+        el.className='nav-item';el.dataset.page=item.id;
+        el.innerHTML='<span class="icon">'+item.icon+'</span><span>'+item.label+'</span>';
+        el.onclick=function(){abrirPagina(item.id)};
+        nav.appendChild(el);
+      }
+    });
+    abrirPagina('owner');
+    iniciarRelogio();
+    return;
+  }
+
+  var tipos = {
+    dono: {nome:'Alexandre Freitas', cargo:'Dono', empresa:'Minha Empresa', avatar:'A'},
+    funcionario: {nome:'Maria Silva', cargo:'Gerente', empresa:'Minha Empresa', avatar:'M'},
+    owner: {nome:'Alexandre', cargo:'Owner Worka', empresa:'Worka HQ', avatar:'W'}
+  };
+  usuarioAtual = tipos[tipoLogin];
+  usuarioAtual.tipo = tipoLogin;
+
+  document.getElementById('tela-login').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+
+  // Configurar UI
+  document.getElementById('user-name-display').textContent = usuarioAtual.nome;
+  document.getElementById('user-role-display').textContent = usuarioAtual.cargo;
+  document.getElementById('user-avatar-icon').textContent = usuarioAtual.avatar;
+  document.getElementById('sidebar-company').textContent = usuarioAtual.empresa;
+
+  // Montar menu
+  var nav = document.getElementById('sidebar-nav');
+  nav.innerHTML = '';
+  (menus[tipoLogin]||menus.dono).forEach(function(item){
+    if(item.sec){
+      var s=document.createElement('div');s.className='nav-section';s.textContent=item.sec;nav.appendChild(s);
+    } else {
+      var el=document.createElement('div');
+      el.className='nav-item';el.dataset.page=item.id;
+      el.innerHTML='<span class="icon">'+item.icon+'</span><span>'+item.label+'</span>';
+      el.onclick=function(){abrirPagina(item.id)};
+      nav.appendChild(el);
+    }
+  });
+
+  // Página inicial
+  var inicial = tipoLogin==='funcionario'?'meu-painel':tipoLogin==='owner'?'owner':'dashboard';
+  abrirPagina(inicial);
+  iniciarRelogio();
+  setTimeout(inicializarApp, 100);
+}
+
+function fazerLogout() {
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('tela-login').style.display = 'flex';
+  usuarioAtual = null;
+}
+
+// ═══════════════════════════════════
+// NAVEGAÇÃO
+// ═══════════════════════════════════
+function abrirPagina(id) {
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
+  var pg = document.getElementById('pg-'+id);
+  if(pg) pg.classList.add('active');
+
+  document.querySelectorAll('.nav-item').forEach(function(n){
+    n.classList.toggle('active', n.dataset.page===id);
+  });
+
+  var labels = {
+    'dashboard':'Dashboard','funcionarios':'Funcionários','ponto':'Controle de Ponto',
+    'tarefas':'Tarefas','validade':'Validade de Produtos','cargos':'Cargos e Permissões',
+    'visual':'Identidade Visual','integracao':'Integração API','notificacoes':'Notificações',
+    'owner':'Painel Owner Worka','meu-painel':'Meu Painel',
+    'salarios':'Salários e Pagamentos','ausencias':'Ausências e Faltas',
+    'escala':'Escala de Trabalho','relatorios':'Relatórios','mural':'Mural / Comunicados'
+  };
+  document.getElementById('topbar-title').textContent = labels[id]||id;
+
+  if(id==='notificacoes') document.getElementById('notif-count').textContent='0';
+
+  // Fechar sidebar no mobile
+  if(window.innerWidth<=768) document.getElementById('sidebar').classList.remove('open');
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+
+// ═══════════════════════════════════
+// OWNER FUNCTIONS
+// ═══════════════════════════════════
+function ownerTab(tab) {
+  // Esconder todas as abas
+  ['assinantes','financeiro','plataforma','suporte','marketing','logs','api','configuracoes'].forEach(function(t){
+    var el = document.getElementById('owner-'+t);
+    if(el) el.style.display = 'none';
+  });
+  // Mostrar aba selecionada
+  var el = document.getElementById('owner-'+tab);
+  if(el) el.style.display = 'block';
+  // Atualizar botões
+  document.querySelectorAll('.owner-tab').forEach(function(btn){
+    btn.classList.remove('btn-primary');
+    btn.classList.add('btn-secondary');
+  });
+  event.target.classList.remove('btn-secondary');
+  event.target.classList.add('btn-primary');
+}
+
+function ownerAcaoEmpresa(acao) {
+  var msgs = {
+    'suspender': '⚠️ Empresa suspensa. Acesso bloqueado até regularização.',
+    'cancelar': '❌ Assinatura cancelada. Empresa removida da plataforma.',
+    'ativar': '✅ Empresa ativada com sucesso!',
+    'notificar': '📧 E-mail de cobrança enviado para a empresa.'
+  };
+  alert(msgs[acao] || 'Ação realizada!');
+}
+
+function ownerAcao(acao) {
+  var msgs = {
+    'salvar-config': '✅ Configurações salvas com sucesso!',
+    'alterar-senha': '✅ Senha alterada com sucesso!',
+    'testar-email': '📧 E-mail de teste enviado para workappoficial@gmail.com',
+    'enviar-comunicado': '📣 Comunicado enviado para todas as empresas!',
+    'gerar-utm': '🔗 Link UTM gerado!',
+    'agendar-manutencao': '🛠️ Manutenção agendada!',
+    'responder-ticket': '💬 Abrindo resposta ao ticket...',
+    'gerar-chave': '🔑 Nova chave de API gerada!'
+  };
+  alert(msgs[acao] || 'Ação realizada!');
+}
+
+function copiarUTM() {
+  var txt = document.getElementById('utm-resultado').textContent.trim();
+  navigator.clipboard.writeText(txt).then(function(){
+    alert('✅ Link copiado!');
+  });
+}
+
+// ═══════════════════════════════════
+// RELÓGIO
+// ═══════════════════════════════════
+function iniciarRelogio() {
+  function tick() {
+    var now = new Date();
+    var h=String(now.getHours()).padStart(2,'0');
+    var m=String(now.getMinutes()).padStart(2,'0');
+    var s=String(now.getSeconds()).padStart(2,'0');
+    var str=h+':'+m+':'+s;
+    var el1=document.getElementById('relogio');
+    var el2=document.getElementById('func-relogio');
+    if(el1)el1.textContent=str;
+    if(el2)el2.textContent=str;
+    var dias=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+    var meses=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+    var ds=dias[now.getDay()]+', '+now.getDate()+' de '+meses[now.getMonth()];
+    var el3=document.getElementById('ponto-data');
+    var el4=document.getElementById('func-data');
+    if(el3)el3.textContent=ds;
+    if(el4)el4.textContent=ds;
+  }
+  tick();
+  setInterval(tick,1000);
+}
+
+// ═══════════════════════════════════
+// PONTO
+// ═══════════════════════════════════
+var statusPonto = 'livre';
+var registrosPonto = [];
+
+function baterPonto(tipo) {
+  if(!navigator.geolocation){
+    registrarPontoSemGeo(tipo);
+    return;
+  }
+  var btn = event.target;
+  btn.textContent = '📍 Capturando...';
+  btn.disabled = true;
+
+  navigator.geolocation.getCurrentPosition(function(pos){
+    var lat=pos.coords.latitude;
+    var lng=pos.coords.longitude;
+    registrarPonto(tipo,lat,lng);
+    btn.disabled = false;
+    btn.textContent = {entrada:'▶ Entrada',intervalo:'☕ Intervalo',retorno:'↩ Retorno',saida:'■ Saída'}[tipo];
+  }, function(){
+    registrarPontoSemGeo(tipo);
+    btn.disabled = false;
+    btn.textContent = {entrada:'▶ Entrada',intervalo:'☕ Intervalo',retorno:'↩ Retorno',saida:'■ Saída'}[tipo];
+  });
+}
+
+function registrarPonto(tipo,lat,lng){
+  var now=new Date();
+  var h=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  var labels={entrada:'Entrada',intervalo:'Intervalo',retorno:'Retorno',saida:'Saída'};
+
+  registrosPonto.push({tipo:tipo,hora:h,lat:lat,lng:lng});
+
+  var tbody=document.getElementById('tabela-registro-ponto');
+  if(tbody){
+    if(registrosPonto.length===1) tbody.innerHTML='';
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td>'+labels[tipo]+'</td><td>'+h+'</td><td><a href="#" onclick="verMapa('+lat+','+lng+',\''+labels[tipo]+'\')" style="color:var(--g500);font-size:.8rem">📍 Ver no mapa</a></td>';
+    tbody.appendChild(tr);
+  }
+
+  // Mostrar mapa
+  var iframe=document.getElementById('mapa-iframe');
+  var placeholder=document.getElementById('mapa-ponto');
+  if(iframe&&placeholder){
+    iframe.src='https://maps.google.com/maps?q='+lat+','+lng+'&z=15&output=embed';
+    iframe.style.display='block';
+    placeholder.style.display='none';
+  }
+  var info=document.getElementById('mapa-info');
+  if(info) info.textContent='📍 '+labels[tipo]+' registrada às '+h+' · Lat: '+lat.toFixed(4)+', Lng: '+lng.toFixed(4);
+
+  var status=document.getElementById('ponto-status');
+  if(status) status.textContent='✅ '+labels[tipo]+' registrada às '+h;
+
+  // Adicionar na tabela do dashboard
+  atualizarTabelaDashboard(tipo,h,lat,lng);
+}
+
+function registrarPontoSemGeo(tipo){
+  registrarPonto(tipo,-15.7942,-47.8825);
+}
+
+function atualizarTabelaDashboard(tipo,hora,lat,lng){
+  // Atualiza a linha do usuário na tabela de ponto do dashboard
+}
+
+function verMapa(lat,lng,nome){
+  event && event.preventDefault && event.preventDefault();
+  document.getElementById('modal-mapa-title').textContent='📍 Localização — '+nome;
+  document.getElementById('modal-mapa-frame').src='https://maps.google.com/maps?q='+lat+','+lng+'&z=16&output=embed';
+  document.getElementById('modal-mapa-info').textContent='Coordenadas: '+lat.toFixed(5)+', '+lng.toFixed(5);
+  document.getElementById('modal-mapa-link').href='https://www.google.com/maps?q='+lat+','+lng;
+  abrirModal('modal-mapa');
+}
+
+// ═══════════════════════════════════
+// MODAIS
+// ═══════════════════════════════════
+function abrirModal(id){document.getElementById(id).classList.add('open')}
+function fecharModal(id){document.getElementById(id).classList.remove('open')}
+document.querySelectorAll('.modal-overlay').forEach(function(el){
+  el.addEventListener('click',function(e){if(e.target===this)this.classList.remove('open')});
+});
+
+// ═══════════════════════════════════
+// TAREFAS
+// ═══════════════════════════════════
+function filtrarTarefas(status){
+  document.querySelectorAll('.tarefa-card').forEach(function(c){
+    c.style.display=(status==='todas'||c.dataset.status===status)?'block':'none';
+  });
+}
+
+function concluirTarefa(btn){
+  var card=btn.closest('.tarefa-card');
+  card.querySelector('.badge').className='badge badge-blue';
+  card.querySelector('.badge').textContent='Em revisão';
+  btn.textContent='✓ Enviado para revisão';
+  btn.disabled=true;
+  btn.style.background='var(--gray300)';
+}
+
+function aprovarTarefa(btn){
+  var card=btn.closest('.tarefa-card');
+  card.querySelector('.badge').className='badge badge-green';
+  card.querySelector('.badge').textContent='Concluída';
+  btn.parentElement.innerHTML='<span style="color:var(--g500);font-size:.82rem;font-weight:600">✅ Aprovada</span>';
+}
+
+function rejeitarTarefa(btn){
+  var card=btn.closest('.tarefa-card');
+  card.querySelector('.badge').className='badge badge-yellow';
+  card.querySelector('.badge').textContent='Pendente';
+  btn.parentElement.innerHTML='<span style="color:var(--yellow);font-size:.82rem;font-weight:600">↩ Refação solicitada</span>';
+}
+
+function verComprovacao(){
+  alert('📷 Comprovação: Foto enviada pela funcionária Maria Silva às 09:15\n\n[Em produção, exibiria a imagem aqui]');
+}
+
+// ═══════════════════════════════════
+// PERMISSÕES
+// ═══════════════════════════════════
+function togglePerm(btn){
+  btn.classList.toggle('on');
+  btn.classList.toggle('off');
+}
+
+// ═══════════════════════════════════
+// FUNCIONÁRIOS
+// ═══════════════════════════════════
+function aprovarFunc(btn){
+  var tr=btn.closest('tr');
+  tr.style.transition='.3s';tr.style.opacity='0';
+  setTimeout(function(){tr.remove()},300);
+}
+function recusarFunc(btn){aprovarFunc(btn)}
+
+function verFuncionario(nome){
+  alert('Perfil de '+nome+'\n\n[Em produção: histórico de ponto, tarefas, avaliações]');
+}
+
+// ═══════════════════════════════════
+// VALIDADE
+// ═══════════════════════════════════
+function criarTarefaValidade(produto){
+  alert('✅ Tarefa criada automaticamente!\n\n"Retirar '+produto+' do estoque — vencimento próximo"\n\nResponsável: Estoquista\nPrioridade: Alta');
+}
+
+// ═══════════════════════════════════
+// IDENTIDADE VISUAL
+// ═══════════════════════════════════
+function atualizarPreview(){
+  var bg=document.getElementById('wl-bg').value;
+  var btn=document.getElementById('wl-btn').value;
+  var accent=document.getElementById('wl-accent').value;
+  var name=document.getElementById('wl-appname').value||'Worka';
+
+  document.getElementById('wl-topbar-preview').style.background=bg;
+  document.getElementById('wl-appname-preview').textContent=name;
+  document.getElementById('wl-btn-preview').style.background=btn;
+  document.getElementById('wl-accent-preview').style.color=accent;
+
+  document.getElementById('wl-bg-hex').value=bg;
+  document.getElementById('wl-btn-hex').value=btn;
+  document.getElementById('wl-accent-hex').value=accent;
+}
+
+function aplicarTema(bg,btn,accent){
+  document.getElementById('wl-bg').value=bg;
+  document.getElementById('wl-btn').value=btn;
+  document.getElementById('wl-accent').value=accent;
+  atualizarPreview();
+}
+
+function salvarVisual(){
+  var bg=document.getElementById('wl-bg').value;
+  var btn=document.getElementById('wl-btn').value;
+  var accent=document.getElementById('wl-accent').value;
+  var name=document.getElementById('wl-appname').value||'Worka';
+
+  document.documentElement.style.setProperty('--brand-bg',bg);
+  document.documentElement.style.setProperty('--brand-btn',btn);
+  document.documentElement.style.setProperty('--brand-accent',accent);
+  document.getElementById('sidebar-appname').innerHTML=name.slice(0,-1)+'<span style="color:'+accent+'">'+name.slice(-1)+'</span>';
+
+  alert('✅ Identidade visual salva com sucesso!');
+}
+
+
+// ═══════════════════════════════════
+// SAUDAÇÃO DINÂMICA
+// ═══════════════════════════════════
+function saudacao(nome) {
+  var h = new Date().getHours();
+  var s = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+  return s + ', ' + nome + '! 👋';
+}
+
+// ═══════════════════════════════════
+// FOTO DE PERFIL
+// ═══════════════════════════════════
+function abrirFotoPerfil() {
+  var letra = document.getElementById('foto-perfil-letra');
+  if(letra) document.getElementById('preview-letra').textContent = letra.textContent;
+  abrirModal('modal-foto-perfil');
+}
+function previewFoto(input) {
+  if(!input.files || !input.files[0]) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var prev = document.getElementById('preview-foto');
+    var letra = document.getElementById('preview-letra');
+    prev.src = e.target.result;
+    prev.style.display = 'block';
+    letra.style.display = 'none';
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+function salvarFotoPerfil() {
+  var prev = document.getElementById('preview-foto');
+  if(prev.src && prev.src !== window.location.href) {
+    var img = document.getElementById('foto-perfil-img');
+    var letra = document.getElementById('foto-perfil-letra');
+    img.src = prev.src;
+    img.style.display = 'block';
+    letra.style.display = 'none';
+  }
+  fecharModal('modal-foto-perfil');
+}
+
+// ═══════════════════════════════════
+// SALÁRIOS E AUMENTOS
+// ═══════════════════════════════════
+var funcNomeAumento = '';
+var funcSalarioAtual = 0;
+
+function darAumento(nome, salario) {
+  funcNomeAumento = nome;
+  funcSalarioAtual = salario;
+  document.getElementById('aumento-nome').textContent = 'Funcionário: ' + nome;
+  document.getElementById('salario-atual').value = salario;
+  document.getElementById('salario-novo').value = '';
+  document.getElementById('aumento-tipo').textContent = '';
+  document.getElementById('aumento-tipo').style.color = '';
+
+  var input = document.getElementById('salario-novo');
+  input.oninput = function() {
+    var novo = parseFloat(this.value);
+    var el = document.getElementById('aumento-tipo');
+    if(!novo) { el.textContent=''; return; }
+    if(novo > salario) {
+      el.textContent = '↑ Aumento de R$ ' + (novo-salario).toFixed(2) + ' (' + (((novo-salario)/salario)*100).toFixed(1) + '%)';
+      el.style.color = 'var(--g600)';
+    } else if(novo < salario) {
+      el.textContent = '↓ Redução de R$ ' + (salario-novo).toFixed(2);
+      el.style.color = 'var(--red)';
+    } else {
+      el.textContent = 'Sem alteração';
+      el.style.color = 'var(--gray500)';
+    }
+  };
+  abrirModal('modal-aumento');
+}
+
+function darAjuste(nome, salario) { darAumento(nome, salario); }
+
+function confirmarAumento() {
+  var novo = parseFloat(document.getElementById('salario-novo').value);
+  if(!novo || novo <= 0) { alert('Informe o novo salário!'); return; }
+  fecharModal('modal-aumento');
+
+  if(novo > funcSalarioAtual) {
+    // Mensagem de parabéns
+    setTimeout(function() {
+      mostrarMensagemAumento(funcNomeAumento, novo);
+    }, 300);
+  } else {
+    alert('✅ Salário de ' + funcNomeAumento + ' atualizado para R$ ' + novo.toFixed(2));
+  }
+}
+
+function mostrarMensagemAumento(nome, novoSalario) {
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(10,46,26,0.9);display:flex;align-items:center;justify-content:center;padding:20px;';
+  overlay.innerHTML = '<div style="background:white;border-radius:20px;padding:40px 32px;max-width:400px;width:100%;text-align:center;animation:fadeInUp .4s ease">' +
+    '<div style="font-size:3rem;margin-bottom:16px">🎉</div>' +
+    '<div style="font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;color:#16622f;margin-bottom:8px">Parabéns, ' + nome + '!</div>' +
+    '<p style="font-size:.95rem;color:#3a3d39;margin-bottom:20px;line-height:1.6">Você recebeu um <strong>aumento de salário</strong>!<br>Seu novo salário é</p>' +
+    '<div style="font-family:'Syne',sans-serif;font-size:2.5rem;font-weight:800;color:#1e8a40;margin-bottom:24px">R$ ' + novoSalario.toFixed(2) + '</div>' +
+    '<p style="font-size:.82rem;color:#6b7068;margin-bottom:20px">Continue com o ótimo trabalho! 💪</p>' +
+    '<button onclick="this.closest('div[style*=fixed]').remove()" style="background:#1e8a40;color:white;border:none;padding:12px 28px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif">Fechar 🎊</button>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  overlay.onclick = function(e) { if(e.target===this) this.remove(); };
+}
+
+function marcarPago(nome) {
+  alert('✅ Pagamento de ' + nome + ' marcado como realizado!');
+}
+
+// ═══════════════════════════════════
+// AUSÊNCIAS
+// ═══════════════════════════════════
+function justificarAusencia(btn) {
+  var motivo = prompt('Informe o motivo da justificativa:');
+  if(motivo) {
+    var tr = btn.closest('tr');
+    tr.querySelector('.badge').className = 'badge badge-yellow';
+    tr.querySelector('.badge').textContent = 'Justificada';
+    btn.textContent = '✓ Justificada';
+    btn.disabled = true;
+    alert('✅ Ausência justificada: ' + motivo);
+  }
+}
+
+function registrarAusencia() {
+  fecharModal('modal-reg-ausencia');
+  alert('✅ Ausência registrada com sucesso!');
+}
+
+function salvarConfigFalta() {
+  var tipo = document.getElementById('tipo-desconto-falta').value;
+  var valor = document.getElementById('valor-falta').value;
+  alert('✅ Configuração salva! Desconto por falta: ' + (tipo==='fixo' ? 'R$ '+valor : tipo));
+}
+
+// ═══════════════════════════════════
+// EXCLUIR FUNCIONÁRIO
+// ═══════════════════════════════════
+function excluirFuncionario(btn, nome) {
+  if(confirm('Tem certeza que deseja excluir ' + nome + ' da equipe?\n\nEsta ação não pode ser desfeita.')) {
+    var tr = btn.closest('tr');
+    tr.style.transition = '.3s';
+    tr.style.opacity = '0';
+    tr.style.transform = 'translateX(20px)';
+    setTimeout(function(){ tr.remove(); }, 300);
+    alert('✅ ' + nome + ' foi removido da equipe.');
+  }
+}
+
+// ═══════════════════════════════════
+// INTEGRAÇÃO API
+// ═══════════════════════════════════
+function atualizarDocAPI() {
+  var tipo = document.getElementById('tipo-sistema').value;
+  var docs = {
+    'ifood': '# iFood API\n## Autenticação: Bearer Token\n## Base URL: https://merchant-api.ifood.com.br\n## Endpoints úteis:\nGET /order/v1.0/events:polling → Pedidos em tempo real\nGET /financial/v1.0/reports → Relatório financeiro',
+    'tiny': '# Tiny ERP API\n## Autenticação: token={sua_chave}&formato=json\n## Base URL: https://api.tiny.com.br/api2\n## Endpoints:\nGET /pedidos.pesquisa → Pedidos\nGET /produtos → Estoque',
+    'bling': '# Bling API v3\n## Autenticação: Bearer Token\n## Base URL: https://www.bling.com.br/Api/v3\n## Endpoints:\nGET /pedidos/vendas → Pedidos\nGET /estoques → Estoque',
+    'woocommerce': '# WooCommerce REST API\n## Autenticação: Consumer Key + Secret (Basic Auth)\n## Base URL: https://seusite.com/wp-json/wc/v3\n## Endpoints:\nGET /orders → Pedidos\nGET /products → Produtos',
+    'shopify': '# Shopify Admin API\n## Autenticação: X-Shopify-Access-Token\n## Base URL: https://sua-loja.myshopify.com/admin/api/2024-01\n## Endpoints:\nGET /orders.json → Pedidos\nGET /products.json → Produtos',
+    'omie': '# Omie API\n## Autenticação: app_key + app_secret no body\n## Base URL: https://app.omie.com.br/api/v1\n## Endpoints:\nPOST /produtos/produto → Produtos\nPOST /financas/pesquisarlancamentos → Financeiro',
+    'generico': '# API Genérica — Worka integra com qualquer REST API\n## Formatos suportados: JSON\n## Autenticação: Bearer, API-Key, Basic Auth ou header customizado\n## O Worka detecta automaticamente campos como:\n- total, value, amount → Faturamento\n- quantity, stock → Estoque\n- orders, pedidos → Pedidos'
+  };
+  var doc = document.getElementById('doc-api-content');
+  if(doc && docs[tipo]) doc.textContent = docs[tipo];
+}
+
+async function testarAPI() {
+  var url = document.getElementById('api-url').value;
+  var key = document.getElementById('api-key').value;
+  var authType = document.getElementById('api-auth-type').value;
+  var resultado = document.getElementById('api-resultado');
+
+  if(!url) { alert('Informe a URL da API!'); return; }
+
+  resultado.style.display = 'block';
+  resultado.innerHTML = '<div style="background:var(--gray50);border-radius:var(--r);padding:12px;font-size:.82rem;color:var(--gray500)">⏳ Testando conexão...</div>';
+
+  var headers = { 'Content-Type': 'application/json' };
+  if(key) {
+    if(authType === 'bearer') headers['Authorization'] = 'Bearer ' + key;
+    else if(authType === 'apikey') headers['x-api-key'] = key;
+    else if(authType === 'custom') {
+      var hName = document.getElementById('api-header-name').value;
+      if(hName) headers[hName] = key;
+    }
+  }
+
+  try {
+    var res = await fetch(url, { method: 'GET', headers: headers });
+    var data = await res.json().catch(function(){ return {}; });
+
+    // Mapear campos automaticamente
+    var fat = data.faturamento || data.total || data.amount || data.value || data.revenue || '—';
+    var ped = data.pedidos || data.orders || data.total_orders || data.count || '—';
+    var est = data.estoque || data.stock || data.quantity || data.inventory || '—';
+    var cli = data.clientes || data.customers || data.visitors || '—';
+
+    resultado.innerHTML = '<div style="background:#edfaf2;border-radius:var(--r);padding:14px;font-size:.85rem;color:var(--g600);margin-bottom:10px">✅ Conexão estabelecida! Status: ' + res.status + '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+      '<div style="background:var(--gray50);border-radius:8px;padding:10px;text-align:center"><div style="font-weight:700">' + fat + '</div><div style="font-size:.72rem;color:var(--gray500)">Faturamento</div></div>' +
+      '<div style="background:var(--gray50);border-radius:8px;padding:10px;text-align:center"><div style="font-weight:700">' + ped + '</div><div style="font-size:.72rem;color:var(--gray500)">Pedidos</div></div>' +
+      '<div style="background:var(--gray50);border-radius:8px;padding:10px;text-align:center"><div style="font-weight:700">' + est + '</div><div style="font-size:.72rem;color:var(--gray500)">Estoque</div></div>' +
+      '<div style="background:var(--gray50);border-radius:8px;padding:10px;text-align:center"><div style="font-weight:700">' + cli + '</div><div style="font-size:.72rem;color:var(--gray500)">Clientes</div></div>' +
+      '</div>';
+
+    document.getElementById('stats-integracao').style.display = 'grid';
+    document.getElementById('int-faturamento').textContent = fat;
+    document.getElementById('int-pedidos').textContent = ped;
+    document.getElementById('int-estoque').textContent = est;
+    document.getElementById('int-clientes').textContent = cli;
+  } catch(e) {
+    resultado.innerHTML = '<div style="background:#fef2f2;border-radius:var(--r);padding:14px;font-size:.85rem;color:var(--red)">❌ Erro de conexão: ' + e.message + '<br><br>Verifique a URL e a chave de API.</div>';
+  }
+}
+
+function salvarIntegracao() {
+  alert('✅ Integração salva com sucesso!');
+}
+
+function copiarDocAPI() {
+  var txt = document.getElementById('doc-api-content').textContent;
+  navigator.clipboard.writeText(txt).then(function(){ alert('✅ Documentação copiada!'); });
+}
+
+// ═══════════════════════════════════
+// INICIALIZAÇÃO
+// ═══════════════════════════════════
+function inicializarApp() {
+  // Saudação dinâmica
+  var saudEl = document.getElementById('saudacao-func');
+  if(saudEl && usuarioAtual) {
+    saudEl.textContent = saudacao(usuarioAtual.nome.split(' ')[0]);
+  }
+  // Foto de perfil
+  var letraEl = document.getElementById('foto-perfil-letra');
+  if(letraEl && usuarioAtual) letraEl.textContent = usuarioAtual.avatar;
+  var prevLetraEl = document.getElementById('preview-letra');
+  if(prevLetraEl && usuarioAtual) prevLetraEl.textContent = usuarioAtual.avatar;
+}
+
+// Fechar sidebar clicando fora no mobile
+document.addEventListener('click',function(e){
+  var sb=document.getElementById('sidebar');
+  if(window.innerWidth<=768&&sb.classList.contains('open')&&!sb.contains(e.target)&&!e.target.classList.contains('menu-toggle')){
+    sb.classList.remove('open');
+  }
+});
+</script>
+
+<script>
+// Auto-login via URL params (vindo do site)
+window.addEventListener('DOMContentLoaded', function(){
+  var params = new URLSearchParams(window.location.search);
+  var role = params.get('role');
+  var email = params.get('email');
+  if(role && email){
+    tipoLogin = role==='owner'?'owner':'dono';
+    // Simular login automático
+    setTimeout(function(){
+      var emailEl = document.querySelector('#login-dono input[type=email]');
+      if(emailEl) emailEl.value = email;
+      if(role==='owner'){
+        var senhaEl = document.querySelector('#login-dono input[type=password]');
+        if(senhaEl) senhaEl.value = 'ale98798798798';
+      }
+      fazerLogin();
+    }, 100);
+  }
+});
+</script>
+
+</body>
+</html>
