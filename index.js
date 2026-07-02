@@ -4,8 +4,7 @@ const crypto = require("crypto");
 
 const PORT = process.env.PORT || 3000;
 const PIX_URL = process.env.DUTTYFY_PIX_URL_ENCRYPTED || "";
-const GMAIL_USER = "workappoficial@gmail.com";
-const GMAIL_PASS = "xcyvfjdaqhdjhutx";
+const RESEND_KEY = "re_7dnBFbNw_GSfyyE5Wz6wruA52hXvs7vTS";
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || "";
 const ENCRYPT_SECRET = process.env.ENCRYPT_SECRET || "worka-default-secret";
@@ -88,13 +87,36 @@ function getBody(req) {
 
 function enviarEmail(para, assunto, html) {
   return new Promise((resolve, reject) => {
-    if (!transporter) return reject(new Error("nodemailer nao instalado"));
-    transporter.sendMail({ from: '"Worka" <' + GMAIL_USER + '>', to: para, subject: assunto, html: html }, function(err, info) {
-      if (err) return reject(err);
-      resolve(info);
+    var data = JSON.stringify({
+      from: "Worka <onboarding@resend.dev>",
+      to: [para],
+      subject: assunto,
+      html: html
     });
+    var opts = {
+      hostname: "api.resend.com",
+      path: "/emails",
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + RESEND_KEY,
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(data)
+      }
+    };
+    var req = https.request(opts, function(res) {
+      var raw = "";
+      res.on("data", c => raw += c);
+      res.on("end", () => {
+        if (res.statusCode >= 400) return reject(new Error("Resend erro: " + raw));
+        resolve(JSON.parse(raw));
+      });
+    });
+    req.on("error", reject);
+    req.write(data);
+    req.end();
   });
 }
+
 
 const server = http.createServer(async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
