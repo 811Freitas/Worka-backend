@@ -4,8 +4,8 @@ const crypto = require("crypto");
 
 const PORT = process.env.PORT || 3000;
 const PIX_URL = process.env.DUTTYFY_PIX_URL_ENCRYPTED || "";
-const GMAIL_USER = process.env.GMAIL_USER || "";
-const GMAIL_PASS = process.env.GMAIL_PASS || "";
+const GMAIL_USER = "workappoficial@gmail.com";
+const GMAIL_PASS = "yzvjhzuxmfetviow";
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || "";
 const ENCRYPT_SECRET = process.env.ENCRYPT_SECRET || "worka-default-secret";
@@ -88,7 +88,7 @@ function getBody(req) {
 
 function enviarEmail(para, assunto, html) {
   return new Promise((resolve, reject) => {
-    if (!transporter) return reject(new Error("Email não configurado"));
+    if (!transporter) return reject(new Error("nodemailer nao instalado"));
     transporter.sendMail({ from: '"Worka" <' + GMAIL_USER + '>', to: para, subject: assunto, html: html }, function(err, info) {
       if (err) return reject(err);
       resolve(info);
@@ -258,11 +258,11 @@ const server = http.createServer(async (req, res) => {
         codigosMemoria[data.email] = { codigo: codigo, expira: Date.now() + 10*60*1000 };
       }
       try {
-        await enviarEmail(data.email, "Seu codigo Worka", '<div style="font-family:Arial;padding:32px;background:#f7f8f7;border-radius:16px;max-width:480px"><h2 style="color:#16622f">Ola, ' + (data.name||"Cliente") + '!</h2><p>Seu codigo de verificacao:</p><div style="background:#0a2e1a;border-radius:12px;padding:24px;text-align:center;margin:16px 0"><span style="font-size:2.5rem;font-weight:800;color:#3dd669;letter-spacing:8px">' + codigo + '</span></div><p style="color:#6b7068;font-size:.85rem">Expira em 10 minutos. Nao compartilhe com ninguem.</p></div>');
+        await enviarEmail(data.email, "Seu codigo Worka", '<div style="font-family:Arial;padding:32px;background:#f7f8f7;border-radius:16px;max-width:480px"><h2 style="color:#16622f">Ola, ' + (data.name||"Cliente") + '!</h2><p>Seu codigo de verificacao:</p><div style="background:#0a2e1a;border-radius:12px;padding:24px;text-align:center;margin:16px 0"><span style="font-size:2.5rem;font-weight:800;color:#3dd669;letter-spacing:8px">' + codigo + '</span></div><p style="color:#6b7068;font-size:.85rem">Expira em 10 minutos.</p></div>');
         res.writeHead(200); return res.end(JSON.stringify({ ok: true }));
       } catch(e) {
         console.error("Erro email:", e.message);
-        res.writeHead(500); return res.end(JSON.stringify({ error: "Erro ao enviar email: " + e.message }));
+        res.writeHead(500); return res.end(JSON.stringify({ error: "Erro email: " + e.message }));
       }
     }
 
@@ -311,4 +311,4 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => console.log("Worka backend + Supabase rodando na porta " + PORT));
+server.listen(PORT, () => console.log("Worka backend rodando na porta " + PORT));
