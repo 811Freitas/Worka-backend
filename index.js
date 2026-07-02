@@ -86,6 +86,16 @@ function getBody(req) {
   return new Promise((resolve, reject) => { var raw = ""; req.on("data", c => raw += c); req.on("end", () => resolve(raw)); req.on("error", reject); });
 }
 
+function enviarEmail(para, assunto, html) {
+  return new Promise((resolve, reject) => {
+    if (!transporter) return reject(new Error("Email não configurado"));
+    transporter.sendMail({ from: '"Worka" <' + GMAIL_USER + '>', to: para, subject: assunto, html: html }, function(err, info) {
+      if (err) return reject(err);
+      resolve(info);
+    });
+  });
+}
+
 const server = http.createServer(async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
@@ -97,13 +107,15 @@ const server = http.createServer(async (req, res) => {
   var path = urlObj.pathname;
 
   try {
+
     if (path === "/" || path === "/health") {
-      res.writeHead(200); return res.end(JSON.stringify({ status: "ok", service: "worka-backend", supabase: !!SUPABASE_URL }));
+      res.writeHead(200);
+      return res.end(JSON.stringify({ status: "ok", service: "worka-backend", supabase: !!SUPABASE_URL, gmail: !!GMAIL_USER }));
     }
 
     if (req.method === "POST" && path === "/empresas") {
       var data = JSON.parse(await getBody(req));
-      if (!data.nome || !data.email || !data.senha) { res.writeHead(400); return res.end(JSON.stringify({ error: "nome, email e senha obrigatórios" })); }
+      if (!data.nome || !data.email || !data.senha) { res.writeHead(400); return res.end(JSON.stringify({ error: "nome, email e senha obrigatorios" })); }
       var result = await DB.insert("empresas", { nome: data.nome, email: data.email.toLowerCase(), senha_hash: hashSenha(data.senha), ramo: data.ramo || null, team_id: gerarTeamId() });
       res.writeHead(201); return res.end(JSON.stringify({ empresa: result.body[0] }));
     }
@@ -111,23 +123,23 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && path === "/login/empresa") {
       var data = JSON.parse(await getBody(req));
       var result = await DB.select("empresas", "email=eq." + encodeURIComponent(data.email.toLowerCase()) + "&senha_hash=eq." + hashSenha(data.senha));
-      if (!result.body.length) { res.writeHead(401); return res.end(JSON.stringify({ error: "Credenciais inválidas" })); }
+      if (!result.body.length) { res.writeHead(401); return res.end(JSON.stringify({ error: "Credenciais invalidas" })); }
       res.writeHead(200); return res.end(JSON.stringify({ empresa: result.body[0] }));
     }
 
     if (req.method === "POST" && path === "/login/funcionario") {
       var data = JSON.parse(await getBody(req));
       var emp = await DB.select("empresas", "team_id=eq." + encodeURIComponent(data.teamId));
-      if (!emp.body.length) { res.writeHead(404); return res.end(JSON.stringify({ error: "ID de equipe não encontrado" })); }
+      if (!emp.body.length) { res.writeHead(404); return res.end(JSON.stringify({ error: "ID de equipe nao encontrado" })); }
       var func = await DB.select("funcionarios", "empresa_id=eq." + emp.body[0].id + "&email=eq." + encodeURIComponent(data.email.toLowerCase()) + "&senha_hash=eq." + hashSenha(data.senha));
-      if (!func.body.length) { res.writeHead(401); return res.end(JSON.stringify({ error: "Credenciais inválidas" })); }
+      if (!func.body.length) { res.writeHead(401); return res.end(JSON.stringify({ error: "Credenciais invalidas" })); }
       res.writeHead(200); return res.end(JSON.stringify({ funcionario: func.body[0], empresa: emp.body[0] }));
     }
 
     if (req.method === "POST" && path === "/funcionarios") {
       var data = JSON.parse(await getBody(req));
       var emp = await DB.select("empresas", "team_id=eq." + encodeURIComponent(data.teamId));
-      if (!emp.body.length) { res.writeHead(404); return res.end(JSON.stringify({ error: "ID inválido" })); }
+      if (!emp.body.length) { res.writeHead(404); return res.end(JSON.stringify({ error: "ID invalido" })); }
       var result = await DB.insert("funcionarios", { empresa_id: emp.body[0].id, nome: data.nome, email: data.email.toLowerCase(), senha_hash: hashSenha(data.senha), telefone: data.telefone || null, status: "pendente" });
       res.writeHead(201); return res.end(JSON.stringify({ funcionario: result.body[0] }));
     }
@@ -139,7 +151,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "PUT" && path.match(/^\/funcionarios\/[\w-]+\/status$/)) {
       var data = JSON.parse(await getBody(req));
-      var result = await DB.update("funcionarios", path.split("/")[2], { status: data.status });
+      await DB.update("funcionarios", path.split("/")[2], { status: data.status });
       res.writeHead(200); return res.end(JSON.stringify({ ok: true }));
     }
 
@@ -191,7 +203,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && path === "/salarios/ajuste") {
       var data = JSON.parse(await getBody(req));
       await DB.update("funcionarios", data.funcionario_id, { salario_base: data.salario_novo });
-      var result = await DB.insert("historico_salarios", { funcionario_id: data.funcionario_id, salario_anterior: data.salario_anterior, salario_novo: data.salario_novo, tipo: data.salario_novo > data.salario_anterior ? "aumento" : "reducao", motivo: data.motivo || null });
+      await DB.insert("historico_salarios", { funcionario_id: data.funcionario_id, salario_anterior: data.salario_anterior, salario_novo: data.salario_novo, tipo: data.salario_novo > data.salario_anterior ? "aumento" : "reducao", motivo: data.motivo || null });
       res.writeHead(201); return res.end(JSON.stringify({ ok: true }));
     }
 
@@ -216,7 +228,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && path === "/integracoes/proxy") {
       var data = JSON.parse(await getBody(req));
       var intRes = await DB.select("integracoes", "id=eq." + data.integracao_id);
-      if (!intRes.body.length) { res.writeHead(404); return res.end(JSON.stringify({ error: "Integração não encontrada" })); }
+      if (!intRes.body.length) { res.writeHead(404); return res.end(JSON.stringify({ error: "Integracao nao encontrada" })); }
       var integ = intRes.body[0];
       var headers = { "Content-Type": "application/json" };
       var token = integ.credenciais_encrypted ? decrypt(integ.credenciais_encrypted) : "";
@@ -237,30 +249,35 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "POST" && path === "/enviar-codigo") {
       var data = JSON.parse(await getBody(req));
+      if (!data.email) { res.writeHead(400); return res.end(JSON.stringify({ error: "Email obrigatorio" })); }
       var codigo = gerarCodigo();
       var expiraEm = new Date(Date.now() + 10*60*1000).toISOString();
-      if (SUPABASE_URL) await DB.insert("codigos_verificacao", { email: data.email, codigo, expira_em: expiraEm }).catch(() => {});
-      else codigosMemoria[data.email] = { codigo, expira: Date.now() + 10*60*1000 };
-      if (!transporter) { res.writeHead(500); return res.end(JSON.stringify({ error: "Email não configurado" })); }
-      transporter.sendMail({ from: '"Worka" <' + GMAIL_USER + '>', to: data.email, subject: "Seu código Worka", html: '<div style="font-family:Arial;padding:32px;background:#f7f8f7;border-radius:16px"><h2 style="color:#16622f">Olá, ' + (data.name||'Cliente') + '!</h2><p>Seu código:</p><div style="background:#0a2e1a;border-radius:12px;padding:24px;text-align:center"><span style="font-size:2.5rem;font-weight:800;color:#3dd669;letter-spacing:8px">' + codigo + '</span></div><p style="color:#6b7068;font-size:.85rem">Expira em 10 minutos.</p></div>' }, function(err) {
-        if (err) { res.writeHead(500); return res.end(JSON.stringify({ error: err.message })); }
-        res.writeHead(200); res.end(JSON.stringify({ ok: true }));
-      });
-      return;
+      if (SUPABASE_URL) {
+        await DB.insert("codigos_verificacao", { email: data.email, codigo: codigo, expira_em: expiraEm }).catch(() => {});
+      } else {
+        codigosMemoria[data.email] = { codigo: codigo, expira: Date.now() + 10*60*1000 };
+      }
+      try {
+        await enviarEmail(data.email, "Seu codigo Worka", '<div style="font-family:Arial;padding:32px;background:#f7f8f7;border-radius:16px;max-width:480px"><h2 style="color:#16622f">Ola, ' + (data.name||"Cliente") + '!</h2><p>Seu codigo de verificacao:</p><div style="background:#0a2e1a;border-radius:12px;padding:24px;text-align:center;margin:16px 0"><span style="font-size:2.5rem;font-weight:800;color:#3dd669;letter-spacing:8px">' + codigo + '</span></div><p style="color:#6b7068;font-size:.85rem">Expira em 10 minutos. Nao compartilhe com ninguem.</p></div>');
+        res.writeHead(200); return res.end(JSON.stringify({ ok: true }));
+      } catch(e) {
+        console.error("Erro email:", e.message);
+        res.writeHead(500); return res.end(JSON.stringify({ error: "Erro ao enviar email: " + e.message }));
+      }
     }
 
     if (req.method === "POST" && path === "/verificar-codigo") {
       var data = JSON.parse(await getBody(req));
       if (SUPABASE_URL) {
         var result = await DB.select("codigos_verificacao", "email=eq." + encodeURIComponent(data.email) + "&codigo=eq." + data.codigo + "&usado=eq.false&order=created_at.desc&limit=1");
-        if (!result.body.length) { res.writeHead(400); return res.end(JSON.stringify({ error: "Código inválido" })); }
-        if (new Date(result.body[0].expira_em) < new Date()) { res.writeHead(400); return res.end(JSON.stringify({ error: "Código expirado" })); }
+        if (!result.body.length) { res.writeHead(400); return res.end(JSON.stringify({ error: "Codigo invalido" })); }
+        if (new Date(result.body[0].expira_em) < new Date()) { res.writeHead(400); return res.end(JSON.stringify({ error: "Codigo expirado" })); }
         await DB.update("codigos_verificacao", result.body[0].id, { usado: true });
         res.writeHead(200); return res.end(JSON.stringify({ ok: true }));
       } else {
         var entry = codigosMemoria[data.email];
-        if (!entry || entry.codigo !== data.codigo) { res.writeHead(400); return res.end(JSON.stringify({ error: "Código inválido" })); }
-        if (Date.now() > entry.expira) { res.writeHead(400); return res.end(JSON.stringify({ error: "Código expirado" })); }
+        if (!entry || entry.codigo !== data.codigo) { res.writeHead(400); return res.end(JSON.stringify({ error: "Codigo invalido" })); }
+        if (Date.now() > entry.expira) { res.writeHead(400); return res.end(JSON.stringify({ error: "Codigo expirado" })); }
         delete codigosMemoria[data.email];
         res.writeHead(200); return res.end(JSON.stringify({ ok: true }));
       }
@@ -277,6 +294,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && path === "/pix") {
       var transactionId = urlObj.searchParams.get("transactionId");
+      if (!transactionId) { res.writeHead(400); return res.end(JSON.stringify({ error: "transactionId obrigatorio" })); }
       var result = await httpsGet(PIX_URL + "?transactionId=" + encodeURIComponent(transactionId), {});
       if (result.body.status === "COMPLETED" && SUPABASE_URL) {
         var existing = await DB.select("pagamentos_pix", "transaction_id=eq." + transactionId);
@@ -285,9 +303,10 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(result.status); return res.end(JSON.stringify(result.body));
     }
 
-    res.writeHead(404); res.end(JSON.stringify({ error: "Rota não encontrada" }));
+    res.writeHead(404); res.end(JSON.stringify({ error: "Rota nao encontrada" }));
 
   } catch(e) {
+    console.error("Erro:", e.message);
     res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
   }
 });
