@@ -2892,5 +2892,229 @@ window.addEventListener('DOMContentLoaded', function(){
 });
 </script>
 
+
+<!-- ══════════════════════════════════════
+     WER — Assistente de IA da Worka
+══════════════════════════════════════ -->
+
+<!-- Botão flutuante -->
+<div id="wer-btn" onclick="toggleWer()" style="position:fixed;bottom:24px;right:24px;z-index:9000;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#0a2e1a,#25b251);box-shadow:0 4px 20px rgba(37,178,81,0.4);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.4rem;transition:transform .2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+  <span id="wer-btn-icon">🤖</span>
+  <div id="wer-notif" style="position:absolute;top:-2px;right:-2px;width:18px;height:18px;background:#ef4444;border-radius:50%;border:2px solid white;font-size:.6rem;font-weight:700;color:white;display:flex;align-items:center;justify-content:center">1</div>
+</div>
+
+<!-- Janela do chat -->
+<div id="wer-chat" style="display:none;position:fixed;bottom:90px;right:24px;z-index:9000;width:360px;max-width:calc(100vw - 32px);background:white;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.2);overflow:hidden;flex-direction:column;max-height:520px;">
+
+  <!-- Header -->
+  <div style="background:linear-gradient(135deg,#0a2e1a,#1e8a40);padding:16px 18px;display:flex;align-items:center;justify-content:space-between;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">🤖</div>
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;color:white;font-size:.95rem;">Wer</div>
+        <div style="font-size:.7rem;color:rgba(255,255,255,.6);display:flex;align-items:center;gap:4px;"><span style="width:6px;height:6px;background:#3dd669;border-radius:50%;display:inline-block;animation:pulse 2s infinite"></span> Online agora</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="limparWer()" style="background:rgba(255,255,255,.1);border:none;color:white;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:.8rem;" title="Limpar conversa">🗑</button>
+      <button onclick="toggleWer()" style="background:rgba(255,255,255,.1);border:none;color:white;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:1rem;">✕</button>
+    </div>
+  </div>
+
+  <!-- Mensagens -->
+  <div id="wer-mensagens" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;max-height:340px;min-height:200px;background:#f7f8f7;">
+    <div class="wer-msg-bot">
+      <div class="wer-avatar">🤖</div>
+      <div class="wer-bubble-bot">Olá! Sou o <strong>Wer</strong>, assistente da Worka! 👋<br><br>Posso te ajudar a usar o sistema, responder dúvidas, criar tarefas, gerenciar sua equipe e muito mais.<br><br>O que você precisa?</div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:32px;">
+      <button class="wer-sugestao" onclick="enviarWer('Como adicionar funcionário?')">👥 Funcionários</button>
+      <button class="wer-sugestao" onclick="enviarWer('Como bater ponto?')">⏱ Ponto</button>
+      <button class="wer-sugestao" onclick="enviarWer('Como criar uma tarefa?')">📋 Tarefas</button>
+      <button class="wer-sugestao" onclick="enviarWer('Quais são os recursos do Worka?')">💡 Recursos</button>
+    </div>
+  </div>
+
+  <!-- Input -->
+  <div style="padding:12px 14px;background:white;border-top:1px solid #eff0ef;display:flex;gap:8px;align-items:flex-end;">
+    <textarea id="wer-input" placeholder="Digite sua pergunta..." rows="1" style="flex:1;padding:10px 14px;border:1.5px solid #eff0ef;border-radius:20px;font-family:'Inter',sans-serif;font-size:.85rem;resize:none;outline:none;max-height:100px;overflow-y:auto;line-height:1.5;transition:border-color .2s;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarWer();}"></textarea>
+    <button onclick="enviarWer()" id="wer-send" style="width:38px;height:38px;border-radius:50%;background:#1e8a40;border:none;color:white;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .2s;" onmouseover="this.style.background='#25b251'" onmouseout="this.style.background='#1e8a40'">➤</button>
+  </div>
+</div>
+
+<style>
+.wer-msg-bot,.wer-msg-user{display:flex;gap:8px;align-items:flex-start;}
+.wer-msg-user{flex-direction:row-reverse;}
+.wer-avatar{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#0a2e1a,#1e8a40);display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0;margin-top:2px;}
+.wer-bubble-bot{background:white;border:1px solid #eff0ef;border-radius:0 12px 12px 12px;padding:10px 14px;font-size:.82rem;color:#3a3d39;line-height:1.6;max-width:260px;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+.wer-bubble-user{background:linear-gradient(135deg,#1e8a40,#25b251);border-radius:12px 0 12px 12px;padding:10px 14px;font-size:.82rem;color:white;line-height:1.6;max-width:260px;}
+.wer-typing{display:flex;gap:4px;align-items:center;padding:10px 14px;background:white;border:1px solid #eff0ef;border-radius:0 12px 12px 12px;}
+.wer-dot{width:6px;height:6px;border-radius:50%;background:#c4c7c4;animation:werBounce .8s infinite;}
+.wer-dot:nth-child(2){animation-delay:.15s;}
+.wer-dot:nth-child(3){animation-delay:.3s;}
+@keyframes werBounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}
+.wer-sugestao{background:white;border:1.5px solid #eff0ef;border-radius:100px;padding:5px 12px;font-size:.72rem;font-weight:600;color:#1e8a40;cursor:pointer;transition:.15s;font-family:'Inter',sans-serif;}
+.wer-sugestao:hover{background:#edfaf2;border-color:#3dd669;}
+</style>
+
+<script>
+var WER_API_KEY = "xai-H5QAJOOhAOt4HXgFQPkT8NnhmMhnTdrtfwTaYGonpUZvJ3FhwP5qVqOoQXLG5tz6zUW9MCELqDYkBiqv";
+var werHistorico = [];
+var werAberto = false;
+
+var WER_SISTEMA = `Você é o Wer, assistente de IA da plataforma Worka. Worka é um SaaS de gestão de equipe para micro e pequenas empresas.
+
+Você ajuda os usuários a:
+- Navegar e usar todos os recursos do Worka
+- Gerenciar funcionários, ponto, tarefas, salários, ausências e validade de produtos
+- Entender relatórios e integração com APIs externas
+- Resolver dúvidas sobre o sistema
+- Sugerir melhores práticas de gestão de equipe
+- Executar ações no sistema quando solicitado
+
+Painéis disponíveis: Dashboard, Funcionários, Ponto, Tarefas, Salários, Ausências, Escala, Relatórios, Validade de Produtos, Mural, Cargos e Permissões, Integração API, Identidade Visual, Notificações.
+
+Seja sempre simpático, objetivo e use emojis quando adequado. Responda em português brasileiro. Quando o usuário pedir para navegar para alguma tela, indique qual menu clicar.`;
+
+function toggleWer() {
+  werAberto = !werAberto;
+  var chat = document.getElementById('wer-chat');
+  chat.style.display = werAberto ? 'flex' : 'none';
+  chat.style.flexDirection = 'column';
+  document.getElementById('wer-notif').style.display = 'none';
+  if (werAberto) {
+    setTimeout(function() {
+      var msgs = document.getElementById('wer-mensagens');
+      msgs.scrollTop = msgs.scrollHeight;
+      document.getElementById('wer-input').focus();
+    }, 100);
+  }
+}
+
+function limparWer() {
+  werHistorico = [];
+  var msgs = document.getElementById('wer-mensagens');
+  msgs.innerHTML = '<div class="wer-msg-bot"><div class="wer-avatar">🤖</div><div class="wer-bubble-bot">Conversa reiniciada! Como posso te ajudar? 😊</div></div>';
+}
+
+async function enviarWer(textoFixo) {
+  var input = document.getElementById('wer-input');
+  var texto = textoFixo || input.value.trim();
+  if (!texto) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+
+  // Mensagem do usuário
+  adicionarMensagemWer('user', texto);
+  werHistorico.push({ role: 'user', content: texto });
+
+  // Contexto do sistema atual
+  var contexto = '';
+  if (typeof usuarioAtual !== 'undefined' && usuarioAtual) {
+    contexto = ' [Usuário atual: ' + usuarioAtual.nome + ' (' + usuarioAtual.cargo + ')]';
+  }
+
+  // Typing indicator
+  var typingId = adicionarTypingWer();
+
+  try {
+    var response = await fetch('https://api.x.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + WER_API_KEY
+      },
+      body: JSON.stringify({
+        model: 'grok-beta',
+        max_tokens: 600,
+        messages: [
+          { role: 'system', content: WER_SISTEMA + contexto },
+          ...werHistorico.slice(-10)
+        ]
+      })
+    });
+
+    var data = await response.json();
+    removerTypingWer(typingId);
+
+    var resposta = data.choices && data.choices[0] ? data.choices[0].message.content : 'Desculpe, não consegui processar sua pergunta. Tente novamente!';
+    adicionarMensagemWer('bot', resposta);
+    werHistorico.push({ role: 'assistant', content: resposta });
+
+    // Verificar se deve navegar para alguma página
+    verificarNavegacaoWer(resposta, texto);
+
+  } catch(e) {
+    removerTypingWer(typingId);
+    console.error('Wer erro:', e);
+    adicionarMensagemWer('bot', '⚠️ Erro: ' + e.message + '. Tente novamente.');
+  }
+}
+
+function adicionarMensagemWer(tipo, texto) {
+  var msgs = document.getElementById('wer-mensagens');
+  var div = document.createElement('div');
+  div.className = tipo === 'user' ? 'wer-msg-user' : 'wer-msg-bot';
+
+  // Converter markdown básico
+  var html = texto
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/
+/g, '<br>');
+
+  if (tipo === 'user') {
+    div.innerHTML = '<div class="wer-bubble-user">' + html + '</div>';
+  } else {
+    div.innerHTML = '<div class="wer-avatar">🤖</div><div class="wer-bubble-bot">' + html + '</div>';
+  }
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function adicionarTypingWer() {
+  var msgs = document.getElementById('wer-mensagens');
+  var id = 'typing-' + Date.now();
+  var div = document.createElement('div');
+  div.className = 'wer-msg-bot';
+  div.id = id;
+  div.innerHTML = '<div class="wer-avatar">🤖</div><div class="wer-typing"><div class="wer-dot"></div><div class="wer-dot"></div><div class="wer-dot"></div></div>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return id;
+}
+
+function removerTypingWer(id) {
+  var el = document.getElementById(id);
+  if (el) el.remove();
+}
+
+function verificarNavegacaoWer(resposta, pergunta) {
+  var texto = (resposta + pergunta).toLowerCase();
+  var navegacoes = {
+    'funcionár': 'funcionarios', 'ponto': 'ponto', 'tarefa': 'tarefas',
+    'salário': 'salarios', 'ausência': 'ausencias', 'falta': 'ausencias',
+    'validade': 'validade', 'produto': 'validade', 'escala': 'escala',
+    'relatório': 'relatorios', 'mural': 'mural', 'comunicado': 'mural',
+    'cargo': 'cargos', 'permissão': 'cargos', 'integração': 'integracao',
+    'api': 'integracao', 'visual': 'visual', 'cor': 'visual', 'logo': 'visual',
+    'notificação': 'notificacoes', 'dashboard': 'dashboard'
+  };
+  for (var chave in navegacoes) {
+    if (texto.includes(chave) && typeof abrirPagina === 'function') {
+      // Não navegar automaticamente, só sugerir
+      break;
+    }
+  }
+}
+
+// Auto-resize textarea
+document.getElementById('wer-input').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+});
+</script>
+
 </body>
 </html>
