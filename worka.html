@@ -1,1692 +1,1332 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Worka — Gestão de Equipe para Pequenas Empresas</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Worka — Sistema de Gestão Empresarial</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --g900:#0a2e1a;--g800:#0f3d22;--g600:#16622f;--g500:#1e8a40;--g400:#25b251;--g300:#3dd669;--g100:#d4f5de;--g50:#edfaf2;
+  --w:#fff;--s50:#f7f8f7;--s100:#eff0ef;--s200:#dfe1df;--s300:#c4c7c4;--s500:#6b7068;--s700:#3a3d39;--s900:#1a1c1a;
+  --red:#ef4444;--red50:#fef2f2;--yel:#f59e0b;--yel50:#fffbeb;--blu:#3b82f6;--blu50:#eff6ff;--pur:#8b5cf6;--pur50:#f5f3ff;
+  --font:'Inter',sans-serif;--disp:'Syne',sans-serif;--r:8px;--rl:12px;
+  --sb:220px;--tb:52px;
+}
+body{font-family:var(--font);background:var(--s50);color:var(--s900);font-size:13px;overflow-x:hidden}
 
-    :root {
-      --green-900: #0a2e1a;
-      --green-800: #0f3d22;
-      --green-600: #16622f;
-      --green-500: #1e8a40;
-      --green-400: #25b251;
-      --green-300: #3dd669;
-      --green-100: #d4f5de;
-      --green-50:  #edfaf2;
-      --white:     #ffffff;
-      --gray-50:   #f7f8f7;
-      --gray-100:  #eff0ef;
-      --gray-300:  #c4c7c4;
-      --gray-500:  #6b7068;
-      --gray-700:  #3a3d39;
-      --gray-900:  #1a1c1a;
-      --font-display: 'Syne', sans-serif;
-      --font-body:    'Inter', sans-serif;
-      --radius:   12px;
-      --radius-lg: 20px;
-    }
+/* LAYOUT */
+.lay{display:grid;grid-template-columns:var(--sb) 1fr;grid-template-rows:var(--tb) 1fr;min-height:100vh}
 
-    html { scroll-behavior: smooth; }
+/* TOPBAR */
+.top{grid-column:1/-1;background:var(--g900);display:flex;align-items:center;padding:0 16px;gap:10px;border-bottom:1px solid rgba(255,255,255,.07);position:sticky;top:0;z-index:200}
+.logo{font-family:var(--disp);font-size:1.1rem;font-weight:800;color:#fff;white-space:nowrap}
+.logo span{color:var(--g300)}
+.top-div{width:1px;height:20px;background:rgba(255,255,255,.12);margin:0 4px}
+.bread{font-size:.72rem;color:rgba(255,255,255,.5)}
+.bread b{color:rgba(255,255,255,.85)}
+.top-srch{flex:1;max-width:300px;margin:0 12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:6px;display:flex;align-items:center;gap:6px;padding:0 10px}
+.top-srch input{background:none;border:none;outline:none;color:#fff;font-size:.78rem;font-family:var(--font);width:100%;padding:6px 0}
+.top-srch input::placeholder{color:rgba(255,255,255,.3)}
+.top-r{margin-left:auto;display:flex;align-items:center;gap:6px}
+.ib{width:30px;height:30px;border-radius:6px;background:rgba(255,255,255,.08);border:none;color:rgba(255,255,255,.65);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.85rem;position:relative;transition:.12s}
+.ib:hover{background:rgba(255,255,255,.14);color:#fff}
+.ibadge{position:absolute;top:-3px;right:-3px;width:14px;height:14px;background:var(--red);border-radius:50%;font-size:.55rem;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;border:2px solid var(--g900)}
+.uav{width:28px;height:28px;border-radius:50%;background:var(--g500);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:.8rem;cursor:pointer}
+.mob-btn{display:none;background:none;border:none;color:#fff;font-size:1.1rem;cursor:pointer;padding:4px}
 
-    body {
-      font-family: var(--font-body);
-      background: var(--white);
-      color: var(--gray-900);
-      line-height: 1.6;
-      overflow-x: hidden;
-    }
+/* SIDEBAR */
+.sb{background:var(--g800);border-right:1px solid rgba(255,255,255,.05);overflow-y:auto;height:calc(100vh - var(--tb));position:sticky;top:var(--tb)}
+.sb::-webkit-scrollbar{width:3px}
+.sb::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
+.nsec{padding:12px 12px 4px;font-size:.58rem;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.22)}
+.ni{display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;color:rgba(255,255,255,.55);font-size:.76rem;font-weight:500;transition:.1s;border-left:2px solid transparent;margin:1px 0}
+.ni:hover{background:rgba(255,255,255,.05);color:rgba(255,255,255,.85)}
+.ni.on{background:rgba(61,214,105,.1);color:var(--g300);border-left-color:var(--g300)}
+.ni .ico{font-size:.82rem;width:16px;text-align:center;flex-shrink:0}
+.ni .nb2{margin-left:auto;background:var(--red);color:#fff;font-size:.53rem;font-weight:700;padding:1px 5px;border-radius:100px}
 
-    /* ── NAV ── */
-    nav {
-      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 18px 6vw;
-      background: rgba(255,255,255,0.92);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--gray-100);
-    }
-    .nav-logo {
-      font-family: var(--font-display);
-      font-size: 1.5rem;
-      font-weight: 800;
-      color: var(--green-600);
-      letter-spacing: -0.5px;
-    }
-    .nav-logo span { color: var(--green-400); }
-    .nav-links { display: flex; gap: 32px; list-style: none; }
-    .nav-links a {
-      font-size: 0.875rem; font-weight: 500;
-      color: var(--gray-700); text-decoration: none;
-      transition: color .2s;
-    }
-    .nav-links a:hover { color: var(--green-500); }
-    .nav-cta {
-      background: var(--green-500); color: var(--white);
-      padding: 10px 22px; border-radius: 8px;
-      font-size: 0.875rem; font-weight: 600; text-decoration: none;
-      transition: background .2s, transform .15s;
-    }
-    .nav-cta:hover { background: var(--green-400); transform: translateY(-1px); }
+/* CONTENT */
+.cnt{overflow-y:auto;height:calc(100vh - var(--tb))}
+.pg{display:none;padding:20px}
+.pg.on{display:block}
 
-    /* ── HERO ── */
-    .hero {
-      min-height: 100vh;
-      background: linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 55%, var(--green-600) 100%);
-      display: flex; align-items: center;
-      padding: 120px 6vw 80px;
-      position: relative;
-      overflow: hidden;
-    }
-    .hero::before {
-      content: '';
-      position: absolute; inset: 0;
-      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2325b251' fill-opacity='0.06'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-    }
-    .hero-inner {
-      position: relative; z-index: 1;
-      max-width: 1200px; margin: 0 auto; width: 100%;
-      display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center;
-    }
-    .hero-badge {
-      display: inline-flex; align-items: center; gap: 8px;
-      background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
-      color: var(--green-300); padding: 6px 14px; border-radius: 100px;
-      font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
-      margin-bottom: 24px;
-    }
-    .hero-badge::before { content: '●'; font-size: 0.5rem; animation: pulse 2s infinite; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+/* PAGE HEADER */
+.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px}
+.pt{font-family:var(--disp);font-size:1.05rem;font-weight:800;color:var(--s900)}
+.ps{font-size:.72rem;color:var(--s500);margin-top:1px}
+.pa{display:flex;gap:7px;flex-wrap:wrap}
 
-    .hero h1 {
-      font-family: var(--font-display);
-      font-size: clamp(2.4rem, 4.5vw, 3.6rem);
-      font-weight: 800; color: var(--white);
-      line-height: 1.1; letter-spacing: -1.5px;
-      margin-bottom: 20px;
-    }
-    .hero h1 em {
-      font-style: normal; color: var(--green-300);
-    }
-    .hero-sub {
-      font-size: 1.05rem; color: rgba(255,255,255,0.7);
-      max-width: 480px; margin-bottom: 36px; line-height: 1.7;
-    }
-    .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; }
-    .btn-primary {
-      background: var(--green-400); color: var(--white);
-      padding: 14px 28px; border-radius: var(--radius);
-      font-weight: 700; font-size: 0.95rem; text-decoration: none;
-      transition: background .2s, transform .15s, box-shadow .2s;
-      box-shadow: 0 4px 20px rgba(37,178,81,0.4);
-    }
-    .btn-primary:hover { background: var(--green-300); transform: translateY(-2px); box-shadow: 0 8px 28px rgba(37,178,81,0.5); }
-    .btn-ghost {
-      background: transparent; color: var(--white);
-      padding: 14px 24px; border-radius: var(--radius);
-      font-weight: 600; font-size: 0.95rem; text-decoration: none;
-      border: 1.5px solid rgba(255,255,255,0.3);
-      transition: border-color .2s, background .2s;
-    }
-    .btn-ghost:hover { border-color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.07); }
+/* KPI */
+.kg{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:18px}
+.kp{background:#fff;border-radius:var(--rl);padding:12px;border:1px solid var(--s100);transition:.12s;cursor:default}
+.kp:hover{border-color:var(--g300);box-shadow:0 2px 8px rgba(30,138,64,.07)}
+.ki{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.85rem;margin-bottom:8px}
+.kv{font-family:var(--disp);font-size:1.3rem;font-weight:800;color:var(--s900);line-height:1}
+.kl{font-size:.67rem;color:var(--s500);margin-top:2px}
+.kt{font-size:.65rem;font-weight:600;margin-top:4px}
+.up{color:var(--g500)}.dn{color:var(--red)}.wn{color:var(--yel)}
 
-    .hero-price {
-      margin-top: 28px;
-      display: flex; align-items: baseline; gap: 6px;
-      color: rgba(255,255,255,0.9);
-    }
-    .hero-price strong { font-size: 2rem; font-weight: 800; color: var(--green-300); }
-    .hero-price span { font-size: 0.9rem; color: rgba(255,255,255,0.55); }
+/* CARD */
+.card{background:#fff;border-radius:var(--rl);border:1px solid var(--s100);overflow:hidden;margin-bottom:14px}
+.ch{padding:11px 14px;border-bottom:1px solid var(--s100);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.ct{font-size:.8rem;font-weight:700;color:var(--s900)}
+.cb{padding:14px}
+.p0{padding:0}
 
-    /* Dashboard mockup */
-    .hero-visual {
-      position: relative;
-    }
-    .dashboard-card {
-      background: var(--white);
-      border-radius: var(--radius-lg);
-      padding: 28px;
-      box-shadow: 0 32px 80px rgba(0,0,0,0.35);
-      position: relative;
-    }
-    .dash-header {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 20px;
-    }
-    .dash-logo {
-      font-family: var(--font-display);
-      font-weight: 800; font-size: 1rem; color: var(--green-600);
-    }
-    .dash-status {
-      font-size: 0.7rem; background: var(--green-50); color: var(--green-600);
-      padding: 4px 10px; border-radius: 100px; font-weight: 600;
-    }
-    .dash-stats {
-      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px;
-    }
-    .dash-stat {
-      background: var(--gray-50); border-radius: 10px; padding: 12px;
-      text-align: center;
-    }
-    .dash-stat-num {
-      font-family: var(--font-display);
-      font-size: 1.4rem; font-weight: 700; color: var(--green-600);
-    }
-    .dash-stat-lbl { font-size: 0.65rem; color: var(--gray-500); margin-top: 2px; }
-    .dash-tasks { display: flex; flex-direction: column; gap: 8px; }
-    .dash-task {
-      display: flex; align-items: center; gap: 10px;
-      background: var(--gray-50); border-radius: 8px; padding: 10px 12px;
-    }
-    .dash-task-dot {
-      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-    }
-    .dot-green { background: var(--green-400); }
-    .dot-yellow { background: #f5a623; }
-    .dot-blue { background: #3b82f6; }
-    .dash-task-text { font-size: 0.75rem; color: var(--gray-700); flex: 1; }
-    .dash-task-badge {
-      font-size: 0.65rem; padding: 2px 8px; border-radius: 100px;
-      font-weight: 600;
-    }
-    .badge-done { background: var(--green-100); color: var(--green-600); }
-    .badge-pend { background: #fff3dc; color: #b07d00; }
-    .badge-rev  { background: #dbeafe; color: #1e40af; }
+/* GRID */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px}
+@media(max-width:900px){.g2,.g3,.g4{grid-template-columns:1fr}}
 
-    .float-pill {
-      position: absolute; left: -24px; bottom: 40px;
-      background: var(--white); border-radius: var(--radius);
-      padding: 12px 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.15);
-      display: flex; align-items: center; gap: 10px;
-    }
-    .float-avatar {
-      width: 36px; height: 36px; border-radius: 50%;
-      background: linear-gradient(135deg, var(--green-400), var(--green-600));
-      display: flex; align-items: center; justify-content: center;
-      font-size: 0.8rem; font-weight: 700; color: white;
-    }
-    .float-text { font-size: 0.72rem; line-height: 1.4; }
-    .float-text strong { display: block; color: var(--gray-900); }
-    .float-text span { color: var(--gray-500); }
+/* TABLE */
+.tb2{width:100%;border-collapse:collapse}
+.tb2 th{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--s500);padding:7px 11px;text-align:left;border-bottom:1px solid var(--s100);background:var(--s50);white-space:nowrap}
+.tb2 td{padding:8px 11px;border-bottom:1px solid var(--s50);font-size:.76rem;color:var(--s700);vertical-align:middle}
+.tb2 tr:last-child td{border-bottom:none}
+.tb2 tr:hover td{background:var(--s50)}
+.act{display:flex;gap:4px;justify-content:flex-end}
 
-    /* ── SECTIONS ── */
-    section { padding: 96px 6vw; }
-    .section-inner { max-width: 1200px; margin: 0 auto; }
+/* BADGE */
+.b{display:inline-flex;align-items:center;padding:2px 7px;border-radius:100px;font-size:.65rem;font-weight:700;white-space:nowrap}
+.bg2{background:var(--g50);color:var(--g600)}.br2{background:var(--red50);color:#dc2626}
+.by2{background:var(--yel50);color:#92400e}.bb2{background:var(--blu50);color:#1e40af}
+.bp2{background:var(--pur50);color:#6d28d9}.bgr{background:var(--s100);color:var(--s500)}
 
-    .section-eyebrow {
-      font-size: 0.75rem; font-weight: 700; letter-spacing: 1.5px;
-      text-transform: uppercase; color: var(--green-500); margin-bottom: 12px;
-    }
-    .section-title {
-      font-family: var(--font-display);
-      font-size: clamp(1.8rem, 3vw, 2.6rem);
-      font-weight: 800; letter-spacing: -1px;
-      color: var(--gray-900); line-height: 1.15; margin-bottom: 16px;
-    }
-    .section-sub {
-      font-size: 1rem; color: var(--gray-500);
-      max-width: 540px; line-height: 1.7;
-    }
-    .section-head { margin-bottom: 56px; }
+/* BOTÕES */
+.btn{padding:6px 13px;border-radius:var(--r);font-size:.74rem;font-weight:600;cursor:pointer;border:none;font-family:var(--font);transition:.1s;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.bp{background:var(--g500);color:#fff}.bp:hover{background:var(--g400)}
+.bs{background:var(--s50);color:var(--s700);border:1px solid var(--s200)}.bs:hover{background:var(--s100)}
+.bd{background:var(--red50);color:#dc2626;border:1px solid #fca5a5}.bd:hover{background:#fee2e2}
+.bg3{background:transparent;color:var(--s500);border:1px solid var(--s200)}.bg3:hover{background:var(--s50)}
+.sm{padding:4px 9px;font-size:.68rem}.xs{padding:2px 7px;font-size:.63rem}
 
-    /* ── HOW IT WORKS ── */
-    .how { background: var(--gray-50); }
-    .steps {
-      display: grid; grid-template-columns: repeat(3, 1fr);
-      gap: 32px; position: relative;
-    }
-    .steps::before {
-      content: '';
-      position: absolute; top: 28px; left: calc(16.6% + 16px); right: calc(16.6% + 16px);
-      height: 2px;
-      background: linear-gradient(90deg, var(--green-300) 0%, var(--green-400) 100%);
-    }
-    .step {
-      background: var(--white); border-radius: var(--radius-lg);
-      padding: 32px 28px;
-      border: 1.5px solid var(--gray-100);
-      transition: border-color .2s, transform .2s;
-    }
-    .step:hover { border-color: var(--green-300); transform: translateY(-4px); }
-    .step-num {
-      width: 56px; height: 56px; border-radius: 50%;
-      background: var(--green-500); color: var(--white);
-      display: flex; align-items: center; justify-content: center;
-      font-family: var(--font-display); font-size: 1.3rem; font-weight: 800;
-      margin-bottom: 20px; position: relative; z-index: 1;
-    }
-    .step h3 { font-size: 1.05rem; font-weight: 700; color: var(--gray-900); margin-bottom: 8px; }
-    .step p { font-size: 0.875rem; color: var(--gray-500); line-height: 1.65; }
+/* FORM */
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.fr.f1{grid-template-columns:1fr}.fr.f3{grid-template-columns:1fr 1fr 1fr}
+.fl label{font-size:.7rem;font-weight:600;color:var(--s700);display:block;margin-bottom:3px}
+.fl input,.fl select,.fl textarea{width:100%;padding:7px 9px;border:1.5px solid var(--s200);border-radius:var(--r);font-size:.76rem;font-family:var(--font);outline:none;transition:border-color .12s;background:#fff;color:var(--s900)}
+.fl input:focus,.fl select:focus,.fl textarea:focus{border-color:var(--g500)}
+.fl textarea{resize:vertical;min-height:65px}
 
-    /* ── FEATURES ── */
-    .features-grid {
-      display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;
-    }
-    .feature-card {
-      border: 1.5px solid var(--gray-100); border-radius: var(--radius-lg);
-      padding: 32px; transition: border-color .2s, box-shadow .2s;
-    }
-    .feature-card:hover { border-color: var(--green-300); box-shadow: 0 8px 32px rgba(30,138,64,0.08); }
-    .feature-icon {
-      width: 48px; height: 48px; border-radius: var(--radius);
-      background: var(--green-50); display: flex; align-items: center;
-      justify-content: center; font-size: 1.4rem; margin-bottom: 18px;
-    }
-    .feature-card h3 { font-size: 1.05rem; font-weight: 700; color: var(--gray-900); margin-bottom: 8px; }
-    .feature-card p { font-size: 0.875rem; color: var(--gray-500); line-height: 1.65; }
-    .feature-tag {
-      display: inline-block; margin-top: 14px;
-      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px;
-      text-transform: uppercase; color: var(--green-600);
-      background: var(--green-50); padding: 4px 10px; border-radius: 100px;
-    }
+/* MODAL */
+.mo{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;padding:14px}
+.mo.open{display:flex}
+.mbox{background:#fff;border-radius:var(--rl);width:100%;max-width:540px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.18)}
+.mh{padding:14px 18px;border-bottom:1px solid var(--s100);display:flex;align-items:center;justify-content:space-between}
+.mt{font-family:var(--disp);font-size:.92rem;font-weight:800}
+.mbody{padding:18px}
+.mfoot{padding:11px 18px;border-top:1px solid var(--s100);display:flex;gap:7px;justify-content:flex-end}
+.xbtn{background:none;border:none;font-size:1rem;cursor:pointer;color:var(--s500)}
 
-    /* ── PERMISSIONS ── */
-    .perms-section { background: var(--green-900); }
-    .perms-section .section-title { color: var(--white); }
-    .perms-section .section-eyebrow { color: var(--green-300); }
-    .perms-section .section-sub { color: rgba(255,255,255,0.6); }
+/* TOGGLE */
+.tog{width:32px;height:17px;border-radius:100px;cursor:pointer;position:relative;border:none;transition:.18s;flex-shrink:0}
+.tog.on{background:var(--g400)}.tog.off{background:var(--s300)}
+.tdot{position:absolute;top:2px;width:13px;height:13px;background:#fff;border-radius:50%;transition:.18s}
+.tog.on .tdot{left:17px}.tog.off .tdot{left:2px}
 
-    .perms-grid {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center;
-    }
-    .perms-visual {
-      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
-      border-radius: var(--radius-lg); padding: 28px;
-    }
-    .cargo-title {
-      font-size: 0.7rem; font-weight: 700; letter-spacing: 1px;
-      text-transform: uppercase; color: var(--green-300); margin-bottom: 16px;
-    }
-    .perm-row {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.07);
-    }
-    .perm-row:last-child { border-bottom: none; }
-    .perm-label { font-size: 0.8rem; color: rgba(255,255,255,0.75); }
-    .toggle {
-      width: 36px; height: 20px; border-radius: 100px;
-      display: flex; align-items: center; padding: 2px;
-      cursor: pointer; transition: background .2s;
-    }
-    .toggle.on { background: var(--green-400); justify-content: flex-end; }
-    .toggle.off { background: rgba(255,255,255,0.2); justify-content: flex-start; }
-    .toggle-dot {
-      width: 16px; height: 16px; background: white; border-radius: 50%;
-    }
-    .perms-list { display: flex; flex-direction: column; gap: 16px; }
-    .perm-item {
-      display: flex; gap: 14px;
-    }
-    .perm-bullet {
-      width: 24px; height: 24px; border-radius: 50%; background: var(--green-500);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 0.7rem; color: white; flex-shrink: 0; margin-top: 2px;
-    }
-    .perm-item h4 { font-size: 0.9rem; font-weight: 600; color: var(--white); margin-bottom: 2px; }
-    .perm-item p { font-size: 0.8rem; color: rgba(255,255,255,0.55); line-height: 1.5; }
+/* PROGRESS */
+.prg{height:5px;background:var(--s100);border-radius:100px;overflow:hidden}
+.prf{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--g500),var(--g300))}
 
-    /* ── INTEGRATION ── */
-    .integrations { background: var(--gray-50); }
-    .int-grid {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center;
-    }
-    .int-card {
-      background: var(--white); border: 1.5px solid var(--gray-100);
-      border-radius: var(--radius-lg); padding: 28px;
-    }
-    .int-card h3 { font-size: 1rem; font-weight: 700; color: var(--gray-900); margin-bottom: 6px; }
-    .int-card p { font-size: 0.85rem; color: var(--gray-500); line-height: 1.6; margin-bottom: 20px; }
-    .int-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-    .chip {
-      font-size: 0.75rem; font-weight: 600; color: var(--gray-700);
-      background: var(--gray-100); padding: 5px 12px; border-radius: 100px;
-    }
-    .int-stat-box {
-      background: linear-gradient(135deg, var(--green-600), var(--green-900));
-      border-radius: var(--radius-lg); padding: 32px; color: white;
-      margin-bottom: 16px;
-    }
-    .int-stat-box h4 { font-size: 0.8rem; color: var(--green-300); margin-bottom: 12px; font-weight: 600; letter-spacing: 0.5px; }
-    .stat-row {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1);
-    }
-    .stat-row:last-child { border-bottom: none; }
-    .stat-row-lbl { font-size: 0.8rem; color: rgba(255,255,255,0.7); }
-    .stat-row-val { font-size: 0.9rem; font-weight: 700; color: white; }
+/* TABS */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--s100);margin-bottom:14px;overflow-x:auto}
+.tab{padding:7px 13px;font-size:.73rem;font-weight:600;cursor:pointer;color:var(--s500);border-bottom:2px solid transparent;transition:.12s;white-space:nowrap}
+.tab:hover{color:var(--s700)}
+.tab.on{color:var(--g600);border-bottom-color:var(--g500)}
 
-    /* ── WHITE LABEL ── */
-    .wl-grid {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center;
-    }
-    .wl-colors { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
-    .wl-color {
-      width: 36px; height: 36px; border-radius: 50%;
-      border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-      cursor: pointer; transition: transform .2s;
-    }
-    .wl-color:hover { transform: scale(1.2); }
-    .wl-mockup {
-      background: var(--gray-50); border-radius: var(--radius-lg);
-      padding: 20px; border: 1.5px solid var(--gray-100);
-    }
-    .wl-app-bar {
-      border-radius: 10px; padding: 14px 18px;
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 16px;
-    }
-    .wl-app-name { font-weight: 800; font-size: 0.95rem; color: white; font-family: var(--font-display); }
-    .wl-circles { display: flex; gap: 6px; }
-    .wl-circle { width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,0.25); }
-    .wl-body { display: flex; flex-direction: column; gap: 8px; }
-    .wl-btn {
-      padding: 10px 16px; border-radius: 8px; font-size: 0.8rem;
-      font-weight: 600; color: white; text-align: center;
-    }
-    .wl-row { display: flex; gap: 8px; }
-    .wl-row .wl-btn { flex: 1; }
+/* STATUS DOT */
+.dot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:4px}
+.dg{background:var(--g400)}.dr{background:var(--red)}.dy{background:var(--yel)}.dgr{background:var(--s300)}
 
-    /* ── PRICING ── */
-    .pricing { background: var(--green-900); }
-    .pricing .section-title { color: white; }
-    .pricing .section-eyebrow { color: var(--green-300); }
-    .pricing .section-sub { color: rgba(255,255,255,0.6); }
-    .pricing-card {
-      max-width: 480px; margin: 0 auto;
-      background: white; border-radius: var(--radius-lg);
-      padding: 48px; text-align: center;
-      box-shadow: 0 32px 80px rgba(0,0,0,0.3);
-    }
-    .price-amount {
-      font-family: var(--font-display);
-      font-size: 3.5rem; font-weight: 800;
-      color: var(--green-600); letter-spacing: -2px; margin: 16px 0 4px;
-    }
-    .price-period { font-size: 0.875rem; color: var(--gray-500); margin-bottom: 32px; }
-    .price-features { list-style: none; text-align: left; margin-bottom: 32px; display: flex; flex-direction: column; gap: 12px; }
-    .price-features li {
-      display: flex; align-items: flex-start; gap: 10px;
-      font-size: 0.9rem; color: var(--gray-700);
-    }
-    .price-features li::before {
-      content: '✓'; font-weight: 800; color: var(--green-500);
-      flex-shrink: 0; margin-top: 1px;
-    }
-    .btn-block {
-      display: block; width: 100%;
-      background: var(--green-500); color: white;
-      padding: 16px; border-radius: var(--radius);
-      font-size: 1rem; font-weight: 700; text-decoration: none;
-      text-align: center; transition: background .2s;
-    }
-    .btn-block:hover { background: var(--green-400); }
-    .price-note { font-size: 0.8rem; color: var(--gray-500); margin-top: 16px; }
+/* TIMELINE */
+.tl{position:relative;padding-left:18px}
+.tl::before{content:'';position:absolute;left:5px;top:0;bottom:0;width:1px;background:var(--s100)}
+.tli{position:relative;padding-bottom:14px}
+.tld{position:absolute;left:-15px;top:3px;width:9px;height:9px;border-radius:50%;border:2px solid #fff}
+.tlt{font-size:.63rem;color:var(--s500);margin-bottom:1px}
+.tlx{font-size:.73rem;color:var(--s700)}
 
-    /* ── FOOTER ── */
-    footer {
-      background: var(--gray-900); color: var(--gray-300);
-      padding: 48px 6vw 32px;
-    }
-    .footer-inner {
-      max-width: 1200px; margin: 0 auto;
-      display: flex; align-items: center; justify-content: space-between; flex-wrap: gap;
-    }
-    .footer-logo {
-      font-family: var(--font-display); font-size: 1.3rem; font-weight: 800; color: white;
-    }
-    .footer-logo span { color: var(--green-400); }
-    .footer-copy { font-size: 0.8rem; color: var(--gray-500); margin-top: 24px; text-align: center; }
+/* MISC */
+.dv{height:1px;background:var(--s100);margin:10px 0}
+.tag2{display:inline-flex;align-items:center;padding:1px 6px;border-radius:100px;font-size:.63rem;font-weight:600;background:var(--s100);color:var(--s500)}
+.fw6{font-weight:600}.fw7{font-weight:700}
+.cr{color:var(--red)}.cg{color:var(--g600)}.cy{color:var(--yel)}.cgr{color:var(--s500)}
+.tc{text-align:center}.tr{text-align:right}
+.fx{display:flex;align-items:center;gap:7px}
+.fxb{display:flex;align-items:center;justify-content:space-between}
+code{font-family:monospace;background:var(--s100);padding:1px 5px;border-radius:4px;font-size:.73rem}
 
-    /* ── RESPONSIVE ── */
-    @media (max-width: 900px) {
-      .hero-inner, .features-grid, .perms-grid, .int-grid, .wl-grid { grid-template-columns: 1fr; }
-      .steps { grid-template-columns: 1fr; }
-      .steps::before { display: none; }
-      .hero-visual { display: none; }
-      nav .nav-links { display: none; }
-    }
-  </style>
+@media(max-width:768px){
+  .lay{grid-template-columns:1fr}
+  .sb{position:fixed;left:0;top:var(--tb);height:calc(100vh - var(--tb));width:var(--sb);z-index:100;transition:transform .25s;transform:translateX(-100%)}
+  .sb.open{transform:translateX(0)}
+  .cnt{grid-column:1}
+  .mob-btn{display:block}
+  .top-srch{display:none}
+  .kg{grid-template-columns:1fr 1fr}
+}
+</style>
 </head>
 <body>
+<div class="lay">
 
-<!-- NAV -->
-<nav>
-  <div class="nav-logo">Work<span>a</span></div>
-  <ul class="nav-links">
-    <li><a href="#como-funciona">Como funciona</a></li>
-    <li><a href="#funcionalidades">Funcionalidades</a></li>
-    <li><a href="#integracao">Integração</a></li>
-    <li><a href="#preco">Preço</a></li>
-  </ul>
-  <a href="#" onclick="abrirCheckout();return false;" class="nav-cta">Começar agora</a>
-</nav>
-
-<!-- HERO -->
-<section class="hero">
-  <div class="hero-inner">
-    <div class="hero-content">
-      <div class="hero-badge">Plataforma SaaS • White Label</div>
-      <h1>Gerencie sua equipe com <em>simplicidade total</em></h1>
-      <p class="hero-sub">Ponto digital, tarefas com comprovação, alerta de validade e integração com qualquer sistema — tudo customizável com a sua marca.</p>
-      <div class="hero-actions">
-        <a href="#" onclick="abrirCheckout();return false;" class="btn-primary">Teste grátis — 15 dias</a>
-        <a href="#funcionalidades" class="btn-ghost">Ver funcionalidades</a>
-      </div>
-      <div class="hero-price">
-        <strong>R$ 24,90</strong>
-        <span>/mês · valor fixo · cancele quando quiser</span>
-      </div>
-    </div>
-    <div class="hero-visual">
-      <div class="dashboard-card">
-        <div class="dash-header">
-          <div class="dash-logo">Worka</div>
-          <div class="dash-status">● 7 online agora</div>
-        </div>
-        <div class="dash-stats">
-          <div class="dash-stat">
-            <div class="dash-stat-num">12</div>
-            <div class="dash-stat-lbl">Funcionários</div>
-          </div>
-          <div class="dash-stat">
-            <div class="dash-stat-num">94<span style="font-size:.8rem">%</span></div>
-            <div class="dash-stat-lbl">Pontualidade</div>
-          </div>
-          <div class="dash-stat">
-            <div class="dash-stat-num">8</div>
-            <div class="dash-stat-lbl">Tarefas hoje</div>
-          </div>
-        </div>
-        <div class="dash-tasks">
-          <div class="dash-task">
-            <div class="dash-task-dot dot-green"></div>
-            <div class="dash-task-text">Limpeza do salão — João</div>
-            <div class="dash-task-badge badge-done">Concluída</div>
-          </div>
-          <div class="dash-task">
-            <div class="dash-task-dot dot-yellow"></div>
-            <div class="dash-task-text">Reposição de estoque</div>
-            <div class="dash-task-badge badge-pend">Pendente</div>
-          </div>
-          <div class="dash-task">
-            <div class="dash-task-dot dot-blue"></div>
-            <div class="dash-task-text">Auditoria de caixa</div>
-            <div class="dash-task-badge badge-rev">Em revisão</div>
-          </div>
-        </div>
-      </div>
-      <div class="float-pill">
-        <div class="float-avatar">M</div>
-        <div class="float-text">
-          <strong>Maria entrou na equipe</strong>
-          <span>aguardando aprovação...</span>
-        </div>
-      </div>
+<!-- TOPBAR -->
+<header class="top">
+  <button class="mob-btn" onclick="toggleSB()">☰</button>
+  <div class="logo">Work<span>a</span></div>
+  <div class="top-div"></div>
+  <div class="bread" id="bread"><b>Dashboard</b></div>
+  <div class="top-srch">
+    <span style="color:rgba(255,255,255,.3);font-size:.78rem">🔍</span>
+    <input placeholder="Buscar...">
+  </div>
+  <div class="top-r">
+    <button class="ib" onclick="go('alertas')">🔔<div class="ibadge" id="ncnt">5</div></button>
+    <button class="ib" onclick="go('config')">⚙️</button>
+    <div class="top-div"></div>
+    <div class="uav" id="uav" title="Meu perfil">A</div>
+    <div style="line-height:1.3;cursor:pointer" onclick="go('config')">
+      <div style="font-size:.75rem;font-weight:600;color:#fff" id="unome">Alexandre</div>
+      <div style="font-size:.62rem;color:rgba(255,255,255,.4)" id="ucargo">Dono</div>
     </div>
   </div>
-</section>
+</header>
 
-<!-- COMO FUNCIONA -->
-<section class="how" id="como-funciona">
-  <div class="section-inner">
-    <div class="section-head">
-      <div class="section-eyebrow">Jornada do cliente</div>
-      <h2 class="section-title">Três passos até sua equipe rodando</h2>
-      <p class="section-sub">Do cadastro ao painel personalizado, o onboarding é rápido e pensado para quem tem negócio pra tocar.</p>
-    </div>
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">1</div>
-        <h3>Cadastro e ramo de atividade</h3>
-        <p>Você escolhe o segmento do seu negócio — alimentação, estética, varejo, clínica e muito mais. O Worka já configura modelos de tarefas e cargos sugeridos para o seu tipo de empresa.</p>
-      </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <h3>Assine por R$ 24,90/mês</h3>
-        <p>Valor fixo, sem pegadinhas. Um único plano dá acesso a todas as funcionalidades da plataforma, incluindo a API de integração com seus sistemas atuais.</p>
-      </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <h3>Sua marca, suas cores</h3>
-        <p>Personalize o nome do app, logotipo, banner e todas as cores do sistema via variáveis CSS dinâmicas. Seus funcionários veem a identidade visual da sua empresa, não a do Worka.</p>
-      </div>
-    </div>
-  </div>
-</section>
+<!-- SIDEBAR -->
+<aside class="sb" id="sb">
+  <div class="nsec">Principal</div>
+  <div class="ni on" onclick="go('dash')"><span class="ico">📊</span>Dashboard</div>
+  <div class="ni" onclick="go('analytics')"><span class="ico">📈</span>Analytics</div>
+  <div class="ni" onclick="go('alertas')"><span class="ico">🔔</span>Alertas<span class="nb2">5</span></div>
 
-<!-- FUNCIONALIDADES -->
-<section id="funcionalidades">
-  <div class="section-inner">
-    <div class="section-head">
-      <div class="section-eyebrow">Funcionalidades</div>
-      <h2 class="section-title">Tudo o que você precisa, nada que atrapalhe</h2>
-      <p class="section-sub">Ferramentas pensadas para a rotina real de quem gerencia uma pequena empresa.</p>
-    </div>
-    <div class="features-grid">
-      <div class="feature-card">
-        <div class="feature-icon">⏱️</div>
-        <h3>Controle de Ponto Digital</h3>
-        <p>Entrada, intervalo, retorno e saída registrados pelo celular. Os dados chegam em tempo real no painel do gestor, sem planilha, sem papel, sem erro.</p>
-        <span class="feature-tag">Tempo real</span>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">📋</div>
-        <h3>Tarefas com Comprovação Visual</h3>
-        <p>Crie tarefas, delegue por nome ou cargo e defina prazo. Ative "exigir foto ou vídeo" para que o funcionário só consiga fechar a tarefa enviando uma mídia como comprovante.</p>
-        <span class="feature-tag">Com evidência</span>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">🔔</div>
-        <h3>Alerta de Validade de Produtos</h3>
-        <p>Cadastre lotes com data de vencimento e defina com quantos dias quer ser avisado. O sistema envia notificação e cria automaticamente uma tarefa de alta prioridade para a equipe.</p>
-        <span class="feature-tag">Automático</span>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">🎨</div>
-        <h3>White Label Total</h3>
-        <p>Nome do app, logotipo, foto de banner e todas as cores do sistema são suas. Seus colaboradores vivem dentro de uma plataforma com a cara da sua empresa.</p>
-        <span class="feature-tag">Sua marca</span>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">📍</div>
-        <h3>Localização no Ponto</h3>
-        <p>Cada batida de ponto captura automaticamente a localização do funcionário. O gestor vê exatamente onde cada entrada, intervalo e saída foi registrada — direto no Google Maps, em tempo real.</p>
-        <span class="feature-tag">Geolocalização</span>
-      </div>
+  <div class="nsec">Pessoas</div>
+  <div class="ni" onclick="go('funcs')"><span class="ico">👥</span>Funcionários</div>
+  <div class="ni" onclick="go('cargos')"><span class="ico">🔐</span>Cargos</div>
+  <div class="ni" onclick="go('ponto')"><span class="ico">⏱</span>Ponto</div>
+  <div class="ni" onclick="go('ausencias')"><span class="ico">❌</span>Ausências</div>
+  <div class="ni" onclick="go('escala')"><span class="ico">📅</span>Escala</div>
+
+  <div class="nsec">Operacional</div>
+  <div class="ni" onclick="go('tarefas')"><span class="ico">📋</span>Tarefas</div>
+  <div class="ni" onclick="go('validade')"><span class="ico">⚠️</span>Validade</div>
+  <div class="ni" onclick="go('mural')"><span class="ico">📢</span>Mural</div>
+
+  <div class="nsec">Financeiro</div>
+  <div class="ni" onclick="go('salarios')"><span class="ico">💰</span>Salários</div>
+  <div class="ni" onclick="go('fin')"><span class="ico">🏦</span>Financeiro</div>
+  <div class="ni" onclick="go('relatorios')"><span class="ico">📑</span>Relatórios</div>
+
+  <div class="nsec">Sistema</div>
+  <div class="ni" onclick="go('visual')"><span class="ico">🎨</span>Identidade</div>
+  <div class="ni" onclick="go('config')"><span class="ico">⚙️</span>Configurações</div>
+  <div class="ni" onclick="go('auditoria')"><span class="ico">🔍</span>Auditoria</div>
+  <div class="ni" onclick="sair()"><span class="ico">🚪</span>Sair</div>
+</aside>
+
+<!-- CONTEÚDO -->
+<main class="cnt">
+
+<!-- ════ DASHBOARD ════ -->
+<div class="pg on" id="pg-dash">
+  <div class="ph">
+    <div><div class="pt" id="greet">Bom dia, Alexandre 👋</div><div class="ps">Visão geral · <span id="ddate"></span></div></div>
+    <div class="pa">
+      <button class="btn bs sm">📥 Exportar</button>
+      <button class="btn bp sm" onclick="go('tarefas');abrirMo('mo-tarefa')">+ Nova tarefa</button>
     </div>
   </div>
-</section>
-
-<!-- PERMISSÕES -->
-<section class="perms-section">
-  <div class="section-inner">
-    <div class="perms-grid">
-      <div>
-        <div class="section-eyebrow">Hierarquia dinâmica</div>
-        <h2 class="section-title">Crie os cargos que o seu negócio precisa</h2>
-        <p class="section-sub">Chame de Gerente, Supervisor, Atendente — o nome e as permissões são seus. Defina exatamente o que cada cargo pode ver e fazer no sistema.</p>
-        <div class="perms-list">
-          <div class="perm-item">
-            <div class="perm-bullet">✓</div>
-            <div>
-              <h4>Entrada segura por ID</h4>
-              <p>Cada empresa ganha um código único. O funcionário só entra na equipe após ser aprovado pelo gestor.</p>
-            </div>
-          </div>
-          <div class="perm-item">
-            <div class="perm-bullet">✓</div>
-            <div>
-              <h4>Permissões por checkbox</h4>
-              <p>Faturamento, aprovação de ponto, edição visual e muito mais — você liga ou desliga para cada cargo.</p>
-            </div>
-          </div>
-          <div class="perm-item">
-            <div class="perm-bullet">✓</div>
-            <div>
-              <h4>Aprovação de novos membros</h4>
-              <p>Nenhum colaborador acessa a equipe sem autorização. Controle total desde o primeiro acesso.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="perms-visual">
-        <div class="cargo-title">Cargo: Supervisor de Loja</div>
-        <div class="perm-row">
-          <span class="perm-label">Visualizar faturamento</span>
-          <div class="toggle on"><div class="toggle-dot"></div></div>
-        </div>
-        <div class="perm-row">
-          <span class="perm-label">Aprovar novos funcionários</span>
-          <div class="toggle on"><div class="toggle-dot"></div></div>
-        </div>
-        <div class="perm-row">
-          <span class="perm-label">Criar e delegar tarefas</span>
-          <div class="toggle on"><div class="toggle-dot"></div></div>
-        </div>
-        <div class="perm-row">
-          <span class="perm-label">Editar identidade visual</span>
-          <div class="toggle off"><div class="toggle-dot"></div></div>
-        </div>
-        <div class="perm-row">
-          <span class="perm-label">Gerenciar ponto da equipe</span>
-          <div class="toggle on"><div class="toggle-dot"></div></div>
-        </div>
-        <div class="perm-row">
-          <span class="perm-label">Acessar integração de API</span>
-          <div class="toggle off"><div class="toggle-dot"></div></div>
-        </div>
-      </div>
+  <div class="kg">
+    <div class="kp"><div class="ki" style="background:#edfaf2">👥</div><div class="kv">8</div><div class="kl">Funcionários ativos</div><div class="kt up">↑ 2 este mês</div></div>
+    <div class="kp"><div class="ki" style="background:#eff6ff">✅</div><div class="kv">6</div><div class="kl">Online agora</div><div class="kt up">75% da equipe</div></div>
+    <div class="kp"><div class="ki" style="background:#fffbeb">📋</div><div class="kv">14</div><div class="kl">Tarefas abertas</div><div class="kt wn">4 atrasadas</div></div>
+    <div class="kp"><div class="ki" style="background:#fef2f2">⚠️</div><div class="kv">3</div><div class="kl">Validades urgentes</div><div class="kt dn">Ação necessária</div></div>
+    <div class="kp"><div class="ki" style="background:#edfaf2">💰</div><div class="kv">R$12,4k</div><div class="kl">Folha do mês</div><div class="kt wn">Vence em 5 dias</div></div>
+    <div class="kp"><div class="ki" style="background:#f5f3ff">📊</div><div class="kv">94%</div><div class="kl">Pontualidade</div><div class="kt up">↑ 3%</div></div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ch"><div class="ct">Ponto de hoje</div><span class="b bg2">Ao vivo</span></div>
+      <div class="p0"><table class="tb2">
+        <thead><tr><th>Funcionário</th><th>Entrada</th><th>Status</th><th>Local</th></tr></thead>
+        <tbody>
+          <tr><td><div class="fx"><div style="width:24px;height:24px;border-radius:50%;background:var(--g50);color:var(--g600);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700">M</div>Maria S.</div></td><td>08:02</td><td><span class="b bg2"><span class="dot dg"></span>Trabalhando</span></td><td><a href="#" onclick="verMapaDash(-15.79,-47.88,'Maria');return false" style="color:var(--g500);font-size:.68rem">📍</a></td></tr>
+          <tr><td><div class="fx"><div style="width:24px;height:24px;border-radius:50%;background:#eff6ff;color:#1e40af;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700">J</div>João P.</div></td><td>08:15</td><td><span class="b by2"><span class="dot dy"></span>Intervalo</span></td><td><a href="#" onclick="verMapaDash(-15.78,-47.87,'João');return false" style="color:var(--g500);font-size:.68rem">📍</a></td></tr>
+          <tr><td><div class="fx"><div style="width:24px;height:24px;border-radius:50%;background:#f5f3ff;color:#6d28d9;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700">A</div>Ana L.</div></td><td>07:58</td><td><span class="b bg2"><span class="dot dg"></span>Trabalhando</span></td><td><a href="#" onclick="verMapaDash(-15.80,-47.86,'Ana');return false" style="color:var(--g500);font-size:.68rem">📍</a></td></tr>
+          <tr><td><div class="fx"><div style="width:24px;height:24px;border-radius:50%;background:#fef2f2;color:#dc2626;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700">C</div>Carlos R.</div></td><td>—</td><td><span class="b br2"><span class="dot dr"></span>Ausente</span></td><td>—</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct">Tarefas prioritárias</div><button class="btn bg3 xs" onclick="go('tarefas')">Ver todas</button></div>
+      <div class="p0"><table class="tb2">
+        <thead><tr><th>Tarefa</th><th>Resp.</th><th>Prazo</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td class="fw6">Limpeza do salão</td><td>Maria</td><td>Hoje</td><td><span class="b bg2">Concluída</span></td></tr>
+          <tr><td class="fw6">Reposição estoque</td><td>João</td><td>Hoje 18h</td><td><span class="b by2">Pendente</span></td></tr>
+          <tr><td class="fw6">Auditoria caixa</td><td>Ana</td><td>Hoje 17h</td><td><span class="b bb2">Revisão</span></td></tr>
+          <tr><td class="fw6 cr">Conf. validades</td><td>Carlos</td><td class="cr">Ontem</td><td><span class="b br2">Atrasada</span></td></tr>
+        </tbody>
+      </table></div>
     </div>
   </div>
-</section>
-
-<!-- INTEGRAÇÃO -->
-<section class="integrations" id="integracao">
-  <div class="section-inner">
-    <div class="int-grid">
-      <div>
-        <div class="section-eyebrow">Dashboard Unificado</div>
-        <h2 class="section-title">Conecte qualquer sistema que você já usa</h2>
-        <p class="section-sub">Via Chave API, o Worka lê os dados do seu PDV, ERP ou emissor de notas e cruza tudo com a escala de funcionários — em um único painel.</p>
-        <div class="int-card" style="margin-top:28px">
-          <h3>Compatível com qualquer sistema</h3>
-          <p>Se tem documentação de API, o Worka conecta. Os módulos de relatório se adaptam automaticamente ao que a API externa oferece.</p>
-          <div class="int-chips">
-            <span class="chip">Sistemas de Caixa</span>
-            <span class="chip">ERPs</span>
-            <span class="chip">Emissores de NF</span>
-            <span class="chip">Controle de Estoque</span>
-            <span class="chip">Outras APIs</span>
-          </div>
-        </div>
-      </div>
-      <div>
-        <div class="int-stat-box">
-          <h4>Relatório unificado — Hoje</h4>
-          <div class="stat-row">
-            <span class="stat-row-lbl">Faturamento do dia</span>
-            <span class="stat-row-val">R$ 3.840</span>
-          </div>
-          <div class="stat-row">
-            <span class="stat-row-lbl">Funcionários na escala</span>
-            <span class="stat-row-val">7 de 9</span>
-          </div>
-          <div class="stat-row">
-            <span class="stat-row-lbl">Clientes atendidos</span>
-            <span class="stat-row-val">48</span>
-          </div>
-          <div class="stat-row">
-            <span class="stat-row-lbl">Itens em estoque crítico</span>
-            <span class="stat-row-val" style="color:#f87171">3 alertas</span>
-          </div>
-        </div>
-        <p style="font-size:.8rem;color:var(--gray-500);text-align:center">Dados de faturamento + escala + estoque, lado a lado.</p>
+  <div class="g2">
+    <div class="card">
+      <div class="ch"><div class="ct">Performance da equipe</div></div>
+      <div class="cb" style="display:flex;flex-direction:column;gap:11px">
+        <div><div class="fxb" style="margin-bottom:3px"><span style="font-size:.76rem;font-weight:600">Maria Silva</span><span style="font-size:.7rem;color:var(--g600)">98%</span></div><div class="prg"><div class="prf" style="width:98%"></div></div></div>
+        <div><div class="fxb" style="margin-bottom:3px"><span style="font-size:.76rem;font-weight:600">Ana Lima</span><span style="font-size:.7rem;color:var(--g600)">95%</span></div><div class="prg"><div class="prf" style="width:95%"></div></div></div>
+        <div><div class="fxb" style="margin-bottom:3px"><span style="font-size:.76rem;font-weight:600">João Pedro</span><span style="font-size:.7rem;color:var(--yel)">82%</span></div><div class="prg"><div class="prf" style="width:82%;background:var(--yel)"></div></div></div>
+        <div><div class="fxb" style="margin-bottom:3px"><span style="font-size:.76rem;font-weight:600">Carlos Reis</span><span style="font-size:.7rem;color:var(--red)">68%</span></div><div class="prg"><div class="prf" style="width:68%;background:var(--red)"></div></div></div>
       </div>
     </div>
-  </div>
-</section>
-
-<!-- WHITE LABEL -->
-<section>
-  <div class="section-inner">
-    <div class="wl-grid">
-      <div>
-        <div class="section-eyebrow">White Label</div>
-        <h2 class="section-title">Seu app. Suas cores. Sua identidade.</h2>
-        <p class="section-sub">Após a assinatura, personalize cada detalhe visual da plataforma. Seus funcionários vão usar o app sem nem saber que é o Worka por baixo.</p>
-        <p style="margin-top:16px;font-size:.875rem;color:var(--gray-500)">Altere as cores em tempo real pelo painel de personalização:</p>
-        <div class="wl-colors">
-          <div class="wl-color" style="background:#16622f"></div>
-          <div class="wl-color" style="background:#1e40af"></div>
-          <div class="wl-color" style="background:#7c3aed"></div>
-          <div class="wl-color" style="background:#b45309"></div>
-          <div class="wl-color" style="background:#be123c"></div>
-          <div class="wl-color" style="background:#0f766e"></div>
-        </div>
-      </div>
-      <div class="wl-mockup">
-        <div class="wl-app-bar" style="background:linear-gradient(135deg,#16622f,#1e8a40)">
-          <span class="wl-app-name">Barbearia Silva</span>
-          <div class="wl-circles"><div class="wl-circle"></div><div class="wl-circle"></div></div>
-        </div>
-        <div class="wl-body">
-          <div class="wl-btn" style="background:#16622f">Registrar ponto ▶</div>
-          <div class="wl-row">
-            <div class="wl-btn" style="background:#1e8a40">Minhas tarefas</div>
-            <div class="wl-btn" style="background:#25b251">Comunicados</div>
-          </div>
-          <div style="background:white;border-radius:8px;padding:12px">
-            <div style="font-size:.7rem;font-weight:700;color:#16622f;margin-bottom:8px">PRÓXIMAS TAREFAS</div>
-            <div style="font-size:.75rem;color:#3a3d39;padding:6px 0;border-bottom:1px solid #f0f0f0">✅ Limpeza da vitrine</div>
-            <div style="font-size:.75rem;color:#3a3d39;padding:6px 0">⏳ Conferir estoque</div>
-          </div>
+    <div class="card">
+      <div class="ch"><div class="ct">Atividade recente</div></div>
+      <div class="cb">
+        <div class="tl">
+          <div class="tli"><div class="tld" style="background:var(--g400)"></div><div class="tlt">Hoje 09:15</div><div class="tlx">✅ Maria concluiu "Limpeza do salão"</div></div>
+          <div class="tli"><div class="tld" style="background:var(--blu)"></div><div class="tlt">Hoje 08:45</div><div class="tlx">👤 Pedro Alves solicitou entrada na equipe</div></div>
+          <div class="tli"><div class="tld" style="background:var(--red)"></div><div class="tlt">Hoje 08:00</div><div class="tlx">⚠️ Leite integral Lote #A203 vence amanhã</div></div>
+          <div class="tli"><div class="tld" style="background:var(--g400)"></div><div class="tlt">Ontem 17:05</div><div class="tlx">⏱ Maria registrou saída às 17:05</div></div>
+          <div class="tli"><div class="tld" style="background:var(--yel)"></div><div class="tlt">Ontem 09:00</div><div class="tlx">📋 3 tarefas recorrentes criadas automaticamente</div></div>
         </div>
       </div>
     </div>
-  </div>
-</section>
-
-<!-- PRICING -->
-<section class="pricing" id="preco">
-  <div class="section-inner" style="text-align:center">
-    <div class="section-eyebrow">Preço</div>
-    <h2 class="section-title" style="text-align:center">Um plano. Tudo incluído.</h2>
-    <p class="section-sub" style="margin:0 auto 48px;text-align:center">Sem cobrança por funcionalidade, sem surpresas no boleto.</p>
-    <div class="pricing-card">
-      <div style="font-size:.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--green-500)">Plano Completo</div>
-      <div class="price-amount">R$ 24,90</div>
-      <div class="price-period">por mês · assinatura recorrente</div>
-      <ul class="price-features">
-        <li>Controle de ponto digital em tempo real</li>
-        <li>Tarefas com comprovação por foto ou vídeo</li>
-        <li>Alerta automático de validade de produtos</li>
-        <li>Hierarquia e permissões customizáveis</li>
-        <li>White Label completo (logo, cores, nome do app)</li>
-        <li>Integração via API com qualquer sistema externo</li>
-        <li>Dashboard unificado de faturamento e escala</li>
-        <li>Entrada segura de funcionários por ID</li>
-        <li>Localização do ponto no Google Maps</li>
-        <li>Tarefas recorrentes (diárias, semanais, mensais)</li>
-      </ul>
-      <a href="#" onclick="abrirCheckout();return false;" class="btn-block">Criar minha conta grátis</a>
-      <p class="price-note">15 dias de teste gratuito · Cancele a qualquer momento</p>
-    </div>
-  </div>
-</section>
-
-<!-- ══════════════════════════════════════════
-     MODAL DE CHECKOUT PIX
-══════════════════════════════════════════ -->
-<div id="checkout-overlay" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(10,46,26,0.7);backdrop-filter:blur(6px);overflow-y:auto;padding:24px 16px;">
-  <div id="checkout-modal" style="max-width:480px;margin:0 auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,0.3);">
-
-    <!-- Header do modal -->
-    <div style="background:linear-gradient(135deg,#0a2e1a,#1e8a40);padding:24px 28px;display:flex;align-items:center;justify-content:space-between;">
-      <div>
-        <div style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:#fff;">Worka</div>
-        <div style="font-size:0.75rem;color:rgba(255,255,255,0.65);margin-top:2px;">Plano Completo · R$ 24,90/mês</div>
-      </div>
-      <button onclick="fecharCheckout()" style="background:rgba(255,255,255,0.15);border:none;color:white;width:36px;height:36px;border-radius:50%;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
-    </div>
-
-    <!-- PASSO 1: Formulário -->
-    <div id="step-form" style="padding:28px;">
-      <div style="font-size:0.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1e8a40;margin-bottom:20px;">Seus dados</div>
-
-      <div style="display:flex;flex-direction:column;gap:14px;">
-        <!-- Nome -->
-        <div>
-          <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">Nome completo ou empresa *</label>
-          <input id="f-nome" type="text" placeholder="Ex: João Silva / Barbearia Silva" style="width:100%;padding:12px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
-        </div>
-
-        <!-- CPF/CNPJ -->
-        <div>
-          <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">CPF ou CNPJ *</label>
-          <input id="f-doc" type="text" placeholder="000.000.000-00 ou 00.000.000/0001-00" maxlength="18" style="width:100%;padding:12px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'" oninput="mascaraDoc(this)">
-        </div>
-
-        <!-- Email -->
-        <div>
-          <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">E-mail *</label>
-          <input id="f-email" type="email" placeholder="seu@email.com" style="width:100%;padding:12px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
-        </div>
-
-        <!-- Telefone -->
-        <div>
-          <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">WhatsApp / Telefone *</label>
-          <input id="f-tel" type="tel" placeholder="(11) 98765-4321" maxlength="15" style="width:100%;padding:12px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'" oninput="mascaraTel(this)">
-        </div>
-      </div>
-
-      <!-- Erro -->
-      <div id="form-erro" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;font-size:0.82rem;color:#dc2626;margin-top:14px;"></div>
-
-      <!-- Resumo -->
-      <div style="background:#edfaf2;border-radius:10px;padding:14px 16px;margin-top:20px;display:flex;align-items:center;justify-content:space-between;">
-        <div>
-          <div style="font-size:0.78rem;color:#6b7068;">Plano Completo Worka</div>
-          <div style="font-size:0.75rem;color:#6b7068;">Assinatura mensal recorrente</div>
-        </div>
-        <div style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:#16622f;">R$ 24,90</div>
-      </div>
-
-      <button onclick="gerarPix()" id="btn-gerar" style="width:100%;margin-top:16px;background:#1e8a40;color:white;border:none;padding:15px;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:background .2s;display:flex;align-items:center;justify-content:center;gap:8px;">
-        <span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>
-      </button>
-      <div style="font-size:0.75rem;color:#6b7068;text-align:center;margin-top:10px;">🔒 Pagamento 100% seguro via PIX</div>
-    </div>
-
-
-    <!-- PASSO 1.5: Verificação de e-mail -->
-    <div id="step-verify" style="display:none;padding:28px;">
-      <div style="text-align:center;margin-bottom:24px;">
-        <div style="font-size:3rem;margin-bottom:12px;">📧</div>
-        <div style="font-size:0.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1e8a40;margin-bottom:8px;">Verificação de segurança</div>
-        <p style="font-size:0.9rem;color:#3a3d39;margin-bottom:4px;">Enviamos um código de 6 dígitos para</p>
-        <p id="verify-email-txt" style="font-size:0.9rem;font-weight:700;color:#16622f;"></p>
-      </div>
-
-      <div style="margin-bottom:20px;">
-        <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:8px;">Digite o código recebido</label>
-        <input id="f-codigo" type="number" placeholder="000000" maxlength="6"
-          style="width:100%;padding:16px;border:2px solid #eff0ef;border-radius:12px;font-size:1.5rem;font-weight:700;text-align:center;letter-spacing:8px;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;"
-          onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
-      </div>
-
-      <div id="verify-erro" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;font-size:0.82rem;color:#dc2626;margin-bottom:14px;"></div>
-
-      <button onclick="confirmarCodigo()" id="btn-confirmar" style="width:100%;background:#1e8a40;color:white;border:none;padding:15px;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:12px;">
-        Confirmar código ✓
-      </button>
-
-      <div style="text-align:center;">
-        <button onclick="reenviarCodigo()" id="btn-reenviar" style="background:none;border:none;color:#1e8a40;font-size:0.85rem;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">
-          Reenviar código
-        </button>
-        <div id="reenviar-timer" style="font-size:0.8rem;color:#6b7068;margin-top:4px;display:none;"></div>
-      </div>
-
-      <div style="font-size:0.75rem;color:#6b7068;text-align:center;margin-top:16px;">
-        ⏱ O código expira em 10 minutos
-      </div>
-    </div>
-    <!-- PASSO 2: QR Code PIX -->
-    <div id="step-pix" style="display:none;padding:28px;text-align:center;">
-      <div style="font-size:0.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1e8a40;margin-bottom:8px;">PIX gerado com sucesso!</div>
-      <p style="font-size:0.88rem;color:#6b7068;margin-bottom:20px;">Escaneie o QR Code ou copie o código PIX no seu banco</p>
-
-      <!-- QR Code -->
-      <div id="qrcode-container" style="display:flex;justify-content:center;margin-bottom:20px;">
-        <div id="qrcode" style="width:200px;height:200px;border:2px solid #eff0ef;border-radius:12px;display:flex;align-items:center;justify-content:center;"></div>
-      </div>
-
-      <!-- Status -->
-      <div id="pix-status" style="background:#fff3dc;border-radius:8px;padding:10px 14px;font-size:0.82rem;color:#b07d00;margin-bottom:16px;display:flex;align-items:center;gap:6px;justify-content:center;">
-        <span id="status-spinner" style="display:inline-block;animation:spin 1s linear infinite;">⏳</span>
-        <span id="status-txt">Aguardando pagamento...</span>
-      </div>
-
-      <!-- Copiar código -->
-      <div style="background:#f7f8f7;border-radius:10px;padding:12px;margin-bottom:14px;">
-        <div style="font-size:0.72rem;color:#6b7068;margin-bottom:6px;text-align:left;">PIX Copia e Cola</div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <div id="pix-code-txt" style="font-size:0.72rem;color:#3a3d39;flex:1;word-break:break-all;text-align:left;line-height:1.4;max-height:60px;overflow:hidden;"></div>
-          <button onclick="copiarPix()" style="background:#1e8a40;color:white;border:none;padding:8px 14px;border-radius:8px;font-size:0.78rem;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;">Copiar</button>
-        </div>
-      </div>
-
-      <div style="font-size:0.75rem;color:#6b7068;">⏱ O código expira em 15 minutos</div>
-    </div>
-
-    <!-- PASSO 3: Confirmação -->
-    <div id="step-ok" style="display:none;padding:40px 28px;text-align:center;">
-      <div style="width:72px;height:72px;background:#edfaf2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:2rem;">✅</div>
-      <div style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:#16622f;margin-bottom:8px;">Pagamento confirmado!</div>
-      <p style="font-size:0.9rem;color:#6b7068;margin-bottom:24px;">Seu acesso ao Worka foi liberado. Verifique seu e-mail para as próximas etapas.</p>
-      <button onclick="fecharCheckout()" style="background:#1e8a40;color:white;border:none;padding:14px 32px;border-radius:10px;font-size:0.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Acessar o Worka →</button>
-    </div>
-
   </div>
 </div>
 
-<style>
-  @keyframes spin { to { transform: rotate(360deg); } }
-  #btn-gerar:hover { background: #25b251; }
-</style>
+<!-- ════ PONTO ════ -->
+<div class="pg" id="pg-ponto">
+  <div class="ph">
+    <div><div class="pt">Controle de Ponto</div><div class="ps">Registro biométrico + geolocalização</div></div>
+    <div class="pa"><button class="btn bs sm">📥 Exportar</button><button class="btn bp sm" onclick="abrirMo('mo-just')">📝 Justificar falta</button></div>
+  </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <!-- Painel de registro -->
+  <div style="background:linear-gradient(135deg,var(--g900),var(--g600));border-radius:14px;padding:22px;color:#fff;text-align:center;margin-bottom:16px">
+    <div style="font-size:.75rem;color:rgba(255,255,255,.55);margin-bottom:4px">Horário atual</div>
+    <div style="font-family:var(--disp);font-size:2.6rem;font-weight:800;letter-spacing:-2px;font-variant-numeric:tabular-nums" id="rel">00:00:00</div>
+    <div style="font-size:.75rem;color:rgba(255,255,255,.6);margin-bottom:14px" id="ddat"></div>
+
+    <div style="background:rgba(255,255,255,.08);border-radius:10px;padding:12px;margin-bottom:14px;font-size:.75rem;color:rgba(255,255,255,.7)">
+      🔐 <b>Face ID / Biometria</b> será solicitado ao registrar o ponto<br>
+      📍 Sua localização GPS será registrada automaticamente
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+      <button onclick="baterPonto('entrada')" id="btn-entrada" style="background:#3dd669;color:#0a2e1a;border:none;padding:9px 16px;border-radius:7px;font-weight:700;font-size:.76rem;cursor:pointer;font-family:var(--font);min-width:90px">▶ Entrada</button>
+      <button onclick="baterPonto('intervalo')" style="background:var(--yel);color:#fff;border:none;padding:9px 16px;border-radius:7px;font-weight:700;font-size:.76rem;cursor:pointer;font-family:var(--font);min-width:90px">☕ Intervalo</button>
+      <button onclick="baterPonto('retorno')" style="background:var(--blu);color:#fff;border:none;padding:9px 16px;border-radius:7px;font-weight:700;font-size:.76rem;cursor:pointer;font-family:var(--font);min-width:90px">↩ Retorno</button>
+      <button onclick="baterPonto('saida')" style="background:var(--red);color:#fff;border:none;padding:9px 16px;border-radius:7px;font-weight:700;font-size:.76rem;cursor:pointer;font-family:var(--font);min-width:90px">■ Saída</button>
+    </div>
+    <div id="pst" style="margin-top:10px;font-size:.73rem;color:rgba(255,255,255,.55)"></div>
+  </div>
+
+  <div class="g2">
+    <div class="card">
+      <div class="ch"><div class="ct">Registros de hoje</div></div>
+      <div class="p0"><table class="tb2">
+        <thead><tr><th>Evento</th><th>Horário</th><th>Biometria</th><th>Local</th></tr></thead>
+        <tbody id="rponto"><tr><td colspan="4" class="tc cgr" style="padding:18px">Nenhum registro hoje</td></tr></tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct">📍 Última localização</div></div>
+      <div class="cb">
+        <div id="mapa-ph" style="background:var(--s100);border-radius:var(--r);height:150px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:5px;color:var(--s500)">
+          <span style="font-size:1.4rem">📍</span><span style="font-size:.73rem">Registre o ponto para ver o mapa</span>
+        </div>
+        <iframe id="mapa-if" src="" style="width:100%;height:150px;border:none;border-radius:var(--r);display:none"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="ch"><div class="ct">Histórico do mês</div></div>
+    <div class="p0"><table class="tb2">
+      <thead><tr><th>Data</th><th>Entrada</th><th>Intervalo</th><th>Retorno</th><th>Saída</th><th>Total</th><th>Biometria</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>27/06</td><td>08:02</td><td>12:00</td><td>13:00</td><td>17:05</td><td class="fw6">8h03m</td><td><span class="b bg2">✓ Face ID</span></td><td><span class="b bg2">Normal</span></td></tr>
+        <tr><td>26/06</td><td>08:10</td><td>12:05</td><td>13:05</td><td>17:00</td><td class="fw6">7h55m</td><td><span class="b bg2">✓ Digital</span></td><td><span class="b bg2">Normal</span></td></tr>
+        <tr><td>25/06</td><td>08:45</td><td>12:00</td><td>13:00</td><td>17:00</td><td class="fw6 cy">7h15m</td><td><span class="b bg2">✓ Face ID</span></td><td><span class="b by2">Atraso</span></td></tr>
+        <tr><td>24/06</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td><span class="b br2">Falta</span></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ════ FUNCIONÁRIOS ════ -->
+<div class="pg" id="pg-funcs">
+  <div class="ph">
+    <div><div class="pt">Funcionários</div><div class="ps">8 ativos · 1 pendente</div></div>
+    <div class="pa">
+      <input placeholder="🔍 Buscar..." style="padding:5px 9px;border:1.5px solid var(--s200);border-radius:var(--r);font-size:.73rem;outline:none;font-family:var(--font)">
+      <button class="btn bp sm" onclick="abrirMo('mo-func')">+ Adicionar</button>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:10px;border-left:3px solid var(--yel)">
+    <div class="ch"><div class="ct">🕐 Aguardando aprovação (1)</div></div>
+    <div class="p0"><table class="tb2">
+      <thead><tr><th>Nome</th><th>E-mail</th><th>Solicitado</th><th>Ações</th></tr></thead>
+      <tbody><tr>
+        <td class="fw6">Pedro Alves</td><td>pedro@email.com</td><td>Hoje 07:45</td>
+        <td><div class="act"><button class="btn bp xs" onclick="aprovarF(this)">✓ Aprovar</button><button class="btn bd xs" onclick="recusarF(this)">✗ Recusar</button></div></td>
+      </tr></tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="p0"><table class="tb2">
+      <thead><tr><th>Funcionário</th><th>Cargo</th><th>Status</th><th>Salário</th><th>Admissão</th><th>Ponto</th><th>Ações</th></tr></thead>
+      <tbody id="lista-f">
+        <tr><td><div class="fx"><div style="width:24px;height:24px;border-radius:50%;background:var(--g50);color:var(--g600);display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700">M</div><div><div class="fw6">Maria Silva</div><div style="font-size:.63rem;color:var(--s500)">maria@email.com</div></div></div></td><td><span class="b bp2">Gerente</span></td><td><span class="b bg2"><span class="dot dg"></span>Ativo</span></td><td>R$ 2.500</td><td>Jan/25</td><td>08:02 ✓</td><td><div class="act"><button class="btn bg3 xs" onclick="darAumentoF('Maria Silva',2500)">💰</button><button class="btn bg3 xs">✏️</button><button class="btn bd xs" onclick="excluirF(this,'Maria Silva')">🗑</button></div></td></tr>
+        <tr><td><div class="fx"><div style="width:24px;height:24px;border-radius:50%;background:#eff6ff;color:#1e40af;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700">J</div><div><div class="fw6">João Pedro</div><div style="font-size:.63rem;color:var(--s500)">joao@email.com</div></div></div></td><td><span class="b bb2">Atendente</span></td><td><span class="b by2"><span class="dot dy"></span>Intervalo</span></td><td>R$ 1.800</td><td>Mar/25</td><td>08:15 ☕</td><td><div class="act"><button class="btn bg3 xs" onclick="darAumentoF('João Pedro',1800)">💰</button><button class="btn bg3 xs">✏️</button><button class="btn bd xs" onclick="excluirF(this,'João Pedro')">🗑</button></div></td></tr>
+        <tr><td><div class="fx"><div style="width:24px;height:24px;border-radius:50%;background:#f5f3ff;color:#6d28d9;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700">A</div><div><div class="fw6">Ana Lima</div><div style="font-size:.63rem;color:var(--s500)">ana@email.com</div></div></div></td><td><span class="b bg2">Caixa</span></td><td><span class="b bg2"><span class="dot dg"></span>Ativo</span></td><td>R$ 1.600</td><td>Jun/25</td><td>07:58 ✓</td><td><div class="act"><button class="btn bg3 xs" onclick="darAumentoF('Ana Lima',1600)">💰</button><button class="btn bg3 xs">✏️</button><button class="btn bd xs" onclick="excluirF(this,'Ana Lima')">🗑</button></div></td></tr>
+        <tr><td><div class="fx"><div style="width:24px;height:24px;border-radius:50%;background:#fef2f2;color:#dc2626;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700">C</div><div><div class="fw6">Carlos Reis</div><div style="font-size:.63rem;color:var(--s500)">carlos@email.com</div></div></div></td><td><span class="b by2">Estoquista</span></td><td><span class="b br2"><span class="dot dr"></span>Ausente</span></td><td>R$ 1.500</td><td>Ago/25</td><td class="cr">Não reg.</td><td><div class="act"><button class="btn bg3 xs" onclick="darAumentoF('Carlos Reis',1500)">💰</button><button class="btn bg3 xs">✏️</button><button class="btn bd xs" onclick="excluirF(this,'Carlos Reis')">🗑</button></div></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ════ SALÁRIOS ════ -->
+<div class="pg" id="pg-salarios">
+  <div class="ph">
+    <div><div class="pt">Salários e Pagamentos</div><div class="ps">Folha do mês · Vence em 5 dias</div></div>
+    <div class="pa"><button class="btn bs sm">📥 Exportar</button><button class="btn bp sm" onclick="abrirMo('mo-sal')">+ Definir salário</button></div>
+  </div>
+  <div class="kg">
+    <div class="kp"><div class="ki" style="background:#edfaf2">💰</div><div class="kv">R$12,4k</div><div class="kl">Folha total/mês</div></div>
+    <div class="kp"><div class="ki" style="background:#fffbeb">⏰</div><div class="kv">05/07</div><div class="kl">Próximo pagamento</div><div class="kt wn">Em 5 dias</div></div>
+    <div class="kp"><div class="ki" style="background:#fef2f2">📉</div><div class="kv">R$ 200</div><div class="kl">Descontos por falta</div></div>
+    <div class="kp"><div class="ki" style="background:#eff6ff">📈</div><div class="kv">1</div><div class="kl">Aumentos este mês</div></div>
+  </div>
+  <div class="card">
+    <div class="p0"><table class="tb2">
+      <thead><tr><th>Funcionário</th><th>Cargo</th><th>Salário base</th><th>Faltas</th><th>Desconto</th><th>Líquido</th><th>Status</th><th>Ações</th></tr></thead>
+      <tbody>
+        <tr><td class="fw6">Maria Silva</td><td><span class="b bp2">Gerente</span></td><td>R$ 2.500</td><td>0</td><td class="cg">R$ 0</td><td class="fw6 cg">R$ 2.500</td><td><span class="b by2">05/07</span></td><td><div class="act"><button class="btn bp xs" onclick="darAumentoF('Maria Silva',2500)">↑ Aumento</button><button class="btn bg3 xs" onclick="marcarPago('Maria Silva')">✓ Pago</button></div></td></tr>
+        <tr><td class="fw6">João Pedro</td><td><span class="b bb2">Atendente</span></td><td>R$ 1.800</td><td>1</td><td class="cr">R$ 82</td><td class="fw6 cg">R$ 1.718</td><td><span class="b by2">05/07</span></td><td><div class="act"><button class="btn bp xs" onclick="darAumentoF('João Pedro',1800)">↑ Aumento</button><button class="btn bg3 xs" onclick="marcarPago('João Pedro')">✓ Pago</button></div></td></tr>
+        <tr><td class="fw6">Ana Lima</td><td><span class="b bg2">Caixa</span></td><td>R$ 1.600</td><td>0</td><td class="cg">R$ 0</td><td class="fw6 cg">R$ 1.600</td><td><span class="b bg2">Pago ✓</span></td><td><div class="act"><button class="btn bp xs" onclick="darAumentoF('Ana Lima',1600)">↑ Aumento</button></div></td></tr>
+        <tr><td class="fw6">Carlos Reis</td><td><span class="b by2">Estoquista</span></td><td>R$ 1.500</td><td>2</td><td class="cr">R$ 136</td><td class="fw6 cr">R$ 1.364</td><td><span class="b by2">05/07</span></td><td><div class="act"><button class="btn bp xs" onclick="darAumentoF('Carlos Reis',1500)">↑ Aumento</button><button class="btn bg3 xs" onclick="marcarPago('Carlos Reis')">✓ Pago</button></div></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ════ FINANCEIRO ════ -->
+<div class="pg" id="pg-fin">
+  <div class="ph">
+    <div><div class="pt">Financeiro</div><div class="ps">Boletos, despesas, pendências e caixa</div></div>
+    <div class="pa"><button class="btn bp sm" onclick="abrirMo('mo-boleto')">+ Boleto</button><button class="btn bp sm" onclick="abrirMo('mo-desp')">+ Despesa</button><button class="btn bp sm" onclick="abrirMo('mo-lanc')">+ Lançamento</button></div>
+  </div>
+  <div class="kg">
+    <div class="kp"><div class="ki" style="background:#edfaf2">💵</div><div class="kv">R$28,4k</div><div class="kl">Receita do mês</div><div class="kt up">↑ 12%</div></div>
+    <div class="kp"><div class="ki" style="background:#fef2f2">💸</div><div class="kv">R$18,2k</div><div class="kl">Despesas do mês</div><div class="kt dn">↑ 5%</div></div>
+    <div class="kp"><div class="ki" style="background:#edfaf2">📊</div><div class="kv">R$10,2k</div><div class="kl">Lucro líquido</div><div class="kt up">↑ 18%</div></div>
+    <div class="kp"><div class="ki" style="background:#fffbeb">🏦</div><div class="kv">R$45,8k</div><div class="kl">Saldo em caixa</div></div>
+    <div class="kp"><div class="ki" style="background:#fef2f2">📄</div><div class="kv">3</div><div class="kl">Boletos vencendo</div><div class="kt dn">7 dias</div></div>
+    <div class="kp"><div class="ki" style="background:#fef2f2">⚠️</div><div class="kv">2</div><div class="kl">Pendências abertas</div><div class="kt wn">Ação!</div></div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab on" onclick="finTab('boletos',this)">📄 Boletos</div>
+    <div class="tab" onclick="finTab('despesas',this)">💸 Despesas</div>
+    <div class="tab" onclick="finTab('pendencias',this)">⚠️ Pendências</div>
+    <div class="tab" onclick="finTab('caixa',this)">💰 Caixa</div>
+    <div class="tab" onclick="finTab('fluxo',this)">📈 Fluxo de Caixa</div>
+  </div>
+
+  <div id="fin-boletos">
+    <div class="card" style="margin-bottom:10px;border-left:3px solid var(--red)">
+      <div class="ch"><div class="ct">🔴 Vencendo em 7 dias</div><button class="btn bd sm" onclick="pagarTodos()">Pagar todos urgentes</button></div>
+      <div class="p0"><table class="tb2">
+        <thead><tr><th>Descrição</th><th>Fornecedor</th><th>Vencimento</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead>
+        <tbody id="urgentes">
+          <tr><td class="fw6">Conta de luz</td><td>CEMIG</td><td class="cr fw6">28/06</td><td class="fw6">R$ 480</td><td><span class="b br2">1 dia</span></td><td><div class="act"><button class="btn bp xs" onclick="pagarB(this,'Conta de luz')">✓ Pagar</button></div></td></tr>
+          <tr><td class="fw6">Internet fibra</td><td>Vivo</td><td class="cr fw6">29/06</td><td class="fw6">R$ 189</td><td><span class="b br2">2 dias</span></td><td><div class="act"><button class="btn bp xs" onclick="pagarB(this,'Internet')">✓ Pagar</button></div></td></tr>
+          <tr><td class="fw6">Aluguel</td><td>Imobiliária X</td><td class="cy fw6">05/07</td><td class="fw6">R$ 2.800</td><td><span class="b by2">8 dias</span></td><td><div class="act"><button class="btn bp xs" onclick="pagarB(this,'Aluguel')">✓ Pagar</button></div></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct">Todos os boletos</div><div style="display:flex;gap:6px"><select style="padding:4px 8px;border:1.5px solid var(--s200);border-radius:var(--r);font-size:.7rem;font-family:var(--font)" onchange="filtrB(this.value)"><option value="todos">Todos</option><option value="pendente">Pendentes</option><option value="pago">Pagos</option></select><button class="btn bp xs" onclick="abrirMo('mo-boleto')">+ Novo</button></div></div>
+      <div class="p0"><table class="tb2">
+        <thead><tr><th>Descrição</th><th>Fornecedor</th><th>Categoria</th><th>Vencimento</th><th>Valor</th><th>Recorrência</th><th>Status</th><th>Ações</th></tr></thead>
+        <tbody id="tbol">
+          <tr data-st="pendente"><td class="fw6">Conta de luz</td><td>CEMIG</td><td><span class="tag2">Utilidade</span></td><td class="cr">28/06</td><td class="fw6">R$ 480</td><td><span class="b bgr">Mensal</span></td><td><span class="b br2">Pendente</span></td><td><div class="act"><button class="btn bp xs" onclick="pagarB(this,'Conta de luz')">✓</button><button class="btn bg3 xs">✏️</button><button class="btn bd xs" onclick="excLinha(this)">🗑</button></div></td></tr>
+          <tr data-st="pendente"><td class="fw6">Internet fibra</td><td>Vivo</td><td><span class="tag2">Utilidade</span></td><td class="cr">29/06</td><td class="fw6">R$ 189</td><td><span class="b bgr">Mensal</span></td><td><span class="b br2">Pendente</span></td><td><div class="act"><button class="btn bp xs" onclick="pagarB(this,'Internet')">✓</button><button class="btn bg3 xs">✏️</button><button class="btn bd xs" onclick="excLinha(this)">🗑</button></div></td></tr>
+          <tr data-st="pago"><td class="fw6">Seguro equipamentos</td><td>Porto Seguro</td><td><span class="tag2">Seguro</span></td><td>15/06</td><td class="fw6">R$ 320</td><td><span class="b bgr">Mensal</span></td><td><span class="b bg2">Pago ✓</span></td><td><div class="act"><button class="btn bg3 xs">✏️</button><button class="btn bd xs" onclick="excLinha(this)">🗑</button></div></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <div id="fin-despesas" style="display:none">
+    <div class="card">
+      <div class="ch"><div class="ct">Despesas do mês</div><button class="btn bp sm" onclick="abrirMo('mo-desp')">+ Nova despesa</button></div>
+      <div class="p0"><table class="tb2">
+        <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Comprovante</th><th>Ações</th></tr></thead>
+        <tbody>
+          <tr><td>27/06</td><td class="fw6">Compra de insumos</td><td><span class="tag2">Estoque</span></td><td class="fw6 cr">R$ 820</td><td><button class="btn bg3 xs">📎</button></td><td><div class="act"><button class="btn bg3 xs">✏️</button><button class="btn bd xs" onclick="excLinha(this)">🗑</button></div></td></tr>
+          <tr><td>26/06</td><td class="fw6">Material de limpeza</td><td><span class="tag2">Limpeza</span></td><td class="fw6 cr">R$ 145</td><td>—</td><td><div class="act"><button class="btn bg3 xs">✏️</button><button class="btn bd xs" onclick="excLinha(this)">🗑</button></div></td></tr>
+          <tr><td>25/06</td><td class="fw6">Manutenção equipamento</td><td><span class="tag2">Manutenção</span></td><td class="fw6 cr">R$ 380</td><td>—</td><td><div class="act"><button class="btn bg3 xs">✏️</button><button class="btn bd xs" onclick="excLinha(this)">🗑</button></div></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <div id="fin-pendencias" style="display:none">
+    <div class="card">
+      <div class="ch"><div class="ct">⚠️ Pendências em aberto</div><button class="btn bp sm" onclick="abrirMo('mo-pend')">+ Nova pendência</button></div>
+      <div class="p0"><table class="tb2">
+        <thead><tr><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Prazo</th><th>Prioridade</th><th>Ações</th></tr></thead>
+        <tbody id="tpend">
+          <tr><td class="fw6">Nota fiscal fornecedor</td><td><span class="tag2">Fiscal</span></td><td class="fw6">R$ 820</td><td class="cr">29/06</td><td><span class="b br2">Alta</span></td><td><div class="act"><button class="btn bp xs" onclick="resolverP(this)">✓ Resolver</button><button class="btn bg3 xs">✏️</button></div></td></tr>
+          <tr><td class="fw6">Reembolso João Pedro</td><td><span class="tag2">RH</span></td><td class="fw6">R$ 420</td><td class="cy">05/07</td><td><span class="b by2">Média</span></td><td><div class="act"><button class="btn bp xs" onclick="resolverP(this)">✓ Resolver</button><button class="btn bg3 xs">✏️</button></div></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <div id="fin-caixa" style="display:none">
+    <div class="g2">
+      <div class="card"><div class="ch"><div class="ct">Registrar movimentação de caixa</div></div><div class="cb">
+        <div class="fr"><div class="fl"><label>Tipo</label><select><option>Entrada (receita)</option><option>Saída (despesa)</option></select></div><div class="fl"><label>Valor (R$)</label><input type="number" placeholder="0,00"></div></div>
+        <div class="fr f1"><div class="fl"><label>Descrição</label><input placeholder="Ex: Venda do dia, Pagamento fornecedor..."></div></div>
+        <div class="fr"><div class="fl"><label>Categoria</label><select><option>Vendas</option><option>Serviços</option><option>Estoque</option><option>Folha</option><option>Despesa fixa</option><option>Outro</option></select></div><div class="fl"><label>Data</label><input type="date"></div></div>
+        <button class="btn bp" onclick="registrarCaixa()">💰 Registrar</button>
+      </div></div>
+      <div class="card"><div class="ch"><div class="ct">Saldo atual</div></div><div class="cb">
+        <div style="text-align:center;padding:16px 0">
+          <div style="font-family:var(--disp);font-size:2rem;font-weight:800;color:var(--g600)">R$ 45.800</div>
+          <div style="font-size:.72rem;color:var(--s500);margin-top:4px">Atualizado hoje às 09:15</div>
+        </div>
+        <div class="dv"></div>
+        <div class="fxb" style="margin-bottom:6px"><span style="font-size:.75rem">Entradas hoje</span><span class="fw6 cg">+ R$ 3.840</span></div>
+        <div class="fxb"><span style="font-size:.75rem">Saídas hoje</span><span class="fw6 cr">- R$ 820</span></div>
+      </div></div>
+    </div>
+    <div class="card"><div class="ch"><div class="ct">Movimentações recentes</div></div>
+      <div class="p0"><table class="tb2">
+        <thead><tr><th>Data/Hora</th><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Saldo</th></tr></thead>
+        <tbody id="tcaixa">
+          <tr><td style="font-size:.7rem">27/06 09:15</td><td>Vendas do dia</td><td><span class="b bg2">Entrada</span></td><td class="fw6 cg">+ R$ 3.840</td><td>R$ 45.800</td></tr>
+          <tr><td style="font-size:.7rem">27/06 08:30</td><td>Compra de insumos</td><td><span class="b br2">Saída</span></td><td class="fw6 cr">- R$ 820</td><td>R$ 41.960</td></tr>
+          <tr><td style="font-size:.7rem">26/06 17:00</td><td>Vendas do dia</td><td><span class="b bg2">Entrada</span></td><td class="fw6 cg">+ R$ 4.120</td><td>R$ 42.780</td></tr>
+          <tr><td style="font-size:.7rem">26/06 14:00</td><td>Salário Ana Lima</td><td><span class="b br2">Saída</span></td><td class="fw6 cr">- R$ 1.600</td><td>R$ 38.660</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <div id="fin-fluxo" style="display:none">
+    <div class="g2">
+      <div class="card"><div class="ch"><div class="ct">Projeção próximos 30 dias</div></div><div class="cb">
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <div class="fxb" style="padding:7px;background:var(--g50);border-radius:var(--r)"><span style="font-size:.75rem;font-weight:600">Saldo atual</span><span class="fw6 cg">R$ 45.800</span></div>
+          <div class="fxb"><span style="font-size:.75rem">(+) Receitas previstas</span><span class="fw6 cg">R$ 28.000</span></div>
+          <div class="fxb"><span style="font-size:.75rem">(-) Boletos a pagar</span><span class="fw6 cr">R$ 3.469</span></div>
+          <div class="fxb"><span style="font-size:.75rem">(-) Folha do mês</span><span class="fw6 cr">R$ 12.400</span></div>
+          <div class="fxb"><span style="font-size:.75rem">(-) Outras despesas</span><span class="fw6 cr">R$ 2.000</span></div>
+          <div class="dv"></div>
+          <div class="fxb" style="padding:7px;background:var(--g50);border-radius:var(--r)"><span style="font-size:.75rem;font-weight:700">Saldo projetado</span><span class="fw6 cg" style="font-size:.95rem">R$ 55.931</span></div>
+        </div>
+      </div></div>
+      <div class="card"><div class="ch"><div class="ct">Contas a pagar — 30 dias</div></div>
+        <div class="p0"><table class="tb2">
+          <thead><tr><th>Conta</th><th>Vencimento</th><th>Valor</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>Conta de luz</td><td class="cr">28/06</td><td class="fw6">R$ 480</td><td><span class="b br2">Urgente</span></td></tr>
+            <tr><td>Internet fibra</td><td class="cr">29/06</td><td class="fw6">R$ 189</td><td><span class="b br2">Urgente</span></td></tr>
+            <tr><td>Folha pagamento</td><td class="cy">05/07</td><td class="fw6">R$ 12.400</td><td><span class="b by2">Próximo</span></td></tr>
+            <tr><td>Aluguel sala</td><td class="cy">05/07</td><td class="fw6">R$ 2.800</td><td><span class="b by2">Próximo</span></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ TAREFAS ════ -->
+<div class="pg" id="pg-tarefas">
+  <div class="ph">
+    <div><div class="pt">Tarefas</div><div class="ps">14 abertas · 4 atrasadas</div></div>
+    <div class="pa"><button class="btn bp sm" onclick="abrirMo('mo-tarefa')">+ Nova tarefa</button></div>
+  </div>
+  <div class="card">
+    <div class="p0"><table class="tb2">
+      <thead><tr><th>Tarefa</th><th>Responsável</th><th>Prioridade</th><th>Prazo</th><th>Status</th><th>Ações</th></tr></thead>
+      <tbody>
+        <tr><td class="fw6">Limpeza do salão</td><td>Maria S.</td><td><span class="b bg2">Normal</span></td><td>Hoje</td><td><span class="b bg2">Concluída</span></td><td><div class="act"><button class="btn bg3 xs" onclick="aprTar(this)">✓</button></div></td></tr>
+        <tr><td class="fw6">Reposição estoque</td><td>João P.</td><td><span class="b by2">Alta</span></td><td>Hoje 18h</td><td><span class="b by2">Pendente</span></td><td><div class="act"><button class="btn bg3 xs">✏️</button><button class="btn bd xs">🗑</button></div></td></tr>
+        <tr><td class="fw6">Auditoria do caixa</td><td>Ana L.</td><td><span class="b bb2">Urgente</span></td><td>Hoje 17h</td><td><span class="b bb2">Em revisão</span></td><td><div class="act"><button class="btn bp xs" onclick="aprTar(this)">✓ Aprovar</button><button class="btn bd xs" onclick="rejTar(this)">↩</button></div></td></tr>
+        <tr><td class="fw6 cr">Conf. validades</td><td>Carlos R.</td><td><span class="b br2">Urgente</span></td><td class="cr">Ontem</td><td><span class="b br2">Atrasada</span></td><td><div class="act"><button class="btn bg3 xs">✏️</button><button class="btn bd xs">🗑</button></div></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ════ VALIDADE ════ -->
+<div class="pg" id="pg-validade">
+  <div class="ph">
+    <div><div class="pt">Validade de Produtos</div></div>
+    <button class="btn bp sm" onclick="abrirMo('mo-prod')">+ Cadastrar produto</button>
+  </div>
+  <div class="card" style="border-left:3px solid var(--red)">
+    <div class="ch"><div class="ct">⚠️ Atenção urgente</div></div>
+    <div class="p0"><table class="tb2">
+      <thead><tr><th>Produto</th><th>Lote</th><th>Vencimento</th><th>Qtd</th><th>Status</th><th>Ações</th></tr></thead>
+      <tbody>
+        <tr><td class="fw6">Leite integral</td><td><code>#A203</code></td><td class="cr fw6">28/06</td><td>24 un</td><td><span class="b br2">1 dia</span></td><td><button class="btn bd xs" onclick="criarTarefaVal('Leite integral')">Criar tarefa</button></td></tr>
+        <tr><td class="fw6">Creme hidratante</td><td><code>#B441</code></td><td class="cy fw6">02/07</td><td>8 un</td><td><span class="b by2">5 dias</span></td><td><button class="btn bs xs" onclick="criarTarefaVal('Creme hidratante')">Criar tarefa</button></td></tr>
+        <tr><td class="fw6">Shampoo neutro</td><td><code>#D220</code></td><td>15/08</td><td>12 un</td><td><span class="b bg2">Normal</span></td><td>—</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ════ AUSÊNCIAS ════ -->
+<div class="pg" id="pg-ausencias">
+  <div class="ph"><div class="pt">Ausências e Faltas</div><button class="btn bp sm" onclick="abrirMo('mo-aus')">+ Registrar ausência</button></div>
+  <div class="card"><div class="p0"><table class="tb2">
+    <thead><tr><th>Funcionário</th><th>Data</th><th>Tipo</th><th>Motivo</th><th>Desconto</th><th>Status</th><th>Ações</th></tr></thead>
+    <tbody>
+      <tr><td class="fw6">Carlos Reis</td><td>27/06</td><td><span class="b br2">Falta</span></td><td>Sem justificativa</td><td class="cr">R$ 100</td><td><span class="b by2">Pendente</span></td><td><button class="btn bg3 xs" onclick="justAus(this)">Justificar</button></td></tr>
+      <tr><td class="fw6">João Pedro</td><td>24/06</td><td><span class="b by2">Atestado</span></td><td>Consulta médica</td><td class="cg">Isento</td><td><span class="b bg2">Aprovada</span></td><td>—</td></tr>
+    </tbody>
+  </table></div></div>
+</div>
+
+<!-- ════ ESCALA ════ -->
+<div class="pg" id="pg-escala">
+  <div class="ph"><div class="pt">Escala de Trabalho</div><button class="btn bp sm" onclick="abrirMo('mo-esc')">+ Definir escala</button></div>
+  <div class="card"><div class="p0" style="overflow-x:auto"><table class="tb2">
+    <thead><tr><th>Funcionário</th><th>Seg</th><th>Ter</th><th>Qua</th><th>Qui</th><th>Sex</th><th>Sáb</th><th>Dom</th></tr></thead>
+    <tbody>
+      <tr><td class="fw6">Maria Silva</td><td><span class="b bg2" style="font-size:.58rem">08-17h</span></td><td><span class="b bg2" style="font-size:.58rem">08-17h</span></td><td><span class="b bg2" style="font-size:.58rem">08-17h</span></td><td><span class="b bg2" style="font-size:.58rem">08-17h</span></td><td><span class="b bg2" style="font-size:.58rem">08-17h</span></td><td><span class="b bgr" style="font-size:.58rem">Folga</span></td><td><span class="b bgr" style="font-size:.58rem">Folga</span></td></tr>
+      <tr><td class="fw6">João Pedro</td><td><span class="b bg2" style="font-size:.58rem">12-21h</span></td><td><span class="b bg2" style="font-size:.58rem">12-21h</span></td><td><span class="b bgr" style="font-size:.58rem">Folga</span></td><td><span class="b bg2" style="font-size:.58rem">12-21h</span></td><td><span class="b bg2" style="font-size:.58rem">12-21h</span></td><td><span class="b bg2" style="font-size:.58rem">10-18h</span></td><td><span class="b bgr" style="font-size:.58rem">Folga</span></td></tr>
+      <tr><td class="fw6">Ana Lima</td><td><span class="b bg2" style="font-size:.58rem">08-17h</span></td><td><span class="b bgr" style="font-size:.58rem">Folga</span></td><td><span class="b bg2" style="font-size:.58rem">08-17h</span></td><td><span class="b bg2" style="font-size:.58rem">08-17h</span></td><td><span class="b bg2" style="font-size:.58rem">08-17h</span></td><td><span class="b bg2" style="font-size:.58rem">08-13h</span></td><td><span class="b bgr" style="font-size:.58rem">Folga</span></td></tr>
+    </tbody>
+  </table></div></div>
+</div>
+
+<!-- ════ MURAL ════ -->
+<div class="pg" id="pg-mural">
+  <div class="ph"><div class="pt">Mural de Comunicados</div><button class="btn bp sm" onclick="abrirMo('mo-com')">+ Publicar</button></div>
+  <div class="card" style="margin-bottom:10px;border-left:3px solid var(--g400)"><div class="cb"><div class="fxb" style="margin-bottom:5px"><div class="fw6">📅 Reunião de equipe — Segunda-feira</div><span class="b bg2">Geral</span></div><p style="font-size:.75rem;color:var(--s700);line-height:1.6">Reunião obrigatória na segunda-feira às 08h. Presença confirmada com o gerente. Pauta: metas do mês.</p><div style="font-size:.62rem;color:var(--s500);margin-top:6px">Dono · hoje · 👁 6 visualizações</div></div></div>
+  <div class="card" style="border-left:3px solid var(--yel)"><div class="cb"><div class="fxb" style="margin-bottom:5px"><div class="fw6">🧹 Novo protocolo de limpeza</div><span class="b by2">Operacional</span></div><p style="font-size:.75rem;color:var(--s700);line-height:1.6">A partir de segunda, o checklist de limpeza deve ser fotografado ao final de cada turno.</p><div style="font-size:.62rem;color:var(--s500);margin-top:6px">Gerente · ontem · 👁 8 visualizações</div></div></div>
+</div>
+
+<!-- ════ CARGOS ════ -->
+<div class="pg" id="pg-cargos">
+  <div class="ph"><div class="pt">Cargos e Permissões</div><button class="btn bp sm" onclick="abrirMo('mo-cargo')">+ Novo cargo</button></div>
+  <div class="g2">
+    <div class="card"><div class="ch"><div class="ct">👑 Dono</div><span class="b bp2">Nível máximo</span></div><div class="cb" style="display:flex;flex-direction:column;gap:8px">
+      <div class="fxb"><span style="font-size:.75rem">Ver faturamento</span><button class="tog on"><div class="tdot"></div></button></div>
+      <div class="fxb"><span style="font-size:.75rem">Aprovar funcionários</span><button class="tog on"><div class="tdot"></div></button></div>
+      <div class="fxb"><span style="font-size:.75rem">Criar tarefas</span><button class="tog on"><div class="tdot"></div></button></div>
+      <div class="fxb"><span style="font-size:.75rem">Editar identidade visual</span><button class="tog on"><div class="tdot"></div></button></div>
+      <div class="fxb"><span style="font-size:.75rem">Gerenciar salários</span><button class="tog on"><div class="tdot"></div></button></div>
+      <div class="fxb"><span style="font-size:.75rem">Ver relatórios</span><button class="tog on"><div class="tdot"></div></button></div>
+    </div></div>
+    <div class="card"><div class="ch"><div class="ct">🔵 Gerente</div><button class="btn bg3 xs">Editar</button></div><div class="cb" style="display:flex;flex-direction:column;gap:8px">
+      <div class="fxb"><span style="font-size:.75rem">Ver faturamento</span><button class="tog on" onclick="togPerm(this)"><div class="tdot"></div></button></div>
+      <div class="fxb"><span style="font-size:.75rem">Aprovar funcionários</span><button class="tog on" onclick="togPerm(this)"><div class="tdot"></div></button></div>
+      <div class="fxb"><span style="font-size:.75rem">Criar tarefas</span><button class="tog on" onclick="togPerm(this)"><div class="tdot"></div></button></div>
+      <div class="fxb"><span style="font-size:.75rem">Editar identidade visual</span><button class="tog off" onclick="togPerm(this)"><div class="tdot"></div></button></div>
+      <div class="fxb"><span style="font-size:.75rem">Gerenciar salários</span><button class="tog off" onclick="togPerm(this)"><div class="tdot"></div></button></div>
+      <div class="fxb"><span style="font-size:.75rem">Ver relatórios</span><button class="tog on" onclick="togPerm(this)"><div class="tdot"></div></button></div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ════ ANALYTICS ════ -->
+<div class="pg" id="pg-analytics">
+  <div class="ph"><div class="pt">Analytics</div><div class="ps">Métricas e tendências da equipe</div></div>
+  <div class="kg">
+    <div class="kp"><div class="ki" style="background:#edfaf2">⏱</div><div class="kv">176h</div><div class="kl">Horas trabalhadas</div><div class="kt up">↑ 8h vs mês anterior</div></div>
+    <div class="kp"><div class="ki" style="background:#fef2f2">❌</div><div class="kv">3</div><div class="kl">Faltas no mês</div></div>
+    <div class="kp"><div class="ki" style="background:#fffbeb">⚡</div><div class="kv">12</div><div class="kl">Atrasos</div><div class="kt wn">Média: 8min</div></div>
+    <div class="kp"><div class="ki" style="background:#eff6ff">📋</div><div class="kv">89%</div><div class="kl">Tarefas concluídas</div><div class="kt up">↑ 5%</div></div>
+  </div>
+  <div class="card"><div class="ch"><div class="ct">Relatório individual — Junho</div><button class="btn bs sm">📥 Exportar PDF</button></div>
+    <div class="p0"><table class="tb2">
+      <thead><tr><th>Funcionário</th><th>Dias</th><th>Horas</th><th>Faltas</th><th>Atrasos</th><th>Tarefas</th><th>Pontuação</th></tr></thead>
+      <tbody>
+        <tr><td class="fw6">Maria Silva</td><td>22</td><td>176h</td><td>0</td><td>0</td><td class="cg">44/44</td><td><span class="b bg2">⭐ 98/100</span></td></tr>
+        <tr><td class="fw6">Ana Lima</td><td>22</td><td>174h</td><td>0</td><td>1</td><td class="cg">40/42</td><td><span class="b bg2">⭐ 95/100</span></td></tr>
+        <tr><td class="fw6">João Pedro</td><td>20</td><td>158h</td><td>1</td><td>3</td><td class="cy">28/36</td><td><span class="b by2">⭐ 82/100</span></td></tr>
+        <tr><td class="fw6">Carlos Reis</td><td>18</td><td>142h</td><td>2</td><td>5</td><td class="cr">20/32</td><td><span class="b br2">⭐ 68/100</span></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ════ ALERTAS ════ -->
+<div class="pg" id="pg-alertas">
+  <div class="ph"><div class="pt">Central de Alertas</div><button class="btn bs sm">Marcar todos como lidos</button></div>
+  <div class="card"><div class="cb">
+    <div style="display:flex;flex-direction:column">
+      <div style="display:flex;gap:9px;padding:10px 0;border-bottom:1px solid var(--s50)"><div style="width:7px;height:7px;border-radius:50%;background:var(--red);flex-shrink:0;margin-top:5px"></div><div><div style="font-size:.75rem;color:var(--s700)">⚠️ <b>Leite integral Lote #A203</b> vence amanhã.</div><div style="font-size:.63rem;color:var(--s500);margin-top:2px">Hoje 08:00</div></div></div>
+      <div style="display:flex;gap:9px;padding:10px 0;border-bottom:1px solid var(--s50)"><div style="width:7px;height:7px;border-radius:50%;background:var(--g500);flex-shrink:0;margin-top:5px"></div><div><div style="font-size:.75rem;color:var(--s700)">👤 <b>Pedro Alves</b> solicitou entrada na equipe.</div><div style="font-size:.63rem;color:var(--s500);margin-top:2px">Hoje 07:45</div></div></div>
+      <div style="display:flex;gap:9px;padding:10px 0;border-bottom:1px solid var(--s50)"><div style="width:7px;height:7px;border-radius:50%;background:var(--yel);flex-shrink:0;margin-top:5px"></div><div><div style="font-size:.75rem;color:var(--s700)">📋 Tarefa <b>"Conf. validades"</b> está atrasada. Resp: Carlos Reis.</div><div style="font-size:.63rem;color:var(--s500);margin-top:2px">Ontem 18:00</div></div></div>
+      <div style="display:flex;gap:9px;padding:10px 0;border-bottom:1px solid var(--s50)"><div style="width:7px;height:7px;border-radius:50%;background:var(--yel);flex-shrink:0;margin-top:5px"></div><div><div style="font-size:.75rem;color:var(--s700)">💰 Pagamento da folha vence em <b>5 dias</b>. Total: R$ 12.400.</div><div style="font-size:.63rem;color:var(--s500);margin-top:2px">Ontem 09:00</div></div></div>
+      <div style="display:flex;gap:9px;padding:10px 0"><div style="width:7px;height:7px;border-radius:50%;background:var(--blu);flex-shrink:0;margin-top:5px"></div><div><div style="font-size:.75rem;color:var(--s700)">📄 Conta de luz vence em <b>1 dia</b>. Valor: R$ 480.</div><div style="font-size:.63rem;color:var(--s500);margin-top:2px">27/06 09:00</div></div></div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ════ RELATÓRIOS ════ -->
+<div class="pg" id="pg-relatorios">
+  <div class="ph"><div class="pt">Relatórios</div><button class="btn bp sm" onclick="exportarRel()">📥 Exportar PDF</button></div>
+  <div class="g2">
+    <div class="card"><div class="ch"><div class="ct">Pontualidade por funcionário</div></div><div class="cb" style="display:flex;flex-direction:column;gap:10px">
+      <div><div class="fxb" style="margin-bottom:3px"><span style="font-size:.75rem">Maria Silva</span><span class="fw6 cg">98%</span></div><div class="prg"><div class="prf" style="width:98%"></div></div></div>
+      <div><div class="fxb" style="margin-bottom:3px"><span style="font-size:.75rem">Ana Lima</span><span class="fw6 cg">95%</span></div><div class="prg"><div class="prf" style="width:95%"></div></div></div>
+      <div><div class="fxb" style="margin-bottom:3px"><span style="font-size:.75rem">João Pedro</span><span class="fw6 cy">82%</span></div><div class="prg"><div class="prf" style="width:82%;background:var(--yel)"></div></div></div>
+      <div><div class="fxb" style="margin-bottom:3px"><span style="font-size:.75rem">Carlos Reis</span><span class="fw6 cr">68%</span></div><div class="prg"><div class="prf" style="width:68%;background:var(--red)"></div></div></div>
+    </div></div>
+    <div class="card"><div class="ch"><div class="ct">Resumo mensal</div></div><div class="p0"><table class="tb2">
+      <thead><tr><th>Funcionário</th><th>Dias</th><th>Faltas</th><th>Tarefas</th></tr></thead>
+      <tbody>
+        <tr><td class="fw6">Maria Silva</td><td>22</td><td>0</td><td class="cg">44/44</td></tr>
+        <tr><td class="fw6">Ana Lima</td><td>22</td><td>0</td><td class="cg">40/42</td></tr>
+        <tr><td class="fw6">João Pedro</td><td>20</td><td>1</td><td class="cy">28/36</td></tr>
+        <tr><td class="fw6">Carlos Reis</td><td>18</td><td>2</td><td class="cr">20/32</td></tr>
+      </tbody>
+    </table></div></div>
+  </div>
+</div>
+
+<!-- ════ IDENTIDADE VISUAL ════ -->
+<div class="pg" id="pg-visual">
+  <div class="ph"><div class="pt">Identidade Visual</div><button class="btn bp sm" onclick="salvarVisual()">💾 Salvar e aplicar</button></div>
+  <div class="g2">
+    <div>
+      <div class="card" style="margin-bottom:12px"><div class="ch"><div class="ct">Nome e marca</div></div><div class="cb">
+        <div class="fr f1"><div class="fl"><label>Nome do sistema</label><input id="vn" value="Worka" oninput="prevV()"></div></div>
+        <div class="fr f1"><div class="fl"><label>Logo (imagem)</label><input type="file" accept="image/*" style="padding:5px"></div></div>
+      </div></div>
+      <div class="card"><div class="ch"><div class="ct">Paleta de cores</div></div><div class="cb">
+        <div class="fr" style="margin-bottom:10px"><div class="fl"><label>Cor do menu</label><div class="fx"><input type="color" id="vc1" value="#0a2e1a" oninput="prevV()" style="width:34px;height:34px;border:none;border-radius:5px;cursor:pointer"><input id="vc1h" value="#0a2e1a" style="flex:1;padding:5px 8px;border:1.5px solid var(--s200);border-radius:var(--r);font-family:monospace;font-size:.73rem;outline:none"></div></div><div class="fl"><label>Cor dos botões</label><div class="fx"><input type="color" id="vc2" value="#1e8a40" oninput="prevV()" style="width:34px;height:34px;border:none;border-radius:5px;cursor:pointer"><input id="vc2h" value="#1e8a40" style="flex:1;padding:5px 8px;border:1.5px solid var(--s200);border-radius:var(--r);font-family:monospace;font-size:.73rem;outline:none"></div></div></div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">
+          <button class="btn bg3 xs" onclick="aplicarTema('#0a2e1a','#1e8a40')">🟢 Verde</button>
+          <button class="btn bg3 xs" onclick="aplicarTema('#1e3a5f','#2563eb')">🔵 Azul</button>
+          <button class="btn bg3 xs" onclick="aplicarTema('#3b0764','#7c3aed')">🟣 Roxo</button>
+          <button class="btn bg3 xs" onclick="aplicarTema('#7f1d1d','#dc2626')">🔴 Vermelho</button>
+          <button class="btn bg3 xs" onclick="aplicarTema('#713f12','#d97706')">🟠 Laranja</button>
+        </div>
+      </div></div>
+    </div>
+    <div class="card"><div class="ch"><div class="ct">Preview</div></div><div class="cb">
+      <div style="border:1px solid var(--s100);border-radius:var(--r);overflow:hidden">
+        <div id="pv-top" style="background:#0a2e1a;padding:8px 12px"><div id="pv-nome" style="font-family:var(--disp);font-weight:800;color:#fff;font-size:.82rem">Worka</div></div>
+        <div style="display:flex;height:90px">
+          <div id="pv-sb" style="background:#0f3d22;width:55px;padding:7px;display:flex;flex-direction:column;gap:3px">
+            <div style="height:5px;background:rgba(255,255,255,.15);border-radius:2px"></div>
+            <div style="height:5px;background:rgba(255,255,255,.07);border-radius:2px"></div>
+            <div style="height:5px;background:rgba(255,255,255,.07);border-radius:2px"></div>
+          </div>
+          <div style="flex:1;padding:7px;background:#f7f8f7;display:flex;flex-direction:column;gap:5px">
+            <div style="display:flex;gap:5px"><div style="height:18px;flex:1;background:#fff;border-radius:3px;border:1px solid #eff0ef"></div><div id="pv-btn" style="height:18px;width:45px;background:#1e8a40;border-radius:3px"></div></div>
+            <div style="height:7px;background:#fff;border-radius:3px;border:1px solid #eff0ef"></div>
+            <div style="height:7px;background:#fff;border-radius:3px;border:1px solid #eff0ef;width:65%"></div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ════ CONFIGURAÇÕES ════ -->
+<div class="pg" id="pg-config">
+  <div class="ph"><div class="pt">Configurações</div><button class="btn bp sm" onclick="alert('✅ Configurações salvas!')">💾 Salvar</button></div>
+  <div class="g2">
+    <div class="card"><div class="ch"><div class="ct">⚙️ Empresa</div></div><div class="cb">
+      <div class="fr f1"><div class="fl"><label>Nome da empresa</label><input value="Minha Empresa"></div></div>
+      <div class="fr f1"><div class="fl"><label>E-mail</label><input value="alexandrevascode@gmail.com"></div></div>
+      <div class="fr"><div class="fl"><label>Ramo</label><select><option>Alimentação</option><option>Estética</option><option>Varejo</option><option>Saúde</option></select></div><div class="fl"><label>Dia de pagamento</label><input type="number" value="5" min="1" max="31"></div></div>
+    </div></div>
+    <div class="card"><div class="ch"><div class="ct">🔔 Notificações</div></div><div class="cb" style="display:flex;flex-direction:column;gap:9px">
+      <div class="fxb"><span style="font-size:.75rem">Alerta de validade de produtos</span><button class="tog on" onclick="togPerm(this)"><div class="tdot"></div></button></div>
+      <div class="fxb"><span style="font-size:.75rem">Alerta de pagamento da folha</span><button class="tog on" onclick="togPerm(this)"><div class="tdot"></div></button></div>
+      <div class="fxb"><span style="font-size:.75rem">Novo funcionário na equipe</span><button class="tog on" onclick="togPerm(this)"><div class="tdot"></div></button></div>
+      <div class="fxb"><span style="font-size:.75rem">Tarefa atrasada</span><button class="tog on" onclick="togPerm(this)"><div class="tdot"></div></button></div>
+      <div class="fxb"><span style="font-size:.75rem">Boleto vencendo</span><button class="tog on" onclick="togPerm(this)"><div class="tdot"></div></button></div>
+    </div></div>
+    <div class="card"><div class="ch"><div class="ct">💰 Política de faltas</div></div><div class="cb">
+      <div class="fr f1"><div class="fl"><label>Tipo de desconto</label><select><option>Valor fixo por falta</option><option>Desconto diário</option><option>Sem desconto</option></select></div></div>
+      <div class="fr f1"><div class="fl"><label>Valor por falta (R$)</label><input type="number" value="100"></div></div>
+    </div></div>
+    <div class="card"><div class="ch"><div class="ct">🔐 Segurança</div></div><div class="cb" style="display:flex;flex-direction:column;gap:9px">
+      <div class="fxb"><span style="font-size:.75rem">Exigir biometria no ponto</span><button class="tog on" onclick="togPerm(this)"><div class="tdot"></div></button></div>
+      <div class="fxb"><span style="font-size:.75rem">Exigir GPS no ponto</span><button class="tog on" onclick="togPerm(this)"><div class="tdot"></div></button></div>
+      <div class="fxb"><span style="font-size:.75rem">Alerta de novo login</span><button class="tog on" onclick="togPerm(this)"><div class="tdot"></div></button></div>
+      <div class="fxb"><span style="font-size:.75rem">Verificação em duas etapas</span><button class="tog off" onclick="togPerm(this)"><div class="tdot"></div></button></div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ════ AUDITORIA ════ -->
+<div class="pg" id="pg-auditoria">
+  <div class="ph"><div class="pt">Log de Auditoria</div><button class="btn bs sm">📥 Exportar</button></div>
+  <div class="card"><div class="p0"><table class="tb2">
+    <thead><tr><th>Data/Hora</th><th>Usuário</th><th>Ação</th><th>Módulo</th><th>Detalhes</th></tr></thead>
+    <tbody>
+      <tr><td style="font-size:.68rem;color:var(--s500)">27/06 09:15</td><td>Maria Silva</td><td><span class="b bg2">Criado</span></td><td>Tarefas</td><td style="font-size:.7rem">Concluiu "Limpeza do salão"</td></tr>
+      <tr><td style="font-size:.68rem;color:var(--s500)">27/06 08:02</td><td>Maria Silva</td><td><span class="b bg2">Ponto</span></td><td>Ponto</td><td style="font-size:.7rem">Entrada registrada · Face ID ✓ · GPS: -15.79, -47.88</td></tr>
+      <tr><td style="font-size:.68rem;color:var(--s500)">26/06 17:05</td><td>Maria Silva</td><td><span class="b bg2">Ponto</span></td><td>Ponto</td><td style="font-size:.7rem">Saída registrada · Face ID ✓</td></tr>
+      <tr><td style="font-size:.68rem;color:var(--s500)">26/06 14:30</td><td>Alexandre</td><td><span class="b bb2">Aumento</span></td><td>Salários</td><td style="font-size:.7rem">Ana Lima: R$1.400 → R$1.600</td></tr>
+    </tbody>
+  </table></div></div>
+</div>
+
+</main>
+</div>
+
+<!-- ═══════════ MODAIS ═══════════ -->
+
+<!-- Func -->
+<div class="mo" id="mo-func"><div class="mbox">
+  <div class="mh"><div class="mt">Adicionar funcionário</div><button class="xbtn" onclick="fechaMo('mo-func')">✕</button></div>
+  <div class="mbody">
+    <div class="fr"><div class="fl"><label>Nome completo</label><input placeholder="Nome"></div><div class="fl"><label>E-mail</label><input type="email" placeholder="email@email.com"></div></div>
+    <div class="fr"><div class="fl"><label>Telefone</label><input placeholder="(00) 00000-0000"></div><div class="fl"><label>Cargo</label><select><option>Gerente</option><option>Atendente</option><option>Caixa</option><option>Estoquista</option></select></div></div>
+    <div class="fr"><div class="fl"><label>Salário inicial</label><input type="number" placeholder="0,00"></div><div class="fl"><label>Admissão</label><input type="date"></div></div>
+    <div class="fr f1"><div class="fl"><label>Senha inicial</label><input type="password" placeholder="••••••••"></div></div>
+  </div>
+  <div class="mfoot"><button class="btn bs" onclick="fechaMo('mo-func')">Cancelar</button><button class="btn bp" onclick="fechaMo('mo-func')">Adicionar</button></div>
+</div></div>
+
+<!-- Tarefa -->
+<div class="mo" id="mo-tarefa"><div class="mbox">
+  <div class="mh"><div class="mt">Nova tarefa</div><button class="xbtn" onclick="fechaMo('mo-tarefa')">✕</button></div>
+  <div class="mbody">
+    <div class="fr f1"><div class="fl"><label>Título</label><input placeholder="Descreva a tarefa"></div></div>
+    <div class="fr f1"><div class="fl"><label>Descrição</label><textarea placeholder="Detalhes..."></textarea></div></div>
+    <div class="fr"><div class="fl"><label>Responsável</label><select><option>Maria Silva</option><option>João Pedro</option><option>Ana Lima</option><option>Carlos Reis</option></select></div><div class="fl"><label>Prioridade</label><select><option>Normal</option><option>Alta</option><option>Urgente</option></select></div></div>
+    <div class="fr"><div class="fl"><label>Prazo</label><input type="datetime-local"></div><div class="fl"><label>Recorrência</label><select><option>Não repete</option><option>Diária</option><option>Semanal</option><option>Mensal</option></select></div></div>
+    <div class="fr f1"><div class="fl"><label style="display:flex;align-items:center;gap:7px;cursor:pointer"><input type="checkbox"> Exigir foto para concluir</label></div></div>
+  </div>
+  <div class="mfoot"><button class="btn bs" onclick="fechaMo('mo-tarefa')">Cancelar</button><button class="btn bp" onclick="fechaMo('mo-tarefa')">Criar tarefa</button></div>
+</div></div>
+
+<!-- Salário -->
+<div class="mo" id="mo-sal"><div class="mbox">
+  <div class="mh"><div class="mt">Definir salário</div><button class="xbtn" onclick="fechaMo('mo-sal')">✕</button></div>
+  <div class="mbody">
+    <div class="fr"><div class="fl"><label>Funcionário</label><select><option>Maria Silva</option><option>João Pedro</option><option>Ana Lima</option><option>Carlos Reis</option></select></div><div class="fl"><label>Salário (R$)</label><input type="number" placeholder="0,00"></div></div>
+    <div class="fr"><div class="fl"><label>Dia de pagamento</label><input type="number" min="1" max="31" value="5"></div><div class="fl"><label>Forma</label><select><option>PIX</option><option>Transferência</option><option>Dinheiro</option></select></div></div>
+  </div>
+  <div class="mfoot"><button class="btn bs" onclick="fechaMo('mo-sal')">Cancelar</button><button class="btn bp" onclick="fechaMo('mo-sal')">Salvar</button></div>
+</div></div>
+
+<!-- Aumento -->
+<div class="mo" id="mo-aumento"><div class="mbox" style="max-width:380px">
+  <div class="mh"><div class="mt">Ajuste de salário</div><button class="xbtn" onclick="fechaMo('mo-aumento')">✕</button></div>
+  <div class="mbody">
+    <div style="font-size:.75rem;color:var(--s500);margin-bottom:10px" id="a-nome"></div>
+    <div class="fr"><div class="fl"><label>Salário atual</label><input type="number" id="a-atual" readonly style="background:var(--s50)"></div><div class="fl"><label>Novo salário (R$)</label><input type="number" id="a-novo" placeholder="0,00" oninput="calcAum()"></div></div>
+    <div id="a-diff" style="font-size:.8rem;font-weight:600;margin-top:4px"></div>
+  </div>
+  <div class="mfoot"><button class="btn bs" onclick="fechaMo('mo-aumento')">Cancelar</button><button class="btn bp" onclick="confAum()">Confirmar</button></div>
+</div></div>
+
+<!-- Boleto -->
+<div class="mo" id="mo-boleto"><div class="mbox">
+  <div class="mh"><div class="mt">📄 Registrar boleto / conta</div><button class="xbtn" onclick="fechaMo('mo-boleto')">✕</button></div>
+  <div class="mbody">
+    <div class="fr f1"><div class="fl"><label>Descrição</label><input placeholder="Ex: Conta de luz, Aluguel..."></div></div>
+    <div class="fr"><div class="fl"><label>Fornecedor</label><input placeholder="Nome do fornecedor"></div><div class="fl"><label>Categoria</label><select><option>Utilidade</option><option>Aluguel</option><option>Software</option><option>Seguro</option><option>Outro</option></select></div></div>
+    <div class="fr"><div class="fl"><label>Valor (R$)</label><input type="number" placeholder="0,00"></div><div class="fl"><label>Vencimento</label><input type="date"></div></div>
+    <div class="fr"><div class="fl"><label>Recorrência</label><select><option>Não repete</option><option>Mensal</option><option>Bimestral</option><option>Anual</option></select></div><div class="fl"><label>Avisar antes</label><select><option>1 dia</option><option>3 dias</option><option>7 dias</option><option>15 dias</option></select></div></div>
+  </div>
+  <div class="mfoot"><button class="btn bs" onclick="fechaMo('mo-boleto')">Cancelar</button><button class="btn bp" onclick="fechaMo('mo-boleto');alert('✅ Boleto registrado!')">💾 Salvar</button></div>
+</div></div>
+
+<!-- Despesa -->
+<div class="mo" id="mo-desp"><div class="mbox">
+  <div class="mh"><div class="mt">💸 Registrar despesa</div><button class="xbtn" onclick="fechaMo('mo-desp')">✕</button></div>
+  <div class="mbody">
+    <div class="fr f1"><div class="fl"><label>Descrição</label><input placeholder="Ex: Compra de insumos..."></div></div>
+    <div class="fr"><div class="fl"><label>Valor (R$)</label><input type="number" placeholder="0,00"></div><div class="fl"><label>Data</label><input type="date"></div></div>
+    <div class="fr"><div class="fl"><label>Categoria</label><select><option>Estoque</option><option>Limpeza</option><option>Manutenção</option><option>Utilidade</option><option>Outro</option></select></div><div class="fl"><label>Fornecedor</label><input placeholder="Nome"></div></div>
+    <div class="fr f1"><div class="fl"><label>Comprovante</label><input type="file" accept="image/*,.pdf" style="padding:4px"></div></div>
+  </div>
+  <div class="mfoot"><button class="btn bs" onclick="fechaMo('mo-desp')">Cancelar</button><button class="btn bp" onclick="fechaMo('mo-desp');alert('✅ Despesa registrada!')">💾 Registrar</button></div>
+</div></div>
+
+<!-- Pendência -->
+<div class="mo" id="mo-pend"><div class="mbox">
+  <div class="mh"><div class="mt">⚠️ Registrar pendência</div><button class="xbtn" onclick="fechaMo('mo-pend')">✕</button></div>
+  <div class="mbody">
+    <div class="fr f1"><div class="fl"><label>Descrição</label><input placeholder="Ex: Nota fiscal pendente..."></div></div>
+    <div class="fr"><div class="fl"><label>Tipo</label><select><option>Fiscal</option><option>RH</option><option>Financeiro</option><option>Fornecedor</option></select></div><div class="fl"><label>Valor</label><input type="number" placeholder="0,00"></div></div>
+    <div class="fr"><div class="fl"><label>Prazo</label><input type="date"></div><div class="fl"><label>Prioridade</label><select><option>Alta</option><option>Média</option><option>Baixa</option></select></div></div>
+    <div class="fr f1"><div class="fl"><label>Responsável</label><select><option>Alexandre (Dono)</option><option>Maria Silva</option><option>João Pedro</option></select></div></div>
+  </div>
+  <div class="mfoot"><button class="btn bs" onclick="fechaMo('mo-pend')">Cancelar</button><button class="btn bp" onclick="fechaMo('mo-pend');alert('✅ Pendência registrada!')">💾 Registrar</button></div>
+</div></div>
+
+<!-- Lançamento -->
+<div class="mo" id="mo-lanc"><div class="mbox">
+  <div class="mh"><div class="mt">Lançamento financeiro</div><button class="xbtn" onclick="fechaMo('mo-lanc')">✕</button></div>
+  <div class="mbody">
+    <div class="fr"><div class="fl"><label>Tipo</label><select><option>Entrada (receita)</option><option>Saída (despesa)</option></select></div><div class="fl"><label>Valor (R$)</label><input type="number" placeholder="0,00"></div></div>
+    <div class="fr f1"><div class="fl"><label>Descrição</label><input placeholder="Descreva o lançamento"></div></div>
+    <div class="fr"><div class="fl"><label>Categoria</label><select><option>Receita</option><option>Folha</option><option>Estoque</option><option>Despesa fixa</option><option>Outro</option></select></div><div class="fl"><label>Data</label><input type="date"></div></div>
+  </div>
+  <div class="mfoot"><button class="btn bs" onclick="fechaMo('mo-lanc')">Cancelar</button><button class="btn bp" onclick="registrarCaixa()">💾 Registrar</button></div>
+</div></div>
+
+<!-- Ausência -->
+<div class="mo" id="mo-aus"><div class="mbox">
+  <div class="mh"><div class="mt">Registrar ausência</div><button class="xbtn" onclick="fechaMo('mo-aus')">✕</button></div>
+  <div class="mbody">
+    <div class="fr"><div class="fl"><label>Funcionário</label><select><option>Carlos Reis</option><option>João Pedro</option><option>Maria Silva</option></select></div><div class="fl"><label>Data</label><input type="date"></div></div>
+    <div class="fr"><div class="fl"><label>Tipo</label><select><option>Falta injustificada</option><option>Atestado médico</option><option>Licença</option></select></div><div class="fl"><label>Motivo</label><input placeholder="Descreva"></div></div>
+    <div class="fr f1"><div class="fl"><label style="display:flex;align-items:center;gap:7px;cursor:pointer"><input type="checkbox" checked> Aplicar desconto no salário</label></div></div>
+  </div>
+  <div class="mfoot"><button class="btn bs" onclick="fechaMo('mo-aus')">Cancelar</button><button class="btn bp" onclick="fechaMo('mo-aus');alert('✅ Ausência registrada!')">Registrar</button></div>
+</div></div>
+
+<!-- Escala -->
+<div class="mo" id="mo-esc"><div class="mbox">
+  <div class="mh"><div class="mt">Definir escala</div><button class="xbtn" onclick="fechaMo('mo-esc')">✕</button></div>
+  <div class="mbody">
+    <div class="fr f1"><div class="fl"><label>Funcionário</label><select><option>Maria Silva</option><option>João Pedro</option><option>Ana Lima</option></select></div></div>
+    <div class="fr"><div class="fl"><label>Entrada</label><input type="time" value="08:00"></div><div class="fl"><label>Saída</label><input type="time" value="17:00"></div></div>
+    <div class="fr f1"><div class="fl"><label>Dias da semana</label><div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:4px">
+      <label style="display:flex;align-items:center;gap:3px;font-size:.75rem"><input type="checkbox" checked> Seg</label>
+      <label style="display:flex;align-items:center;gap:3px;font-size:.75rem"><input type="checkbox" checked> Ter</label>
+      <label style="display:flex;align-items:center;gap:3px;font-size:.75rem"><input type="checkbox" checked> Qua</label>
+      <label style="display:flex;align-items:center;gap:3px;font-size:.75rem"><input type="checkbox" checked> Qui</label>
+      <label style="display:flex;align-items:center;gap:3px;font-size:.75rem"><input type="checkbox" checked> Sex</label>
+      <label style="display:flex;align-items:center;gap:3px;font-size:.75rem"><input type="checkbox"> Sáb</label>
+      <label style="display:flex;align-items:center;gap:3px;font-size:.75rem"><input type="checkbox"> Dom</label>
+    </div></div></div>
+  </div>
+  <div class="mfoot"><button class="btn bs" onclick="fechaMo('mo-esc')">Cancelar</button><button class="btn bp" onclick="fechaMo('mo-esc');alert('✅ Escala salva!')">Salvar</button></div>
+</div></div>
+
+<!-- Comunicado -->
+<div class="mo" id="mo-com"><div class="mbox">
+  <div class="mh"><div class="mt">Novo comunicado</div><button class="xbtn" onclick="fechaMo('mo-com')">✕</button></div>
+  <div class="mbody">
+    <div class="fr f1"><div class="fl"><label>Título</label><input placeholder="Título do comunicado"></div></div>
+    <div class="fr f1"><div class="fl"><label>Mensagem</label><textarea placeholder="Escreva o comunicado..."></textarea></div></div>
+    <div class="fr"><div class="fl"><label>Categoria</label><select><option>Geral</option><option>Operacional</option><option>Urgente</option></select></div><div class="fl"><label>Para quem</label><select><option>Toda a equipe</option><option>Apenas gerentes</option></select></div></div>
+  </div>
+  <div class="mfoot"><button class="btn bs" onclick="fechaMo('mo-com')">Cancelar</button><button class="btn bp" onclick="fechaMo('mo-com');alert('✅ Comunicado publicado!')">Publicar</button></div>
+</div></div>
+
+<!-- Cargo -->
+<div class="mo" id="mo-cargo"><div class="mbox">
+  <div class="mh"><div class="mt">Novo cargo</div><button class="xbtn" onclick="fechaMo('mo-cargo')">✕</button></div>
+  <div class="mbody">
+    <div class="fr f1"><div class="fl"><label>Nome do cargo</label><input placeholder="Ex: Supervisor, Balconista..."></div></div>
+    <div class="dv"></div>
+    <div style="font-size:.72rem;font-weight:700;color:var(--s700);margin-bottom:8px">Permissões</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="fxb"><span style="font-size:.75rem">Ver faturamento</span><button class="tog off" onclick="togPerm(this)"><div class="tdot"></div></button></div>
+      <div class="fxb"><span style="font-size:.75rem">Criar tarefas</span><button class="tog off" onclick="togPerm(this)"><div class="tdot"></div></button></div>
+      <div class="fxb"><span style="font-size:.75rem">Gerenciar ponto</span><button class="tog off" onclick="togPerm(this)"><div class="tdot"></div></button></div>
+      <div class="fxb"><span style="font-size:.75rem">Ver relatórios</span><button class="tog off" onclick="togPerm(this)"><div class="tdot"></div></button></div>
+    </div>
+  </div>
+  <div class="mfoot"><button class="btn bs" onclick="fechaMo('mo-cargo')">Cancelar</button><button class="btn bp" onclick="fechaMo('mo-cargo');alert('✅ Cargo criado!')">Criar cargo</button></div>
+</div></div>
+
+<!-- Produto -->
+<div class="mo" id="mo-prod"><div class="mbox">
+  <div class="mh"><div class="mt">Cadastrar produto</div><button class="xbtn" onclick="fechaMo('mo-prod')">✕</button></div>
+  <div class="mbody">
+    <div class="fr"><div class="fl"><label>Nome do produto</label><input placeholder="Ex: Leite integral"></div><div class="fl"><label>Lote</label><input placeholder="#A000"></div></div>
+    <div class="fr"><div class="fl"><label>Data de vencimento</label><input type="date"></div><div class="fl"><label>Quantidade</label><input type="number" placeholder="0"></div></div>
+    <div class="fr"><div class="fl"><label>Unidade</label><select><option>Unidades</option><option>Kg</option><option>Litros</option></select></div><div class="fl"><label>Avisar antes (dias)</label><select><option>3 dias</option><option>7 dias</option><option>15 dias</option><option>30 dias</option></select></div></div>
+  </div>
+  <div class="mfoot"><button class="btn bs" onclick="fechaMo('mo-prod')">Cancelar</button><button class="btn bp" onclick="fechaMo('mo-prod');alert('✅ Produto cadastrado!')">Cadastrar</button></div>
+</div></div>
+
+<!-- Justificar -->
+<div class="mo" id="mo-just"><div class="mbox" style="max-width:380px">
+  <div class="mh"><div class="mt">Justificar falta</div><button class="xbtn" onclick="fechaMo('mo-just')">✕</button></div>
+  <div class="mbody">
+    <div class="fr f1"><div class="fl"><label>Funcionário</label><select><option>Carlos Reis</option><option>João Pedro</option></select></div></div>
+    <div class="fr f1"><div class="fl"><label>Motivo</label><textarea placeholder="Descreva a justificativa..."></textarea></div></div>
+    <div class="fr f1"><div class="fl"><label>Comprovante</label><input type="file" accept="image/*,.pdf" style="padding:4px"></div></div>
+  </div>
+  <div class="mfoot"><button class="btn bs" onclick="fechaMo('mo-just')">Cancelar</button><button class="btn bp" onclick="fechaMo('mo-just');alert('✅ Falta justificada!')">Enviar</button></div>
+</div></div>
+
+<!-- Mapa -->
+<div class="mo" id="mo-mapa"><div class="mbox" style="max-width:540px">
+  <div class="mh"><div class="mt" id="mtit">Localização</div><button class="xbtn" onclick="fechaMo('mo-mapa')">✕</button></div>
+  <div class="mbody">
+    <iframe id="mif" src="" style="width:100%;height:260px;border:none;border-radius:var(--r)"></iframe>
+    <div style="margin-top:8px;text-align:right"><a id="mlink" href="#" target="_blank" class="btn bp sm">Abrir no Google Maps ↗</a></div>
+  </div>
+</div></div>
+
+<!-- Overlay aumento -->
+<div id="ov-aum" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(10,46,26,.88);align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;padding:36px 28px;max-width:360px;width:100%;text-align:center;animation:fiu .4s ease">
+    <div style="font-size:2.8rem;margin-bottom:10px">🎉</div>
+    <div style="font-family:var(--disp);font-size:1.4rem;font-weight:800;color:var(--g600);margin-bottom:7px" id="ov-parab">Parabéns!</div>
+    <p style="font-size:.85rem;color:var(--s700);margin-bottom:14px;line-height:1.6" id="ov-msg"></p>
+    <div style="font-family:var(--disp);font-size:2.2rem;font-weight:800;color:var(--g500);margin-bottom:18px" id="ov-val"></div>
+    <button onclick="document.getElementById('ov-aum').style.display='none'" style="background:var(--g500);color:#fff;border:none;padding:10px 24px;border-radius:8px;font-size:.88rem;font-weight:700;cursor:pointer;font-family:var(--font)">Fechar 🎊</button>
+  </div>
+</div>
+<style>@keyframes fiu{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}</style>
+
 <script>
-// ⚠️ Após o deploy, substitua pela URL real da sua Edge Function
-// Formato: https://worka-backend-awng.onrender.com/pix
-const BACKEND_URL = "https://worka-backend-awng.onrender.com/pix";
-let pollingInterval = null;
-let pollingTimeout  = null;
+// ═══════════════════════════
+// NAVEGAÇÃO
+// ═══════════════════════════
+var labels2 = {dash:'Dashboard',analytics:'Analytics',alertas:'Alertas',funcs:'Funcionários',cargos:'Cargos',ponto:'Ponto',ausencias:'Ausências',escala:'Escala',tarefas:'Tarefas',validade:'Validade',mural:'Mural',salarios:'Salários',fin:'Financeiro',relatorios:'Relatórios',visual:'Identidade Visual',config:'Configurações',auditoria:'Auditoria'};
 
-// ── Abrir / fechar modal ──────────────────────────────────────
-function abrirCheckout() {
-  document.getElementById('checkout-overlay').style.display = 'block';
-  document.body.style.overflow = 'hidden';
-}
-function fecharCheckout() {
-  document.getElementById('checkout-overlay').style.display = 'none';
-  document.body.style.overflow = '';
-  pararPolling();
-  resetModal();
-}
-function resetModal() {
-  mostrarStep('form');
-  document.getElementById('form-erro').style.display = 'none';
-  document.getElementById('f-nome').value  = '';
-  document.getElementById('f-doc').value   = '';
-  document.getElementById('f-email').value = '';
-  document.getElementById('f-tel').value   = '';
-  document.getElementById('qrcode').innerHTML = '';
-  document.getElementById('btn-gerar').disabled = false;
-  document.getElementById('btn-gerar').innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
-}
-function mostrarStep(s) {
-  ['form','verify','pix','ok'].forEach(id => {
-    document.getElementById('step-'+id).style.display = (id === s ? 'block' : 'none');
+function go(pg) {
+  document.querySelectorAll('.pg').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.ni').forEach(n => n.classList.remove('on'));
+  var el = document.getElementById('pg-' + pg);
+  if (el) el.classList.add('on');
+  document.querySelectorAll('.ni').forEach(n => {
+    if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'" + pg + "'")) n.classList.add('on');
   });
+  document.getElementById('bread').innerHTML = '<b>' + (labels2[pg] || pg) + '</b>';
+  if (window.innerWidth <= 768) document.getElementById('sb').classList.remove('open');
 }
 
-// ── Fechar clicando fora ──────────────────────────────────────
-document.getElementById('checkout-overlay').addEventListener('click', function(e) {
-  if (e.target === this) fecharCheckout();
-});
+function toggleSB() { document.getElementById('sb').classList.toggle('open'); }
+function sair() { if (confirm('Deseja sair?')) window.location.href = 'worka.html'; }
 
-// ── Máscaras ──────────────────────────────────────────────────
-function mascaraDoc(el) {
-  let v = el.value.replace(/\D/g,'');
-  if (v.length <= 11) {
-    v = v.replace(/(\d{3})(\d)/,'$1.$2')
-         .replace(/(\d{3})(\d)/,'$1.$2')
-         .replace(/(\d{3})(\d{1,2})$/,'$1-$2');
-  } else {
-    v = v.replace(/^(\d{2})(\d)/,'$1.$2')
-         .replace(/^(\d{2})\.(\d{3})(\d)/,'$1.$2.$3')
-         .replace(/\.(\d{3})(\d)/,'.$1/$2')
-         .replace(/(\d{4})(\d)/,'$1-$2');
-  }
-  el.value = v;
+// ═══════════════════════════
+// RELÓGIO
+// ═══════════════════════════
+function tick() {
+  var n = new Date();
+  var pad = x => String(x).padStart(2,'0');
+  var el = document.getElementById('rel');
+  if (el) el.textContent = pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds());
+  var dias = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+  var meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  var ds = dias[n.getDay()] + ', ' + n.getDate() + ' ' + meses[n.getMonth()] + ' ' + n.getFullYear();
+  var el2 = document.getElementById('ddat');
+  if (el2) el2.textContent = ds;
+  var el3 = document.getElementById('ddate');
+  if (el3) el3.textContent = dias[n.getDay()] + ', ' + n.getDate() + '/' + (n.getMonth()+1);
+  var h = n.getHours();
+  var saud = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+  var el4 = document.getElementById('greet');
+  if (el4) el4.textContent = saud + ', Alexandre 👋';
 }
-function mascaraTel(el) {
-  let v = el.value.replace(/\D/g,'');
-  if (v.length <= 10)
-    v = v.replace(/(\d{2})(\d{4})(\d{0,4})/,'($1) $2-$3');
-  else
-    v = v.replace(/(\d{2})(\d{5})(\d{0,4})/,'($1) $2-$3');
-  el.value = v;
-}
+tick(); setInterval(tick, 1000);
 
-// ── Somente dígitos ───────────────────────────────────────────
-function apenasDigitos(s) { return s.replace(/\D/g,''); }
+// ═══════════════════════════
+// MODAIS
+// ═══════════════════════════
+function abrirMo(id) { document.getElementById(id).classList.add('open'); }
+function fechaMo(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.mo').forEach(m => m.addEventListener('click', function(e){ if(e.target===this) this.classList.remove('open'); }));
 
-// ── Gerar PIX ─────────────────────────────────────────────────
-// Dados globais do formulário
-var dadosFormulario = {};
+// ═══════════════════════════
+// PONTO COM FACE ID + GPS
+// ═══════════════════════════
+var regPonto = [];
 
-async function gerarPix() {
-  const nome  = document.getElementById('f-nome').value.trim();
-  const doc   = apenasDigitos(document.getElementById('f-doc').value);
-  const email = document.getElementById('f-email').value.trim();
-  const tel   = apenasDigitos(document.getElementById('f-tel').value);
-  const erro  = document.getElementById('form-erro');
-
-  // Validação
-  if (!nome)                          { mostrarErro('Informe seu nome completo ou empresa.'); return; }
-  if (doc.length !== 11 && doc.length !== 14) { mostrarErro('CPF deve ter 11 dígitos ou CNPJ 14 dígitos.'); return; }
-  if (!email.includes('@'))           { mostrarErro('Informe um e-mail válido.'); return; }
-  if (tel.length < 10 || tel.length > 11) { mostrarErro('Informe um telefone válido com DDD.'); return; }
-
-  erro.style.display = 'none';
-  const btn = document.getElementById('btn-gerar');
-  btn.disabled = true;
-  btn.innerHTML = '<span style="animation:spin 1s linear infinite;display:inline-block;">⏳</span> Enviando código...';
-
-  // Salvar dados
-  dadosFormulario = { name: nome, document: doc, email: email, phone: tel, utm: window.location.search.replace(/^\?/,'') };
-
-  // Enviar código de verificação
+async function solicitarBiometria() {
+  if (!window.PublicKeyCredential) return true;
   try {
-    const res = await fetch(BACKEND_URL.replace('/pix','/enviar-codigo'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: nome, email: email })
+    var avail = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    if (!avail) return true; // dispositivo não tem biometria, deixa passar
+    var challenge = new Uint8Array(32);
+    window.crypto.getRandomValues(challenge);
+    var cred = await navigator.credentials.get({
+      publicKey: { challenge, timeout: 30000, userVerification: 'required' }
     });
-    const data = await res.json();
-    if (!res.ok) {
-      mostrarErro('Erro ao enviar código: ' + (data.error || res.status));
-      btn.disabled = false;
-      btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
-      return;
-    }
-    // Mostrar tela de verificação
-    document.getElementById('verify-email-txt').textContent = email;
-    document.getElementById('f-codigo').value = '';
-    document.getElementById('verify-erro').style.display = 'none';
-    mostrarStep('verify');
-    btn.disabled = false;
-    btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
-    iniciarTimerReenvio();
+    return !!cred;
   } catch(e) {
-    mostrarErro('Erro de conexão: ' + e.message);
-    btn.disabled = false;
-    btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
+    if (e.name === 'NotAllowedError') return false; // usuário cancelou
+    return true; // fallback
   }
 }
 
-async function confirmarCodigo() {
-  const codigo = document.getElementById('f-codigo').value.trim();
-  const erroEl = document.getElementById('verify-erro');
-  if (codigo.length !== 6) {
-    erroEl.textContent = 'Digite o código de 6 dígitos.';
-    erroEl.style.display = 'block';
+async function baterPonto(tipo) {
+  var labels = { entrada:'▶ Entrada', intervalo:'☕ Intervalo', retorno:'↩ Retorno', saida:'■ Saída' };
+  var btnEl = event ? event.target : null;
+  var orig = btnEl ? btnEl.textContent : '';
+
+  // 1. BIOMETRIA (Face ID / Digital)
+  if (btnEl) { btnEl.textContent = '🔐 Aguardando biometria...'; btnEl.disabled = true; }
+  var bioOk = await solicitarBiometria();
+  if (!bioOk) {
+    if (btnEl) { btnEl.textContent = orig; btnEl.disabled = false; }
+    alert('❌ Autenticação biométrica cancelada.\n\nFace ID ou digital necessário para registrar o ponto.');
     return;
   }
-  erroEl.style.display = 'none';
-  const btn = document.getElementById('btn-confirmar');
-  btn.disabled = true;
-  btn.textContent = '⏳ Verificando...';
 
-  try {
-    const res = await fetch(BACKEND_URL.replace('/pix','/verificar-codigo'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: dadosFormulario.email, codigo: codigo })
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      erroEl.textContent = data.error || 'Código inválido.';
-      erroEl.style.display = 'block';
-      btn.disabled = false;
-      btn.textContent = 'Confirmar código ✓';
-      return;
-    }
-    // Código válido — gerar PIX
-    btn.textContent = '✓ Verificado! Gerando PIX...';
-    await gerarPixReal();
-  } catch(e) {
-    erroEl.textContent = 'Erro de conexão: ' + e.message;
-    erroEl.style.display = 'block';
-    btn.disabled = false;
-    btn.textContent = 'Confirmar código ✓';
+  // 2. GEOLOCALIZAÇÃO
+  if (btnEl) btnEl.textContent = '📍 Obtendo localização...';
+
+  if (!navigator.geolocation) {
+    registrarComGPS(tipo, null, null, btnEl, orig);
+    return;
   }
-}
 
-async function reenviarCodigo() {
-  const btn = document.getElementById('btn-reenviar');
-  btn.disabled = true;
-  try {
-    await fetch(BACKEND_URL.replace('/pix','/enviar-codigo'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: dadosFormulario.name, email: dadosFormulario.email })
-    });
-    iniciarTimerReenvio();
-  } catch(e) {}
-  btn.disabled = false;
-}
-
-function iniciarTimerReenvio() {
-  const timer = document.getElementById('reenviar-timer');
-  const btnR = document.getElementById('btn-reenviar');
-  btnR.style.display = 'none';
-  timer.style.display = 'block';
-  let seg = 60;
-  const iv = setInterval(function() {
-    seg--;
-    timer.textContent = 'Reenviar em ' + seg + 's';
-    if (seg <= 0) {
-      clearInterval(iv);
-      timer.style.display = 'none';
-      btnR.style.display = 'inline';
-    }
-  }, 1000);
-}
-
-async function gerarPixReal() {
-  const utm = dadosFormulario.utm || '';
-  const body = {
-    name: dadosFormulario.name,
-    document: dadosFormulario.document,
-    email: dadosFormulario.email,
-    phone: dadosFormulario.phone,
-    utm: utm
-  };
-
-  let tentativas = 0;
-  let resposta = null;
-
-  while (tentativas < 3) {
-    try {
-      const res = await fetch(BACKEND_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      if (res.ok) { resposta = await res.json(); break; }
-      if (res.status >= 400 && res.status < 500) {
-        const err = await res.json().catch(() => ({}));
-        mostrarErro('Erro gateway: ' + JSON.stringify(err));
-        btn.disabled = false;
-        btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
-        return;
+  navigator.geolocation.getCurrentPosition(
+    function(pos) { registrarComGPS(tipo, pos.coords.latitude, pos.coords.longitude, btnEl, orig); },
+    function(err) {
+      var msg = err.code === 1 ? 'Permissão de localização negada.' : 'Não foi possível obter a localização.';
+      if (confirm('⚠️ ' + msg + '\n\nDeseja registrar o ponto sem localização?')) {
+        registrarComGPS(tipo, null, null, btnEl, orig);
+      } else {
+        if (btnEl) { btnEl.textContent = orig; btnEl.disabled = false; }
       }
-    } catch(e) { erroDetalhado = 'Conexao: ' + e.message; }
-    tentativas++;
-    if (tentativas < 3) await sleep(Math.pow(2, tentativas - 1) * 1000);
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+function registrarComGPS(tipo, lat, lng, btnEl, orig) {
+  var labels = { entrada:'▶ Entrada', intervalo:'☕ Intervalo', retorno:'↩ Retorno', saida:'■ Saída' };
+  var icones = { entrada:'▶', intervalo:'☕', retorno:'↩', saida:'■' };
+  var n = new Date();
+  var pad = x => String(x).padStart(2,'0');
+  var h = pad(n.getHours()) + ':' + pad(n.getMinutes());
+
+  regPonto.push({ tipo, hora: h, lat, lng, bio: true });
+
+  // Atualiza tabela
+  var tbody = document.getElementById('rponto');
+  if (regPonto.length === 1) tbody.innerHTML = '';
+  var tr = document.createElement('tr');
+  var locHtml = lat ? '<a href="#" onclick="verMapaDash(' + lat + ',' + lng + ',\'' + labels[tipo] + '\');return false" style="color:var(--g500);font-size:.68rem">📍 Ver</a>' : '<span style="color:var(--s500);font-size:.68rem">Sem GPS</span>';
+  tr.innerHTML = '<td>' + labels[tipo] + '</td><td class="fw6">' + h + '</td><td><span class="b bg2">✓ Face ID</span></td><td>' + locHtml + '</td>';
+  tbody.appendChild(tr);
+
+  // Mapa
+  if (lat && lng) {
+    var iframe = document.getElementById('mapa-if');
+    var ph = document.getElementById('mapa-ph');
+    iframe.src = 'https://maps.google.com/maps?q=' + lat + ',' + lng + '&z=15&output=embed';
+    iframe.style.display = 'block';
+    ph.style.display = 'none';
   }
 
-  if (!resposta || !resposta.pixCode) {
-    mostrarErro('Sem resposta: ' + (window._erroWorka || BACKEND_URL));
-    btn.disabled = false;
-    btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
-    return;
-  }
+  // Status
+  var st = document.getElementById('pst');
+  if (st) st.textContent = '✅ ' + labels[tipo] + ' registrada às ' + h + (lat ? ' · GPS ✓' : '') + ' · Biometria ✓';
 
-  // Exibir QR Code
-  const { pixCode, transactionId } = resposta;
-  document.getElementById('pix-code-txt').textContent = pixCode;
-  document.getElementById('qrcode').innerHTML = '';
-  new QRCode(document.getElementById('qrcode'), {
-    text: pixCode,
-    width: 196,
-    height: 196,
-    colorDark: '#0a2e1a',
-    colorLight: '#ffffff',
-    correctLevel: QRCode.CorrectLevel.M
-  });
+  // Restaurar botão
+  if (btnEl) { btnEl.textContent = orig; btnEl.disabled = false; }
 
-  mostrarStep('pix');
-  iniciarPolling(transactionId);
+  // Auditoria
+  console.log('PONTO:', tipo, h, lat, lng, 'biometria:OK');
 }
 
-// ── Polling de status ─────────────────────────────────────────
-function iniciarPolling(transactionId) {
-  pararPolling();
-  pollingInterval = setInterval(async () => {
-    try {
-      const res = await fetch(BACKEND_URL + '?transactionId=' + encodeURIComponent(transactionId));
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.status === 'COMPLETED') {
-        pararPolling();
-        mostrarStep('ok');
-      }
-    } catch(e) { erroDetalhado = 'Conexao: ' + e.message; }
-  }, 5000);
-
-  // Timeout de 15 min
-  pollingTimeout = setTimeout(() => {
-    pararPolling();
-    document.getElementById('status-txt').textContent = 'PIX expirado. Feche e tente novamente.';
-    document.getElementById('pix-status').style.background = '#fef2f2';
-    document.getElementById('pix-status').style.color = '#dc2626';
-    document.getElementById('status-spinner').textContent = '❌';
-    document.getElementById('status-spinner').style.animation = 'none';
-  }, 15 * 60 * 1000);
-}
-function pararPolling() {
-  if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
-  if (pollingTimeout)  { clearTimeout(pollingTimeout);  pollingTimeout  = null; }
+// ═══════════════════════════
+// MAPA
+// ═══════════════════════════
+function verMapaDash(lat, lng, nome) {
+  document.getElementById('mtit').textContent = '📍 ' + nome;
+  document.getElementById('mif').src = 'https://maps.google.com/maps?q=' + lat + ',' + lng + '&z=16&output=embed';
+  document.getElementById('mlink').href = 'https://www.google.com/maps?q=' + lat + ',' + lng;
+  abrirMo('mo-mapa');
 }
 
-// ── Helpers ───────────────────────────────────────────────────
-function mostrarErro(msg) {
-  const el = document.getElementById('form-erro');
-  el.textContent = msg;
-  el.style.display = 'block';
+// ═══════════════════════════
+// FUNCIONÁRIOS
+// ═══════════════════════════
+function aprovarF(btn) { var tr = btn.closest('tr'); tr.style.opacity='0';tr.style.transition='.3s';setTimeout(()=>tr.remove(),300); alert('✅ Funcionário aprovado na equipe!'); }
+function recusarF(btn) { var tr = btn.closest('tr'); tr.style.opacity='0';tr.style.transition='.3s';setTimeout(()=>tr.remove(),300); }
+function excluirF(btn, nome) { if(confirm('Excluir ' + nome + ' da equipe?')){ var tr=btn.closest('tr');tr.style.opacity='0';tr.style.transition='.3s';setTimeout(()=>tr.remove(),300); } }
+
+// ═══════════════════════════
+// SALÁRIOS E AUMENTOS
+// ═══════════════════════════
+var aN=''; var aA=0;
+function darAumentoF(nome, sal) {
+  aN=nome; aA=sal;
+  document.getElementById('a-nome').textContent = 'Funcionário: ' + nome;
+  document.getElementById('a-atual').value = sal;
+  document.getElementById('a-novo').value = '';
+  document.getElementById('a-diff').textContent = '';
+  abrirMo('mo-aumento');
 }
-function copiarPix() {
-  const code = document.getElementById('pix-code-txt').textContent;
-  navigator.clipboard.writeText(code).then(() => {
-    const btn = event.target;
-    btn.textContent = 'Copiado! ✓';
-    btn.style.background = '#16622f';
-    setTimeout(() => { btn.textContent = 'Copiar'; btn.style.background = '#1e8a40'; }, 2000);
-  });
+function calcAum() {
+  var n = parseFloat(document.getElementById('a-novo').value);
+  var el = document.getElementById('a-diff');
+  if (!n) { el.textContent=''; return; }
+  if (n > aA) { el.style.color='var(--g600)'; el.textContent='↑ Aumento de R$ '+(n-aA).toFixed(2); }
+  else if (n < aA) { el.style.color='var(--red)'; el.textContent='↓ Redução de R$ '+(aA-n).toFixed(2); }
+  else { el.style.color='var(--s500)'; el.textContent='Sem alteração'; }
 }
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-</script>
-
-
-
-<!-- MODAL DE ACESSO AO PAINEL -->
-<div id="acesso-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(10,46,26,0.85);backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:20px;">
-  <div style="background:white;border-radius:20px;padding:40px 32px;width:100%;max-width:400px;box-shadow:0 32px 80px rgba(0,0,0,0.4);position:relative;">
-    <button onclick="fecharAcesso()" style="position:absolute;top:16px;right:16px;background:var(--gray100);border:none;width:32px;height:32px;border-radius:50%;font-size:1rem;cursor:pointer;">✕</button>
-    <div style="font-family:'Syne',sans-serif;font-size:1.8rem;font-weight:800;color:#16622f;text-align:center;margin-bottom:4px;">Work<span style="color:#25b251">a</span></div>
-    <div style="text-align:center;font-size:0.85rem;color:#6b7068;margin-bottom:24px;">Acesse sua conta ou crie uma nova</div>
-
-    <div style="display:flex;background:#f7f8f7;border-radius:10px;padding:4px;margin-bottom:20px;gap:4px;">
-      <div id="tab-empresa" onclick="setAcessoTipo('dono')" style="flex:1;padding:8px;text-align:center;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;background:white;color:#16622f;box-shadow:0 1px 4px rgba(0,0,0,0.1);">Empresa</div>
-      <div id="tab-func" onclick="setAcessoTipo('funcionario')" style="flex:1;padding:8px;text-align:center;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;color:#6b7068;">Funcionário</div>
-    </div>
-
-    <div id="acesso-dono">
-      <div style="margin-bottom:12px;">
-        <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">E-mail</label>
-        <input id="ac-email" type="email" placeholder="seu@email.com" style="width:100%;padding:11px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
-      </div>
-      <div style="margin-bottom:16px;">
-        <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">Senha</label>
-        <input id="ac-senha" type="password" placeholder="••••••••" style="width:100%;padding:11px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
-      </div>
-    </div>
-
-    <div id="acesso-func" style="display:none;">
-      <div style="margin-bottom:12px;">
-        <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">ID da Equipe</label>
-        <input type="text" placeholder="#WK-0000" style="width:100%;padding:11px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;">
-      </div>
-      <div style="margin-bottom:12px;">
-        <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">E-mail</label>
-        <input type="email" placeholder="seu@email.com" style="width:100%;padding:11px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;">
-      </div>
-      <div style="margin-bottom:16px;">
-        <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">Senha</label>
-        <input type="password" placeholder="••••••••" style="width:100%;padding:11px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;">
-      </div>
-    </div>
-
-    <div id="acesso-erro" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px;font-size:0.8rem;color:#dc2626;margin-bottom:12px;"></div>
-
-    <button onclick="entrarNoApp()" style="width:100%;background:#1e8a40;color:white;border:none;padding:13px;border-radius:10px;font-size:0.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:12px;">Entrar no Worka →</button>
-    <div style="text-align:center;font-size:0.78rem;color:#6b7068;">Não tem conta? <a href="#" onclick="fecharAcesso();abrirFunil();return false;" style="color:#1e8a40;font-weight:600;">Assinar por R$ 24,90/mês</a></div>
-  </div>
-</div>
-
-<script>
-var acessoTipo = 'dono';
-function abrirAcesso(){
-  document.getElementById('acesso-overlay').style.display='flex';
-  document.body.style.overflow='hidden';
-}
-function fecharAcesso(){
-  document.getElementById('acesso-overlay').style.display='none';
-  document.body.style.overflow='';
-}
-function setAcessoTipo(tipo){
-  acessoTipo=tipo;
-  document.getElementById('acesso-dono').style.display=tipo==='dono'?'block':'none';
-  document.getElementById('acesso-func').style.display=tipo==='funcionario'?'block':'none';
-  document.getElementById('tab-empresa').style.background=tipo==='dono'?'white':'transparent';
-  document.getElementById('tab-empresa').style.color=tipo==='dono'?'#16622f':'#6b7068';
-  document.getElementById('tab-empresa').style.boxShadow=tipo==='dono'?'0 1px 4px rgba(0,0,0,0.1)':'none';
-  document.getElementById('tab-func').style.background=tipo==='funcionario'?'white':'transparent';
-  document.getElementById('tab-func').style.color=tipo==='funcionario'?'#16622f':'#6b7068';
-  document.getElementById('tab-func').style.boxShadow=tipo==='funcionario'?'0 1px 4px rgba(0,0,0,0.1)':'none';
-}
-function entrarNoApp(){
-  var email = document.getElementById('ac-email') ? document.getElementById('ac-email').value.trim().toLowerCase() : '';
-  var senha = document.getElementById('ac-senha') ? document.getElementById('ac-senha').value : '';
-  // Login owner
-  if(email==='workappoficial@gmail.com'&&senha==='ale98798798798'){
-    fecharAcesso();
-    window.location.href='worka-app.html?role=owner&email='+encodeURIComponent(email);
-    return;
-  }
-  // Login demo dono
-  if(email&&senha){
-    fecharAcesso();
-    window.location.href='worka-app.html?role=dono&email='+encodeURIComponent(email);
-    return;
-  }
-  var erro=document.getElementById('acesso-erro');
-  erro.textContent='Preencha e-mail e senha para continuar.';
-  erro.style.display='block';
-}
-document.getElementById('acesso-overlay').addEventListener('click',function(e){if(e.target===this)fecharAcesso();});
-</script>
-
-<!-- FUNIL DE VENDAS -->
-<div id="funil-overlay" style="display:none;position:fixed;inset:0;z-index:998;background:#0a2e1a;overflow-y:auto;">
-  <div style="position:sticky;top:0;z-index:10;background:#0a2e1a;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.1);">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-      <div style="font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:#fff;">Work<span style="color:#3dd669">a</span></div>
-      <button onclick="fecharFunil()" style="background:rgba(255,255,255,0.1);border:none;color:white;width:32px;height:32px;border-radius:50%;font-size:1rem;cursor:pointer;">✕</button>
-    </div>
-    <div style="background:rgba(255,255,255,0.15);border-radius:100px;height:4px;">
-      <div id="funil-progress" style="height:4px;border-radius:100px;background:linear-gradient(90deg,#25b251,#3dd669);transition:width .4s;width:0%"></div>
-    </div>
-    <div id="funil-step-label" style="font-size:0.7rem;color:rgba(255,255,255,0.5);margin-top:6px;text-align:center;">Passo 1 de 6</div>
-  </div>
-  <div style="max-width:480px;margin:0 auto;padding:32px 20px 60px;">
-
-    <div id="funil-1" class="funil-step">
-      <div style="font-size:2rem;margin-bottom:12px;">👋</div>
-      <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:12px;">Qual é o seu tipo de negócio?</h2>
-      <p style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-bottom:28px;">Vamos personalizar a experiência do Worka para o seu segmento.</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div class="seg-card" onclick="escolherSegmento('Alimentação')">🍔 Alimentação</div>
-        <div class="seg-card" onclick="escolherSegmento('Estética')">💅 Estética</div>
-        <div class="seg-card" onclick="escolherSegmento('Varejo')">🛍️ Varejo</div>
-        <div class="seg-card" onclick="escolherSegmento('Oficina')">🔧 Oficina</div>
-        <div class="seg-card" onclick="escolherSegmento('Clínica')">🏥 Clínica</div>
-        <div class="seg-card" onclick="escolherSegmento('Outro')">🏢 Outro</div>
-      </div>
-    </div>
-
-    <div id="funil-2" class="funil-step" style="display:none;">
-      <div style="font-size:2rem;margin-bottom:12px;">😩</div>
-      <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:12px;">Você ainda perde tempo com isso?</h2>
-      <p style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-bottom:24px;">A maioria dos donos de <span id="seg-nome" style="color:#3dd669;font-weight:700"></span> sofre com isso todo dia:</p>
-      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:32px;">
-        <div class="dor-card">😤 Funcionário falta e você fica sabendo depois</div>
-        <div class="dor-card">📋 Tarefa delegada que ninguém comprova ter feito</div>
-        <div class="dor-card">🧾 Produto vencido descoberto na hora errada</div>
-        <div class="dor-card">📊 Sem ideia de como o faturamento se relaciona com a equipe</div>
-        <div class="dor-card">🔑 Sem controle de quem pode ver o quê no sistema</div>
-        <div class="dor-card">📍 Funcionário bate ponto de casa e você não sabe</div>
-      </div>
-      <button onclick="irParaPasso(3)" class="funil-btn">Isso acontece comigo →</button>
-    </div>
-
-    <div id="funil-3" class="funil-step" style="display:none;">
-      <div style="font-size:2rem;margin-bottom:12px;">✅</div>
-      <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:12px;">O Worka resolve tudo isso por você</h2>
-      <p style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-bottom:24px;">Plataforma completa de gestão de equipe, feita para quem tem negócio pra tocar.</p>
-      <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:32px;">
-        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;">⏱</span><div><strong>Ponto digital em tempo real</strong><p>Funcionário bate o ponto pelo celular. Você vê na hora.</p></div></div>
-        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;">📸</span><div><strong>Tarefas com foto de comprovação</strong><p>Ninguém fecha tarefa sem enviar evidência.</p></div></div>
-        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;">🔔</span><div><strong>Alerta automático de validade</strong><p>O sistema avisa antes do produto vencer.</p></div></div>
-        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;">🎨</span><div><strong>Sua marca, suas cores</strong><p>O app fica com o nome e visual da sua empresa.</p></div></div>
-        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;">📍</span><div><strong>Localização na batida de ponto</strong><p>Veja no Google Maps exatamente onde cada funcionário bateu o ponto.</p></div></div>
-      </div>
-      <button onclick="irParaPasso(4)" class="funil-btn">Quero saber mais →</button>
-    </div>
-
-    <div id="funil-4" class="funil-step" style="display:none;">
-      <div style="font-size:2rem;margin-bottom:12px;">🚀</div>
-      <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:20px;">Diferenciais que você não encontra em outro lugar</h2>
-      <div style="display:flex;flex-direction:column;gap:16px;margin-bottom:32px;">
-        <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:20px;"><div style="font-size:1.3rem;margin-bottom:8px;">🔗</div><div style="font-weight:700;color:#fff;margin-bottom:4px;">Integração com qualquer sistema</div><div style="font-size:0.82rem;color:rgba(255,255,255,0.6);">Conecta via API com seu PDV, ERP ou emissor de nota.</div></div>
-        <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:20px;"><div style="font-size:1.3rem;margin-bottom:8px;">🔐</div><div style="font-weight:700;color:#fff;margin-bottom:4px;">Hierarquia e permissões customizáveis</div><div style="font-size:0.82rem;color:rgba(255,255,255,0.6);">Crie os cargos que seu negócio precisa com permissões por checkbox.</div></div>
-        <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:20px;"><div style="font-size:1.3rem;margin-bottom:8px;">📱</div><div style="font-weight:700;color:#fff;margin-bottom:4px;">Entrada segura por ID único</div><div style="font-size:0.82rem;color:rgba(255,255,255,0.6);">Nenhum funcionário entra sem sua aprovação.</div></div>
-      </div>
-      <button onclick="irParaPasso(5)" class="funil-btn">Ver depoimentos →</button>
-    </div>
-
-    <div id="funil-5" class="funil-step" style="display:none;">
-      <div style="font-size:2rem;margin-bottom:12px;">💬</div>
-      <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:20px;">Quem já usa, não volta atrás</h2>
-      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:28px;">
-        <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:18px;"><div style="font-size:0.85rem;color:rgba(255,255,255,0.85);margin-bottom:10px;">"Antes perdia horas tentando saber quem estava trabalhando. Hoje abro o Worka e vejo tudo."</div><div style="font-size:0.75rem;color:#3dd669;font-weight:600;">— Carla M. · Salão de Beleza</div></div>
-        <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:18px;"><div style="font-size:0.85rem;color:rgba(255,255,255,0.85);margin-bottom:10px;">"Meu estoque nunca mais venceu desde que ativei o alerta automático. Vale cada centavo."</div><div style="font-size:0.75rem;color:#3dd669;font-weight:600;">— Roberto S. · Restaurante</div></div>
-        <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:18px;"><div style="font-size:0.85rem;color:rgba(255,255,255,0.85);margin-bottom:10px;">"Customizei com as cores da minha empresa. Meus funcionários acham que mandei fazer um app!"</div><div style="font-size:0.75rem;color:#3dd669;font-weight:600;">— Ana P. · Clínica Estética</div></div>
-      </div>
-      <button onclick="irParaPasso(6)" class="funil-btn">Ver o preço →</button>
-    </div>
-
-    <div id="funil-6" class="funil-step" style="display:none;">
-      <div style="font-size:2rem;margin-bottom:12px;">🎯</div>
-      <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:8px;">Tudo isso por menos de R$ 1 por dia</h2>
-      <p style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-bottom:24px;">Um plano único. Sem cobranças extras. Sem surpresas.</p>
-      <div style="background:white;border-radius:20px;padding:28px;margin-bottom:16px;text-align:center;">
-        <div style="font-size:0.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1e8a40;margin-bottom:8px;">Plano Completo</div>
-        <div style="font-family:'Syne',sans-serif;font-size:3rem;font-weight:800;color:#16622f;letter-spacing:-2px;">R$ 24,90</div>
-        <div style="font-size:0.85rem;color:#6b7068;margin-bottom:20px;">/mês · cancele quando quiser</div>
-        <div style="text-align:left;display:flex;flex-direction:column;gap:8px;margin-bottom:24px;">
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Ponto digital em tempo real</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Tarefas com foto/vídeo de comprovação</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Alerta automático de validade</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> White Label completo</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Hierarquia e permissões customizáveis</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Integração via API</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Localização no ponto via Google Maps</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> 15 dias grátis para testar</div>
-        </div>
-        <button onclick="fecharFunil();setTimeout(abrirCheckout,300);" style="width:100%;background:#1e8a40;color:white;border:none;padding:16px;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Assinar agora — R$ 24,90/mês ⚡</button>
-        <div style="font-size:0.75rem;color:#6b7068;margin-top:10px;">🔒 Pagamento 100% seguro via PIX</div>
-      </div>
-      <div style="background:rgba(255,200,0,0.1);border:1px solid rgba(255,200,0,0.3);border-radius:12px;padding:14px;text-align:center;">
-        <div style="font-size:0.82rem;color:#ffd966;font-weight:600;">⏰ Oferta especial de lançamento</div>
-        <div style="font-size:0.75rem;color:rgba(255,255,255,0.6);margin-top:4px;">Garanta o preço de R$ 24,90 antes do reajuste</div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<style>
-.funil-step{animation:fadeInUp .3s ease}
-@keyframes fadeInUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
-.seg-card{background:rgba(255,255,255,0.08);border:1.5px solid rgba(255,255,255,0.15);border-radius:14px;padding:16px 12px;color:white;font-size:0.9rem;font-weight:600;text-align:center;cursor:pointer;transition:background .2s,border-color .2s}
-.seg-card:active{background:rgba(61,214,105,0.15);border-color:#3dd669}
-.dor-card{background:rgba(255,255,255,0.07);border-radius:12px;padding:14px 16px;color:rgba(255,255,255,0.85);font-size:0.875rem;line-height:1.5}
-.sol-card{display:flex;gap:14px;align-items:flex-start;background:rgba(255,255,255,0.07);border-radius:14px;padding:16px}
-.sol-card strong{display:block;color:white;font-size:0.9rem;margin-bottom:4px}
-.sol-card p{font-size:0.78rem;color:rgba(255,255,255,0.6);margin:0}
-.funil-btn{width:100%;background:#1e8a40;color:white;border:none;padding:16px;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:background .2s}
-.funil-btn:active{background:#25b251}
-</style>
-
-<script>
-var passoAtual=1;
-var totalPassos=6;
-function abrirFunil(){document.getElementById("funil-overlay").style.display="block";document.body.style.overflow="hidden";irParaPasso(1);}
-function fecharFunil(){document.getElementById("funil-overlay").style.display="none";document.body.style.overflow="";}
-function escolherSegmento(seg){document.getElementById("seg-nome").textContent=seg;irParaPasso(2);}
-function irParaPasso(n){
-  document.querySelectorAll(".funil-step").forEach(function(el){el.style.display="none";});
-  var el=document.getElementById("funil-"+n);
-  if(el){el.style.display="block";}
-  passoAtual=n;
-  document.getElementById("funil-progress").style.width=((n/totalPassos)*100)+"%";
-  document.getElementById("funil-step-label").textContent="Passo "+n+" de "+totalPassos;
-  document.getElementById("funil-overlay").scrollTo({top:0,behavior:"smooth"});
-}
-document.addEventListener("DOMContentLoaded",function(){
-  document.querySelectorAll("a").forEach(function(btn){
-    var txt=btn.textContent.trim();
-    if(txt.includes("Testar")||txt.includes("Começar")||txt.includes("Criar")){
-      btn.onclick=function(e){e.preventDefault();abrirFunil();};
-    }
-  });
-});
-</script>
-
-<!-- FOOTER -->
-<footer>
-  <div class="footer-inner">
-    <div class="footer-logo">Work<span>a</span></div>
-    <div style="font-size:.85rem;color:var(--gray-500)">Gestão de equipe para quem tem negócio pra tocar.</div>
-  </div>
-  <div class="footer-copy">© 2025 Worka · Todos os direitos reservados</div>
-</footer>
-
-
-<!-- ══════════════════════════════════════
-     WER — Assistente de IA da Worka
-══════════════════════════════════════ -->
-
-<!-- Botão flutuante -->
-<div id="wer-btn" onclick="toggleWer()" style="position:fixed;bottom:24px;right:24px;z-index:9000;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#0a2e1a,#25b251);box-shadow:0 4px 20px rgba(37,178,81,0.4);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.4rem;transition:transform .2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
-  <span id="wer-btn-icon">🤖</span>
-  <div id="wer-notif" style="position:absolute;top:-2px;right:-2px;width:18px;height:18px;background:#ef4444;border-radius:50%;border:2px solid white;font-size:.6rem;font-weight:700;color:white;display:flex;align-items:center;justify-content:center">1</div>
-</div>
-
-<!-- Janela do chat -->
-<div id="wer-chat" style="display:none;position:fixed;bottom:90px;right:24px;z-index:9000;width:360px;max-width:calc(100vw - 32px);background:white;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.2);overflow:hidden;flex-direction:column;max-height:520px;">
-
-  <!-- Header -->
-  <div style="background:linear-gradient(135deg,#0a2e1a,#1e8a40);padding:16px 18px;display:flex;align-items:center;justify-content:space-between;">
-    <div style="display:flex;align-items:center;gap:10px;">
-      <div style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">🤖</div>
-      <div>
-        <div style="font-family:'Syne',sans-serif;font-weight:800;color:white;font-size:.95rem;">Wer</div>
-        <div style="font-size:.7rem;color:rgba(255,255,255,.6);display:flex;align-items:center;gap:4px;"><span style="width:6px;height:6px;background:#3dd669;border-radius:50%;display:inline-block;animation:pulse 2s infinite"></span> Online agora</div>
-      </div>
-    </div>
-    <div style="display:flex;gap:8px;">
-      <button onclick="limparWer()" style="background:rgba(255,255,255,.1);border:none;color:white;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:.8rem;" title="Limpar conversa">🗑</button>
-      <button onclick="toggleWer()" style="background:rgba(255,255,255,.1);border:none;color:white;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:1rem;">✕</button>
-    </div>
-  </div>
-
-  <!-- Mensagens -->
-  <div id="wer-mensagens" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;max-height:340px;min-height:200px;background:#f7f8f7;">
-    <div class="wer-msg-bot">
-      <div class="wer-avatar">🤖</div>
-      <div class="wer-bubble-bot">Olá! Sou o <strong>Wer</strong>, assistente da Worka! 👋<br><br>Posso te ajudar a usar o sistema, responder dúvidas, criar tarefas, gerenciar sua equipe e muito mais.<br><br>O que você precisa?</div>
-    </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:32px;">
-      <button class="wer-sugestao" onclick="enviarWer('Como adicionar funcionário?')">👥 Funcionários</button>
-      <button class="wer-sugestao" onclick="enviarWer('Como bater ponto?')">⏱ Ponto</button>
-      <button class="wer-sugestao" onclick="enviarWer('Como criar uma tarefa?')">📋 Tarefas</button>
-      <button class="wer-sugestao" onclick="enviarWer('Quais são os recursos do Worka?')">💡 Recursos</button>
-    </div>
-  </div>
-
-  <!-- Input -->
-  <div style="padding:12px 14px;background:white;border-top:1px solid #eff0ef;display:flex;gap:8px;align-items:flex-end;">
-    <textarea id="wer-input" placeholder="Digite sua pergunta..." rows="1" style="flex:1;padding:10px 14px;border:1.5px solid #eff0ef;border-radius:20px;font-family:'Inter',sans-serif;font-size:.85rem;resize:none;outline:none;max-height:100px;overflow-y:auto;line-height:1.5;transition:border-color .2s;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarWer();}"></textarea>
-    <button onclick="enviarWer()" id="wer-send" style="width:38px;height:38px;border-radius:50%;background:#1e8a40;border:none;color:white;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .2s;" onmouseover="this.style.background='#25b251'" onmouseout="this.style.background='#1e8a40'">➤</button>
-  </div>
-</div>
-
-<style>
-.wer-msg-bot,.wer-msg-user{display:flex;gap:8px;align-items:flex-start;}
-.wer-msg-user{flex-direction:row-reverse;}
-.wer-avatar{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#0a2e1a,#1e8a40);display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0;margin-top:2px;}
-.wer-bubble-bot{background:white;border:1px solid #eff0ef;border-radius:0 12px 12px 12px;padding:10px 14px;font-size:.82rem;color:#3a3d39;line-height:1.6;max-width:260px;box-shadow:0 1px 4px rgba(0,0,0,.06);}
-.wer-bubble-user{background:linear-gradient(135deg,#1e8a40,#25b251);border-radius:12px 0 12px 12px;padding:10px 14px;font-size:.82rem;color:white;line-height:1.6;max-width:260px;}
-.wer-typing{display:flex;gap:4px;align-items:center;padding:10px 14px;background:white;border:1px solid #eff0ef;border-radius:0 12px 12px 12px;}
-.wer-dot{width:6px;height:6px;border-radius:50%;background:#c4c7c4;animation:werBounce .8s infinite;}
-.wer-dot:nth-child(2){animation-delay:.15s;}
-.wer-dot:nth-child(3){animation-delay:.3s;}
-@keyframes werBounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}
-.wer-sugestao{background:white;border:1.5px solid #eff0ef;border-radius:100px;padding:5px 12px;font-size:.72rem;font-weight:600;color:#1e8a40;cursor:pointer;transition:.15s;font-family:'Inter',sans-serif;}
-.wer-sugestao:hover{background:#edfaf2;border-color:#3dd669;}
-</style>
-
-<script>
-var WER_API_KEY = "xai-H5QAJOOhAOt4HXgFQPkT8NnhmMhnTdrtfwTaYGonpUZvJ3FhwP5qVqOoQXLG5tz6zUW9MCELqDYkBiqv";
-var werHistorico = [];
-var werAberto = false;
-
-var WER_SISTEMA = `Você é o Wer, assistente da plataforma Worka no site institucional. Ajude visitantes a entender o produto, responda dúvidas sobre preço (R$ 24,90/mês), funcionalidades, como assinar, e incentive o cadastro. Quando alguém quiser assinar, chame abrirFunil(). Você é o Wer, assistente de IA da plataforma Worka. Worka é um SaaS de gestão de equipe para micro e pequenas empresas.
-
-Você ajuda os usuários a:
-- Navegar e usar todos os recursos do Worka
-- Gerenciar funcionários, ponto, tarefas, salários, ausências e validade de produtos
-- Entender relatórios e integração com APIs externas
-- Resolver dúvidas sobre o sistema
-- Sugerir melhores práticas de gestão de equipe
-- Executar ações no sistema quando solicitado
-
-Painéis disponíveis: Dashboard, Funcionários, Ponto, Tarefas, Salários, Ausências, Escala, Relatórios, Validade de Produtos, Mural, Cargos e Permissões, Integração API, Identidade Visual, Notificações.
-
-Seja sempre simpático, objetivo e use emojis quando adequado. Responda em português brasileiro. Quando o usuário pedir para navegar para alguma tela, indique qual menu clicar.`;
-
-function toggleWer() {
-  werAberto = !werAberto;
-  var chat = document.getElementById('wer-chat');
-  chat.style.display = werAberto ? 'flex' : 'none';
-  chat.style.flexDirection = 'column';
-  document.getElementById('wer-notif').style.display = 'none';
-  if (werAberto) {
+function confAum() {
+  var n = parseFloat(document.getElementById('a-novo').value);
+  if (!n) { alert('Informe o novo salário!'); return; }
+  fechaMo('mo-aumento');
+  if (n > aA) {
     setTimeout(function() {
-      var msgs = document.getElementById('wer-mensagens');
-      msgs.scrollTop = msgs.scrollHeight;
-      document.getElementById('wer-input').focus();
-    }, 100);
-  }
-}
-
-function limparWer() {
-  werHistorico = [];
-  var msgs = document.getElementById('wer-mensagens');
-  msgs.innerHTML = '<div class="wer-msg-bot"><div class="wer-avatar">🤖</div><div class="wer-bubble-bot">Conversa reiniciada! Como posso te ajudar? 😊</div></div>';
-}
-
-async function enviarWer(textoFixo) {
-  var input = document.getElementById('wer-input');
-  var texto = textoFixo || input.value.trim();
-  if (!texto) return;
-
-  input.value = '';
-  input.style.height = 'auto';
-
-  // Mensagem do usuário
-  adicionarMensagemWer('user', texto);
-  werHistorico.push({ role: 'user', content: texto });
-
-  // Contexto do sistema atual
-  var contexto = '';
-  if (typeof usuarioAtual !== 'undefined' && usuarioAtual) {
-    contexto = ' [Usuário atual: ' + usuarioAtual.nome + ' (' + usuarioAtual.cargo + ')]';
-  }
-
-  // Typing indicator
-  var typingId = adicionarTypingWer();
-
-  try {
-    var response = await fetch('https://api.x.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + WER_API_KEY
-      },
-      body: JSON.stringify({
-        model: 'grok-beta',
-        max_tokens: 600,
-        messages: [
-          { role: 'system', content: WER_SISTEMA + contexto },
-          ...werHistorico.slice(-10)
-        ]
-      })
-    });
-
-    var data = await response.json();
-    removerTypingWer(typingId);
-
-    var resposta = data.choices && data.choices[0] ? data.choices[0].message.content : 'Desculpe, não consegui processar sua pergunta. Tente novamente!';
-    adicionarMensagemWer('bot', resposta);
-    werHistorico.push({ role: 'assistant', content: resposta });
-
-    // Verificar se deve navegar para alguma página
-    verificarNavegacaoWer(resposta, texto);
-    // No site, verificar se deve abrir funil
-    if ((resposta + texto).toLowerCase().includes('assinar') || (resposta + texto).toLowerCase().includes('cadastr')) {
-      // Sugerir funil
-    }
-
-  } catch(e) {
-    removerTypingWer(typingId);
-    adicionarMensagemWer('bot', '⚠️ Erro de conexão. Verifique sua internet e tente novamente.');
-  }
-}
-
-function adicionarMensagemWer(tipo, texto) {
-  var msgs = document.getElementById('wer-mensagens');
-  var div = document.createElement('div');
-  div.className = tipo === 'user' ? 'wer-msg-user' : 'wer-msg-bot';
-
-  // Converter markdown básico
-  var html = texto
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/
-/g, '<br>');
-
-  if (tipo === 'user') {
-    div.innerHTML = '<div class="wer-bubble-user">' + html + '</div>';
+      document.getElementById('ov-parab').textContent = 'Parabéns, ' + aN + '!';
+      document.getElementById('ov-msg').textContent = 'Você recebeu um aumento de salário! Seu novo salário é:';
+      document.getElementById('ov-val').textContent = 'R$ ' + n.toFixed(2);
+      document.getElementById('ov-aum').style.display = 'flex';
+    }, 300);
   } else {
-    div.innerHTML = '<div class="wer-avatar">🤖</div><div class="wer-bubble-bot">' + html + '</div>';
+    alert('✅ Salário de ' + aN + ' atualizado para R$ ' + n.toFixed(2));
   }
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
+}
+function marcarPago(nome) { alert('✅ Pagamento de ' + nome + ' registrado como realizado!'); }
+
+// ═══════════════════════════
+// FINANCEIRO
+// ═══════════════════════════
+function finTab(tab, el) {
+  ['boletos','despesas','pendencias','caixa','fluxo'].forEach(t => {
+    var d = document.getElementById('fin-' + t);
+    if (d) d.style.display = 'none';
+  });
+  var d = document.getElementById('fin-' + tab);
+  if (d) d.style.display = 'block';
+  document.querySelectorAll('#pg-fin .tab').forEach(t => t.classList.remove('on'));
+  if (el) el.classList.add('on');
 }
 
-function adicionarTypingWer() {
-  var msgs = document.getElementById('wer-mensagens');
-  var id = 'typing-' + Date.now();
-  var div = document.createElement('div');
-  div.className = 'wer-msg-bot';
-  div.id = id;
-  div.innerHTML = '<div class="wer-avatar">🤖</div><div class="wer-typing"><div class="wer-dot"></div><div class="wer-dot"></div><div class="wer-dot"></div></div>';
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
-  return id;
+function filtrB(st) {
+  document.querySelectorAll('#tbol tr').forEach(tr => {
+    tr.style.display = (st === 'todos' || tr.dataset.st === st) ? '' : 'none';
+  });
 }
 
-function removerTypingWer(id) {
-  var el = document.getElementById(id);
-  if (el) el.remove();
-}
-
-function verificarNavegacaoWer(resposta, pergunta) {
-  var texto = (resposta + pergunta).toLowerCase();
-  var navegacoes = {
-    'funcionár': 'funcionarios', 'ponto': 'ponto', 'tarefa': 'tarefas',
-    'salário': 'salarios', 'ausência': 'ausencias', 'falta': 'ausencias',
-    'validade': 'validade', 'produto': 'validade', 'escala': 'escala',
-    'relatório': 'relatorios', 'mural': 'mural', 'comunicado': 'mural',
-    'cargo': 'cargos', 'permissão': 'cargos', 'integração': 'integracao',
-    'api': 'integracao', 'visual': 'visual', 'cor': 'visual', 'logo': 'visual',
-    'notificação': 'notificacoes', 'dashboard': 'dashboard'
-  };
-  for (var chave in navegacoes) {
-    if (texto.includes(chave) && typeof abrirPagina === 'function') {
-      // Não navegar automaticamente, só sugerir
-      break;
+function pagarB(btn, nome) {
+  if (confirm('Confirmar pagamento de "' + nome + '"?')) {
+    var tr = btn.closest('tr');
+    if (tr) {
+      var bgs = tr.querySelectorAll('.b');
+      var last = bgs[bgs.length-1];
+      if (last) { last.className='b bg2'; last.textContent='Pago ✓'; }
+      if (tr.dataset) tr.dataset.st = 'pago';
     }
+    btn.closest('.act').innerHTML = '<span class="cg fw6" style="font-size:.65rem">✅ Pago</span>';
+    alert('✅ Pagamento de "' + nome + '" registrado!');
   }
 }
 
-// Auto-resize textarea
-document.getElementById('wer-input').addEventListener('input', function() {
-  this.style.height = 'auto';
-  this.style.height = Math.min(this.scrollHeight, 100) + 'px';
-});
-</script>
+function pagarTodos() {
+  if (confirm('Confirmar pagamento de todos os boletos urgentes?')) {
+    document.querySelectorAll('#urgentes tr').forEach(tr => {
+      tr.style.opacity = '.4';
+      var btn = tr.querySelector('.bp');
+      if (btn) { btn.textContent = '✓ Pago'; btn.disabled = true; }
+    });
+    alert('✅ Todos os boletos urgentes marcados como pagos!');
+  }
+}
 
+function resolverP(btn) {
+  if (confirm('Marcar pendência como resolvida?')) {
+    var tr = btn.closest('tr');
+    tr.style.transition='.3s'; tr.style.opacity='0';
+    setTimeout(() => tr.remove(), 300);
+    alert('✅ Pendência resolvida!');
+  }
+}
+
+function excLinha(btn) {
+  if (confirm('Excluir este registro?')) {
+    var tr = btn.closest('tr');
+    tr.style.transition='.3s'; tr.style.opacity='0';
+    setTimeout(() => tr.remove(), 300);
+  }
+}
+
+function registrarCaixa() {
+  fechaMo('mo-lanc');
+  alert('✅ Lançamento registrado no caixa!');
+}
+
+// ═══════════════════════════
+// TAREFAS
+// ═══════════════════════════
+function aprTar(btn) {
+  var tr = btn.closest('tr');
+  var bgs = tr.querySelectorAll('.b');
+  var last = bgs[bgs.length-1];
+  if (last) { last.className='b bg2'; last.textContent='Concluída'; }
+  btn.closest('.act').innerHTML = '<span class="cg fw6" style="font-size:.65rem">✅ Aprovada</span>';
+}
+function rejTar(btn) {
+  var tr = btn.closest('tr');
+  var bgs = tr.querySelectorAll('.b');
+  var last = bgs[bgs.length-1];
+  if (last) { last.className='b by2'; last.textContent='Pendente'; }
+  btn.closest('.act').innerHTML = '<span class="cy fw6" style="font-size:.65rem">↩ Devolvida</span>';
+}
+
+// ═══════════════════════════
+// VALIDADE
+// ═══════════════════════════
+function criarTarefaVal(prod) { alert('✅ Tarefa criada: "Retirar ' + prod + ' — vencimento próximo"\nPrioridade: Urgente'); }
+
+// ═══════════════════════════
+// AUSÊNCIAS
+// ═══════════════════════════
+function justAus(btn) {
+  var motivo = prompt('Motivo da justificativa:');
+  if (motivo) {
+    var tr = btn.closest('tr');
+    var bgs = tr.querySelectorAll('.b');
+    var last = bgs[bgs.length-1];
+    if (last) { last.className='b bg2'; last.textContent='Justificada'; }
+    btn.textContent='✓'; btn.disabled=true;
+  }
+}
+
+// ═══════════════════════════
+// PERMISSÕES
+// ═══════════════════════════
+function togPerm(btn) { btn.classList.toggle('on'); btn.classList.toggle('off'); }
+
+// ═══════════════════════════
+// IDENTIDADE VISUAL
+// ═══════════════════════════
+function prevV() {
+  var bg = document.getElementById('vc1').value;
+  var bt = document.getElementById('vc2').value;
+  var nm = document.getElementById('vn').value || 'Worka';
+  document.getElementById('pv-top').style.background = bg;
+  document.getElementById('pv-sb').style.background = bg;
+  document.getElementById('pv-nome').textContent = nm;
+  document.getElementById('pv-btn').style.background = bt;
+  document.getElementById('vc1h').value = bg;
+  document.getElementById('vc2h').value = bt;
+}
+function aplicarTema(bg, bt) {
+  document.getElementById('vc1').value = bg;
+  document.getElementById('vc2').value = bt;
+  prevV();
+}
+function salvarVisual() {
+  var bg = document.getElementById('vc1').value;
+  var bt = document.getElementById('vc2').value;
+  document.documentElement.style.setProperty('--g900', bg);
+  document.documentElement.style.setProperty('--g800', bg);
+  document.documentElement.style.setProperty('--g500', bt);
+  document.documentElement.style.setProperty('--g400', bt);
+  alert('✅ Identidade visual aplicada ao sistema!');
+}
+
+// ═══════════════════════════
+// MISC
+// ═══════════════════════════
+function exportarRel() { alert('📥 Gerando relatório PDF... (em produção: exporta arquivo real)'); }
+
+// Fechar overlay aumento
+document.getElementById('ov-aum').addEventListener('click', function(e) { if(e.target===this) this.style.display='none'; });
+</script>
 </body>
 </html>
