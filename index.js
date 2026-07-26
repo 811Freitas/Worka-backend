@@ -4,7 +4,7 @@ const crypto = require("crypto");
 
 const PORT = process.env.PORT || 3000;
 const PIX_URL = process.env.DUTTYFY_PIX_URL_ENCRYPTED || "";
-const RESEND_KEY = "re_7dnBFbNw_GSfyyE5Wz6wruA52hXvs7vTS";
+const RESEND_KEY = "re_fS6F5XFb_NQzhvYejFBpsYgRRQNeozyTF";
 const SUPABASE_URL = "https://veqwewppgcyjrmtwnzai.supabase.co";
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || "";
 const ENCRYPT_SECRET = process.env.ENCRYPT_SECRET || "worka2026SecretKey!";
