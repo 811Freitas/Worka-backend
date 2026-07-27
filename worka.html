@@ -463,7 +463,7 @@
   </ul>
   <div style="display:flex;gap:8px;align-items:center">
     <a href="#" onclick="abrirAcesso();return false;" class="nav-cta" style="background:transparent;border:1.5px solid var(--green-500);color:var(--green-600);">Entrar</a>
-    <a href="#" onclick="abrirCheckout();return false;" class="nav-cta">Teste grátis 15 dias</a>
+    <a href="#" onclick="abrirCheckout();return false;" class="nav-cta">Testar grátis 7 dias</a>
   </div>
 </nav>
 
@@ -475,7 +475,7 @@
       <h1>Gerencie sua equipe com <em>simplicidade total</em></h1>
       <p class="hero-sub">Ponto digital, tarefas com comprovação, alerta de validade e integração com qualquer sistema — tudo customizável com a sua marca.</p>
       <div class="hero-actions">
-        <a href="#" onclick="abrirCheckout();return false;" class="btn-primary">Teste grátis — 15 dias</a>
+        <a href="#" onclick="abrirCheckout();return false;" class="btn-primary">Testar grátis 7 dias</a>
         <a href="#funcionalidades" class="btn-ghost">Ver funcionalidades</a>
       </div>
       <div class="hero-price">
@@ -667,50 +667,7 @@
 </section>
 
 <!-- INTEGRAÇÃO -->
-<section class="integrations" id="integracao">
-  <div class="section-inner">
-    <div class="int-grid">
-      <div>
-        <div class="section-eyebrow">Dashboard Unificado</div>
-        <h2 class="section-title">Conecte qualquer sistema que você já usa</h2>
-        <p class="section-sub">Via Chave API, o Worka lê os dados do seu PDV, ERP ou emissor de notas e cruza tudo com a escala de funcionários — em um único painel.</p>
-        <div class="int-card" style="margin-top:28px">
-          <h3>Compatível com qualquer sistema</h3>
-          <p>Se tem documentação de API, o Worka conecta. Os módulos de relatório se adaptam automaticamente ao que a API externa oferece.</p>
-          <div class="int-chips">
-            <span class="chip">Sistemas de Caixa</span>
-            <span class="chip">ERPs</span>
-            <span class="chip">Emissores de NF</span>
-            <span class="chip">Controle de Estoque</span>
-            <span class="chip">Outras APIs</span>
-          </div>
-        </div>
-      </div>
-      <div>
-        <div class="int-stat-box">
-          <h4>Relatório unificado — Hoje</h4>
-          <div class="stat-row">
-            <span class="stat-row-lbl">Faturamento do dia</span>
-            <span class="stat-row-val">R$ 3.840</span>
-          </div>
-          <div class="stat-row">
-            <span class="stat-row-lbl">Funcionários na escala</span>
-            <span class="stat-row-val">7 de 9</span>
-          </div>
-          <div class="stat-row">
-            <span class="stat-row-lbl">Clientes atendidos</span>
-            <span class="stat-row-val">48</span>
-          </div>
-          <div class="stat-row">
-            <span class="stat-row-lbl">Itens em estoque crítico</span>
-            <span class="stat-row-val" style="color:#f87171">3 alertas</span>
-          </div>
-        </div>
-        <p style="font-size:.8rem;color:var(--gray-500);text-align:center">Dados de faturamento + escala + estoque, lado a lado.</p>
-      </div>
-    </div>
-  </div>
-</section>
+
 
 <!-- WHITE LABEL -->
 <section>
@@ -775,7 +732,7 @@
         <li>Tarefas recorrentes (diárias, semanais, mensais)</li>
       </ul>
       <a href="#" onclick="abrirCheckout();return false;" class="btn-block">Criar minha conta grátis</a>
-      <p class="price-note">15 dias de teste gratuito · Cancele a qualquer momento</p>
+      <p class="price-note">7 dias grátis para testar · Cancele a qualquer momento</p>
     </div>
   </div>
 </section>
@@ -837,12 +794,78 @@
         <div style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:#16622f;">R$ 24,90</div>
       </div>
 
-      <button onclick="gerarPix()" id="btn-gerar" style="width:100%;margin-top:16px;background:#1e8a40;color:white;border:none;padding:15px;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:background .2s;display:flex;align-items:center;justify-content:center;gap:8px;">
+      <button onclick="escolherPlano()" id="btn-gerar" style="width:100%;margin-top:16px;background:#1e8a40;color:white;border:none;padding:15px;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:background .2s;display:flex;align-items:center;justify-content:center;gap:8px;">
         <span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>
       </button>
       <div style="font-size:0.75rem;color:#6b7068;text-align:center;margin-top:10px;">🔒 Pagamento 100% seguro via PIX</div>
     </div>
 
+    <!-- TRIAL: Escolher plano -->
+    <div id="step-trial" style="display:none;padding:28px">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="font-size:2.5rem;margin-bottom:8px">🎉</div>
+        <div style="font-family:'Syne',sans-serif;font-size:1.2rem;font-weight:800;color:#0a2e1a">Olá, <span id="trial-nome-dest">!</span></div>
+        <div style="font-size:.85rem;color:#6b7068;margin-top:4px">Escolha como quer começar:</div>
+      </div>
+
+      <div style="background:linear-gradient(135deg,#0a2e1a,#1e8a40);border-radius:14px;padding:20px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:#3dd669">🆓 7 dias grátis</div>
+            <div style="font-size:.78rem;color:rgba(255,255,255,.7);margin-top:3px">Sem cartão. Acesso completo.</div>
+          </div>
+          <span style="background:#3dd669;color:#0a2e1a;border-radius:8px;padding:5px 10px;font-size:.72rem;font-weight:700">GRÁTIS</span>
+        </div>
+      </div>
+
+      <div style="background:#f7f8f7;border:1.5px solid #eff0ef;border-radius:14px;padding:20px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;color:#0a2e1a">💳 Assinar agora</div>
+            <div style="font-size:.78rem;color:#6b7068;margin-top:3px">R$ 24,90/mês · Acesso imediato</div>
+          </div>
+          <span style="background:#0a2e1a;color:white;border-radius:8px;padding:5px 10px;font-size:.72rem;font-weight:700">PIX</span>
+        </div>
+      </div>
+
+      <button id="btn-trial" onclick="ativarTrialGratis()" style="width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:10px">
+        🚀 Começar 7 dias grátis
+      </button>
+      <button onclick="mostrarStep('form')" style="width:100%;background:none;border:1.5px solid #eff0ef;color:#6b7068;padding:12px;border-radius:10px;font-size:.85rem;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif">
+        Prefiro assinar agora (R$ 24,90/mês)
+      </button>
+    </div>
+
+    <!-- TRIAL: Verificar email -->
+    <div id="step-trial-verify" style="display:none;padding:28px;text-align:center">
+      <div style="font-size:3rem;margin-bottom:12px">📧</div>
+      <div style="font-size:.85rem;font-weight:700;color:#0a2e1a;margin-bottom:8px">Confirme seu e-mail</div>
+      <p style="font-size:.82rem;color:#6b7068;margin-bottom:20px">Enviamos um código para <strong id="trial-email-txt"></strong></p>
+      <input id="trial-codigo" type="number" placeholder="000000" maxlength="6"
+        style="width:100%;padding:16px;border:2px solid #eff0ef;border-radius:12px;font-size:1.5rem;font-weight:700;text-align:center;letter-spacing:8px;font-family:'Inter',sans-serif;outline:none;margin-bottom:16px"
+        onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
+      <div id="trial-verify-erro" style="display:none;background:#fef2f2;border-radius:8px;padding:10px;font-size:.8rem;color:#dc2626;margin-bottom:12px"></div>
+      <button onclick="confirmarTrialCodigo()" style="width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif">
+        Confirmar e ativar trial ✓
+      </button>
+    </div>
+
+    <!-- TRIAL: Ativado com sucesso -->
+    <div id="step-trial-ok" style="display:none;padding:32px;text-align:center">
+      <div style="font-size:3rem;margin-bottom:12px">🎊</div>
+      <div style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:#0a2e1a;margin-bottom:8px">Trial ativado!</div>
+      <div style="font-size:.85rem;color:#6b7068;line-height:1.6;margin-bottom:20px">
+        Seu período de <strong>7 dias grátis</strong> começou agora.<br>
+        Quando expirar, você será avisado para renovar por R$ 24,90/mês.
+      </div>
+      <div style="background:#edfaf2;border-radius:12px;padding:16px;margin-bottom:20px">
+        <div style="font-size:.78rem;color:#16622f;font-weight:600">⏰ Trial expira em:</div>
+        <div style="font-family:'Syne',sans-serif;font-size:1.8rem;font-weight:800;color:#1e8a40">7 dias</div>
+      </div>
+      <a href="worka-app.html" style="display:block;width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;text-decoration:none;text-align:center">
+        Acessar o Worka →
+      </a>
+    </div>
 
     <!-- PASSO 1.5: Verificação de e-mail -->
     <div id="step-verify" style="display:none;padding:28px;">
@@ -952,7 +975,7 @@ function resetModal() {
   document.getElementById('btn-gerar').innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
 }
 function mostrarStep(s) {
-  ['form','verify','pix','ok'].forEach(id => {
+  ['form','verify','pix','ok','trial','trial-verify','trial-ok'].forEach(id => {
     document.getElementById('step-'+id).style.display = (id === s ? 'block' : 'none');
   });
 }
@@ -992,6 +1015,33 @@ function apenasDigitos(s) { return s.replace(/\D/g,''); }
 // ── Gerar PIX ─────────────────────────────────────────────────
 // Dados globais do formulário
 var dadosFormulario = {};
+
+async function iniciarTrial(nome, email) {
+  // Salvar trial local
+  var trialData = {
+    nome: nome,
+    email: email,
+    inicio: Date.now(),
+    fim: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 dias
+    ativo: true
+  };
+  localStorage.setItem('worka_trial', JSON.stringify(trialData));
+  
+  // Enviar email de boas vindas
+  try {
+    await fetch('https://worka-backend-awng.onrender.com/enviar-codigo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        email: email, 
+        name: nome,
+        tipo: 'boas_vindas'
+      })
+    });
+  } catch(e) { console.log('Email boas vindas:', e); }
+  
+  return true;
+}
 
 async function gerarPix() {
   const nome  = document.getElementById('f-nome').value.trim();
@@ -1214,6 +1264,99 @@ function copiarPix() {
     setTimeout(() => { btn.textContent = 'Copiar'; btn.style.background = '#1e8a40'; }, 2000);
   });
 }
+
+function escolherPlano() {
+  var nome = document.getElementById('nome').value.trim();
+  var email = document.getElementById('email').value.trim();
+  var doc = document.getElementById('documento').value.trim();
+  
+  if (!nome || !email) {
+    mostrarErro('Preencha nome e e-mail para continuar!');
+    return;
+  }
+  
+  // Mostrar opções: trial grátis ou assinar agora
+  var step = document.getElementById('step-dados');
+  if (step) step.style.display = 'none';
+  
+  // Mostrar step de trial
+  mostrarStep('trial');
+  
+  // Preencher nome
+  var nomeEl = document.getElementById('trial-nome-dest');
+  if (nomeEl) nomeEl.textContent = nome.split(' ')[0];
+}
+
+async function ativarTrialGratis() {
+  var nome = document.getElementById('nome').value.trim();
+  var email = document.getElementById('email').value.trim();
+  
+  var btn = document.getElementById('btn-trial');
+  if (btn) { btn.textContent = '⏳ Ativando...'; btn.disabled = true; }
+  
+  // Salvar trial
+  var trialData = {
+    nome, email,
+    inicio: Date.now(),
+    fim: Date.now() + 7 * 24 * 60 * 60 * 1000,
+    ativo: true
+  };
+  localStorage.setItem('worka_trial', JSON.stringify(trialData));
+  
+  // Enviar email de verificação
+  try {
+    var r = await fetch('https://worka-backend-awng.onrender.com/enviar-codigo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, name: nome })
+    });
+    var data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'Erro');
+  } catch(e) {
+    if (btn) { btn.textContent = '🚀 Começar 7 dias grátis'; btn.disabled = false; }
+    mostrarErro('Erro ao enviar código: ' + e.message);
+    return;
+  }
+  
+  // Mostrar step de verificação de código
+  var emailEl = document.getElementById('trial-email-txt');
+  if (emailEl) emailEl.textContent = email;
+  mostrarStep('trial-verify');
+  
+  // Iniciar timer de reenvio
+  iniciarTimerReenvio();
+}
+
+async function confirmarTrialCodigo() {
+  var codigo = document.getElementById('codigo').value.trim();
+  var email = document.getElementById('email').value.trim();
+  
+  if (codigo.length !== 6) {
+    mostrarErro('Digite o código de 6 dígitos!');
+    return;
+  }
+  
+  var btn = document.getElementById('btn-confirmar');
+  if (btn) { btn.textContent = '⏳ Verificando...'; btn.disabled = true; }
+  
+  try {
+    var r = await fetch('https://worka-backend-awng.onrender.com/verificar-codigo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, codigo })
+    });
+    var data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'Código inválido');
+  } catch(e) {
+    if (btn) { btn.textContent = 'Confirmar'; btn.disabled = false; }
+    mostrarErro(e.message);
+    return;
+  }
+  
+  // Trial ativado!
+  mostrarStep('trial-ok');
+}
+
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 </script>
 
@@ -1402,7 +1545,7 @@ document.getElementById('acesso-overlay').addEventListener('click',function(e){i
           <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Hierarquia e permissões customizáveis</div>
           <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Integração via API</div>
           <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Localização no ponto via Google Maps</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> 15 dias grátis para testar</div>
+          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> 7 dias grátis para testar</div>
         </div>
         <button onclick="fecharFunil();setTimeout(abrirCheckout,300);" style="width:100%;background:#1e8a40;color:white;border:none;padding:16px;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Assinar agora — R$ 24,90/mês ⚡</button>
         <div style="font-size:0.75rem;color:#6b7068;margin-top:10px;">🔒 Pagamento 100% seguro via PIX</div>
