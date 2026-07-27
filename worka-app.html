@@ -2,6 +2,14 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"/>
+<meta name="theme-color" content="#0a2e1a"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Worka"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="icon-192.png"/>
+<link rel="apple-touch-startup-image" href="icon-512.png"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Worka — Sistema de Gestão</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
@@ -2494,6 +2502,94 @@ function verificarNavegacaoWer(resposta, pergunta) {
 document.getElementById('wer-input').addEventListener('input', function() {
   this.style.height = 'auto';
   this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+});
+</script>
+
+
+<div id="pwa-install" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;background:#0a2e1a;color:white;border-radius:14px;padding:14px 20px;box-shadow:0 8px 30px rgba(0,0,0,.3);display:flex;align-items:center;gap:12px;max-width:320px;width:90%">
+  <span style="font-size:1.5rem">📱</span>
+  <div style="flex:1">
+    <div style="font-size:.82rem;font-weight:700">Instalar Worka</div>
+    <div style="font-size:.7rem;color:rgba(255,255,255,.6)">Adicione à tela inicial do iPhone</div>
+  </div>
+  <button id="pwa-install-btn" style="background:#3dd669;color:#0a2e1a;border:none;border-radius:8px;padding:7px 14px;font-size:.75rem;font-weight:700;cursor:pointer;font-family:var(--font)">Instalar</button>
+  <button onclick="document.getElementById('pwa-install').style.display='none'" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:1.1rem;cursor:pointer">✕</button>
+</div>
+
+<div id="ios-install" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;background:#0a2e1a;color:white;border-radius:14px;padding:16px 20px;box-shadow:0 8px 30px rgba(0,0,0,.35);max-width:320px;width:90%;text-align:center">
+  <div style="font-size:1.5rem;margin-bottom:8px">📱</div>
+  <div style="font-size:.85rem;font-weight:700;margin-bottom:6px">Instalar Worka no iPhone</div>
+  <div style="font-size:.75rem;color:rgba(255,255,255,.7);line-height:1.6;margin-bottom:12px">
+    1. Toque em <b>Compartilhar</b> <span style="font-size:1rem">⎙</span><br>
+    2. Role e toque em <b>"Adicionar à Tela de Início"</b><br>
+    3. Toque em <b>Adicionar</b>
+  </div>
+  <button onclick="document.getElementById('ios-install').style.display='none'" style="background:#3dd669;color:#0a2e1a;border:none;border-radius:8px;padding:8px 20px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--font)">Entendi!</button>
+</div>
+
+<script>
+// ═══════════════════════════════════
+// PWA — SERVICE WORKER
+// ═══════════════════════════════════
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/Worka-backend/sw.js').then(function(reg) {
+      console.log('SW registrado:', reg.scope);
+    }).catch(function(err) {
+      console.log('SW falhou:', err);
+    });
+  });
+}
+
+// ═══════════════════════════════════
+// PWA — PROMPT DE INSTALAÇÃO
+// ═══════════════════════════════════
+var deferredPrompt;
+
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  deferredPrompt = e;
+  var banner = document.getElementById('pwa-install');
+  if (banner) banner.style.display = 'flex';
+});
+
+var installBtn = document.getElementById('pwa-install-btn');
+if (installBtn) {
+  installBtn.addEventListener('click', function() {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function(choice) {
+        if (choice.outcome === 'accepted') {
+          console.log('PWA instalado!');
+        }
+        deferredPrompt = null;
+        var banner = document.getElementById('pwa-install');
+        if (banner) banner.style.display = 'none';
+      });
+    }
+  });
+}
+
+// iOS — mostrar instruções
+var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+var isInStandaloneMode = window.navigator.standalone;
+if (isIOS && !isInStandaloneMode) {
+  // Mostrar após 3 segundos
+  setTimeout(function() {
+    var shown = localStorage.getItem('ios-install-shown');
+    if (!shown) {
+      var el = document.getElementById('ios-install');
+      if (el) el.style.display = 'block';
+      localStorage.setItem('ios-install-shown', '1');
+    }
+  }, 3000);
+}
+
+// PWA instalado — esconder banner
+window.addEventListener('appinstalled', function() {
+  var banner = document.getElementById('pwa-install');
+  if (banner) banner.style.display = 'none';
+  console.log('PWA instalado com sucesso!');
 });
 </script>
 
