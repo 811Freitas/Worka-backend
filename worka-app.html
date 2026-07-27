@@ -588,7 +588,6 @@ tr:hover td{background:var(--gray50)}
               <div class="perm-row"><span class="perm-label">Criar e delegar tarefas</span><button class="toggle-sw on"><div class="toggle-dot"></div></button></div>
               <div class="perm-row"><span class="perm-label">Editar identidade visual</span><button class="toggle-sw on"><div class="toggle-dot"></div></button></div>
               <div class="perm-row"><span class="perm-label">Gerenciar ponto</span><button class="toggle-sw on"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Acessar integração API</span><button class="toggle-sw on"><div class="toggle-dot"></div></button></div>
             </div>
           </div>
 
@@ -600,7 +599,6 @@ tr:hover td{background:var(--gray50)}
               <div class="perm-row"><span class="perm-label">Criar e delegar tarefas</span><button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
               <div class="perm-row"><span class="perm-label">Editar identidade visual</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
               <div class="perm-row"><span class="perm-label">Gerenciar ponto</span><button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Acessar integração API</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
             </div>
           </div>
         </div>
@@ -614,7 +612,6 @@ tr:hover td{background:var(--gray50)}
               <div class="perm-row"><span class="perm-label">Criar e delegar tarefas</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
               <div class="perm-row"><span class="perm-label">Editar identidade visual</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
               <div class="perm-row"><span class="perm-label">Gerenciar ponto</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Acessar integração API</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
             </div>
           </div>
 
@@ -1507,7 +1504,6 @@ tr:hover td{background:var(--gray50)}
     <div class="perm-row"><span class="perm-label">Criar, agendar e delegar tarefas</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
     <div class="perm-row"><span class="perm-label">Editar identidade visual do app</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
     <div class="perm-row"><span class="perm-label">Gerenciar e justificar pontos</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-    <div class="perm-row"><span class="perm-label">Acessar integração de API</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
     <div class="perm-row"><span class="perm-label">Gerenciar validade de produtos</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
     <div class="perm-row"><span class="perm-label">Ver relatórios e histórico</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
     <div class="modal-footer">
@@ -1696,7 +1692,7 @@ function abrirPagina(id) {
   var labels = {
     'dashboard':'Dashboard','funcionarios':'Funcionários','ponto':'Controle de Ponto',
     'tarefas':'Tarefas','validade':'Validade de Produtos','cargos':'Cargos e Permissões',
-    'visual':'Identidade Visual','integracao':'Integração API','notificacoes':'Notificações',
+    'visual':'Identidade Visual','notificacoes':'Notificações',
     'owner':'Painel Owner Worka','meu-painel':'Meu Painel',
     'salarios':'Salários e Pagamentos','ausencias':'Ausências e Faltas',
     'escala':'Escala de Trabalho','relatorios':'Relatórios','mural':'Mural / Comunicados'
@@ -2195,15 +2191,7 @@ function excluirFuncionario(btn, nome) {
 // ═══════════════════════════════════
 function atualizarDocAPI() {
   var tipo = document.getElementById('tipo-sistema').value;
-  var docs = {
-    'ifood': '# iFood API\n## Autenticação: Bearer Token\n## Base URL: https://merchant-api.ifood.com.br\n## Endpoints úteis:\nGET /order/v1.0/events:polling → Pedidos em tempo real\nGET /financial/v1.0/reports → Relatório financeiro',
-    'tiny': '# Tiny ERP API\n## Autenticação: token={sua_chave}&formato=json\n## Base URL: https://api.tiny.com.br/api2\n## Endpoints:\nGET /pedidos.pesquisa → Pedidos\nGET /produtos → Estoque',
-    'bling': '# Bling API v3\n## Autenticação: Bearer Token\n## Base URL: https://www.bling.com.br/Api/v3\n## Endpoints:\nGET /pedidos/vendas → Pedidos\nGET /estoques → Estoque',
-    'woocommerce': '# WooCommerce REST API\n## Autenticação: Consumer Key + Secret (Basic Auth)\n## Base URL: https://seusite.com/wp-json/wc/v3\n## Endpoints:\nGET /orders → Pedidos\nGET /products → Produtos',
-    'shopify': '# Shopify Admin API\n## Autenticação: X-Shopify-Access-Token\n## Base URL: https://sua-loja.myshopify.com/admin/api/2024-01\n## Endpoints:\nGET /orders.json → Pedidos\nGET /products.json → Produtos',
-    'omie': '# Omie API\n## Autenticação: app_key + app_secret no body\n## Base URL: https://app.omie.com.br/api/v1\n## Endpoints:\nPOST /produtos/produto → Produtos\nPOST /financas/pesquisarlancamentos → Financeiro',
-    'generico': '# API Genérica — Worka integra com qualquer REST API\n## Formatos suportados: JSON\n## Autenticação: Bearer, API-Key, Basic Auth ou header customizado\n## O Worka detecta automaticamente campos como:\n- total, value, amount → Faturamento\n- quantity, stock → Estoque\n- orders, pedidos → Pedidos'
-  };
+  var docs = {};
   var doc = document.getElementById('doc-api-content');
   if(doc && docs[tipo]) doc.textContent = docs[tipo];
 }
@@ -2281,6 +2269,53 @@ function inicializarApp() {
   var prevLetraEl = document.getElementById('preview-letra');
   if(prevLetraEl && usuarioAtual) prevLetraEl.textContent = usuarioAtual.avatar;
 }
+
+
+// ═══════════════════════════════════
+// VERIFICAÇÃO DE TRIAL
+// ═══════════════════════════════════
+function verificarTrial() {
+  var trial = localStorage.getItem('worka_trial');
+  if (!trial) return; // Sem trial = assinante pago, deixa passar
+
+  try {
+    var t = JSON.parse(trial);
+    var agora = Date.now();
+    var diasRestantes = Math.ceil((t.fim - agora) / (1000 * 60 * 60 * 24));
+
+    if (agora > t.fim) {
+      // Trial expirado — mostrar modal de renovação
+      mostrarModalTrialExpirado(t.nome);
+    } else if (diasRestantes <= 2) {
+      // Aviso de trial prestes a expirar
+      mostrarAvisoTrial(diasRestantes);
+    }
+  } catch(e) {}
+}
+
+function mostrarAvisoTrial(dias) {
+  var aviso = document.createElement('div');
+  aviso.style.cssText = 'position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:9000;background:#fffbeb;border:1.5px solid #f59e0b;border-radius:10px;padding:10px 16px;font-size:.78rem;color:#92400e;display:flex;align-items:center;gap:8px;max-width:360px;width:90%;box-shadow:0 4px 12px rgba(0,0,0,.1)';
+  aviso.innerHTML = '⏰ <span>Seu trial expira em <strong>' + dias + ' dia' + (dias > 1 ? 's' : '') + '</strong>. <a href="' + (window.location.href.replace('worka-app.html','worka.html')) + '" style="color:#1e8a40;font-weight:700">Assinar agora →</a></span><button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:#92400e;margin-left:auto">✕</button>';
+  document.body.appendChild(aviso);
+  setTimeout(() => { if(aviso.parentElement) aviso.remove(); }, 8000);
+}
+
+function mostrarModalTrialExpirado(nome) {
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(10,46,26,.85);display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = '<div style="background:white;border-radius:20px;padding:36px 28px;max-width:380px;width:100%;text-align:center">' +
+    '<div style="font-size:2.5rem;margin-bottom:12px">⏰</div>' +
+    '<div style="font-family:Syne,sans-serif;font-size:1.2rem;font-weight:800;color:#0a2e1a;margin-bottom:8px">Trial expirado, ' + (nome ? nome.split(' ')[0] : '') + '!</div>' +
+    '<p style="font-size:.85rem;color:#6b7068;line-height:1.6;margin-bottom:20px">Seu período gratuito de 7 dias terminou.<br>Assine por apenas <strong>R$ 24,90/mês</strong> para continuar usando o Worka.</p>' +
+    '<a href="worka.html" style="display:block;width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;text-decoration:none;text-align:center;margin-bottom:10px">💳 Renovar agora — R$ 24,90/mês</a>' +
+    '<button onclick="localStorage.removeItem('worka_trial');this.closest('div[style*=fixed]').remove()" style="width:100%;background:none;border:1.5px solid #eff0ef;color:#6b7068;padding:11px;border-radius:10px;font-size:.82rem;font-weight:600;cursor:pointer;font-family:Inter,sans-serif">Sair</button>' +
+  '</div>';
+  document.body.appendChild(overlay);
+}
+
+// Verificar trial ao carregar
+setTimeout(verificarTrial, 1500);
 
 // Fechar sidebar clicando fora no mobile
 document.addEventListener('click',function(e){
@@ -2388,7 +2423,6 @@ var WER_SISTEMA = `Você é o Wer, assistente de IA da plataforma Worka. Worka �
 Você ajuda os usuários a:
 - Navegar e usar todos os recursos do Worka
 - Gerenciar funcionários, ponto, tarefas, salários, ausências e validade de produtos
-- Entender relatórios e integração com APIs externas
 - Resolver dúvidas sobre o sistema
 - Sugerir melhores práticas de gestão de equipe
 - Executar ações no sistema quando solicitado
@@ -2518,8 +2552,7 @@ function verificarNavegacaoWer(resposta, pergunta) {
     'salário': 'salarios', 'ausência': 'ausencias', 'falta': 'ausencias',
     'validade': 'validade', 'produto': 'validade', 'escala': 'escala',
     'relatório': 'relatorios', 'mural': 'mural', 'comunicado': 'mural',
-    'cargo': 'cargos', 'permissão': 'cargos', 'integração': 'integracao',
-    'api': 'integracao', 'visual': 'visual', 'cor': 'visual', 'logo': 'visual',
+    'cargo': 'cargos', 'permissão': 'cargos', 'visual': 'visual', 'cor': 'visual', 'logo': 'visual',
     'notificação': 'notificacoes', 'dashboard': 'dashboard'
   };
   for (var chave in navegacoes) {
