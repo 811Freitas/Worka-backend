@@ -832,7 +832,7 @@
         🚀 Começar 7 dias grátis
       </button>
       <button onclick="mostrarStep('form')" style="width:100%;background:none;border:1.5px solid #eff0ef;color:#6b7068;padding:12px;border-radius:10px;font-size:.85rem;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif">
-        Prefiro assinar agora (R$ 24,90/mês)
+        💳 Prefiro assinar agora (R$ 24,90/mês)
       </button>
     </div>
 
@@ -944,13 +944,13 @@
   #btn-gerar:hover { background: #25b251; }
 </style>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" onerror="console.warn('QRCode CDN falhou')"></script>
 <script>
 // ⚠️ Após o deploy, substitua pela URL real da sua Edge Function
 // Formato: https://worka-backend-awng.onrender.com/pix
-const BACKEND_URL = "https://worka-backend-awng.onrender.com/pix";
-let pollingInterval = null;
-let pollingTimeout  = null;
+var BACKEND_URL = "https://worka-backend-awng.onrender.com/pix";
+var pollingInterval = null;
+var pollingTimeout  = null;
 
 // ── Abrir / fechar modal ──────────────────────────────────────
 function abrirCheckout() {
@@ -987,7 +987,7 @@ document.getElementById('checkout-overlay').addEventListener('click', function(e
 
 // ── Máscaras ──────────────────────────────────────────────────
 function mascaraDoc(el) {
-  let v = el.value.replace(/\D/g,'');
+  var v = el.value.replace(/\D/g,'');
   if (v.length <= 11) {
     v = v.replace(/(\d{3})(\d)/,'$1.$2')
          .replace(/(\d{3})(\d)/,'$1.$2')
@@ -1001,7 +1001,7 @@ function mascaraDoc(el) {
   el.value = v;
 }
 function mascaraTel(el) {
-  let v = el.value.replace(/\D/g,'');
+  var v = el.value.replace(/\D/g,'');
   if (v.length <= 10)
     v = v.replace(/(\d{2})(\d{4})(\d{0,4})/,'($1) $2-$3');
   else
@@ -1044,11 +1044,11 @@ async function iniciarTrial(nome, email) {
 }
 
 async function gerarPix() {
-  const nome  = document.getElementById('f-nome').value.trim();
-  const doc   = apenasDigitos(document.getElementById('f-doc').value);
-  const email = document.getElementById('f-email').value.trim();
-  const tel   = apenasDigitos(document.getElementById('f-tel').value);
-  const erro  = document.getElementById('form-erro');
+  var nome  = document.getElementById('f-nome').value.trim();
+  var doc   = apenasDigitos(document.getElementById('f-doc').value);
+  var email = document.getElementById('f-email').value.trim();
+  var tel   = apenasDigitos(document.getElementById('f-tel').value);
+  var erro  = document.getElementById('form-erro');
 
   // Validação
   if (!nome)                          { mostrarErro('Informe seu nome completo ou empresa.'); return; }
@@ -1057,7 +1057,7 @@ async function gerarPix() {
   if (tel.length < 10 || tel.length > 11) { mostrarErro('Informe um telefone válido com DDD.'); return; }
 
   erro.style.display = 'none';
-  const btn = document.getElementById('btn-gerar');
+  var btn = document.getElementById('btn-gerar');
   btn.disabled = true;
   btn.innerHTML = '<span style="animation:spin 1s linear infinite;display:inline-block;">⏳</span> Enviando código...';
 
@@ -1066,12 +1066,12 @@ async function gerarPix() {
 
   // Enviar código de verificação
   try {
-    const res = await fetch(BACKEND_URL.replace('/pix','/enviar-codigo'), {
+    var res = await fetch(BACKEND_URL.replace('/pix','/enviar-codigo'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: nome, email: email })
     });
-    const data = await res.json();
+    var data = await res.json();
     if (!res.ok) {
       mostrarErro('Erro ao enviar código: ' + (data.error || res.status));
       btn.disabled = false;
@@ -1094,25 +1094,25 @@ async function gerarPix() {
 }
 
 async function confirmarCodigo() {
-  const codigo = document.getElementById('f-codigo').value.trim();
-  const erroEl = document.getElementById('verify-erro');
+  var codigo = document.getElementById('f-codigo').value.trim();
+  var erroEl = document.getElementById('verify-erro');
   if (codigo.length !== 6) {
     erroEl.textContent = 'Digite o código de 6 dígitos.';
     erroEl.style.display = 'block';
     return;
   }
   erroEl.style.display = 'none';
-  const btn = document.getElementById('btn-confirmar');
+  var btn = document.getElementById('btn-confirmar');
   btn.disabled = true;
   btn.textContent = '⏳ Verificando...';
 
   try {
-    const res = await fetch(BACKEND_URL.replace('/pix','/verificar-codigo'), {
+    var res = await fetch(BACKEND_URL.replace('/pix','/verificar-codigo'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: dadosFormulario.email, codigo: codigo })
     });
-    const data = await res.json();
+    var data = await res.json();
     if (!res.ok) {
       erroEl.textContent = data.error || 'Código inválido.';
       erroEl.style.display = 'block';
@@ -1132,7 +1132,7 @@ async function confirmarCodigo() {
 }
 
 async function reenviarCodigo() {
-  const btn = document.getElementById('btn-reenviar');
+  var btn = document.getElementById('btn-reenviar');
   btn.disabled = true;
   try {
     await fetch(BACKEND_URL.replace('/pix','/enviar-codigo'), {
@@ -1146,12 +1146,12 @@ async function reenviarCodigo() {
 }
 
 function iniciarTimerReenvio() {
-  const timer = document.getElementById('reenviar-timer');
-  const btnR = document.getElementById('btn-reenviar');
+  var timer = document.getElementById('reenviar-timer');
+  var btnR = document.getElementById('btn-reenviar');
   btnR.style.display = 'none';
   timer.style.display = 'block';
-  let seg = 60;
-  const iv = setInterval(function() {
+  var seg = 60;
+  var iv = setInterval(function() {
     seg--;
     timer.textContent = 'Reenviar em ' + seg + 's';
     if (seg <= 0) {
@@ -1163,8 +1163,8 @@ function iniciarTimerReenvio() {
 }
 
 async function gerarPixReal() {
-  const utm = dadosFormulario.utm || '';
-  const body = {
+  var utm = dadosFormulario.utm || '';
+  var body = {
     name: dadosFormulario.name,
     document: dadosFormulario.document,
     email: dadosFormulario.email,
@@ -1172,19 +1172,19 @@ async function gerarPixReal() {
     utm: utm
   };
 
-  let tentativas = 0;
-  let resposta = null;
+  var tentativas = 0;
+  var resposta = null;
 
   while (tentativas < 3) {
     try {
-      const res = await fetch(BACKEND_URL, {
+      var res = await fetch(BACKEND_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
       if (res.ok) { resposta = await res.json(); break; }
       if (res.status >= 400 && res.status < 500) {
-        const err = await res.json().catch(() => ({}));
+        var err = await res.json().catch(() => ({}));
         mostrarErro('Erro gateway: ' + JSON.stringify(err));
         btn.disabled = false;
         btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
@@ -1203,17 +1203,17 @@ async function gerarPixReal() {
   }
 
   // Exibir QR Code
-  const { pixCode, transactionId } = resposta;
+  var { pixCode, transactionId } = resposta;
   document.getElementById('pix-code-txt').textContent = pixCode;
   document.getElementById('qrcode').innerHTML = '';
-  new QRCode(document.getElementById('qrcode'), {
+  if (typeof QRCode !== 'undefined') { new QRCode(document.getElementById('qrcode'), {
     text: pixCode,
     width: 196,
     height: 196,
     colorDark: '#0a2e1a',
     colorLight: '#ffffff',
-    correctLevel: QRCode.CorrectLevel.M
-  });
+    correctLevel: QRCode.CorrectLevel ? QRCode.CorrectLevel.M : 1
+  }); }
 
   mostrarStep('pix');
   iniciarPolling(transactionId);
@@ -1224,9 +1224,9 @@ function iniciarPolling(transactionId) {
   pararPolling();
   pollingInterval = setInterval(async () => {
     try {
-      const res = await fetch(BACKEND_URL + '?transactionId=' + encodeURIComponent(transactionId));
+      var res = await fetch(BACKEND_URL + '?transactionId=' + encodeURIComponent(transactionId));
       if (!res.ok) return;
-      const data = await res.json();
+      var data = await res.json();
       if (data.status === 'COMPLETED') {
         pararPolling();
         mostrarStep('ok');
@@ -1251,14 +1251,14 @@ function pararPolling() {
 
 // ── Helpers ───────────────────────────────────────────────────
 function mostrarErro(msg) {
-  const el = document.getElementById('form-erro');
+  var el = document.getElementById('form-erro');
   el.textContent = msg;
   el.style.display = 'block';
 }
 function copiarPix() {
-  const code = document.getElementById('pix-code-txt').textContent;
+  var code = document.getElementById('pix-code-txt').textContent;
   navigator.clipboard.writeText(code).then(() => {
-    const btn = event.target;
+    var btn = event.target;
     btn.textContent = 'Copiado! ✓';
     btn.style.background = '#16622f';
     setTimeout(() => { btn.textContent = 'Copiar'; btn.style.background = '#1e8a40'; }, 2000);
@@ -1266,30 +1266,16 @@ function copiarPix() {
 }
 
 function escolherPlano() {
-  var nome = document.getElementById('nome').value.trim();
-  var email = document.getElementById('email').value.trim();
-  var doc = document.getElementById('documento').value.trim();
-  
-  if (!nome || !email) {
-    mostrarErro('Preencha nome e e-mail para continuar!');
-    return;
-  }
-  
-  // Mostrar opções: trial grátis ou assinar agora
-  var step = document.getElementById('step-dados');
-  if (step) step.style.display = 'none';
-  
-  // Mostrar step de trial
+  var nome = ((document.getElementById('f-nome')||{}).value||'').trim();
+  var email = ((document.getElementById('f-email')||{}).value||'').trim();
+  if (!nome||!email){mostrarErro('Preencha nome e e-mail!');return;}
   mostrarStep('trial');
-  
-  // Preencher nome
-  var nomeEl = document.getElementById('trial-nome-dest');
-  if (nomeEl) nomeEl.textContent = nome.split(' ')[0];
+  var n=document.getElementById('trial-nome-dest');if(n)n.textContent=nome.split(' ')[0];
 }
 
 async function ativarTrialGratis() {
-  var nome = document.getElementById('nome').value.trim();
-  var email = document.getElementById('email').value.trim();
+  var nome = ((document.getElementById('f-nome') || {}).value || '').trim();
+  var email = ((document.getElementById('f-email') || {}).value || '').trim();
   
   var btn = document.getElementById('btn-trial');
   if (btn) { btn.textContent = '⏳ Ativando...'; btn.disabled = true; }
@@ -1314,7 +1300,9 @@ async function ativarTrialGratis() {
     if (!data.ok) throw new Error(data.error || 'Erro');
   } catch(e) {
     if (btn) { btn.textContent = '🚀 Começar 7 dias grátis'; btn.disabled = false; }
-    mostrarErro('Erro ao enviar código: ' + e.message);
+    var errEl = document.getElementById('trial-verify-erro');
+    if (errEl) { errEl.style.display='block'; errEl.textContent = 'Erro: ' + e.message; }
+    else alert('Erro: ' + e.message);
     return;
   }
   
@@ -1328,8 +1316,8 @@ async function ativarTrialGratis() {
 }
 
 async function confirmarTrialCodigo() {
-  var codigo = document.getElementById('codigo').value.trim();
-  var email = document.getElementById('email').value.trim();
+  var codigo = ((document.getElementById('trial-codigo') || {}).value || '').trim();
+  var email = ((document.getElementById('f-email') || {}).value || '').trim();
   
   if (codigo.length !== 6) {
     mostrarErro('Digite o código de 6 dígitos!');
