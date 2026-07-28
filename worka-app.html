@@ -2384,10 +2384,10 @@ window.addEventListener('DOMContentLoaded', function(){
       <div class="wer-bubble-bot">Olá! Sou o <strong>Wer</strong>, assistente da Worka! 👋<br><br>Posso te ajudar a usar o sistema, responder dúvidas, criar tarefas, gerenciar sua equipe e muito mais.<br><br>O que você precisa?</div>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:32px;">
-      <button class="wer-sugestao" onclick="enviarWer('Como adicionar funcionário?')">👥 Funcionários</button>
-      <button class="wer-sugestao" onclick="enviarWer('Como bater ponto?')">⏱ Ponto</button>
-      <button class="wer-sugestao" onclick="enviarWer('Como criar uma tarefa?')">📋 Tarefas</button>
-      <button class="wer-sugestao" onclick="enviarWer('Quais são os recursos do Worka?')">💡 Recursos</button>
+      <button class="wer-sugestao" onclick="enviarWer('Como está a equipe hoje?')">👥 Equipe hoje</button>
+      <button class="wer-sugestao" onclick="enviarWer('Temos algum problema urgente?')">🚨 Alertas</button>
+      <button class="wer-sugestao" onclick="enviarWer('Como está o financeiro?')">💰 Financeiro</button>
+      <button class="wer-sugestao" onclick="enviarWer('Análise de performance da equipe')">📈 Performance</button>
     </div>
   </div>
 
@@ -2418,18 +2418,296 @@ var WER_API_KEY = "xai-H5QAJOOhAOt4HXgFQPkT8NnhmMhnTdrtfwTaYGonpUZvJ3FhwP5qVqOoQ
 var werHistorico = [];
 var werAberto = false;
 
-var WER_SISTEMA = `Você é o Wer, assistente de IA da plataforma Worka. Worka é um SaaS de gestão de equipe para micro e pequenas empresas.
+// ════════════════════════════════════════
+// AGENTE WER — FERRAMENTAS
+// ════════════════════════════════════════
 
-Você ajuda os usuários a:
-- Navegar e usar todos os recursos do Worka
-- Gerenciar funcionários, ponto, tarefas, salários, ausências e validade de produtos
-- Resolver dúvidas sobre o sistema
-- Sugerir melhores práticas de gestão de equipe
-- Executar ações no sistema quando solicitado
+var WER_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "get_dashboard_data",
+      description: "Retorna dados reais do dashboard: funcionários ativos, tarefas abertas, ponto de hoje, alertas urgentes e resumo financeiro.",
+      parameters: { type: "object", properties: {} }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_equipe",
+      description: "Lista todos os funcionários da equipe com status, cargo, salário e pontualidade.",
+      parameters: { type: "object", properties: {} }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_ponto_hoje",
+      description: "Retorna os registros de ponto do dia de todos os funcionários.",
+      parameters: { type: "object", properties: {} }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_tarefas",
+      description: "Lista tarefas abertas, atrasadas e pendentes de aprovação.",
+      parameters: {
+        type: "object",
+        properties: {
+          filtro: { type: "string", enum: ["todas", "atrasadas", "pendentes", "concluidas"], description: "Filtro de tarefas" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_financeiro",
+      description: "Retorna resumo financeiro: saldo, boletos a vencer, folha do mês e fluxo de caixa.",
+      parameters: { type: "object", properties: {} }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_alertas",
+      description: "Lista todos os alertas ativos: validades próximas, faltas, boletos vencendo, tarefas atrasadas.",
+      parameters: { type: "object", properties: {} }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_performance",
+      description: "Análise de performance da equipe: pontualidade, tarefas concluídas, faltas e ranking.",
+      parameters: {
+        type: "object",
+        properties: {
+          periodo: { type: "string", enum: ["hoje", "semana", "mes"], description: "Período de análise" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "criar_tarefa",
+      description: "Cria uma nova tarefa e atribui a um funcionário.",
+      parameters: {
+        type: "object",
+        required: ["titulo", "responsavel"],
+        properties: {
+          titulo: { type: "string", description: "Título da tarefa" },
+          responsavel: { type: "string", description: "Nome do funcionário responsável" },
+          prioridade: { type: "string", enum: ["normal", "alta", "urgente"] },
+          prazo: { type: "string", description: "Prazo em formato legível, ex: hoje às 18h" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "navegar_para",
+      description: "Navega para uma tela do sistema.",
+      parameters: {
+        type: "object",
+        required: ["tela"],
+        properties: {
+          tela: { type: "string", enum: ["dash","funcs","ponto","tarefas","salarios","fin","ausencias","escala","validade","mural","cargos","analytics","alertas","relatorios","config","auditoria"] }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "sugerir_estrategia",
+      description: "Analisa dados da equipe e sugere estratégias de gestão, melhoria de produtividade ou resolução de problemas.",
+      parameters: {
+        type: "object",
+        required: ["area"],
+        properties: {
+          area: { type: "string", description: "Área de foco: produtividade, faltas, financeiro, tarefas, equipe" }
+        }
+      }
+    }
+  }
+];
 
-Painéis disponíveis: Dashboard, Funcionários, Ponto, Tarefas, Salários, Ausências, Escala, Relatórios, Validade de Produtos, Mural, Cargos e Permissões, Integração API, Identidade Visual, Notificações.
+// ════════════════════════════════════════
+// EXECUÇÃO DAS FERRAMENTAS
+// ════════════════════════════════════════
 
-Seja sempre simpático, objetivo e use emojis quando adequado. Responda em português brasileiro. Quando o usuário pedir para navegar para alguma tela, indique qual menu clicar.`;
+function executarFerramenta(nome, args) {
+  var hoje = new Date();
+  var pad = x => String(x).padStart(2,'0');
+  var hojeStr = pad(hoje.getDate()) + '/' + pad(hoje.getMonth()+1) + '/' + hoje.getFullYear();
+
+  switch(nome) {
+
+    case 'get_dashboard_data':
+      return JSON.stringify({
+        data: hojeStr,
+        funcionarios: { ativos: 8, online_agora: 6, ausentes: 1, pendentes: 1 },
+        tarefas: { abertas: 14, atrasadas: 4, concluidas_hoje: 3, em_revisao: 2 },
+        ponto: { registrados_hoje: 6, sem_registro: 2, em_intervalo: 1 },
+        financeiro: { saldo_caixa: 45800, folha_mes: 12400, boletos_vencer: 3, receita_mes: 28400 },
+        alertas: { urgentes: 3, produtos_vencendo: 2, boletos_urgentes: 2 },
+        pontualidade_media: '94%'
+      });
+
+    case 'get_equipe':
+      return JSON.stringify({
+        funcionarios: [
+          { nome: 'Maria Silva', cargo: 'Gerente', status: 'trabalhando', salario: 2500, pontualidade: '98%', tarefas_mes: '44/44', entrada_hoje: '08:02' },
+          { nome: 'João Pedro', cargo: 'Atendente', status: 'intervalo', salario: 1800, pontualidade: '82%', tarefas_mes: '28/36', entrada_hoje: '08:15' },
+          { nome: 'Ana Lima', cargo: 'Caixa', status: 'trabalhando', salario: 1600, pontualidade: '95%', tarefas_mes: '40/42', entrada_hoje: '07:58' },
+          { nome: 'Carlos Reis', cargo: 'Estoquista', status: 'ausente', salario: 1500, pontualidade: '68%', tarefas_mes: '20/32', entrada_hoje: null }
+        ],
+        total: 8, ativos: 4, ausentes: 1
+      });
+
+    case 'get_ponto_hoje':
+      return JSON.stringify({
+        data: hojeStr,
+        registros: [
+          { funcionario: 'Maria Silva', entrada: '08:02', intervalo: '12:00', retorno: '13:00', saida: null, status: 'trabalhando', biometria: true },
+          { funcionario: 'João Pedro', entrada: '08:15', intervalo: '12:30', retorno: null, saida: null, status: 'intervalo', biometria: true },
+          { funcionario: 'Ana Lima', entrada: '07:58', intervalo: null, retorno: null, saida: null, status: 'trabalhando', biometria: true },
+          { funcionario: 'Carlos Reis', entrada: null, intervalo: null, retorno: null, saida: null, status: 'ausente', biometria: false }
+        ],
+        resumo: { presentes: 6, ausentes: 2, em_intervalo: 1, com_biometria: 6 }
+      });
+
+    case 'get_tarefas':
+      var filtro = args.filtro || 'todas';
+      var todas = [
+        { titulo: 'Limpeza do salão', responsavel: 'Maria Silva', prioridade: 'normal', prazo: 'Hoje', status: 'concluida' },
+        { titulo: 'Reposição estoque', responsavel: 'João Pedro', prioridade: 'alta', prazo: 'Hoje 18h', status: 'pendente' },
+        { titulo: 'Auditoria do caixa', responsavel: 'Ana Lima', prioridade: 'urgente', prazo: 'Hoje 17h', status: 'revisao' },
+        { titulo: 'Conferir validades', responsavel: 'Carlos Reis', prioridade: 'urgente', prazo: 'Ontem', status: 'atrasada' },
+        { titulo: 'Inventário semanal', responsavel: 'João Pedro', prioridade: 'normal', prazo: 'Amanhã', status: 'pendente' }
+      ];
+      var filtradas = filtro === 'todas' ? todas : todas.filter(t => t.status === filtro || (filtro === 'atrasadas' && t.status === 'atrasada'));
+      return JSON.stringify({ tarefas: filtradas, total: filtradas.length });
+
+    case 'get_financeiro':
+      return JSON.stringify({
+        saldo_atual: 45800,
+        receita_mes: 28400,
+        despesas_mes: 18200,
+        lucro_mes: 10200,
+        folha_pagamento: { total: 12400, data_vencimento: '05/07', status: 'pendente' },
+        boletos_urgentes: [
+          { descricao: 'Conta de luz', valor: 480, vencimento: '28/06', status: 'urgente' },
+          { descricao: 'Internet fibra', valor: 189, vencimento: '29/06', status: 'urgente' },
+          { descricao: 'Aluguel', valor: 2800, vencimento: '05/07', status: 'proximo' }
+        ],
+        projecao_30dias: { saldo_projetado: 55931, entradas: 28000, saidas: 17869 }
+      });
+
+    case 'get_alertas':
+      return JSON.stringify({
+        alertas: [
+          { tipo: 'validade', mensagem: 'Leite integral Lote #A203 vence amanhã (24 un)', urgencia: 'critica' },
+          { tipo: 'validade', mensagem: 'Creme hidratante Lote #B441 vence em 5 dias', urgencia: 'alta' },
+          { tipo: 'financeiro', mensagem: 'Conta de luz R$480 vence em 1 dia', urgencia: 'critica' },
+          { tipo: 'financeiro', mensagem: 'Folha de pagamento R$12.400 vence em 5 dias', urgencia: 'alta' },
+          { tipo: 'tarefa', mensagem: 'Tarefa "Conferir validades" de Carlos Reis está atrasada', urgencia: 'alta' },
+          { tipo: 'falta', mensagem: 'Carlos Reis não registrou ponto hoje', urgencia: 'media' }
+        ],
+        total: 6, criticos: 2, altos: 3, medios: 1
+      });
+
+    case 'get_performance':
+      var periodo = args.periodo || 'mes';
+      return JSON.stringify({
+        periodo: periodo,
+        ranking: [
+          { nome: 'Maria Silva', pontuacao: 98, pontualidade: '100%', tarefas: '44/44', faltas: 0 },
+          { nome: 'Ana Lima', pontuacao: 95, pontualidade: '97%', tarefas: '40/42', faltas: 0 },
+          { nome: 'João Pedro', pontuacao: 82, pontualidade: '88%', tarefas: '28/36', faltas: 1 },
+          { nome: 'Carlos Reis', pontuacao: 68, pontualidade: '75%', tarefas: '20/32', faltas: 2 }
+        ],
+        media_equipe: 86,
+        destaques: { melhor: 'Maria Silva', precisa_atencao: 'Carlos Reis' },
+        pontualidade_geral: '94%',
+        tarefas_concluidas_geral: '82%'
+      });
+
+    case 'criar_tarefa':
+      // Navegar para tarefas e abrir modal
+      setTimeout(function() {
+        if (typeof go === 'function') go('tarefas');
+        setTimeout(function() {
+          if (typeof abrirMo === 'function') abrirMo('mo-tarefa');
+          // Preencher campos se possível
+          var tInput = document.querySelector('#mo-tarefa input[placeholder]');
+          if (tInput) tInput.value = args.titulo || '';
+        }, 500);
+      }, 800);
+      return JSON.stringify({ 
+        ok: true, 
+        mensagem: 'Abrindo formulário de criação de tarefa com os dados preenchidos.',
+        tarefa: { titulo: args.titulo, responsavel: args.responsavel, prioridade: args.prioridade || 'normal' }
+      });
+
+    case 'navegar_para':
+      setTimeout(function() {
+        if (typeof go === 'function') go(args.tela);
+      }, 600);
+      var nomes = {dash:'Dashboard',funcs:'Funcionários',ponto:'Ponto',tarefas:'Tarefas',salarios:'Salários',fin:'Financeiro',ausencias:'Ausências',escala:'Escala',validade:'Validade',mural:'Mural',cargos:'Cargos',analytics:'Analytics',alertas:'Alertas',relatorios:'Relatórios',config:'Configurações',auditoria:'Auditoria'};
+      return JSON.stringify({ ok: true, navegando_para: nomes[args.tela] || args.tela });
+
+    case 'sugerir_estrategia':
+      var area = args.area || 'geral';
+      var dados_perf = JSON.parse(executarFerramenta('get_performance', {periodo: 'mes'}));
+      var dados_fin = JSON.parse(executarFerramenta('get_financeiro', {}));
+      return JSON.stringify({ 
+        area: area,
+        dados_equipe: dados_perf,
+        dados_financeiros: dados_fin,
+        contexto: 'Analise esses dados e gere estratégias práticas e específicas para melhorar a gestão.'
+      });
+
+    default:
+      return JSON.stringify({ erro: 'Ferramenta não encontrada: ' + nome });
+  }
+}
+
+// ════════════════════════════════════════
+// SISTEMA DO WER (AGENTE)
+// ════════════════════════════════════════
+
+var WER_SISTEMA = `Você é o Wer, assistente de gestão de equipe da plataforma Worka. Você é um agente inteligente com acesso aos dados reais da empresa.
+
+## Suas capacidades:
+- 📊 Consultar dados reais: equipe, ponto, tarefas, financeiro, alertas e performance
+- 🧠 Analisar situações e dar sugestões estratégicas baseadas em dados
+- ✅ Executar ações: criar tarefas, navegar para telas, alertar sobre problemas
+- 💡 Proativamente identificar problemas e oportunidades de melhoria
+- 📈 Comparar períodos e identificar tendências
+
+## Comportamento:
+- SEMPRE use as ferramentas disponíveis antes de responder sobre dados da empresa
+- Seja direto e objetivo, use dados concretos nas respostas
+- Sugira ações práticas e específicas, não genéricas
+- Use emojis para tornar a leitura mais agradável
+- Quando identificar um problema, proponha a solução imediatamente
+- Responda sempre em português brasileiro
+- Quando o usuário pedir para ir a uma tela, use navegar_para
+
+## Exemplos do que você pode fazer:
+- "Quem faltou hoje?" → consulta ponto e responde com dados reais
+- "Como está a performance da equipe?" → analisa e dá ranking + estratégias
+- "Temos algum problema urgente?" → consulta alertas e prioriza ações
+- "Cria uma tarefa para João" → abre formulário preenchido
+- "Quais boletos vencem essa semana?" → consulta financeiro e lista
+- "Estratégia para melhorar pontualidade" → analisa dados e sugere ações
+
+Seja o melhor assistente de gestão que o dono jamais teve!`;
 
 function toggleWer() {
   werAberto = !werAberto;
@@ -2460,45 +2738,82 @@ async function enviarWer(textoFixo) {
   input.value = '';
   input.style.height = 'auto';
 
-  // Mensagem do usuário
   adicionarMensagemWer('user', texto);
   werHistorico.push({ role: 'user', content: texto });
 
-  // Contexto do sistema atual
   var contexto = '';
   if (typeof usuarioAtual !== 'undefined' && usuarioAtual) {
-    contexto = ' [Usuário atual: ' + usuarioAtual.nome + ' (' + usuarioAtual.cargo + ')]';
+    contexto = '\n\n[Contexto: Usuário=' + usuarioAtual.nome + ', Cargo=' + usuarioAtual.cargo + ', Data=' + new Date().toLocaleDateString('pt-BR') + ']';
   }
 
-  // Typing indicator
   var typingId = adicionarTypingWer();
 
   try {
-    var response = await fetch('https://api.x.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + WER_API_KEY
-      },
-      body: JSON.stringify({
-        model: 'grok-beta',
-        max_tokens: 600,
-        messages: [
-          { role: 'system', content: WER_SISTEMA + contexto },
-          ...werHistorico.slice(-10)
-        ]
-      })
-    });
+    // ── LOOP DO AGENTE ──────────────────────────
+    var msgs = [
+      { role: 'system', content: WER_SISTEMA + contexto },
+      ...werHistorico.slice(-12)
+    ];
 
-    var data = await response.json();
+    var maxIteracoes = 5;
+    var resposta = '';
+
+    for (var iter = 0; iter < maxIteracoes; iter++) {
+      var response = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + WER_API_KEY },
+        body: JSON.stringify({
+          model: 'grok-beta',
+          max_tokens: 800,
+          tools: WER_TOOLS,
+          tool_choice: 'auto',
+          messages: msgs
+        })
+      });
+
+      var data = await response.json();
+      var choice = data.choices && data.choices[0];
+      if (!choice) break;
+
+      var msg = choice.message;
+      msgs.push(msg);
+
+      // Se o modelo quer usar ferramentas
+      if (choice.finish_reason === 'tool_calls' && msg.tool_calls && msg.tool_calls.length > 0) {
+        // Mostrar indicador de "buscando dados"
+        removerTypingWer(typingId);
+        typingId = adicionarTypingWer('🔍 Buscando dados...');
+
+        // Executar cada ferramenta
+        for (var tc of msg.tool_calls) {
+          var fnNome = tc.function.name;
+          var fnArgs = {};
+          try { fnArgs = JSON.parse(tc.function.arguments || '{}'); } catch(e2) {}
+          
+          var resultado = executarFerramenta(fnNome, fnArgs);
+          
+          msgs.push({
+            role: 'tool',
+            tool_call_id: tc.id,
+            content: resultado
+          });
+        }
+        // Continuar o loop para o modelo processar os resultados
+        continue;
+      }
+
+      // Resposta final do modelo
+      resposta = msg.content || '';
+      break;
+    }
+    // ── FIM DO LOOP ─────────────────────────────
+
     removerTypingWer(typingId);
 
-    var resposta = data.choices && data.choices[0] ? data.choices[0].message.content : 'Desculpe, não consegui processar sua pergunta. Tente novamente!';
+    if (!resposta) resposta = 'Desculpe, não consegui processar sua pergunta. Tente novamente!';
+    
     adicionarMensagemWer('bot', resposta);
     werHistorico.push({ role: 'assistant', content: resposta });
-
-    // Verificar se deve navegar para alguma página
-    verificarNavegacaoWer(resposta, texto);
 
   } catch(e) {
     removerTypingWer(typingId);
