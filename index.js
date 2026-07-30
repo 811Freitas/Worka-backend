@@ -451,40 +451,63 @@ function gerarTeamId() {
 
 // ════════════════════════════════════════
 // ARMAZENAMENTO SEGURO DE CÓDIGOS OTP
-// (em produção: usar Redis com TTL)
+// (Render free reinicia a instância por inatividade — um Map() em
+// memória perderia todo código pendente nesse restart, forçando o
+// usuário a recomeçar o cadastro no meio. Persistido em
+// codigos_verificacao para sobreviver a isso.)
 // ════════════════════════════════════════
-var otpStore = new Map();
 
-function salvarOTP(email, codigo) {
-  // Hash do código para não armazenar em plaintext
+async function salvarOTP(email, codigo) {
+  // Hash do código para nunca armazenar em plaintext — mesma
+  // disciplina da versão em memória, agora persistida.
   var hash = crypto.createHash("sha256").update(codigo + email).digest("hex");
-  otpStore.set(email, {
-    hash,
-    expira: Date.now() + 10 * 60 * 1000, // 10 min
-    tentativas: 0
+  var expiraEm = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 min
+
+  // Invalida qualquer código anterior não usado para este email antes
+  // de criar um novo, para não deixar múltiplos códigos válidos ao
+  // mesmo tempo (cada "reenviar código" deveria matar o anterior).
+  await supabase("PATCH", "codigos_verificacao",
+    { query: `email=eq.${encodeURIComponent(email)}&usado=is.false`, body: { usado: true } }
+  ).catch(() => {});
+
+  await supabase("POST", "codigos_verificacao", {
+    body: { email, codigo_hash: hash, expira_em: expiraEm, usado: false, tentativas: 0 }
   });
 }
 
-function verificarOTP(email, codigo) {
-  var entry = otpStore.get(email);
+async function verificarOTP(email, codigo) {
+  var result = await supabase("GET", "codigos_verificacao",
+    { query: `email=eq.${encodeURIComponent(email)}&usado=is.false&order=created_at.desc&limit=1` }
+  ).catch(() => ({ body: [] }));
+
+  var entry = result.body && result.body[0];
   if (!entry) return { ok: false, erro: "Código não encontrado" };
-  if (Date.now() > entry.expira) {
-    otpStore.delete(email);
+
+  if (new Date(entry.expira_em).getTime() < Date.now()) {
+    await supabase("PATCH", "codigos_verificacao", { query: `id=eq.${entry.id}`, body: { usado: true } }).catch(() => {});
     return { ok: false, erro: "Código expirado" };
   }
-  // Máximo 5 tentativas (anti brute force)
-  entry.tentativas++;
-  if (entry.tentativas > 5) {
-    otpStore.delete(email);
+
+  // Máximo 5 tentativas (anti brute force) — mesmo limite da versão anterior
+  var tentativas = (entry.tentativas || 0) + 1;
+  if (tentativas > 5) {
+    await supabase("PATCH", "codigos_verificacao", { query: `id=eq.${entry.id}`, body: { usado: true } }).catch(() => {});
     secLog("otp_brute_force", { email_hash: crypto.createHash("sha256").update(email).digest("hex").substring(0, 8) });
     return { ok: false, erro: "Muitas tentativas. Solicite um novo código." };
   }
+  await supabase("PATCH", "codigos_verificacao", { query: `id=eq.${entry.id}`, body: { tentativas } }).catch(() => {});
+
   var hash = crypto.createHash("sha256").update(codigo + email).digest("hex");
-  // Comparação em tempo constante
-  if (!crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(entry.hash))) {
+  var hashBuf = Buffer.from(hash);
+  var entryBuf = Buffer.from(entry.codigo_hash);
+  // timingSafeEqual exige buffers do mesmo tamanho — ambos são SHA-256
+  // hex (64 chars) então sempre batem em tamanho, mas a checagem evita
+  // exception caso o dado no banco esteja corrompido por algum motivo.
+  if (hashBuf.length !== entryBuf.length || !crypto.timingSafeEqual(hashBuf, entryBuf)) {
     return { ok: false, erro: "Código inválido" };
   }
-  otpStore.delete(email);
+
+  await supabase("PATCH", "codigos_verificacao", { query: `id=eq.${entry.id}`, body: { usado: true } }).catch(() => {});
   return { ok: true };
 }
 
@@ -626,6 +649,41 @@ var EMAIL_TEMPLATES = {
 // ════════════════════════════════════════
 // HELPERS HTTP
 // ════════════════════════════════════════
+
+/**
+ * Faz uma requisição HTTP(S) a um serviço externo e resolve com
+ * { status, body } (body já parseado como JSON quando possível).
+ * Único ponto de implementação — antes, cada rota que precisava
+ * chamar uma API externa (POST /pix, proxy do Wer) reimplementava
+ * a mesma Promise de https.request na mão, com pequenas variações.
+ */
+function httpRequestExterno(urlObj, method, payload, headersExtra) {
+  return new Promise((resolve, reject) => {
+    var data = payload ? JSON.stringify(payload) : null;
+    var headers = Object.assign({}, headersExtra || {});
+    if (data) {
+      headers["Content-Type"] = "application/json";
+      headers["Content-Length"] = Buffer.byteLength(data);
+    }
+    var req2 = https.request({
+      hostname: urlObj.hostname,
+      path:     urlObj.pathname + urlObj.search,
+      method:   method,
+      headers:  headers
+    }, res2 => {
+      var raw2 = "";
+      res2.on("data", c => raw2 += c);
+      res2.on("end", () => {
+        try { resolve({ status: res2.statusCode, body: JSON.parse(raw2) }); }
+        catch(e) { resolve({ status: res2.statusCode, body: {} }); }
+      });
+    });
+    req2.on("error", reject);
+    if (data) req2.write(data);
+    req2.end();
+  });
+}
+
 function getBody(req) {
   return new Promise((resolve, reject) => {
     var raw = "";
@@ -891,10 +949,18 @@ var server = http.createServer(async (req, res) => {
         return jsonErr(res, "Credenciais inválidas", 401);
       }
 
-      // O role do RBAC deriva do cargo cadastrado, não é escolha do
-      // cliente no login — evita que alguém se autodeclare "gerente".
-      // Qualquer cargo além de "Gerente" cai no menor privilégio.
-      var rbacRole = funcionario.cargo === "Gerente" ? "gerente" : "funcionario";
+      // O role do RBAC deriva do cargo cadastrado. A comparação por
+      // nome de texto ("Gerente") nunca funcionava de verdade: a
+      // coluna real em funcionarios é cargo_id (uuid, FK para a
+      // tabela cargos), não existe coluna de texto "cargo" — então
+      // funcionario.cargo era sempre undefined e todo funcionário
+      // caía em "funcionario", nunca em "gerente", mesmo quando
+      // deveria. A tabela cargos existe mas nenhuma rota a popula ou
+      // resolve ainda, então não há como promover alguém a gerente
+      // de forma confiável hoje. Até essa funcionalidade existir,
+      // todo funcionário recebe o menor privilégio de propósito —
+      // é o comportamento seguro, não o "quase certo por acaso".
+      var rbacRole = "funcionario";
       var token = jwtSign({ funcionario_id: funcionario.id, empresa_id: empresa.id, role: rbacRole });
       delete funcionario.senha_hash;
       secLog("login_func_ok", { funcionario_id: funcionario.id });
@@ -916,7 +982,7 @@ var server = http.createServer(async (req, res) => {
 
       var nome = SANITIZE.string(body.name || "Cliente", 80);
       var codigo = gerarCodigo();
-      salvarOTP(email, codigo);
+      await salvarOTP(email, codigo);
 
       secLog("otp_gerado", { email_hash: crypto.createHash("sha256").update(email).digest("hex").substring(0, 8) });
 
@@ -939,7 +1005,7 @@ var server = http.createServer(async (req, res) => {
       var codigo = SANITIZE.string(body.codigo || "", 6);
       if (!email || !codigo || !/^\d{6}$/.test(codigo)) return jsonErr(res, "Dados inválidos");
 
-      var otpResult = verificarOTP(email, codigo);
+      var otpResult = await verificarOTP(email, codigo);
       if (!otpResult.ok) return jsonErr(res, otpResult.erro);
 
       secLog("otp_verificado", { email_hash: crypto.createHash("sha256").update(email).digest("hex").substring(0, 8) });
@@ -973,7 +1039,103 @@ var server = http.createServer(async (req, res) => {
       return jsonOk(res, { ok: true });
     }
 
-    // ─── A PARTIR DAQUI: REQUER JWT ─────────────────
+    // ── PIX — GERAR COBRANÇA (rota pública) ──────────
+    // Chamada pelo formulário de assinatura do site institucional,
+    // antes de qualquer login existir — por isso fica na zona
+    // pública, junto de /enviar-codigo e /verificar-codigo. Estava
+    // antes posicionada depois do bloco JWT, o que fazia todo pedido
+    // de pagamento retornar 401 sempre, sem exceção.
+    if (method === "POST" && path === "/pix") {
+      if (!CONFIG.PIX_URL) return jsonErr(res, "PIX não configurado", 503);
+
+      var raw = await getBody(req);
+      var body = parseBody(raw);
+      if (!body) return jsonErr(res, "Dados inválidos");
+
+      var email = SANITIZE.email(body.email);
+      var nome  = SANITIZE.string(body.name || "", 120);
+      var doc   = (body.document || "").replace(/\D/g, "").substring(0, 14);
+      var tel   = (body.phone || "").replace(/\D/g, "").substring(0, 11);
+
+      if (!email || !nome) return jsonErr(res, "Dados inválidos");
+
+      var pixUrl = new URL(CONFIG.PIX_URL);
+      if (!pixUrl.hostname.includes("duttyfy") && !pixUrl.hostname.includes("worka")) {
+        secLog("ssrf_attempt", { hostname: pixUrl.hostname });
+        return jsonErr(res, "Configuração inválida", 500);
+      }
+
+      var response = await httpRequestExterno(pixUrl, "POST", {
+        amount: 2490,
+        customer: { name: nome, document: doc, email, phone: tel },
+        item: { title: "Plano Completo Worka", price: 2490, quantity: 1 },
+        paymentMethod: "PIX"
+      });
+
+      if (response.status >= 400) return jsonErr(res, "Erro no processamento do pagamento", 502);
+
+      secLog("pix_gerado", { email_hash: crypto.createHash("sha256").update(email).digest("hex").substring(0, 8) });
+      return jsonOk(res, {
+        pixCode:       response.body.pixCode,
+        transactionId: response.body.transactionId,
+        status:        response.body.status
+      });
+    }
+
+    // ── PIX — CONSULTAR STATUS (rota pública) ────────
+    // Implementação nova: esta rota nunca existiu no backend v5.
+    // O site fazia polling contra ela a cada 5s esperando confirmação
+    // de pagamento, mas como a rota não existia (404), o polling
+    // sempre falhava silenciosamente até o timeout de 15min mostrar
+    // "PIX expirado" — mesmo quando o cliente pagava de verdade.
+    // Existia uma versão em v2 do backend, perdida na reescrita de
+    // segurança sem ser portada; reimplementada aqui já com a
+    // ativação real da empresa quando o pagamento é confirmado.
+    if (method === "GET" && path === "/pix") {
+      if (!CONFIG.PIX_URL) return jsonErr(res, "PIX não configurado", 503);
+
+      var transactionId = url.searchParams.get("transactionId");
+      var emailConsulta  = SANITIZE.email(url.searchParams.get("email"));
+      if (!transactionId) return jsonErr(res, "transactionId obrigatório");
+
+      var pixUrl2 = new URL(CONFIG.PIX_URL);
+      if (!pixUrl2.hostname.includes("duttyfy") && !pixUrl2.hostname.includes("worka")) {
+        secLog("ssrf_attempt", { hostname: pixUrl2.hostname });
+        return jsonErr(res, "Configuração inválida", 500);
+      }
+      pixUrl2.searchParams.set("transactionId", transactionId);
+
+      var statusResp = await httpRequestExterno(pixUrl2, "GET");
+      if (statusResp.status >= 400) return jsonErr(res, "Erro ao consultar pagamento", 502);
+
+      var statusPix = statusResp.body && statusResp.body.status;
+
+      // Se aprovado e temos o email do cliente, ativa a assinatura de
+      // verdade: status=ativa, +30 dias de acesso, email de confirmação.
+      // Idempotente por natureza (o polling chama isto a cada 5s até
+      // parar) — o UPDATE roda de novo em cada chamada enquanto o
+      // status seguir "COMPLETED", mas isso é inofensivo (mesmos
+      // valores), não duplica cobrança nem envia e-mails em duplicidade
+      // graças ao filtro "status=neq.ativa" abaixo.
+      if (statusPix === "COMPLETED" && emailConsulta) {
+        var empresaPag = await DB.select("empresas", `email=eq.${encodeURIComponent(emailConsulta)}&status=neq.ativa&select=id,nome,email`);
+        if (empresaPag.body && empresaPag.body[0]) {
+          var empPag = empresaPag.body[0];
+          var novoFim = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+          await DB.update("empresas", `id=eq.${empPag.id}`, {
+            status: "ativa",
+            trial_fim: novoFim,
+            aviso_trial_sent: false,
+            aviso_expirado_sent: false
+          });
+          enviarEmail(empPag.email, "✅ Pagamento confirmado — Worka", EMAIL_TEMPLATES.pagamentoConfirmado(empPag.nome, "24,90"))
+            .catch(() => {});
+          secLog("pagamento_confirmado", { empresa_id: empPag.id });
+        }
+      }
+
+      return jsonOk(res, { status: statusPix });
+    }
     // Rotas abaixo checam permissão específica via requirePermission()
     // em vez de só validar o token — isso é o que efetivamente
     // impede um funcionário comum de chamar rotas de dono/gerente.
@@ -981,6 +1143,31 @@ var server = http.createServer(async (req, res) => {
     if (!authPayload) {
       secLog("auth_required", { ip, path });
       return jsonErr(res, "Autenticação necessária", 401);
+    }
+
+    // ── SESSÃO ATUAL (restaurar login a partir do token) ─────
+    // Sem esta rota, o token salvo em localStorage pelo site (no
+    // cadastro/login) nunca era aproveitado pelo app: toda vez que
+    // worka-app.html carregava, a pessoa caía na tela de login e
+    // precisava digitar email/senha de novo, mesmo já autenticada.
+    if (method === "GET" && path === "/me") {
+      if (authPayload.role !== "dono") {
+        // Login de funcionário continua 100% local no app hoje (não
+        // migrado ainda) — não há uma tabela/rota que sirva o perfil
+        // de funcionário aqui, então não finjo suportar isso.
+        return jsonErr(res, "Sessão não suportada para este tipo de usuário", 403);
+      }
+      var meResult = await DB.select("empresas", `id=eq.${authPayload.empresa_id}&select=*`);
+      var meEmpresa = meResult.body && meResult.body[0];
+      if (!meEmpresa) return jsonErr(res, "Empresa não encontrada", 404);
+
+      var meTrialInfo = null;
+      if (meEmpresa.status === "trial") {
+        var meDias = Math.ceil((new Date(meEmpresa.trial_fim) - Date.now()) / (1000*60*60*24));
+        meTrialInfo = { dias_restantes: meDias, expirado: meDias <= 0 };
+      }
+      delete meEmpresa.senha_hash;
+      return jsonOk(res, { empresa: meEmpresa, trial: meTrialInfo });
     }
 
     // ── FUNCIONÁRIOS ─────────────────────────────────
@@ -1027,9 +1214,14 @@ var server = http.createServer(async (req, res) => {
       // da resposta, não o acesso à lista inteira.
       var empresa_id = authPayload.empresa_id;
       var podeVerSalario = hasPermission(authPayload, "salarios:read");
+      // Corrigido: a coluna real é "cargo_id" (uuid, FK para a tabela
+      // cargos), não "cargo" (texto) — pedir "cargo" direto quebraria
+      // com erro do Postgres, coluna inexistente. cargo_id ainda não
+      // é resolvido para nome legível aqui porque a tabela cargos
+      // não está sendo populada por nenhuma rota ainda.
       var campos = podeVerSalario
-        ? "id,nome,email,telefone,cargo,status,salario_base,created_at"
-        : "id,nome,email,telefone,cargo,status,created_at";
+        ? "id,nome,email,telefone,cargo_id,status,salario_base,created_at"
+        : "id,nome,email,telefone,cargo_id,status,created_at";
 
       var result = await DB.select("funcionarios",
         `empresa_id=eq.${empresa_id}&select=${campos}&order=created_at.desc`
@@ -1101,15 +1293,25 @@ var server = http.createServer(async (req, res) => {
       if (lng !== null && (isNaN(lng) || lng < -180 || lng > 180)) lng = null;
 
       var result = await DB.insert("registros_ponto", {
-        funcionario_id: authPayload.funcionario_id || authPayload.empresa_id,
+        // Corrigido: authPayload.funcionario_id só existe quando quem
+        // bate o ponto é um funcionário. Quando é o dono (role=dono),
+        // não existe funcionario_id — o fallback anterior gravava
+        // empresa_id nessa coluna por engano, misturando dois tipos
+        // de ID diferentes. Usa NULL explícito nesse caso: o dono não
+        // tem registro na tabela funcionarios, então não há id válido
+        // de funcionário para associar.
+        funcionario_id: authPayload.funcionario_id || null,
         empresa_id:     authPayload.empresa_id,
         tipo,
         latitude:   lat,
-        longitude:  lng,
-        biometria:  body.biometria === true
+        longitude:  lng
+        // "biometria" removido: a coluna não existe em registros_ponto
+        // no schema real. O sinal de que a batida usou biometria fica
+        // registrado no log de auditoria (secLog abaixo), não na linha
+        // do ponto em si.
       });
 
-      secLog("ponto_registrado", { tipo, empresa_id: authPayload.empresa_id });
+      secLog("ponto_registrado", { tipo, empresa_id: authPayload.empresa_id, biometria: body.biometria === true });
       return jsonOk(res, { registro: result.body[0] }, 201);
     }
 
@@ -1140,17 +1342,23 @@ var server = http.createServer(async (req, res) => {
       var titulo = SANITIZE.string(body.titulo, 200);
       if (!titulo) return jsonErr(res, "Título inválido");
 
-      // Antes: "responsavel" era só texto livre com o nome, sem
-      // vínculo real com o funcionário — impossível notificar a
-      // pessoa certa ou saber com segurança quem é. Agora resolve
-      // por funcionario_id (UUID) e mantém o nome só como cache de
-      // exibição, preenchido a partir do cadastro real.
+      // responsavel_id (UUID) substitui o antigo campo de texto
+      // livre "responsavel" — que nunca existiu como coluna real na
+      // tabela (só responsavel_id existe, confirmado contra o
+      // schema). A consulta abaixo valida que o id informado
+      // pertence a um funcionário real desta empresa antes de
+      // gravar a referência — sem isso, qualquer UUID aceitável por
+      // SANITIZE.uuid seria gravado sem checagem de existência.
       var responsavelId = SANITIZE.uuid(body.responsavel_id);
-      var responsavelNome = "";
       if (responsavelId) {
-        var respCheck = await DB.select("funcionarios", `id=eq.${responsavelId}&empresa_id=eq.${authPayload.empresa_id}&select=id,nome`);
+        var respCheck = await DB.select("funcionarios", `id=eq.${responsavelId}&empresa_id=eq.${authPayload.empresa_id}&select=id`);
         if (!respCheck.body || !respCheck.body[0]) return jsonErr(res, "Funcionário responsável não encontrado");
-        responsavelNome = respCheck.body[0].nome;
+      }
+
+      var prazoValido = null;
+      if (body.prazo) {
+        var dataPrazo = new Date(body.prazo);
+        if (!isNaN(dataPrazo.getTime())) prazoValido = dataPrazo.toISOString();
       }
 
       var result = await DB.insert("tarefas", {
@@ -1160,7 +1368,9 @@ var server = http.createServer(async (req, res) => {
         prioridade:      ["normal","alta","urgente"].includes(body.prioridade) ? body.prioridade : "normal",
         status:          "pendente",
         responsavel_id:  responsavelId,
-        responsavel:     responsavelNome
+        prazo:           prazoValido,
+        recorrencia:     ["nenhuma","diaria","semanal","mensal"].includes(body.recorrencia) ? body.recorrencia : "nenhuma",
+        requer_foto:     body.requer_foto === true
       });
 
       // Notifica o responsável em tempo real — fire-and-forget,
@@ -1196,14 +1406,41 @@ var server = http.createServer(async (req, res) => {
       var tarefaId = SANITIZE.uuid(path.split("/")[2]);
       if (!tarefaId || !body) return jsonErr(res, "Dados inválidos");
 
-      // Verificar propriedade
-      var check = await DB.select("tarefas", `id=eq.${tarefaId}&empresa_id=eq.${authPayload.empresa_id}&select=id,titulo,empresa_id,funcionario_id`);
+      // Verificar propriedade (responsavel_id é o campo real da tabela,
+      // não funcionario_id — confirmado contra o schema real do banco)
+      var check = await DB.select("tarefas", `id=eq.${tarefaId}&empresa_id=eq.${authPayload.empresa_id}&select=id,titulo,empresa_id,responsavel_id`);
       if (!check.body || !check.body[0]) return jsonErr(res, "Não autorizado", 403);
+      var tarefaAtual = check.body[0];
 
-      var allowed = { status: true, descricao: true, prioridade: true };
+      var podeEditarTudo = hasPermission(authPayload, "tarefas:write");
       var update = {};
-      if (allowed.status && body.status && ["pendente","em_andamento","concluida","atrasada"].includes(body.status)) update.status = body.status;
-      if (body.descricao) update.descricao = SANITIZE.string(body.descricao, 1000);
+
+      if (podeEditarTudo) {
+        // Dono/gerente: podem alterar qualquer campo de qualquer
+        // tarefa da empresa.
+        if (body.status && ["pendente","em_andamento","concluida","atrasada"].includes(body.status)) update.status = body.status;
+        if (body.descricao) update.descricao = SANITIZE.string(body.descricao, 1000);
+        if (body.prioridade && ["normal","alta","urgente"].includes(body.prioridade)) update.prioridade = body.prioridade;
+      } else if (authPayload.role === "funcionario") {
+        // Funcionário: só pode marcar status (ex: concluir), e só em
+        // tarefas que são dele ou gerais (sem responsável definido).
+        // Antes, esta rota não checava nada disso — qualquer
+        // funcionário autenticado podia editar descrição/prioridade
+        // de qualquer tarefa da empresa, inclusive as de colegas.
+        var ehDele = tarefaAtual.responsavel_id === authPayload.funcionario_id || tarefaAtual.responsavel_id === null;
+        if (!ehDele) {
+          secLog("permission_denied", { role: authPayload.role, action: "tarefas:editar_de_outro" });
+          return jsonErr(res, "Você só pode atualizar suas próprias tarefas", 403);
+        }
+        if (body.status && ["pendente","em_andamento","concluida"].includes(body.status)) update.status = body.status;
+        // "atrasada" fica de fora de propósito: é um status derivado
+        // de prazo vencido, não algo que a própria pessoa deveria
+        // poder se auto-atribuir ou remover.
+      } else {
+        return jsonErr(res, "Sem permissão para atualizar tarefas", 403);
+      }
+
+      if (Object.keys(update).length === 0) return jsonErr(res, "Nenhum campo válido para atualizar");
 
       await DB.update("tarefas", `id=eq.${tarefaId}`, update);
       secLog("tarefa_atualizada", { tarefa_id: tarefaId, status: update.status });
@@ -1291,7 +1528,7 @@ var server = http.createServer(async (req, res) => {
         empresa_id:    authPayload.empresa_id,
         funcionario_id: funcId,
         data:          SANITIZE.string(body.data || "", 10),
-        tipo:          ["falta","atestado","licenca"].includes(body.tipo) ? body.tipo : "falta",
+        tipo:          ["falta_injustificada","falta_justificada","atestado","licenca","suspensao"].includes(body.tipo) ? body.tipo : "falta_injustificada",
         motivo:        SANITIZE.string(body.motivo || "", 500)
       });
       return jsonOk(res, { ausencia: result.body[0] }, 201);
@@ -1505,64 +1742,12 @@ var server = http.createServer(async (req, res) => {
       return jsonOk(res, response.body);
     }
 
-    // ── PIX ──────────────────────────────────────────
-    if (method === "POST" && path === "/pix") {
-      if (!CONFIG.PIX_URL) return jsonErr(res, "PIX não configurado", 503);
-
-      var raw = await getBody(req);
-      var body = parseBody(raw);
-      if (!body) return jsonErr(res, "Dados inválidos");
-
-      var email = SANITIZE.email(body.email);
-      var nome  = SANITIZE.string(body.name || "", 120);
-      var doc   = (body.document || "").replace(/\D/g, "").substring(0, 14);
-      var tel   = (body.phone || "").replace(/\D/g, "").substring(0, 11);
-
-      if (!email || !nome) return jsonErr(res, "Dados inválidos");
-
-      // SSRF prevention — validar que PIX_URL é o domínio esperado
-      var pixUrl = new URL(CONFIG.PIX_URL);
-      if (!pixUrl.hostname.includes("duttyfy") && !pixUrl.hostname.includes("worka")) {
-        secLog("ssrf_attempt", { hostname: pixUrl.hostname });
-        return jsonErr(res, "Configuração inválida", 500);
-      }
-
-      var payload = {
-        amount: 2490,
-        customer: { name: nome, document: doc, email, phone: tel },
-        item: { title: "Plano Completo Worka", price: 2490, quantity: 1 },
-        paymentMethod: "PIX"
-      };
-
-      var response = await new Promise((resolve, reject) => {
-        var data = JSON.stringify(payload);
-        var req2 = https.request({
-          hostname: pixUrl.hostname,
-          path:     pixUrl.pathname + pixUrl.search,
-          method:   "POST",
-          headers:  { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) }
-        }, res2 => {
-          var raw2 = "";
-          res2.on("data", c => raw2 += c);
-          res2.on("end", () => {
-            try { resolve({ status: res2.statusCode, body: JSON.parse(raw2) }); }
-            catch(e) { resolve({ status: res2.statusCode, body: {} }); }
-          });
-        });
-        req2.on("error", reject);
-        req2.write(data);
-        req2.end();
-      });
-
-      if (response.status >= 400) return jsonErr(res, "Erro no processamento do pagamento", 502);
-
-      secLog("pix_gerado", { empresa_id: authPayload.empresa_id });
-      return jsonOk(res, {
-        pixCode:       response.body.pixCode,
-        transactionId: response.body.transactionId,
-        status:        response.body.status
-      });
-    }
+    // (POST /pix e GET /pix foram movidos para antes da linha
+    // "A PARTIR DAQUI: REQUER JWT", junto de /enviar-codigo e
+    // /verificar-codigo. Estavam aqui por engano: exigiam token, mas
+    // são chamadas pelo formulário público de assinatura, onde
+    // ninguém está logado — todo pedido de pagamento retornava 401
+    // sempre, sem exceção.)
 
     // 404
     secLog("rota_nao_encontrada", { ip, path, method });
