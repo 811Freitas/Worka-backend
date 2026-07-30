@@ -1,11 +1,17 @@
 {
   "name": "worka-backend",
-  "version": "1.0.0",
+  "version": "3.0.0",
+  "description": "Worka — Backend seguro",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "UNLICENSED",
   "dependencies": {
-    "nodemailer": "^6.9.0"
+    "bcryptjs": "^3.0.3",
+    "web-push": "^3.6.7"
   }
 }
