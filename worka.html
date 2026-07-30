@@ -842,10 +842,13 @@
       <div style="font-size:.85rem;font-weight:700;color:#0a2e1a;margin-bottom:8px">Confirme seu e-mail</div>
       <p style="font-size:.82rem;color:#6b7068;margin-bottom:20px">Enviamos um código para <strong id="trial-email-txt"></strong></p>
       <input id="trial-codigo" type="number" placeholder="000000" maxlength="6"
-        style="width:100%;padding:16px;border:2px solid #eff0ef;border-radius:12px;font-size:1.5rem;font-weight:700;text-align:center;letter-spacing:8px;font-family:'Inter',sans-serif;outline:none;margin-bottom:16px"
+        style="width:100%;padding:16px;border:2px solid #eff0ef;border-radius:12px;font-size:1.5rem;font-weight:700;text-align:center;letter-spacing:8px;font-family:'Inter',sans-serif;outline:none;margin-bottom:12px"
+        onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
+      <input id="trial-senha" type="password" placeholder="Crie uma senha (mín. 8 caracteres)" autocomplete="new-password"
+        style="width:100%;padding:14px 16px;border:2px solid #eff0ef;border-radius:12px;font-size:.9rem;font-family:'Inter',sans-serif;outline:none;margin-bottom:16px"
         onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
       <div id="trial-verify-erro" style="display:none;background:#fef2f2;border-radius:8px;padding:10px;font-size:.8rem;color:#dc2626;margin-bottom:12px"></div>
-      <button onclick="confirmarTrialCodigo()" style="width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif">
+      <button id="btn-trial-confirmar" onclick="confirmarTrialCodigo()" style="width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif">
         Confirmar e ativar trial ✓
       </button>
     </div>
@@ -948,7 +951,8 @@
 <script>
 // ⚠️ Após o deploy, substitua pela URL real da sua Edge Function
 // Formato: https://worka-backend-awng.onrender.com/pix
-var BACKEND_URL = "https://worka-backend-awng.onrender.com/pix";
+var API_BASE = "https://worka-backend-awng.onrender.com";
+var BACKEND_URL = API_BASE + "/pix"; // mantido por compatibilidade com o restante do arquivo que já usa BACKEND_URL para a rota de PIX
 var pollingInterval = null;
 var pollingTimeout  = null;
 
@@ -1016,33 +1020,6 @@ function apenasDigitos(s) { return s.replace(/\D/g,''); }
 // Dados globais do formulário
 var dadosFormulario = {};
 
-async function iniciarTrial(nome, email) {
-  // Salvar trial local
-  var trialData = {
-    nome: nome,
-    email: email,
-    inicio: Date.now(),
-    fim: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 dias
-    ativo: true
-  };
-  localStorage.setItem('worka_trial', JSON.stringify(trialData));
-  
-  // Enviar email de boas vindas
-  try {
-    await fetch('https://worka-backend-awng.onrender.com/enviar-codigo', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        email: email, 
-        name: nome,
-        tipo: 'boas_vindas'
-      })
-    });
-  } catch(e) { console.log('Email boas vindas:', e); }
-  
-  return true;
-}
-
 async function gerarPix() {
   var nome  = document.getElementById('f-nome').value.trim();
   var doc   = apenasDigitos(document.getElementById('f-doc').value);
@@ -1066,7 +1043,7 @@ async function gerarPix() {
 
   // Enviar código de verificação
   try {
-    var res = await fetch(BACKEND_URL.replace('/pix','/enviar-codigo'), {
+    var res = await fetch(API_BASE + '/enviar-codigo', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: nome, email: email })
@@ -1107,7 +1084,7 @@ async function confirmarCodigo() {
   btn.textContent = '⏳ Verificando...';
 
   try {
-    var res = await fetch(BACKEND_URL.replace('/pix','/verificar-codigo'), {
+    var res = await fetch(API_BASE + '/verificar-codigo', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: dadosFormulario.email, codigo: codigo })
@@ -1135,7 +1112,7 @@ async function reenviarCodigo() {
   var btn = document.getElementById('btn-reenviar');
   btn.disabled = true;
   try {
-    await fetch(BACKEND_URL.replace('/pix','/enviar-codigo'), {
+    await fetch(API_BASE + '/enviar-codigo', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: dadosFormulario.name, email: dadosFormulario.email })
@@ -1172,8 +1149,13 @@ async function gerarPixReal() {
     utm: utm
   };
 
+  // btn era referenciado mas nunca declarado nesta função — pega o
+  // botão de confirmar código, que é quem chama gerarPixReal() e
+  // precisa ser reabilitado se a chamada falhar.
+  var btn = document.getElementById('btn-confirmar');
   var tentativas = 0;
   var resposta = null;
+  var ultimoErro = '';
 
   while (tentativas < 3) {
     try {
@@ -1183,27 +1165,34 @@ async function gerarPixReal() {
         body: JSON.stringify(body)
       });
       if (res.ok) { resposta = await res.json(); break; }
+
       if (res.status >= 400 && res.status < 500) {
+        // Erro do cliente (dados inválidos etc.) — não adianta tentar
+        // de novo com o mesmo body, mostra o erro e para.
         var err = await res.json().catch(() => ({}));
-        mostrarErro('Erro gateway: ' + JSON.stringify(err));
-        btn.disabled = false;
-        btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
+        mostrarErro('Erro ao gerar PIX: ' + (err.error || res.status));
+        if (btn) { btn.disabled = false; btn.textContent = 'Confirmar código ✓'; }
         return;
       }
-    } catch(e) { erroDetalhado = 'Conexao: ' + e.message; }
+
+      // 5xx (ex: Render acordando de hibernação) — vale tentar de novo
+      ultimoErro = 'Servidor respondeu ' + res.status;
+    } catch(e) {
+      ultimoErro = 'Conexão: ' + e.message;
+    }
     tentativas++;
     if (tentativas < 3) await sleep(Math.pow(2, tentativas - 1) * 1000);
   }
 
   if (!resposta || !resposta.pixCode) {
-    mostrarErro('Sem resposta: ' + (window._erroWorka || BACKEND_URL));
-    btn.disabled = false;
-    btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
+    mostrarErro('Não foi possível gerar o PIX. ' + (ultimoErro || 'Tente novamente.'));
+    if (btn) { btn.disabled = false; btn.textContent = 'Confirmar código ✓'; }
     return;
   }
 
   // Exibir QR Code
-  var { pixCode, transactionId } = resposta;
+  var pixCode = resposta.pixCode;
+  var transactionId = resposta.transactionId;
   document.getElementById('pix-code-txt').textContent = pixCode;
   document.getElementById('qrcode').innerHTML = '';
   if (typeof QRCode !== 'undefined') { new QRCode(document.getElementById('qrcode'), {
@@ -1222,16 +1211,17 @@ async function gerarPixReal() {
 // ── Polling de status ─────────────────────────────────────────
 function iniciarPolling(transactionId) {
   pararPolling();
+  var emailCliente = dadosFormulario.email || '';
   pollingInterval = setInterval(async () => {
     try {
-      var res = await fetch(BACKEND_URL + '?transactionId=' + encodeURIComponent(transactionId));
+      var res = await fetch(BACKEND_URL + '?transactionId=' + encodeURIComponent(transactionId) + '&email=' + encodeURIComponent(emailCliente));
       if (!res.ok) return;
       var data = await res.json();
       if (data.status === 'COMPLETED') {
         pararPolling();
         mostrarStep('ok');
       }
-    } catch(e) { erroDetalhado = 'Conexao: ' + e.message; }
+    } catch(e) { /* falha de rede no polling: tenta de novo no próximo tick, não precisa logar */ }
   }, 5000);
 
   // Timeout de 15 min
@@ -1280,16 +1270,10 @@ async function ativarTrialGratis() {
   var btn = document.getElementById('btn-trial');
   if (btn) { btn.textContent = '⏳ Ativando...'; btn.disabled = true; }
   
-  // Salvar trial
-  var trialData = {
-    nome, email,
-    inicio: Date.now(),
-    fim: Date.now() + 7 * 24 * 60 * 60 * 1000,
-    ativo: true
-  };
-  localStorage.setItem('worka_trial', JSON.stringify(trialData));
-  
-  // Enviar email de verificação
+  // Enviar email de verificação. O trial em si (data de início/fim)
+  // é decidido e gravado só pelo backend, em empresas.trial_fim,
+  // quando /verificar-codigo cria a empresa — nunca calculado ou
+  // guardado aqui no navegador.
   try {
     var r = await fetch('https://worka-backend-awng.onrender.com/enviar-codigo', {
       method: 'POST',
@@ -1318,29 +1302,44 @@ async function ativarTrialGratis() {
 async function confirmarTrialCodigo() {
   var codigo = ((document.getElementById('trial-codigo') || {}).value || '').trim();
   var email = ((document.getElementById('f-email') || {}).value || '').trim();
-  
+  var nome = ((document.getElementById('f-nome') || {}).value || '').trim();
+  var senha = ((document.getElementById('trial-senha') || {}).value || '');
+
   if (codigo.length !== 6) {
     mostrarErro('Digite o código de 6 dígitos!');
     return;
   }
-  
-  var btn = document.getElementById('btn-confirmar');
+  if (senha.length < 8) {
+    var erroSenha = document.getElementById('trial-verify-erro');
+    if (erroSenha) { erroSenha.textContent = 'A senha precisa ter no mínimo 8 caracteres.'; erroSenha.style.display = 'block'; }
+    return;
+  }
+
+  var btn = document.getElementById('btn-trial-confirmar');
   if (btn) { btn.textContent = '⏳ Verificando...'; btn.disabled = true; }
-  
+
   try {
-    var r = await fetch('https://worka-backend-awng.onrender.com/verificar-codigo', {
+    var r = await fetch(API_BASE + '/verificar-codigo', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, codigo })
+      body: JSON.stringify({ email, codigo, nome, senha })
     });
     var data = await r.json();
     if (!data.ok) throw new Error(data.error || 'Código inválido');
+
+    // O backend retorna token quando cria a empresa (nome+senha
+    // enviados) — sem isso, "Acessar o Worka →" levaria a pessoa
+    // pra tela de login pedindo credenciais que ela já acabou de
+    // digitar aqui. Salva para o app já abrir logado.
+    if (data.token) localStorage.setItem('worka_token', data.token);
   } catch(e) {
-    if (btn) { btn.textContent = 'Confirmar'; btn.disabled = false; }
-    mostrarErro(e.message);
+    if (btn) { btn.textContent = 'Confirmar e ativar trial ✓'; btn.disabled = false; }
+    var erroEl = document.getElementById('trial-verify-erro');
+    if (erroEl) { erroEl.textContent = e.message; erroEl.style.display = 'block'; }
+    else mostrarErro(e.message);
     return;
   }
-  
+
   // Trial ativado!
   mostrarStep('trial-ok');
 }
@@ -1390,7 +1389,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
     <div id="acesso-erro" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px;font-size:0.8rem;color:#dc2626;margin-bottom:12px;"></div>
 
-    <button onclick="entrarNoApp()" style="width:100%;background:#1e8a40;color:white;border:none;padding:13px;border-radius:10px;font-size:0.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:12px;">Entrar no Worka →</button>
+    <button id="acesso-btn-entrar" onclick="entrarNoApp()" style="width:100%;background:#1e8a40;color:white;border:none;padding:13px;border-radius:10px;font-size:0.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:12px;">Entrar no Worka →</button>
     <div style="text-align:center;font-size:0.78rem;color:#6b7068;">Não tem conta? <a href="#" onclick="fecharAcesso();abrirFunil();return false;" style="color:#1e8a40;font-weight:600;">Assinar por R$ 24,90/mês</a></div>
   </div>
 </div>
@@ -1422,13 +1421,46 @@ function entrarNoApp(){
   // Login owner
   if(email==='workappoficial@gmail.com'&&senha==='ale98798798798'){
     fecharAcesso();
+    // NOTA: este login continua comparando senha hardcoded no frontend,
+    // não chama /login/empresa. Corrigido aqui apenas o bug que travava
+    // a função (referenciava "data" de uma chamada de API que nunca
+    // existiu neste fluxo). Migrar para login real via backend exige
+    // primeiro criar esta conta no banco com senha em bcrypt — ainda
+    // não decidido, registrado como pendência.
     window.location.href='worka-app.html?role=owner&email='+encodeURIComponent(email);
     return;
   }
-  // Login demo dono
+  // Login do dono — chama o backend de verdade (antes era "demo":
+  // aceitava qualquer email+senha preenchidos sem checar nada).
+  // Zero empresas cadastradas no banco até agora, então essa falha
+  // nunca teve dado real exposto, mas corrigido antes do 1º cliente.
   if(email&&senha){
-    fecharAcesso();
-    window.location.href='worka-app.html?role=dono&email='+encodeURIComponent(email);
+    var btnEntrar = document.getElementById('acesso-btn-entrar');
+    if(btnEntrar){ btnEntrar.textContent='Entrando...'; btnEntrar.disabled=true; }
+    fetch('https://worka-backend-awng.onrender.com/login/empresa', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email: email, senha: senha })
+    })
+    .then(function(r){ return r.json().then(function(data){ return { status:r.status, data:data }; }); })
+    .then(function(res){
+      if(res.status !== 200 || !res.data.token){
+        var erro=document.getElementById('acesso-erro');
+        erro.textContent = res.data.error || 'Email ou senha incorretos.';
+        erro.style.display='block';
+        if(btnEntrar){ btnEntrar.textContent='Entrar'; btnEntrar.disabled=false; }
+        return;
+      }
+      localStorage.setItem('worka_token', res.data.token);
+      fecharAcesso();
+      window.location.href='worka-app.html?role=dono&email='+encodeURIComponent(email);
+    })
+    .catch(function(){
+      var erro=document.getElementById('acesso-erro');
+      erro.textContent = 'Erro de conexão. Tente novamente.';
+      erro.style.display='block';
+      if(btnEntrar){ btnEntrar.textContent='Entrar'; btnEntrar.disabled=false; }
+    });
     return;
   }
   var erro=document.getElementById('acesso-erro');
@@ -1660,7 +1692,7 @@ document.addEventListener("DOMContentLoaded",function(){
 </style>
 
 <script>
-var WER_API_KEY = "xai-H5QAJOOhAOt4HXgFQPkT8NnhmMhnTdrtfwTaYGonpUZvJ3FhwP5qVqOoQXLG5tz6zUW9MCELqDYkBiqv";
+var WER_API_KEY = ""; // Chave movida para o backend
 var werHistorico = [];
 var werAberto = false;
 
