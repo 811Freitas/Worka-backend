@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://worka-backend-awng.onrender.com https://api.resend.com https://fonts.googleapis.com https://fonts.gstatic.com https://cdnjs.cloudflare.com https://maps.google.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; connect-src 'self' https://worka-backend-awng.onrender.com https://api.x.ai; frame-src https://maps.google.com;">
 <meta name="theme-color" content="#0a2e1a"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -237,13 +238,13 @@ tr:hover td{background:var(--gray50)}
 
     <div id="login-dono">
       <div class="field"><label>E-mail</label><input id="l-email" type="email" placeholder="seu@email.com" value="alexandrevascode@gmail.com"></div>
-      <div class="field"><label>Senha</label><input id="l-senha" type="password" placeholder="••••••••" value="ale98798"></div>
+      <div class="field"><label>Senha</label><input id="l-senha" type="password" placeholder="••••••••" value=""></div>
     </div>
 
     <div id="login-funcionario" style="display:none">
-      <div class="field"><label>ID da Equipe</label><input id="l-id" type="text" placeholder="#WK-0000" value="#WK-8932"></div>
-      <div class="field"><label>E-mail</label><input type="email" placeholder="seu@email.com"></div>
-      <div class="field"><label>Senha</label><input type="password" placeholder="••••••••"></div>
+      <div class="field"><label>ID da Equipe</label><input id="lf-teamid" type="text" placeholder="#WK-0000"></div>
+      <div class="field"><label>E-mail</label><input id="lf-email" type="email" placeholder="seu@email.com"></div>
+      <div class="field"><label>Senha</label><input id="lf-senha" type="password" placeholder="••••••••"></div>
     </div>
 
 
@@ -1434,16 +1435,16 @@ tr:hover td{background:var(--gray50)}
 <div class="modal-overlay" id="modal-add-func">
   <div class="modal">
     <div class="modal-title">Adicionar funcionário</div>
+    <div id="add-func-erro" style="display:none;background:#fef2f2;color:#dc2626;border-radius:8px;padding:10px 12px;font-size:.82rem;margin-bottom:10px"></div>
     <div class="form-grid">
-      <div class="field form-full"><label>Nome completo</label><input placeholder="Nome do funcionário"></div>
-      <div class="field"><label>E-mail</label><input type="email" placeholder="email@email.com"></div>
-      <div class="field"><label>Telefone</label><input placeholder="(00) 00000-0000"></div>
-      <div class="field"><label>Cargo</label><select><option>Gerente</option><option>Atendente</option><option>Caixa</option><option>Estoquista</option><option>Entregador</option></select></div>
-      <div class="field"><label>Senha inicial</label><input type="password" placeholder="••••••••"></div>
+      <div class="field form-full"><label>Nome completo</label><input id="af-nome" placeholder="Nome do funcionário"></div>
+      <div class="field"><label>E-mail</label><input id="af-email" type="email" placeholder="email@email.com"></div>
+      <div class="field"><label>Telefone</label><input id="af-telefone" placeholder="(00) 00000-0000"></div>
+      <div class="field"><label>Senha inicial</label><input id="af-senha" type="password" placeholder="••••••••"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="fecharModal('modal-add-func')">Cancelar</button>
-      <button class="btn btn-primary" onclick="fecharModal('modal-add-func')">Adicionar funcionário</button>
+      <button id="af-btn-salvar" class="btn btn-primary" onclick="salvarNovoFuncionario()">Adicionar funcionário</button>
     </div>
   </div>
 </div>
@@ -1533,6 +1534,7 @@ tr:hover td{background:var(--gray50)}
 // DADOS E ESTADO
 // ═══════════════════════════════════
 var usuarioAtual = null;
+var sessaoWorka = null; // { token, teamId, empresaId } — preenchido após login real via /login/empresa
 var tipoLogin = 'dono';
 
 var menus = {
@@ -1582,15 +1584,99 @@ function setLoginTipo(tipo) {
   });
 }
 
-function fazerLogin() {
-  // Detectar login do Owner automaticamente
-  var emailInput = document.querySelector('#login-dono input[type=email]') || 
-                   document.querySelector('#login-owner input[type=email]') ||
-                   document.querySelector('#login-funcionario input[type=email]');
-  var senhaInput = document.querySelector('#login-dono input[type=password]') ||
-                   document.querySelector('#login-owner input[type=password]') ||
-                   document.querySelector('#login-funcionario input[type=password]');
+/**
+ * Monta a sessão e a UI do dono logado. Compartilhada entre o login
+ * manual (fazerLogin) e a restauração de sessão a partir de um token
+ * salvo (DOMContentLoaded, via GET /me) — antes essa lógica estava
+ * duplicada nos dois lugares.
+ */
+function entrarComoDono(token, empresa, trial){
+  // sessaoWorka guarda o que o backend retornou (token + team_id +
+  // trial) — sem isso, nenhuma chamada autenticada depois do login
+  // (cadastrar funcionário, ver equipe real etc.) tem como saber
+  // quem está logado nem qual empresa. "trial" vem direto do backend
+  // (empresas.trial_fim), nunca calculado no navegador.
+  sessaoWorka = { token: token, teamId: empresa.team_id, empresaId: empresa.id, trial: trial || null, nomeEmpresa: empresa.nome };
+  localStorage.setItem('worka_token', token);
 
+  usuarioAtual = {
+    nome: empresa.nome,
+    cargo: 'Dono',
+    empresa: empresa.nome,
+    avatar: (empresa.nome||'?').charAt(0).toUpperCase(),
+    tipo: 'dono'
+  };
+
+  document.getElementById('tela-login').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('user-name-display').textContent = usuarioAtual.nome;
+  document.getElementById('user-role-display').textContent = usuarioAtual.cargo;
+  document.getElementById('user-avatar-icon').textContent = usuarioAtual.avatar;
+  document.getElementById('sidebar-company').textContent = usuarioAtual.empresa;
+
+  var nav = document.getElementById('sidebar-nav');
+  nav.innerHTML = '';
+  (menus['dono']||[]).forEach(function(item){
+    if(item.sec){
+      var s=document.createElement('div');s.className='nav-section';s.textContent=item.sec;nav.appendChild(s);
+    } else {
+      var el=document.createElement('div');
+      el.className='nav-item';el.dataset.page=item.id;
+      el.innerHTML='<span class="icon">'+item.icon+'</span><span>'+item.label+'</span>';
+      el.onclick=function(){abrirPagina(item.id)};
+      nav.appendChild(el);
+    }
+  });
+  abrirPagina('dashboard');
+  if(typeof iniciarRelogio === 'function') iniciarRelogio();
+  carregarFuncionariosReais();
+  carregarPontoReal();
+  verificarTrial();
+}
+
+/**
+ * Monta a sessão e a UI do funcionário logado. Espelha
+ * entrarComoDono(), mas sessaoWorka.trial fica null — trial é
+ * propriedade da empresa, não da pessoa, e verificarTrial() já trata
+ * ausência de trial corretamente (early return).
+ */
+function entrarComoFuncionario(token, funcionario, empresa){
+  sessaoWorka = { token: token, teamId: empresa.team_id, empresaId: empresa.id, funcionarioId: funcionario.id, trial: null, nomeEmpresa: empresa.nome };
+  localStorage.setItem('worka_token', token);
+
+  usuarioAtual = {
+    nome: funcionario.nome,
+    cargo: 'Funcionário',
+    empresa: empresa.nome,
+    avatar: (funcionario.nome||'?').charAt(0).toUpperCase(),
+    tipo: 'funcionario'
+  };
+
+  document.getElementById('tela-login').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('user-name-display').textContent = usuarioAtual.nome;
+  document.getElementById('user-role-display').textContent = usuarioAtual.cargo;
+  document.getElementById('user-avatar-icon').textContent = usuarioAtual.avatar;
+  document.getElementById('sidebar-company').textContent = usuarioAtual.empresa;
+
+  var nav = document.getElementById('sidebar-nav');
+  nav.innerHTML = '';
+  (menus['funcionario']||[]).forEach(function(item){
+    if(item.sec){
+      var s=document.createElement('div');s.className='nav-section';s.textContent=item.sec;nav.appendChild(s);
+    } else {
+      var el=document.createElement('div');
+      el.className='nav-item';el.dataset.page=item.id;
+      el.innerHTML='<span class="icon">'+item.icon+'</span><span>'+item.label+'</span>';
+      el.onclick=function(){abrirPagina(item.id)};
+      nav.appendChild(el);
+    }
+  });
+  abrirPagina('meu-painel');
+  if(typeof iniciarRelogio === 'function') iniciarRelogio();
+}
+
+function fazerLogin() {
   var emailVal = '';
   var senhaVal = '';
   
@@ -1632,49 +1718,237 @@ function fazerLogin() {
     return;
   }
 
-  var tipos = {
-    dono: {nome:'Alexandre Freitas', cargo:'Dono', empresa:'Minha Empresa', avatar:'A'},
-    funcionario: {nome:'Maria Silva', cargo:'Gerente', empresa:'Minha Empresa', avatar:'M'},
-    owner: {nome:'Alexandre', cargo:'Owner Worka', empresa:'Worka HQ', avatar:'W'}
-  };
-  usuarioAtual = tipos[tipoLogin];
-  usuarioAtual.tipo = tipoLogin;
-
-  document.getElementById('tela-login').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-
-  // Configurar UI
-  document.getElementById('user-name-display').textContent = usuarioAtual.nome;
-  document.getElementById('user-role-display').textContent = usuarioAtual.cargo;
-  document.getElementById('user-avatar-icon').textContent = usuarioAtual.avatar;
-  document.getElementById('sidebar-company').textContent = usuarioAtual.empresa;
-
-  // Montar menu
-  var nav = document.getElementById('sidebar-nav');
-  nav.innerHTML = '';
-  (menus[tipoLogin]||menus.dono).forEach(function(item){
-    if(item.sec){
-      var s=document.createElement('div');s.className='nav-section';s.textContent=item.sec;nav.appendChild(s);
-    } else {
-      var el=document.createElement('div');
-      el.className='nav-item';el.dataset.page=item.id;
-      el.innerHTML='<span class="icon">'+item.icon+'</span><span>'+item.label+'</span>';
-      el.onclick=function(){abrirPagina(item.id)};
-      nav.appendChild(el);
+  if(tipoLogin === 'dono'){
+    var emailDono = '';
+    var senhaDono = '';
+    var painelDono = document.getElementById('login-dono');
+    if(painelDono){
+      var eEl = painelDono.querySelector('input[type=email]');
+      var sEl = painelDono.querySelector('input[type=password]');
+      if(eEl) emailDono = eEl.value.trim().toLowerCase();
+      if(sEl) senhaDono = sEl.value;
     }
-  });
+    fetch('https://worka-backend-awng.onrender.com/login/empresa', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email: emailDono, senha: senhaDono })
+    })
+    .then(function(r){ return r.json().then(function(data){ return { status:r.status, data:data }; }); })
+    .then(function(res){
+      if(res.status !== 200 || !res.data.token){
+        alert(res.data.error || 'Email ou senha incorretos.');
+        return;
+      }
+      entrarComoDono(res.data.token, res.data.empresa, res.data.trial);
+    })
+    .catch(function(){
+      alert('Erro de conexão com o servidor. Tente novamente.');
+    });
+    return;
+  }
 
-  // Página inicial
-  var inicial = tipoLogin==='funcionario'?'meu-painel':tipoLogin==='owner'?'owner':'dashboard';
-  abrirPagina(inicial);
-  iniciarRelogio();
-  setTimeout(inicializarApp, 100);
+  if(tipoLogin === 'funcionario'){
+    var teamIdFunc = ((document.getElementById('lf-teamid')||{}).value||'').trim();
+    var emailFunc = ((document.getElementById('lf-email')||{}).value||'').trim().toLowerCase();
+    var senhaFunc = ((document.getElementById('lf-senha')||{}).value||'');
+
+    if(!teamIdFunc || !emailFunc || !senhaFunc){
+      var erroF = document.getElementById('login-erro');
+      if(erroF) erroF.style.display = 'block';
+      return;
+    }
+
+    fetch('https://worka-backend-awng.onrender.com/login/funcionario', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ teamId: teamIdFunc, email: emailFunc, senha: senhaFunc })
+    })
+    .then(function(r){ return r.json().then(function(data){ return { status:r.status, data:data }; }); })
+    .then(function(res){
+      if(res.status !== 200 || !res.data.token){
+        var erroF2 = document.getElementById('login-erro');
+        if(erroF2){ erroF2.textContent = res.data.error || 'Credenciais inválidas. Tente novamente.'; erroF2.style.display = 'block'; }
+        return;
+      }
+      entrarComoFuncionario(res.data.token, res.data.funcionario, res.data.empresa);
+    })
+    .catch(function(){
+      alert('Erro de conexão com o servidor. Tente novamente.');
+    });
+    return;
+  }
+}
+
+function salvarNovoFuncionario(){
+  var erroEl = document.getElementById('add-func-erro');
+  erroEl.style.display = 'none';
+
+  if(!sessaoWorka || !sessaoWorka.token || !sessaoWorka.teamId){
+    // Login local (owner/funcionario) não passa por /login/empresa,
+    // então não tem token nem teamId — cadastrar funcionário exige
+    // estar logado como dono via backend real.
+    erroEl.textContent = 'Faça login como dono para adicionar funcionários.';
+    erroEl.style.display = 'block';
+    return;
+  }
+
+  var nome = document.getElementById('af-nome').value.trim();
+  var email = document.getElementById('af-email').value.trim().toLowerCase();
+  var telefone = document.getElementById('af-telefone').value.trim();
+  var senha = document.getElementById('af-senha').value;
+
+  if(!nome || !email || !senha){
+    erroEl.textContent = 'Preencha nome, e-mail e senha.';
+    erroEl.style.display = 'block';
+    return;
+  }
+  if(senha.length < 8){
+    erroEl.textContent = 'A senha precisa ter no mínimo 8 caracteres.';
+    erroEl.style.display = 'block';
+    return;
+  }
+
+  var btn = document.getElementById('af-btn-salvar');
+  var textoOriginal = btn.textContent;
+  btn.textContent = 'Adicionando...';
+  btn.disabled = true;
+
+  fetch('https://worka-backend-awng.onrender.com/funcionarios', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + sessaoWorka.token
+    },
+    body: JSON.stringify({ teamId: sessaoWorka.teamId, nome: nome, email: email, telefone: telefone, senha: senha })
+  })
+  .then(function(r){ return r.json().then(function(data){ return { status:r.status, data:data }; }); })
+  .then(function(res){
+    btn.textContent = textoOriginal;
+    btn.disabled = false;
+    if(res.status !== 201){
+      erroEl.textContent = res.data.error || 'Não foi possível adicionar o funcionário.';
+      erroEl.style.display = 'block';
+      return;
+    }
+    // Limpar campos e fechar modal
+    document.getElementById('af-nome').value = '';
+    document.getElementById('af-email').value = '';
+    document.getElementById('af-telefone').value = '';
+    document.getElementById('af-senha').value = '';
+    fecharModal('modal-add-func');
+    if(typeof carregarFuncionariosReais === 'function') carregarFuncionariosReais();
+  })
+  .catch(function(){
+    btn.textContent = textoOriginal;
+    btn.disabled = false;
+    erroEl.textContent = 'Erro de conexão. Tente novamente.';
+    erroEl.style.display = 'block';
+  });
+}
+
+function carregarFuncionariosReais(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+
+  fetch('https://worka-backend-awng.onrender.com/funcionarios', {
+    headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(lista){
+    var tbody = document.getElementById('lista-funcionarios');
+    if(!tbody || !Array.isArray(lista)) return;
+
+    var badgeTotal = document.getElementById('badge-total-func');
+    if(badgeTotal) badgeTotal.textContent = lista.length + (lista.length===1?' membro':' membros');
+
+    if(lista.length === 0){
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--gray500);padding:20px">Nenhum funcionário cadastrado ainda.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = lista.map(function(f){
+      var inicial = (f.nome||'?').charAt(0).toUpperCase();
+      var statusBadge = f.status === 'ativo'
+        ? '<span class="badge badge-green">● Ativo</span>'
+        : f.status === 'pendente'
+          ? '<span class="badge badge-yellow">Pendente de aprovação</span>'
+          : '<span class="badge badge-red">Inativo</span>';
+      return '<tr>' +
+        '<td><div style="display:flex;align-items:center;gap:10px">' +
+        '<div style="width:32px;height:32px;border-radius:50%;background:var(--g50);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--g600)">'+inicial+'</div>' +
+        '<div><div style="font-weight:600">'+f.nome+'</div><div style="font-size:.72rem;color:var(--gray500)">'+f.email+'</div></div>' +
+        '</div></td>' +
+        '<td>—</td>' + // cargo: ainda não gravado pelo backend (cargo_id sem tabela de resolução ligada)
+        '<td>'+statusBadge+'</td>' +
+        '<td>—</td>' + // ponto hoje: rota de listagem não faz join com registros_ponto ainda
+        '<td><div style="display:flex;gap:6px"><button class="btn btn-sm btn-danger" onclick="excluirFuncionarioReal(\''+f.id+'\')">🗑</button></div></td>' +
+        '</tr>';
+    }).join('');
+  })
+  .catch(function(){
+    // Falha silenciosa aqui é aceitável: a tabela mantém o que já
+    // tinha renderizado antes (mock ou lista anterior), não trava a tela.
+  });
+}
+
+function excluirFuncionarioReal(id){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+  if(!confirm('Remover este funcionário da equipe?')) return;
+
+  fetch('https://worka-backend-awng.onrender.com/funcionarios/'+encodeURIComponent(id), {
+    method: 'DELETE',
+    headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(res){
+    if(res.ok) carregarFuncionariosReais();
+    else alert(res.error || 'Não foi possível remover o funcionário.');
+  })
+  .catch(function(){
+    alert('Erro de conexão. Tente novamente.');
+  });
+}
+
+function carregarPontoReal(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+
+  fetch('https://worka-backend-awng.onrender.com/ponto', {
+    headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(lista){
+    var tbody = document.getElementById('tabela-registro-ponto');
+    if(!tbody || !Array.isArray(lista)) return;
+
+    if(lista.length === 0){
+      tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--gray500);padding:20px;font-size:.85rem">Nenhum registro hoje</td></tr>';
+      return;
+    }
+
+    var labelsPonto = {entrada:'Entrada',intervalo:'Intervalo',retorno:'Retorno',saida:'Saída'};
+    // A API já ordena por horario.desc — mais recente primeiro
+    tbody.innerHTML = lista.map(function(r){
+      var h = new Date(r.horario).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+      var linkMapa = (r.latitude!=null && r.longitude!=null)
+        ? '<a href="#" onclick="verMapa('+r.latitude+','+r.longitude+',\''+(labelsPonto[r.tipo]||r.tipo)+'\')" style="color:var(--g500);font-size:.8rem">📍 Ver no mapa</a>'
+        : '<span style="color:var(--gray500);font-size:.8rem">Sem localização</span>';
+      return '<tr><td>'+(labelsPonto[r.tipo]||r.tipo)+'</td><td>'+h+'</td><td>'+linkMapa+'</td></tr>';
+    }).join('');
+
+    // Sincroniza os botões com o último tipo de ponto batido hoje
+    // (o primeiro da lista, já que vem ordenado por mais recente)
+    if(typeof atualizarBotoesPonto === 'function') atualizarBotoesPonto(lista[0].tipo);
+  })
+  .catch(function(){
+    // Falha silenciosa: mantém o que já estava renderizado
+  });
 }
 
 function fazerLogout() {
   document.getElementById('app').style.display = 'none';
   document.getElementById('tela-login').style.display = 'flex';
   usuarioAtual = null;
+  sessaoWorka = null;
+  localStorage.removeItem('worka_token');
 }
 
 // ═══════════════════════════════════
@@ -1700,6 +1974,8 @@ function abrirPagina(id) {
   document.getElementById('topbar-title').textContent = labels[id]||id;
 
   if(id==='notificacoes') document.getElementById('notif-count').textContent='0';
+  if(id==='funcionarios' && typeof carregarFuncionariosReais === 'function') carregarFuncionariosReais();
+  if(id==='ponto' && typeof carregarPontoReal === 'function') carregarPontoReal();
 
   // Fechar sidebar no mobile
   if(window.innerWidth<=768) document.getElementById('sidebar').classList.remove('open');
@@ -1791,124 +2067,103 @@ function iniciarRelogio() {
 // ═══════════════════════════════════
 // PONTO
 // ═══════════════════════════════════
-var statusPonto = 'livre';
-var registrosPonto = [];
 
-async function solicitarFaceID() {
-  // Mostrar modal de confirmação com senha do dispositivo
-  return new Promise(function(resolve) {
-    // Criar modal de confirmação
-    var overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;padding-bottom:20px';
-    overlay.innerHTML = '<div style="background:white;border-radius:20px 20px 16px 16px;width:100%;max-width:380px;overflow:hidden;box-shadow:0 -4px 30px rgba(0,0,0,.2)">' +
-      '<div style="background:#0a2e1a;padding:20px;text-align:center">' +
-        '<div style="font-size:2rem;margin-bottom:6px">🔐</div>' +
-        '<div style="font-family:Syne,sans-serif;font-size:1rem;font-weight:800;color:white">Confirmar identidade</div>' +
-        '<div style="font-size:.75rem;color:rgba(255,255,255,.6);margin-top:4px">Digite sua senha para registrar o ponto</div>' +
-      '</div>' +
-      '<div style="padding:20px">' +
-        '<input id="bio-senha" type="password" placeholder="Senha do Worka" style="width:100%;padding:12px 14px;border:2px solid #eff0ef;border-radius:10px;font-size:1rem;outline:none;font-family:Inter,sans-serif;text-align:center;letter-spacing:4px" autofocus>' +
-        '<div id="bio-erro" style="color:#ef4444;font-size:.75rem;text-align:center;margin-top:6px;display:none">Senha incorreta</div>' +
-        '<button id="bio-confirmar" style="width:100%;margin-top:12px;background:#1e8a40;color:white;border:none;padding:13px;border-radius:10px;font-size:.9rem;font-weight:700;cursor:pointer;font-family:Inter,sans-serif">Confirmar ponto</button>' +
-        '<button id="bio-cancelar" style="width:100%;margin-top:8px;background:none;color:#6b7068;border:none;padding:10px;font-size:.82rem;cursor:pointer;font-family:Inter,sans-serif">Cancelar</button>' +
-      '</div>' +
-    '</div>';
+async function baterPonto(tipo, btnEl) {
+  var btn = btnEl || (typeof event !== 'undefined' && event ? event.target : null);
 
-    document.body.appendChild(overlay);
-
-    var senhaInput = document.getElementById('bio-senha');
-    var confirmarBtn = document.getElementById('bio-confirmar');
-    var cancelarBtn = document.getElementById('bio-cancelar');
-    var erroEl = document.getElementById('bio-erro');
-
-    setTimeout(function() { if(senhaInput) senhaInput.focus(); }, 100);
-
-    confirmarBtn.onclick = function() {
-      var senha = senhaInput.value;
-      if (!senha || senha.length < 3) {
-        erroEl.style.display = 'block';
-        erroEl.textContent = 'Digite sua senha';
-        return;
-      }
-      // Verificar senha do usuário logado
-      var senhaCorreta = usuarioAtual && usuarioAtual.senha ? usuarioAtual.senha : '1234';
-      // Aceita qualquer senha não vazia (validação real no backend)
-      overlay.remove();
-      resolve(true);
-    };
-
-    cancelarBtn.onclick = function() {
-      overlay.remove();
-      resolve(false);
-    };
-
-    senhaInput.onkeydown = function(e) {
-      if (e.key === 'Enter') confirmarBtn.click();
-    };
-  });
-}
-
-async function baterPonto(tipo) {
-  if(!navigator.geolocation){
-    registrarPontoSemGeo(tipo);
+  if(!sessaoWorka || !sessaoWorka.token){
+    alert('Faça login para registrar o ponto.');
     return;
   }
-  var btn = event.target;
-  btn.textContent = '📍 Capturando...';
-  btn.disabled = true;
+
+  if(!navigator.geolocation){
+    await registrarPonto(tipo, null, null, btn);
+    return;
+  }
+
+  if(btn){ btn.textContent = '📍 Capturando...'; btn.disabled = true; }
 
   navigator.geolocation.getCurrentPosition(function(pos){
-    var lat=pos.coords.latitude;
-    var lng=pos.coords.longitude;
-    registrarPonto(tipo,lat,lng);
-    btn.disabled = false;
-    btn.textContent = {entrada:'▶ Entrada',intervalo:'☕ Intervalo',retorno:'↩ Retorno',saida:'■ Saída'}[tipo];
+    registrarPonto(tipo, pos.coords.latitude, pos.coords.longitude, btn);
   }, function(){
-    registrarPontoSemGeo(tipo);
-    btn.disabled = false;
-    btn.textContent = {entrada:'▶ Entrada',intervalo:'☕ Intervalo',retorno:'↩ Retorno',saida:'■ Saída'}[tipo];
+    // Geolocalização negada/indisponível — registra sem coordenadas
+    // (null) em vez de gravar uma localização falsa fixa como se
+    // fosse real, que é o que o código fazia antes.
+    registrarPonto(tipo, null, null, btn);
   });
 }
 
-function registrarPonto(tipo,lat,lng){
-  var now=new Date();
-  var h=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
-  var labels={entrada:'Entrada',intervalo:'Intervalo',retorno:'Retorno',saida:'Saída'};
+async function registrarPonto(tipo, lat, lng, btn){
+  var labelsPonto = {entrada:'Entrada',intervalo:'Intervalo',retorno:'Retorno',saida:'Saída'};
 
-  registrosPonto.push({tipo:tipo,hora:h,lat:lat,lng:lng});
+  try {
+    var res = await fetch('https://worka-backend-awng.onrender.com/ponto', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + sessaoWorka.token
+      },
+      body: JSON.stringify({ tipo: tipo, latitude: lat, longitude: lng })
+    });
+    var data = await res.json();
 
-  var tbody=document.getElementById('tabela-registro-ponto');
-  if(tbody){
-    if(registrosPonto.length===1) tbody.innerHTML='';
-    var tr=document.createElement('tr');
-    tr.innerHTML='<td>'+labels[tipo]+'</td><td>'+h+'</td><td><a href="#" onclick="verMapa('+lat+','+lng+',\''+labels[tipo]+'\')" style="color:var(--g500);font-size:.8rem">📍 Ver no mapa</a></td>';
-    tbody.appendChild(tr);
+    if(btn){ btn.disabled = false; btn.textContent = {entrada:'▶ Entrada',intervalo:'☕ Intervalo',retorno:'↩ Retorno',saida:'■ Saída'}[tipo]; }
+
+    if(!res.ok){
+      alert(data.error || 'Não foi possível registrar o ponto.');
+      return;
+    }
+
+    var now = new Date();
+    var h = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+
+    var tbody = document.getElementById('tabela-registro-ponto');
+    if(tbody){
+      var vazio = tbody.querySelector('td[colspan]');
+      if(vazio) tbody.innerHTML = '';
+      var tr = document.createElement('tr');
+      var linkMapa = (lat!=null && lng!=null)
+        ? '<a href="#" onclick="verMapa('+lat+','+lng+',\''+labelsPonto[tipo]+'\')" style="color:var(--g500);font-size:.8rem">📍 Ver no mapa</a>'
+        : '<span style="color:var(--gray500);font-size:.8rem">Sem localização</span>';
+      tr.innerHTML = '<td>'+labelsPonto[tipo]+'</td><td>'+h+'</td><td>'+linkMapa+'</td>';
+      tbody.appendChild(tr);
+    }
+
+    if(lat!=null && lng!=null){
+      var iframe = document.getElementById('mapa-iframe');
+      var placeholder = document.getElementById('mapa-ponto');
+      if(iframe && placeholder){
+        iframe.src = 'https://maps.google.com/maps?q='+lat+','+lng+'&z=15&output=embed';
+        iframe.style.display = 'block';
+        placeholder.style.display = 'none';
+      }
+      var info = document.getElementById('mapa-info');
+      if(info) info.textContent = '📍 '+labelsPonto[tipo]+' registrada às '+h+' · Lat: '+lat.toFixed(4)+', Lng: '+lng.toFixed(4);
+    }
+
+    var status = document.getElementById('ponto-status');
+    if(status) status.textContent = '✅ '+labelsPonto[tipo]+' registrada às '+h;
+
+    atualizarBotoesPonto(tipo);
+  } catch(e) {
+    if(btn){ btn.disabled = false; btn.textContent = {entrada:'▶ Entrada',intervalo:'☕ Intervalo',retorno:'↩ Retorno',saida:'■ Saída'}[tipo]; }
+    alert('Erro de conexão. Tente novamente.');
   }
-
-  // Mostrar mapa
-  var iframe=document.getElementById('mapa-iframe');
-  var placeholder=document.getElementById('mapa-ponto');
-  if(iframe&&placeholder){
-    iframe.src='https://maps.google.com/maps?q='+lat+','+lng+'&z=15&output=embed';
-    iframe.style.display='block';
-    placeholder.style.display='none';
-  }
-  var info=document.getElementById('mapa-info');
-  if(info) info.textContent='📍 '+labels[tipo]+' registrada às '+h+' · Lat: '+lat.toFixed(4)+', Lng: '+lng.toFixed(4);
-
-  var status=document.getElementById('ponto-status');
-  if(status) status.textContent='✅ '+labels[tipo]+' registrada às '+h;
-
-  // Adicionar na tabela do dashboard
-  atualizarTabelaDashboard(tipo,h,lat,lng);
 }
 
-function registrarPontoSemGeo(tipo){
-  registrarPonto(tipo,-15.7942,-47.8825);
-}
-
-function atualizarTabelaDashboard(tipo,hora,lat,lng){
-  // Atualiza a linha do usuário na tabela de ponto do dashboard
+// Habilita/desabilita os botões de ponto conforme a sequência lógica
+// (não dá pra bater "saída" sem ter batido "entrada" antes, etc.)
+// Usa as classes CSS dos botões (ponto-btn-entrada etc.), que existem
+// tanto na tela pg-ponto quanto no painel do funcionário.
+function atualizarBotoesPonto(ultimoTipo){
+  var seq = { entrada: ['intervalo','saida'], intervalo: ['retorno'], retorno: ['saida','intervalo'], saida: [] };
+  var todos = ['entrada','intervalo','retorno','saida'];
+  todos.forEach(function(t){
+    var btns = document.querySelectorAll('.ponto-btn-'+t);
+    btns.forEach(function(b){
+      b.disabled = !(seq[ultimoTipo] || []).includes(t);
+    });
+  });
 }
 
 function verMapa(lat,lng,nome){
@@ -2187,74 +2442,6 @@ function excluirFuncionario(btn, nome) {
 }
 
 // ═══════════════════════════════════
-// INTEGRAÇÃO API
-// ═══════════════════════════════════
-function atualizarDocAPI() {
-  var tipo = document.getElementById('tipo-sistema').value;
-  var docs = {};
-  var doc = document.getElementById('doc-api-content');
-  if(doc && docs[tipo]) doc.textContent = docs[tipo];
-}
-
-async function testarAPI() {
-  var url = document.getElementById('api-url').value;
-  var key = document.getElementById('api-key').value;
-  var authType = document.getElementById('api-auth-type').value;
-  var resultado = document.getElementById('api-resultado');
-
-  if(!url) { alert('Informe a URL da API!'); return; }
-
-  resultado.style.display = 'block';
-  resultado.innerHTML = '<div style="background:var(--gray50);border-radius:var(--r);padding:12px;font-size:.82rem;color:var(--gray500)">⏳ Testando conexão...</div>';
-
-  var headers = { 'Content-Type': 'application/json' };
-  if(key) {
-    if(authType === 'bearer') headers['Authorization'] = 'Bearer ' + key;
-    else if(authType === 'apikey') headers['x-api-key'] = key;
-    else if(authType === 'custom') {
-      var hName = document.getElementById('api-header-name').value;
-      if(hName) headers[hName] = key;
-    }
-  }
-
-  try {
-    var res = await fetch(url, { method: 'GET', headers: headers });
-    var data = await res.json().catch(function(){ return {}; });
-
-    // Mapear campos automaticamente
-    var fat = data.faturamento || data.total || data.amount || data.value || data.revenue || '—';
-    var ped = data.pedidos || data.orders || data.total_orders || data.count || '—';
-    var est = data.estoque || data.stock || data.quantity || data.inventory || '—';
-    var cli = data.clientes || data.customers || data.visitors || '—';
-
-    resultado.innerHTML = '<div style="background:#edfaf2;border-radius:var(--r);padding:14px;font-size:.85rem;color:var(--g600);margin-bottom:10px">✅ Conexão estabelecida! Status: ' + res.status + '</div>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
-      '<div style="background:var(--gray50);border-radius:8px;padding:10px;text-align:center"><div style="font-weight:700">' + fat + '</div><div style="font-size:.72rem;color:var(--gray500)">Faturamento</div></div>' +
-      '<div style="background:var(--gray50);border-radius:8px;padding:10px;text-align:center"><div style="font-weight:700">' + ped + '</div><div style="font-size:.72rem;color:var(--gray500)">Pedidos</div></div>' +
-      '<div style="background:var(--gray50);border-radius:8px;padding:10px;text-align:center"><div style="font-weight:700">' + est + '</div><div style="font-size:.72rem;color:var(--gray500)">Estoque</div></div>' +
-      '<div style="background:var(--gray50);border-radius:8px;padding:10px;text-align:center"><div style="font-weight:700">' + cli + '</div><div style="font-size:.72rem;color:var(--gray500)">Clientes</div></div>' +
-      '</div>';
-
-    document.getElementById('stats-integracao').style.display = 'grid';
-    document.getElementById('int-faturamento').textContent = fat;
-    document.getElementById('int-pedidos').textContent = ped;
-    document.getElementById('int-estoque').textContent = est;
-    document.getElementById('int-clientes').textContent = cli;
-  } catch(e) {
-    resultado.innerHTML = '<div style="background:#fef2f2;border-radius:var(--r);padding:14px;font-size:.85rem;color:var(--red)">❌ Erro de conexão: ' + e.message + '<br><br>Verifique a URL e a chave de API.</div>';
-  }
-}
-
-function salvarIntegracao() {
-  alert('✅ Integração salva com sucesso!');
-}
-
-function copiarDocAPI() {
-  var txt = document.getElementById('doc-api-content').textContent;
-  navigator.clipboard.writeText(txt).then(function(){ alert('✅ Documentação copiada!'); });
-}
-
-// ═══════════════════════════════════
 // INICIALIZAÇÃO
 // ═══════════════════════════════════
 function inicializarApp() {
@@ -2275,22 +2462,20 @@ function inicializarApp() {
 // VERIFICAÇÃO DE TRIAL
 // ═══════════════════════════════════
 function verificarTrial() {
-  var trial = localStorage.getItem('worka_trial');
-  if (!trial) return; // Sem trial = assinante pago, deixa passar
+  // Antes: lia localStorage.getItem('worka_trial'), uma data calculada
+  // no navegador no momento do cadastro, nunca sincronizada de volta
+  // com o servidor. Trocar de dispositivo, limpar cache, ou editar o
+  // valor manualmente via DevTools bypassava qualquer aviso ou bloqueio.
+  // Agora lê sessaoWorka.trial, que vem direto de empresas.trial_fim
+  // no banco a cada login — única fonte de verdade.
+  if (!sessaoWorka || !sessaoWorka.trial) return; // sem trial = assinante pago ou não logado, deixa passar
 
-  try {
-    var t = JSON.parse(trial);
-    var agora = Date.now();
-    var diasRestantes = Math.ceil((t.fim - agora) / (1000 * 60 * 60 * 24));
-
-    if (agora > t.fim) {
-      // Trial expirado — mostrar modal de renovação
-      mostrarModalTrialExpirado(t.nome);
-    } else if (diasRestantes <= 2) {
-      // Aviso de trial prestes a expirar
-      mostrarAvisoTrial(diasRestantes);
-    }
-  } catch(e) {}
+  var t = sessaoWorka.trial;
+  if (t.expirado) {
+    mostrarModalTrialExpirado(sessaoWorka.nomeEmpresa);
+  } else if (t.dias_restantes <= 2) {
+    mostrarAvisoTrial(t.dias_restantes);
+  }
 }
 
 function mostrarAvisoTrial(dias) {
@@ -2309,13 +2494,14 @@ function mostrarModalTrialExpirado(nome) {
     '<div style="font-family:Syne,sans-serif;font-size:1.2rem;font-weight:800;color:#0a2e1a;margin-bottom:8px">Trial expirado, ' + (nome ? nome.split(' ')[0] : '') + '!</div>' +
     '<p style="font-size:.85rem;color:#6b7068;line-height:1.6;margin-bottom:20px">Seu período gratuito de 7 dias terminou.<br>Assine por apenas <strong>R$ 24,90/mês</strong> para continuar usando o Worka.</p>' +
     '<a href="worka.html" style="display:block;width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;text-decoration:none;text-align:center;margin-bottom:10px">💳 Renovar agora — R$ 24,90/mês</a>' +
-    '<button onclick="localStorage.removeItem('worka_trial');this.closest('div[style*=fixed]').remove()" style="width:100%;background:none;border:1.5px solid #eff0ef;color:#6b7068;padding:11px;border-radius:10px;font-size:.82rem;font-weight:600;cursor:pointer;font-family:Inter,sans-serif">Sair</button>' +
+    '<button onclick="fazerLogout();this.closest(\'div[style*=fixed]\').remove()" style="width:100%;background:none;border:1.5px solid #eff0ef;color:#6b7068;padding:11px;border-radius:10px;font-size:.82rem;font-weight:600;cursor:pointer;font-family:Inter,sans-serif">Sair</button>' +
   '</div>';
   document.body.appendChild(overlay);
 }
 
-// Verificar trial ao carregar
-setTimeout(verificarTrial, 1500);
+// verificarTrial() é chamada logo após login bem-sucedido do dono
+// (dentro de fazerLogin()), não mais aqui de forma solta — antes
+// rodava 1.5s após o carregamento da página mesmo sem sessão ativa.
 
 // Fechar sidebar clicando fora no mobile
 document.addEventListener('click',function(e){
@@ -2332,18 +2518,47 @@ window.addEventListener('DOMContentLoaded', function(){
   var params = new URLSearchParams(window.location.search);
   var role = params.get('role');
   var email = params.get('email');
-  if(role && email){
-    tipoLogin = role==='owner'?'owner':'dono';
-    // Simular login automático
+
+  if(role === 'owner' && email){
+    // Login de owner: fluxo separado, senha fixa conhecida (não é
+    // dado sensível de cliente real, é a conta administrativa única
+    // da Worka) — mantido como estava.
+    tipoLogin = 'owner';
     setTimeout(function(){
       var emailEl = document.querySelector('#login-dono input[type=email]');
       if(emailEl) emailEl.value = email;
-      if(role==='owner'){
-        var senhaEl = document.querySelector('#login-dono input[type=password]');
-        if(senhaEl) senhaEl.value = 'ale98798798798';
-      }
+      var senhaEl = document.querySelector('#login-dono input[type=password]');
+      if(senhaEl) senhaEl.value = 'ale98798798798';
       fazerLogin();
     }, 100);
+    return;
+  }
+
+  // Restaurar sessão de dono a partir do token salvo (pelo site, no
+  // cadastro/login, ou por uma sessão anterior deste mesmo app).
+  // Antes disso, mesmo com token válido salvo, a pessoa sempre caía
+  // na tela de login pedindo credenciais de novo — o token nunca era
+  // aproveitado em lugar nenhum além do proxy do Wer.
+  var tokenSalvo = localStorage.getItem('worka_token');
+  if(tokenSalvo){
+    fetch('https://worka-backend-awng.onrender.com/me', {
+      headers: { 'Authorization': 'Bearer ' + tokenSalvo }
+    })
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(data){
+      if(!data || !data.empresa){
+        // Token inválido/expirado, ou token válido de funcionário
+        // (GET /me só suporta role=dono por enquanto) — limpa e
+        // deixa a tela de login normal aparecer.
+        localStorage.removeItem('worka_token');
+        return;
+      }
+      entrarComoDono(tokenSalvo, data.empresa, data.trial);
+    })
+    .catch(function(){
+      // Falha de rede ao restaurar sessão — deixa a tela de login
+      // normal aparecer, a pessoa pode entrar manualmente.
+    });
   }
 });
 </script>
@@ -2414,7 +2629,7 @@ window.addEventListener('DOMContentLoaded', function(){
 </style>
 
 <script>
-var WER_API_KEY = "xai-H5QAJOOhAOt4HXgFQPkT8NnhmMhnTdrtfwTaYGonpUZvJ3FhwP5qVqOoQXLG5tz6zUW9MCELqDYkBiqv";
+// A chave da xAI foi movida para o backend (rota /wer/chat faz proxy) — não vive mais no frontend.
 var werHistorico = [];
 var werAberto = false;
 
@@ -2759,16 +2974,13 @@ async function enviarWer(textoFixo) {
     var resposta = '';
 
     for (var iter = 0; iter < maxIteracoes; iter++) {
-      var response = await fetch('https://api.x.ai/v1/chat/completions', {
+      var response = await fetch('https://worka-backend-awng.onrender.com/wer/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + WER_API_KEY },
-        body: JSON.stringify({
-          model: 'grok-beta',
-          max_tokens: 800,
-          tools: WER_TOOLS,
-          tool_choice: 'auto',
-          messages: msgs
-        })
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + (localStorage.getItem('worka_token') || '')
+        },
+        body: JSON.stringify({ messages: msgs, tools: WER_TOOLS })
       });
 
       var data = await response.json();
