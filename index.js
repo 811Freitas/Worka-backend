@@ -48,7 +48,7 @@ const CONFIG = {
 
 // Validar variáveis críticas na inicialização
 const REQUIRED_ENV = ["JWT_SECRET", "SUPABASE_SERVICE_KEY", "RESEND_KEY"];
-// XAI_API_KEY é opcional — Wer fica indisponível se não definida
+// OPENROUTER_API_KEY é opcional — Wer fica indisponível se não definida
 for (var env of REQUIRED_ENV) {
   if (!process.env[env]) {
     console.error(`[SECURITY] FATAL: variável de ambiente ${env} não definida`);
@@ -1230,6 +1230,10 @@ var server = http.createServer(async (req, res) => {
     }
 
     if (method === "PUT" && path.match(/^\/funcionarios\/[\w-]+\/status$/)) {
+      if (!hasPermission(authPayload, "funcionarios:write")) {
+        secLog("permission_denied", { role: authPayload.role, action: "funcionarios:status" });
+        return jsonErr(res, "Sem permissão para alterar status de funcionários", 403);
+      }
       var raw = await getBody(req);
       var body = parseBody(raw);
       var funcId = SANITIZE.uuid(path.split("/")[2]);
@@ -1484,6 +1488,10 @@ var server = http.createServer(async (req, res) => {
 
     // ── VALIDADE ─────────────────────────────────────
     if (method === "POST" && path === "/validade") {
+      if (!hasPermission(authPayload, "validade:write")) {
+        secLog("permission_denied", { role: authPayload.role, action: "validade:write" });
+        return jsonErr(res, "Sem permissão para cadastrar produtos", 403);
+      }
       var raw = await getBody(req);
       var body = parseBody(raw);
       if (!body) return jsonErr(res, "Dados inválidos");
@@ -1491,17 +1499,24 @@ var server = http.createServer(async (req, res) => {
       var nome = SANITIZE.string(body.nome, 200);
       if (!nome) return jsonErr(res, "Nome inválido");
 
-      // Validar data
       var dataVenc = new Date(body.data_vencimento);
       if (isNaN(dataVenc.getTime())) return jsonErr(res, "Data inválida");
 
+      // "status" não é definido aqui de propósito: o gatilho
+      // trg_validade_status no banco calcula sozinho (normal/atencao/
+      // urgente/vencido) a partir de data_vencimento e dias_aviso,
+      // toda vez que a linha é inserida ou atualizada.
       var result = await DB.insert("produtos_validade", {
         empresa_id:       authPayload.empresa_id,
         nome,
         lote:             SANITIZE.string(body.lote || "", 50),
+        categoria:        SANITIZE.string(body.categoria || "", 80),
+        unidade:          SANITIZE.string(body.unidade || "unidades", 30),
         data_vencimento:  dataVenc.toISOString().split("T")[0],
-        quantidade:       SANITIZE.int(body.quantidade, 0, 999999) || 0
+        quantidade:       SANITIZE.int(body.quantidade, 0, 999999) || 0,
+        dias_aviso:       SANITIZE.int(body.dias_aviso, 1, 365) || 30
       });
+      secLog("produto_cadastrado", { empresa_id: authPayload.empresa_id });
       return jsonOk(res, { produto: result.body[0] }, 201);
     }
 
@@ -1686,16 +1701,23 @@ var server = http.createServer(async (req, res) => {
     }
 
 
-    // ── WER — PROXY SEGURO PARA xAI ────────────────
+    // ── WER — PROXY SEGURO PARA OPENROUTER ──────────
     if (method === "POST" && path === "/wer/chat") {
       var raw = await getBody(req);
       var body = parseBody(raw);
       if (!body || !Array.isArray(body.messages)) return jsonErr(res, "Dados inválidos");
 
+      var openrouterKey = process.env.OPENROUTER_API_KEY;
+      if (!openrouterKey) return jsonErr(res, "Serviço indisponível", 503);
+
       // Limitar histórico a 20 mensagens
       var messages = body.messages.slice(-20);
 
-      // Sanitizar conteúdo das mensagens
+      // Sanitizar conteúdo das mensagens. A OpenRouter segue o mesmo
+      // formato OpenAI-compatible que o frontend já monta (role
+      // "system" dentro do array de mensagens, "tool_calls" no
+      // assistant, role "tool" com tool_call_id na resposta) — sem
+      // tradução necessária, diferente da integração com Claude.
       messages = messages.filter(m => m && typeof m.content === "string" && m.role);
       messages = messages.map(m => ({
         role:    ["user","assistant","system","tool"].includes(m.role) ? m.role : "user",
@@ -1704,11 +1726,8 @@ var server = http.createServer(async (req, res) => {
         ...(m.tool_calls && { tool_calls: m.tool_calls })
       }));
 
-      var xaiKey = process.env.XAI_API_KEY;
-      if (!xaiKey) return jsonErr(res, "Serviço indisponível", 503);
-
       var payload = JSON.stringify({
-        model:        "grok-beta",
+        model:        "openai/gpt-4o",
         max_tokens:   800,
         tools:        body.tools || [],
         tool_choice:  "auto",
@@ -1717,13 +1736,15 @@ var server = http.createServer(async (req, res) => {
 
       var response = await new Promise((resolve, reject) => {
         var req2 = https.request({
-          hostname: "api.x.ai",
-          path:     "/v1/chat/completions",
+          hostname: "openrouter.ai",
+          path:     "/api/v1/chat/completions",
           method:   "POST",
           headers: {
-            "Content-Type":   "application/json",
-            "Authorization":  "Bearer " + xaiKey,
-            "Content-Length": Buffer.byteLength(payload)
+            "Content-Type":       "application/json",
+            "Authorization":      "Bearer " + openrouterKey,
+            "HTTP-Referer":       "https://811freitas.github.io",
+            "X-Title":            "Worka",
+            "Content-Length":     Buffer.byteLength(payload)
           }
         }, res2 => {
           var raw2 = "";
@@ -1738,7 +1759,10 @@ var server = http.createServer(async (req, res) => {
         req2.end();
       });
 
-      if (response.status >= 400) return jsonErr(res, "Erro no assistente", 502);
+      if (response.status >= 400) {
+        secLog("wer_erro", { status: response.status });
+        return jsonErr(res, "Erro no assistente", 502);
+      }
       return jsonOk(res, response.body);
     }
 
