@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://worka-backend-awng.onrender.com https://fonts.googleapis.com https://fonts.gstatic.com https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://worka-backend-awng.onrender.com;">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Worka — Gestão de Equipe para Pequenas Empresas</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
@@ -802,39 +803,34 @@
 
     <!-- TRIAL: Escolher plano -->
     <div id="step-trial" style="display:none;padding:28px">
-      <div style="text-align:center;margin-bottom:24px">
-        <div style="font-size:2.5rem;margin-bottom:8px">🎉</div>
-        <div style="font-family:'Syne',sans-serif;font-size:1.2rem;font-weight:800;color:#0a2e1a">Olá, <span id="trial-nome-dest">!</span></div>
-        <div style="font-size:.85rem;color:#6b7068;margin-top:4px">Escolha como quer começar:</div>
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:2.8rem;margin-bottom:8px;animation:werPulse 1.6s ease-in-out infinite">🎉</div>
+        <div style="font-family:'Syne',sans-serif;font-size:1.25rem;font-weight:800;color:#0a2e1a;line-height:1.3">Parabéns, <span id="trial-nome-dest">!</span></div>
+        <div style="font-size:.95rem;font-weight:700;color:#1e8a40;margin-top:4px">Você foi selecionado para 7 dias grátis 🚀</div>
+        <div style="font-size:.82rem;color:#6b7068;margin-top:6px">Acesso completo, sem cartão, sem compromisso.</div>
       </div>
 
-      <div style="background:linear-gradient(135deg,#0a2e1a,#1e8a40);border-radius:14px;padding:20px;margin-bottom:12px">
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <div>
-            <div style="font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:#3dd669">🆓 7 dias grátis</div>
-            <div style="font-size:.78rem;color:rgba(255,255,255,.7);margin-top:3px">Sem cartão. Acesso completo.</div>
-          </div>
-          <span style="background:#3dd669;color:#0a2e1a;border-radius:8px;padding:5px 10px;font-size:.72rem;font-weight:700">GRÁTIS</span>
+      <div style="background:linear-gradient(135deg,#0a2e1a,#1e8a40);border-radius:16px;padding:22px;margin-bottom:14px;box-shadow:0 8px 24px rgba(30,138,64,.25);animation:werGlow 2s ease-in-out infinite">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-family:'Syne',sans-serif;font-size:1.05rem;font-weight:800;color:#3dd669">🆓 7 dias grátis liberados</div>
+          <span style="background:#3dd669;color:#0a2e1a;border-radius:8px;padding:5px 10px;font-size:.7rem;font-weight:800">✓ VOCÊ GANHOU</span>
         </div>
+        <div style="font-size:.8rem;color:rgba(255,255,255,.75);line-height:1.5">Ponto digital, tarefas, validade de produtos e o assistente Wer — tudo liberado agora, sem pedir cartão.</div>
       </div>
 
-      <div style="background:#f7f8f7;border:1.5px solid #eff0ef;border-radius:14px;padding:20px;margin-bottom:16px">
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <div>
-            <div style="font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;color:#0a2e1a">💳 Assinar agora</div>
-            <div style="font-size:.78rem;color:#6b7068;margin-top:3px">R$ 24,90/mês · Acesso imediato</div>
-          </div>
-          <span style="background:#0a2e1a;color:white;border-radius:8px;padding:5px 10px;font-size:.72rem;font-weight:700">PIX</span>
-        </div>
-      </div>
+      <button id="btn-trial" onclick="ativarTrialGratis()" style="width:100%;background:linear-gradient(135deg,#1e8a40,#25b251);color:white;border:none;padding:16px;border-radius:12px;font-size:1rem;font-weight:800;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:14px;box-shadow:0 4px 14px rgba(30,138,64,.35)">
+        🚀 Ativar meus 7 dias grátis agora
+      </button>
 
-      <button id="btn-trial" onclick="ativarTrialGratis()" style="width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:10px">
-        🚀 Começar 7 dias grátis
-      </button>
-      <button onclick="mostrarStep('form')" style="width:100%;background:none;border:1.5px solid #eff0ef;color:#6b7068;padding:12px;border-radius:10px;font-size:.85rem;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif">
-        💳 Prefiro assinar agora (R$ 24,90/mês)
-      </button>
+      <div style="text-align:center">
+        <a href="#" onclick="escolherAssinarAgora();return false;" style="font-size:.78rem;color:#9aab9a;text-decoration:underline;cursor:pointer">Já decidi: prefiro assinar direto por R$ 24,90/mês</a>
+      </div>
     </div>
+
+    <style>
+      @keyframes werPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
+      @keyframes werGlow { 0%,100%{box-shadow:0 8px 24px rgba(30,138,64,.25)} 50%{box-shadow:0 8px 32px rgba(61,214,105,.4)} }
+    </style>
 
     <!-- TRIAL: Verificar email -->
     <div id="step-trial-verify" style="display:none;padding:28px;text-align:center">
@@ -847,6 +843,10 @@
       <input id="trial-senha" type="password" placeholder="Crie uma senha (mín. 8 caracteres)" autocomplete="new-password"
         style="width:100%;padding:14px 16px;border:2px solid #eff0ef;border-radius:12px;font-size:.9rem;font-family:'Inter',sans-serif;outline:none;margin-bottom:16px"
         onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
+      <div id="trial-verify-pagamento-campos" style="display:none">
+        <input id="trial-doc" placeholder="CPF ou CNPJ" style="width:100%;padding:14px 16px;border:2px solid #eff0ef;border-radius:12px;font-size:.9rem;font-family:'Inter',sans-serif;outline:none;margin-bottom:12px">
+        <input id="trial-tel" placeholder="Telefone com DDD" style="width:100%;padding:14px 16px;border:2px solid #eff0ef;border-radius:12px;font-size:.9rem;font-family:'Inter',sans-serif;outline:none;margin-bottom:16px">
+      </div>
       <div id="trial-verify-erro" style="display:none;background:#fef2f2;border-radius:8px;padding:10px;font-size:.8rem;color:#dc2626;margin-bottom:12px"></div>
       <button id="btn-trial-confirmar" onclick="confirmarTrialCodigo()" style="width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif">
         Confirmar e ativar trial ✓
@@ -1263,7 +1263,48 @@ function escolherPlano() {
   var n=document.getElementById('trial-nome-dest');if(n)n.textContent=nome.split(' ')[0];
 }
 
+/**
+ * Fluxo de "assinar agora" reaproveita a mesma tela de senha+código
+ * do trial — toda conta, grátis ou paga, precisa de credenciais
+ * reais para logar depois. A diferença fica só em qual step aparece
+ * após confirmar o código: quem escolheu assinar segue direto para
+ * o PIX; quem escolheu trial vê a tela de sucesso do trial.
+ */
+var intencaoAssinarDireto = false;
+
+function escolherAssinarAgora(){
+  intencaoAssinarDireto = true;
+  var nome = ((document.getElementById('f-nome') || {}).value || '').trim();
+  var email = ((document.getElementById('f-email') || {}).value || '').trim();
+  var emailEl = document.getElementById('trial-email-txt');
+  if (emailEl) emailEl.textContent = email;
+
+  var btn = document.getElementById('btn-trial');
+  if (btn) { btn.textContent = '⏳ Enviando código...'; btn.disabled = true; }
+
+  fetch(API_BASE + '/enviar-codigo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, name: nome })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if (btn) { btn.textContent = '🚀 Começar 7 dias grátis'; btn.disabled = false; }
+    if (!data.ok) { mostrarErro(data.error || 'Erro ao enviar código.'); return; }
+    var camposPag = document.getElementById('trial-verify-pagamento-campos');
+    if (camposPag) camposPag.style.display = 'block';
+    var btnConf = document.getElementById('btn-trial-confirmar');
+    if (btnConf) btnConf.textContent = 'Confirmar e continuar para pagamento →';
+    mostrarStep('trial-verify');
+  })
+  .catch(function(){
+    if (btn) { btn.textContent = '🚀 Começar 7 dias grátis'; btn.disabled = false; }
+    mostrarErro('Erro de conexão. Tente novamente.');
+  });
+}
+
 async function ativarTrialGratis() {
+  intencaoAssinarDireto = false;
   var nome = ((document.getElementById('f-nome') || {}).value || '').trim();
   var email = ((document.getElementById('f-email') || {}).value || '').trim();
   
@@ -1275,7 +1316,7 @@ async function ativarTrialGratis() {
   // quando /verificar-codigo cria a empresa — nunca calculado ou
   // guardado aqui no navegador.
   try {
-    var r = await fetch('https://worka-backend-awng.onrender.com/enviar-codigo', {
+    var r = await fetch(API_BASE + '/enviar-codigo', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, name: nome })
@@ -1333,10 +1374,23 @@ async function confirmarTrialCodigo() {
     // digitar aqui. Salva para o app já abrir logado.
     if (data.token) localStorage.setItem('worka_token', data.token);
   } catch(e) {
-    if (btn) { btn.textContent = 'Confirmar e ativar trial ✓'; btn.disabled = false; }
+    if (btn) { btn.textContent = intencaoAssinarDireto ? 'Confirmar e continuar' : 'Confirmar e ativar trial ✓'; btn.disabled = false; }
     var erroEl = document.getElementById('trial-verify-erro');
     if (erroEl) { erroEl.textContent = e.message; erroEl.style.display = 'block'; }
     else mostrarErro(e.message);
+    return;
+  }
+
+  if (intencaoAssinarDireto) {
+    // Conta criada com senha real — agora segue para o pagamento de
+    // verdade, em vez de mostrar a tela de sucesso do trial.
+    dadosFormulario.name = nome;
+    dadosFormulario.email = email;
+    var docEl = document.getElementById('trial-doc');
+    var telEl = document.getElementById('trial-tel');
+    dadosFormulario.document = docEl ? docEl.value.trim() : '';
+    dadosFormulario.phone = telEl ? telEl.value.trim() : '';
+    await gerarPixReal();
     return;
   }
 
@@ -1437,7 +1491,7 @@ function entrarNoApp(){
   if(email&&senha){
     var btnEntrar = document.getElementById('acesso-btn-entrar');
     if(btnEntrar){ btnEntrar.textContent='Entrando...'; btnEntrar.disabled=true; }
-    fetch('https://worka-backend-awng.onrender.com/login/empresa', {
+    fetch(API_BASE + '/login/empresa', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ email: email, senha: senha })
@@ -1696,18 +1750,17 @@ var WER_API_KEY = ""; // Chave movida para o backend
 var werHistorico = [];
 var werAberto = false;
 
-var WER_SISTEMA = `Você é o Wer, assistente da plataforma Worka no site institucional. Ajude visitantes a entender o produto, responda dúvidas sobre preço (R$ 24,90/mês), funcionalidades, como assinar, e incentive o cadastro. Quando alguém quiser assinar, chame abrirFunil(). Você é o Wer, assistente de IA da plataforma Worka. Worka é um SaaS de gestão de equipe para micro e pequenas empresas.
+var WER_SISTEMA = `Você é o Wer, assistente de IA da plataforma Worka, atendendo aqui no site institucional — ou seja, conversando com visitantes que ainda NÃO são clientes.
 
-Você ajuda os usuários a:
-- Navegar e usar todos os recursos do Worka
-- Gerenciar funcionários, ponto, tarefas, salários, ausências e validade de produtos
-- Resolver dúvidas sobre o sistema
-- Sugerir melhores práticas de gestão de equipe
-- Executar ações no sistema quando solicitado
+Worka é um SaaS de gestão de equipe para micro e pequenas empresas (ponto digital com biometria, tarefas com comprovação por foto, controle de validade de produtos, gestão de salários, tudo isso com um assistente de IA embutido). Plano único: R$ 24,90/mês, com 7 dias grátis sem precisar de cartão.
 
-Painéis disponíveis: Dashboard, Funcionários, Ponto, Tarefas, Salários, Ausências, Escala, Relatórios, Validade de Produtos, Mural, Cargos e Permissões, Integração API, Identidade Visual, Notificações.
+Seu papel aqui é:
+- Explicar o que o Worka faz e para quem é indicado
+- Responder dúvidas sobre preço, funcionalidades e como funciona o trial
+- Incentivar o cadastro, sem ser insistente
+- Ser simpático, direto e usar emojis com moderação
 
-Seja sempre simpático, objetivo e use emojis quando adequado. Responda em português brasileiro. Quando o usuário pedir para navegar para alguma tela, indique qual menu clicar.`;
+Responda sempre em português brasileiro. Se a pessoa quiser começar, sugira clicar em "Testar grátis 7 dias" no topo da página.`;
 
 function toggleWer() {
   werAberto = !werAberto;
@@ -1752,15 +1805,12 @@ async function enviarWer(textoFixo) {
   var typingId = adicionarTypingWer();
 
   try {
-    var response = await fetch('https://api.x.ai/v1/chat/completions', {
+    var response = await fetch(API_BASE + '/wer/chat', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + WER_API_KEY
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'grok-beta',
-        max_tokens: 600,
         messages: [
           { role: 'system', content: WER_SISTEMA + contexto },
           ...werHistorico.slice(-10)
@@ -1774,13 +1824,6 @@ async function enviarWer(textoFixo) {
     var resposta = data.choices && data.choices[0] ? data.choices[0].message.content : 'Desculpe, não consegui processar sua pergunta. Tente novamente!';
     adicionarMensagemWer('bot', resposta);
     werHistorico.push({ role: 'assistant', content: resposta });
-
-    // Verificar se deve navegar para alguma página
-    verificarNavegacaoWer(resposta, texto);
-    // No site, verificar se deve abrir funil
-    if ((resposta + texto).toLowerCase().includes('assinar') || (resposta + texto).toLowerCase().includes('cadastr')) {
-      // Sugerir funil
-    }
 
   } catch(e) {
     removerTypingWer(typingId);
@@ -1824,25 +1867,6 @@ function adicionarTypingWer() {
 function removerTypingWer(id) {
   var el = document.getElementById(id);
   if (el) el.remove();
-}
-
-function verificarNavegacaoWer(resposta, pergunta) {
-  var texto = (resposta + pergunta).toLowerCase();
-  var navegacoes = {
-    'funcionár': 'funcionarios', 'ponto': 'ponto', 'tarefa': 'tarefas',
-    'salário': 'salarios', 'ausência': 'ausencias', 'falta': 'ausencias',
-    'validade': 'validade', 'produto': 'validade', 'escala': 'escala',
-    'relatório': 'relatorios', 'mural': 'mural', 'comunicado': 'mural',
-    'cargo': 'cargos', 'permissão': 'cargos', 'integração': 'integracao',
-    'api': 'integracao', 'visual': 'visual', 'cor': 'visual', 'logo': 'visual',
-    'notificação': 'notificacoes', 'dashboard': 'dashboard'
-  };
-  for (var chave in navegacoes) {
-    if (texto.includes(chave) && typeof abrirPagina === 'function') {
-      // Não navegar automaticamente, só sugerir
-      break;
-    }
-  }
 }
 
 // Auto-resize textarea
