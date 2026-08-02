@@ -404,10 +404,7 @@ tr:hover td{background:var(--gray50)}
         <div class="card-header"><div class="card-title">🕐 Aguardando aprovação</div></div>
         <div class="card-body" style="padding:0">
           <table><thead><tr><th>Nome</th><th>E-mail</th><th>Solicitado em</th><th>Ação</th></tr></thead>
-          <tbody><tr>
-            <td>Pedro Alves</td><td>pedro@email.com</td><td>Hoje, 14:32</td>
-            <td><div style="display:flex;gap:6px"><button class="btn btn-sm btn-primary" onclick="aprovarFunc(this)">✓ Aprovar</button><button class="btn btn-sm btn-danger" onclick="recusarFunc(this)">✗ Recusar</button></div></td>
-          </tr></tbody></table>
+          <tbody id="lista-aprovacoes"></tbody></table>
         </div>
       </div>
 
@@ -498,7 +495,7 @@ tr:hover td{background:var(--gray50)}
           <button class="btn btn-sm btn-secondary" onclick="filtrarTarefas('concluida')">Concluídas</button>
           <button class="btn btn-sm btn-secondary" onclick="filtrarTarefas('atrasada')">Atrasadas</button>
         </div>
-        <button class="btn btn-primary" onclick="abrirModal('modal-add-tarefa')">+ Nova tarefa</button>
+        <button class="btn btn-primary" onclick="abrirModalNovaTarefa()">+ Nova tarefa</button>
       </div>
 
       <div id="lista-tarefas">
@@ -527,31 +524,15 @@ tr:hover td{background:var(--gray50)}
     <div class="page" id="pg-validade">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
         <div style="display:flex;gap:8px">
-          <button class="btn btn-sm btn-danger">⚠️ Urgente (3)</button>
-          <button class="btn btn-sm btn-secondary">Todos</button>
+          <button class="btn btn-sm btn-danger" onclick="filtrarValidade('urgente')">⚠️ Urgente</button>
+          <button class="btn btn-sm btn-secondary" onclick="filtrarValidade('todos')">Todos</button>
         </div>
         <button class="btn btn-primary" onclick="abrirModal('modal-add-produto')">+ Cadastrar produto</button>
       </div>
 
-      <div class="card" style="margin-bottom:16px">
+      <div class="card" style="margin-bottom:16px" id="card-validade-urgentes">
         <div class="card-header"><div class="card-title">⚠️ Vencimento próximo</div></div>
-        <div class="card-body" style="padding:12px">
-          <div class="validade-card" style="border-left:3px solid var(--red)">
-            <div class="validade-icon" style="background:#fef2f2">🥛</div>
-            <div class="validade-info"><div class="validade-nome">Leite integral — Lote #A203</div><div class="validade-data">Vence: 28/06/2026 · Qtd: 24 unidades</div></div>
-            <div><div class="validade-dias" style="color:var(--red)">1 dia</div><button class="btn btn-sm btn-danger" style="margin-top:4px" onclick="criarTarefaValidade('Leite integral')">Criar tarefa</button></div>
-          </div>
-          <div class="validade-card" style="border-left:3px solid var(--yellow)">
-            <div class="validade-icon" style="background:#fffbeb">🧴</div>
-            <div class="validade-info"><div class="validade-nome">Creme hidratante — Lote #B441</div><div class="validade-data">Vence: 02/07/2026 · Qtd: 8 unidades</div></div>
-            <div><div class="validade-dias" style="color:var(--yellow)">5 dias</div><button class="btn btn-sm btn-secondary" style="margin-top:4px" onclick="criarTarefaValidade('Creme hidratante')">Criar tarefa</button></div>
-          </div>
-          <div class="validade-card" style="border-left:3px solid var(--yellow)">
-            <div class="validade-icon" style="background:#fffbeb">💊</div>
-            <div class="validade-info"><div class="validade-nome">Anestésico tópico — Lote #C118</div><div class="validade-data">Vence: 05/07/2026 · Qtd: 3 unidades</div></div>
-            <div><div class="validade-dias" style="color:var(--yellow)">8 dias</div><button class="btn btn-sm btn-secondary" style="margin-top:4px">Criar tarefa</button></div>
-          </div>
-        </div>
+        <div class="card-body" style="padding:12px" id="lista-validade-urgentes"></div>
       </div>
 
       <div class="card">
@@ -559,13 +540,7 @@ tr:hover td{background:var(--gray50)}
         <div class="card-body" style="padding:0">
           <table>
             <thead><tr><th>Produto</th><th>Lote</th><th>Vencimento</th><th>Qtd</th><th>Aviso</th><th>Status</th></tr></thead>
-            <tbody>
-              <tr><td>Leite integral</td><td>#A203</td><td>28/06/2026</td><td>24 un</td><td>7 dias antes</td><td><span class="badge badge-red">Urgente</span></td></tr>
-              <tr><td>Creme hidratante</td><td>#B441</td><td>02/07/2026</td><td>8 un</td><td>15 dias antes</td><td><span class="badge badge-yellow">Atenção</span></td></tr>
-              <tr><td>Anestésico tópico</td><td>#C118</td><td>05/07/2026</td><td>3 un</td><td>30 dias antes</td><td><span class="badge badge-yellow">Atenção</span></td></tr>
-              <tr><td>Shampoo neutro</td><td>#D220</td><td>15/08/2026</td><td>12 un</td><td>30 dias antes</td><td><span class="badge badge-green">Normal</span></td></tr>
-              <tr><td>Tinta cabelo #4</td><td>#E301</td><td>10/09/2026</td><td>20 un</td><td>30 dias antes</td><td><span class="badge badge-green">Normal</span></td></tr>
-            </tbody>
+            <tbody id="tabela-validade-todos"></tbody>
           </table>
         </div>
       </div>
@@ -1453,22 +1428,23 @@ tr:hover td{background:var(--gray50)}
 <div class="modal-overlay" id="modal-add-tarefa">
   <div class="modal">
     <div class="modal-title">Nova tarefa</div>
+    <div id="add-tarefa-erro" style="display:none;background:#fef2f2;color:#dc2626;border-radius:8px;padding:10px 12px;font-size:.82rem;margin-bottom:10px"></div>
     <div class="form-grid">
-      <div class="field form-full"><label>Título da tarefa</label><input placeholder="Ex: Limpeza do salão"></div>
-      <div class="field form-full"><label>Descrição</label><textarea placeholder="Detalhes da tarefa..." style="width:100%;padding:10px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-family:var(--font);font-size:.9rem;resize:vertical;min-height:80px;outline:none"></textarea></div>
-      <div class="field"><label>Responsável</label><select><option>Maria Silva</option><option>João Pedro</option><option>Ana Lima</option><option>Carlos Reis</option></select></div>
-      <div class="field"><label>Prazo</label><input type="datetime-local"></div>
-      <div class="field"><label>Prioridade</label><select><option>Normal</option><option>Alta</option><option>Urgente</option></select></div>
-      <div class="field"><label>Recorrência</label><select><option>Não repete</option><option>Diária</option><option>Semanal</option><option>Mensal</option></select></div>
+      <div class="field form-full"><label>Título da tarefa</label><input id="at-titulo" placeholder="Ex: Limpeza do salão"></div>
+      <div class="field form-full"><label>Descrição</label><textarea id="at-descricao" placeholder="Detalhes da tarefa..." style="width:100%;padding:10px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-family:var(--font);font-size:.9rem;resize:vertical;min-height:80px;outline:none"></textarea></div>
+      <div class="field"><label>Responsável</label><select id="at-responsavel"><option value="">Tarefa geral (sem responsável)</option></select></div>
+      <div class="field"><label>Prazo</label><input id="at-prazo" type="datetime-local"></div>
+      <div class="field"><label>Prioridade</label><select id="at-prioridade"><option value="normal">Normal</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select></div>
+      <div class="field"><label>Recorrência</label><select id="at-recorrencia"><option value="nenhuma">Não repete</option><option value="diaria">Diária</option><option value="semanal">Semanal</option><option value="mensal">Mensal</option></select></div>
       <div class="field form-full">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-          <input type="checkbox" id="requer-foto"> Exigir foto ou vídeo para concluir
+          <input type="checkbox" id="at-requer-foto"> Exigir foto ou vídeo para concluir
         </label>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="fecharModal('modal-add-tarefa')">Cancelar</button>
-      <button class="btn btn-primary" onclick="fecharModal('modal-add-tarefa')">Criar tarefa</button>
+      <button id="at-btn-salvar" class="btn btn-primary" onclick="salvarNovaTarefa()">Criar tarefa</button>
     </div>
   </div>
 </div>
@@ -1477,18 +1453,19 @@ tr:hover td{background:var(--gray50)}
 <div class="modal-overlay" id="modal-add-produto">
   <div class="modal">
     <div class="modal-title">Cadastrar produto</div>
+    <div id="add-produto-erro" style="display:none;background:#fef2f2;color:#dc2626;border-radius:8px;padding:10px 12px;font-size:.82rem;margin-bottom:10px"></div>
     <div class="form-grid">
-      <div class="field form-full"><label>Nome do produto</label><input placeholder="Ex: Leite integral"></div>
-      <div class="field"><label>Número do lote</label><input placeholder="Ex: #A203"></div>
-      <div class="field"><label>Data de vencimento</label><input type="date"></div>
-      <div class="field"><label>Quantidade</label><input type="number" placeholder="0"></div>
-      <div class="field"><label>Unidade</label><select><option>Unidades</option><option>Kg</option><option>Litros</option><option>Caixas</option></select></div>
-      <div class="field"><label>Avisar com quantos dias de antecedência</label><select><option>3 dias</option><option>7 dias</option><option>15 dias</option><option>30 dias</option><option>60 dias</option></select></div>
-      <div class="field form-full"><label>Categoria</label><select><option>Alimentos</option><option>Medicamentos</option><option>Cosméticos</option><option>Limpeza</option><option>Outros</option></select></div>
+      <div class="field form-full"><label>Nome do produto</label><input id="ap-nome" placeholder="Ex: Leite integral"></div>
+      <div class="field"><label>Número do lote</label><input id="ap-lote" placeholder="Ex: #A203"></div>
+      <div class="field"><label>Data de vencimento</label><input id="ap-data" type="date"></div>
+      <div class="field"><label>Quantidade</label><input id="ap-quantidade" type="number" placeholder="0"></div>
+      <div class="field"><label>Unidade</label><select id="ap-unidade"><option value="unidades">Unidades</option><option value="kg">Kg</option><option value="litros">Litros</option><option value="caixas">Caixas</option></select></div>
+      <div class="field"><label>Avisar com quantos dias de antecedência</label><select id="ap-dias-aviso"><option value="3">3 dias</option><option value="7">7 dias</option><option value="15">15 dias</option><option value="30" selected>30 dias</option><option value="60">60 dias</option></select></div>
+      <div class="field form-full"><label>Categoria</label><select id="ap-categoria"><option value="Alimentos">Alimentos</option><option value="Medicamentos">Medicamentos</option><option value="Cosméticos">Cosméticos</option><option value="Limpeza">Limpeza</option><option value="Outros">Outros</option></select></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="fecharModal('modal-add-produto')">Cancelar</button>
-      <button class="btn btn-primary" onclick="fecharModal('modal-add-produto')">Cadastrar produto</button>
+      <button id="ap-btn-salvar" class="btn btn-primary" onclick="salvarNovoProduto()">Cadastrar produto</button>
     </div>
   </div>
 </div>
@@ -1629,8 +1606,15 @@ function entrarComoDono(token, empresa, trial){
   });
   abrirPagina('dashboard');
   if(typeof iniciarRelogio === 'function') iniciarRelogio();
-  carregarFuncionariosReais();
+  // carregarTarefasReais() resolve nome do responsável usando
+  // funcionariosCache, preenchido só depois que o fetch de
+  // funcionários completa — encadeado para garantir a ordem real de
+  // conclusão, não só de disparo.
+  carregarFuncionariosReais().then(function(){
+    if(typeof carregarTarefasReais === 'function') carregarTarefasReais();
+  });
   carregarPontoReal();
+  carregarValidadeReal();
   verificarTrial();
 }
 
@@ -1779,6 +1763,229 @@ function fazerLogin() {
   }
 }
 
+function abrirModalNovaTarefa(){
+  var sel = document.getElementById('at-responsavel');
+  if(sel){
+    // Preserva a opção "Tarefa geral" e adiciona um <option> por
+    // funcionário ativo/pendente do cache mais recente.
+    sel.innerHTML = '<option value="">Tarefa geral (sem responsável)</option>' +
+      funcionariosCache.map(function(f){ return '<option value="'+f.id+'">'+f.nome+'</option>'; }).join('');
+  }
+  var erroEl = document.getElementById('add-tarefa-erro');
+  if(erroEl) erroEl.style.display = 'none';
+  abrirModal('modal-add-tarefa');
+}
+
+function salvarNovoProduto(){
+  var erroEl = document.getElementById('add-produto-erro');
+  erroEl.style.display = 'none';
+
+  if(!sessaoWorka || !sessaoWorka.token){
+    erroEl.textContent = 'Faça login para cadastrar produtos.';
+    erroEl.style.display = 'block';
+    return;
+  }
+
+  var nome = document.getElementById('ap-nome').value.trim();
+  var dataVenc = document.getElementById('ap-data').value;
+  if(!nome || !dataVenc){
+    erroEl.textContent = 'Informe pelo menos o nome e a data de vencimento.';
+    erroEl.style.display = 'block';
+    return;
+  }
+
+  var payload = {
+    nome: nome,
+    lote: document.getElementById('ap-lote').value.trim(),
+    data_vencimento: dataVenc,
+    quantidade: document.getElementById('ap-quantidade').value || 0,
+    unidade: document.getElementById('ap-unidade').value,
+    dias_aviso: document.getElementById('ap-dias-aviso').value,
+    categoria: document.getElementById('ap-categoria').value
+  };
+
+  var btn = document.getElementById('ap-btn-salvar');
+  var textoOriginal = btn.textContent;
+  btn.textContent = 'Cadastrando...';
+  btn.disabled = true;
+
+  fetch('https://worka-backend-awng.onrender.com/validade', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
+    body: JSON.stringify(payload)
+  })
+  .then(function(r){ return r.json().then(function(data){ return { status:r.status, data:data }; }); })
+  .then(function(res){
+    btn.textContent = textoOriginal;
+    btn.disabled = false;
+    if(res.status !== 201){
+      erroEl.textContent = res.data.error || 'Não foi possível cadastrar o produto.';
+      erroEl.style.display = 'block';
+      return;
+    }
+    document.getElementById('ap-nome').value = '';
+    document.getElementById('ap-lote').value = '';
+    document.getElementById('ap-data').value = '';
+    document.getElementById('ap-quantidade').value = '';
+    fecharModal('modal-add-produto');
+    if(typeof carregarValidadeReal === 'function') carregarValidadeReal();
+  })
+  .catch(function(){
+    btn.textContent = textoOriginal;
+    btn.disabled = false;
+    erroEl.textContent = 'Erro de conexão. Tente novamente.';
+    erroEl.style.display = 'block';
+  });
+}
+
+/**
+ * Carrega os produtos reais do backend e substitui os cards/tabela
+ * estáticos de validade. O "status" de cada produto (normal/atencao/
+ * urgente/vencido) vem já calculado pelo gatilho trg_validade_status
+ * no banco — o frontend só precisa traduzir isso em badge visual,
+ * nunca calcular a data por conta própria.
+ */
+var validadeCache = []; // última lista real buscada, reaproveitada pelo filtro sem nova chamada de rede
+
+function carregarValidadeReal(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+
+  fetch('https://worka-backend-awng.onrender.com/validade', {
+    headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(lista){
+    if(!Array.isArray(lista)) return;
+    validadeCache = lista;
+    renderizarValidade(lista);
+  })
+  .catch(function(){
+    // Falha silenciosa: mantém o que já estava renderizado
+  });
+}
+
+function renderizarValidade(lista){
+  var badgePorStatus = {
+    normal:   '<span class="badge badge-green">Normal</span>',
+    atencao:  '<span class="badge badge-yellow">Atenção</span>',
+    urgente:  '<span class="badge badge-red">Urgente</span>',
+    vencido:  '<span class="badge badge-red">Vencido</span>'
+  };
+  var iconePorCategoria = { Alimentos:'🥛', Medicamentos:'💊', Cosméticos:'🧴', Limpeza:'🧽', Outros:'📦' };
+
+  // Tabela completa
+  var tbody = document.getElementById('tabela-validade-todos');
+  if(tbody){
+    if(lista.length === 0){
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gray500);padding:20px">Nenhum produto cadastrado ainda.</td></tr>';
+    } else {
+      tbody.innerHTML = lista.map(function(p){
+        var dataFmt = new Date(p.data_vencimento+'T00:00:00').toLocaleDateString('pt-BR');
+        return '<tr><td>'+p.nome+'</td><td>'+(p.lote||'—')+'</td><td>'+dataFmt+'</td><td>'+p.quantidade+' '+(p.unidade||'un')+'</td><td>'+(p.dias_aviso||30)+' dias antes</td><td>'+(badgePorStatus[p.status]||badgePorStatus.normal)+'</td></tr>';
+      }).join('');
+    }
+  }
+
+  // Card de urgentes (status urgente ou vencido)
+  var urgentes = lista.filter(function(p){ return p.status === 'urgente' || p.status === 'vencido'; });
+  var container = document.getElementById('lista-validade-urgentes');
+  if(container){
+    if(urgentes.length === 0){
+      container.innerHTML = '<div style="text-align:center;color:var(--gray500);padding:16px;font-size:.85rem">Nenhum produto com vencimento urgente. ✅</div>';
+    } else {
+      container.innerHTML = urgentes.map(function(p){
+        var hoje = new Date(); hoje.setHours(0,0,0,0);
+        var venc = new Date(p.data_vencimento+'T00:00:00');
+        var dias = Math.ceil((venc - hoje) / (1000*60*60*24));
+        var diasTxt = dias < 0 ? 'Vencido há '+Math.abs(dias)+' dia(s)' : dias === 0 ? 'Vence hoje' : dias+' dia(s)';
+        var cor = p.status === 'vencido' ? 'var(--red)' : 'var(--red)';
+        var icone = iconePorCategoria[p.categoria] || '📦';
+        return '<div class="validade-card" style="border-left:3px solid var(--red)">' +
+          '<div class="validade-icon" style="background:#fef2f2">'+icone+'</div>' +
+          '<div class="validade-info"><div class="validade-nome">'+p.nome+(p.lote?' — Lote '+p.lote:'')+'</div><div class="validade-data">Vence: '+venc.toLocaleDateString('pt-BR')+' · Qtd: '+p.quantidade+' '+(p.unidade||'un')+'</div></div>' +
+          '<div><div class="validade-dias" style="color:'+cor+'">'+diasTxt+'</div><button class="btn btn-sm btn-danger" style="margin-top:4px" onclick="criarTarefaValidade(\''+p.nome.replace(/'/g,"\\'")+'\')">Criar tarefa</button></div>' +
+        '</div>';
+      }).join('');
+    }
+  }
+}
+
+function filtrarValidade(tipo){
+  if(tipo === 'urgente'){
+    renderizarValidade(validadeCache.filter(function(p){ return p.status === 'urgente' || p.status === 'vencido'; }));
+    var tbody = document.getElementById('tabela-validade-todos');
+    if(tbody && validadeCache.filter(function(p){return p.status==='urgente'||p.status==='vencido';}).length === 0){
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gray500);padding:20px">Nenhum produto urgente no momento. ✅</td></tr>';
+    }
+  } else {
+    renderizarValidade(validadeCache);
+  }
+}
+
+function salvarNovaTarefa(){
+  var erroEl = document.getElementById('add-tarefa-erro');
+  erroEl.style.display = 'none';
+
+  if(!sessaoWorka || !sessaoWorka.token){
+    erroEl.textContent = 'Faça login para criar tarefas.';
+    erroEl.style.display = 'block';
+    return;
+  }
+
+  var titulo = document.getElementById('at-titulo').value.trim();
+  if(!titulo){
+    erroEl.textContent = 'Informe o título da tarefa.';
+    erroEl.style.display = 'block';
+    return;
+  }
+
+  var prazoLocal = document.getElementById('at-prazo').value; // formato datetime-local: "2026-08-01T14:30"
+  var prazoISO = prazoLocal ? new Date(prazoLocal).toISOString() : null;
+
+  var payload = {
+    titulo: titulo,
+    descricao: document.getElementById('at-descricao').value.trim(),
+    responsavel_id: document.getElementById('at-responsavel').value || null,
+    prazo: prazoISO,
+    prioridade: document.getElementById('at-prioridade').value,
+    recorrencia: document.getElementById('at-recorrencia').value,
+    requer_foto: document.getElementById('at-requer-foto').checked
+  };
+
+  var btn = document.getElementById('at-btn-salvar');
+  var textoOriginal = btn.textContent;
+  btn.textContent = 'Criando...';
+  btn.disabled = true;
+
+  fetch('https://worka-backend-awng.onrender.com/tarefas', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
+    body: JSON.stringify(payload)
+  })
+  .then(function(r){ return r.json().then(function(data){ return { status:r.status, data:data }; }); })
+  .then(function(res){
+    btn.textContent = textoOriginal;
+    btn.disabled = false;
+    if(res.status !== 201){
+      erroEl.textContent = res.data.error || 'Não foi possível criar a tarefa.';
+      erroEl.style.display = 'block';
+      return;
+    }
+    document.getElementById('at-titulo').value = '';
+    document.getElementById('at-descricao').value = '';
+    document.getElementById('at-prazo').value = '';
+    document.getElementById('at-requer-foto').checked = false;
+    fecharModal('modal-add-tarefa');
+    if(typeof carregarTarefasReais === 'function') carregarTarefasReais();
+  })
+  .catch(function(){
+    btn.textContent = textoOriginal;
+    btn.disabled = false;
+    erroEl.textContent = 'Erro de conexão. Tente novamente.';
+    erroEl.style.display = 'block';
+  });
+}
+
 function salvarNovoFuncionario(){
   var erroEl = document.getElementById('add-func-erro');
   erroEl.style.display = 'none';
@@ -1846,14 +2053,18 @@ function salvarNovoFuncionario(){
   });
 }
 
-function carregarFuncionariosReais(){
-  if(!sessaoWorka || !sessaoWorka.token) return;
+var funcionariosCache = []; // última lista real buscada — reaproveitada para popular selects (ex: responsável de tarefa) sem chamada de rede extra
 
-  fetch('https://worka-backend-awng.onrender.com/funcionarios', {
+function carregarFuncionariosReais(){
+  if(!sessaoWorka || !sessaoWorka.token) return Promise.resolve();
+
+  return fetch('https://worka-backend-awng.onrender.com/funcionarios', {
     headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
   })
   .then(function(r){ return r.json(); })
   .then(function(lista){
+    if(Array.isArray(lista)) funcionariosCache = lista;
+
     var tbody = document.getElementById('lista-funcionarios');
     if(!tbody || !Array.isArray(lista)) return;
 
@@ -1883,11 +2094,74 @@ function carregarFuncionariosReais(){
         '<td><div style="display:flex;gap:6px"><button class="btn btn-sm btn-danger" onclick="excluirFuncionarioReal(\''+f.id+'\')">🗑</button></div></td>' +
         '</tr>';
     }).join('');
+
+    // Card de aprovações: filtra os pendentes da mesma lista já
+    // buscada, sem segunda chamada de rede. Antes, este card sempre
+    // ficava escondido com uma linha mock fixa (Pedro Alves) atrás.
+    var pendentes = lista.filter(function(f){ return f.status === 'pendente'; });
+    var cardAprov = document.getElementById('card-aprovacoes');
+    var tbodyAprov = document.getElementById('lista-aprovacoes');
+    if(cardAprov && tbodyAprov){
+      if(pendentes.length === 0){
+        cardAprov.style.display = 'none';
+      } else {
+        cardAprov.style.display = 'block';
+        tbodyAprov.innerHTML = pendentes.map(function(f){
+          var dataSolicitada = f.created_at ? new Date(f.created_at).toLocaleDateString('pt-BR') : '—';
+          return '<tr>' +
+            '<td>'+f.nome+'</td><td>'+f.email+'</td><td>'+dataSolicitada+'</td>' +
+            '<td><div style="display:flex;gap:6px">' +
+            '<button class="btn btn-sm btn-primary" onclick="aprovarFuncionarioReal(\''+f.id+'\')">✓ Aprovar</button>' +
+            '<button class="btn btn-sm btn-danger" onclick="recusarFuncionarioReal(\''+f.id+'\')">✗ Recusar</button>' +
+            '</div></td></tr>';
+        }).join('');
+      }
+    }
   })
   .catch(function(){
     // Falha silenciosa aqui é aceitável: a tabela mantém o que já
     // tinha renderizado antes (mock ou lista anterior), não trava a tela.
   });
+}
+
+/**
+ * Aprovar e recusar solicitação de funcionário. Antes, recusarFunc()
+ * literalmente chamava aprovarFunc(btn) — recusar produzia o mesmo
+ * resultado visual de aprovar, mesmo como demonstração local. Agora
+ * ambos chamam o backend real, com efeitos opostos de verdade:
+ * aprovar ativa o funcionário (status=ativo); recusar remove o
+ * cadastro (não existe "status=recusado" no banco — a pessoa nunca
+ * chegou a ser funcionário de fato, então a ação correta é excluir
+ * a solicitação, não deixá-la pendurada em algum estado intermediário).
+ */
+function aprovarFuncionarioReal(id){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+  fetch('https://worka-backend-awng.onrender.com/funcionarios/'+encodeURIComponent(id)+'/status', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
+    body: JSON.stringify({ status: 'ativo' })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(res){
+    if(res.ok) carregarFuncionariosReais();
+    else alert(res.error || 'Não foi possível aprovar o funcionário.');
+  })
+  .catch(function(){ alert('Erro de conexão. Tente novamente.'); });
+}
+
+function recusarFuncionarioReal(id){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+  if(!confirm('Recusar e remover esta solicitação?')) return;
+  fetch('https://worka-backend-awng.onrender.com/funcionarios/'+encodeURIComponent(id), {
+    method: 'DELETE',
+    headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(res){
+    if(res.ok) carregarFuncionariosReais();
+    else alert(res.error || 'Não foi possível recusar a solicitação.');
+  })
+  .catch(function(){ alert('Erro de conexão. Tente novamente.'); });
 }
 
 function excluirFuncionarioReal(id){
@@ -1976,6 +2250,18 @@ function abrirPagina(id) {
   if(id==='notificacoes') document.getElementById('notif-count').textContent='0';
   if(id==='funcionarios' && typeof carregarFuncionariosReais === 'function') carregarFuncionariosReais();
   if(id==='ponto' && typeof carregarPontoReal === 'function') carregarPontoReal();
+  if(id==='tarefas' && typeof carregarTarefasReais === 'function'){
+    // Se o cache de funcionários ainda estiver vazio (ex: a pessoa
+    // navegou direto para Tarefas sem passar por Funcionários nesta
+    // sessão), garante o carregamento antes de renderizar — senão
+    // os nomes de responsável apareceriam genéricos na primeira vez.
+    if(funcionariosCache.length === 0 && typeof carregarFuncionariosReais === 'function'){
+      carregarFuncionariosReais().then(function(){ carregarTarefasReais(); });
+    } else {
+      carregarTarefasReais();
+    }
+  }
+  if(id==='validade' && typeof carregarValidadeReal === 'function') carregarValidadeReal();
 
   // Fechar sidebar no mobile
   if(window.innerWidth<=768) document.getElementById('sidebar').classList.remove('open');
@@ -2193,31 +2479,116 @@ function filtrarTarefas(status){
   });
 }
 
+function atualizarStatusTarefaReal(id, novoStatus, btn){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+  var textoOriginal = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = '...'; }
+
+  fetch('https://worka-backend-awng.onrender.com/tarefas/'+encodeURIComponent(id), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
+    body: JSON.stringify({ status: novoStatus })
+  })
+  .then(function(r){ return r.json().then(function(data){ return { status:r.status, data:data }; }); })
+  .then(function(res){
+    if(res.status !== 200){
+      if(btn){ btn.disabled = false; btn.textContent = textoOriginal; }
+      alert(res.data.error || 'Não foi possível atualizar a tarefa.');
+      return;
+    }
+    if(typeof carregarTarefasReais === 'function') carregarTarefasReais();
+  })
+  .catch(function(){
+    if(btn){ btn.disabled = false; btn.textContent = textoOriginal; }
+    alert('Erro de conexão. Tente novamente.');
+  });
+}
+
 function concluirTarefa(btn){
-  var card=btn.closest('.tarefa-card');
-  card.querySelector('.badge').className='badge badge-blue';
-  card.querySelector('.badge').textContent='Em revisão';
-  btn.textContent='✓ Enviado para revisão';
-  btn.disabled=true;
-  btn.style.background='var(--gray300)';
+  var card = btn.closest('.tarefa-card');
+  var id = card && card.dataset.id;
+  if(!id) return;
+  atualizarStatusTarefaReal(id, 'concluida', btn);
 }
 
 function aprovarTarefa(btn){
-  var card=btn.closest('.tarefa-card');
-  card.querySelector('.badge').className='badge badge-green';
-  card.querySelector('.badge').textContent='Concluída';
-  btn.parentElement.innerHTML='<span style="color:var(--g500);font-size:.82rem;font-weight:600">✅ Aprovada</span>';
+  // No modelo real (sem status intermediário de "revisão"), aprovar
+  // uma tarefa já concluída é apenas confirmar — o status já é
+  // concluida. Mantido só como reforço visual/no-op de UI; o estado
+  // real já reflete a conclusão desde que concluirTarefa() rodou.
+  var card = btn.closest('.tarefa-card');
+  if(card) card.querySelector('.badge').textContent = 'Concluída ✓';
 }
 
 function rejeitarTarefa(btn){
-  var card=btn.closest('.tarefa-card');
-  card.querySelector('.badge').className='badge badge-yellow';
-  card.querySelector('.badge').textContent='Pendente';
-  btn.parentElement.innerHTML='<span style="color:var(--yellow);font-size:.82rem;font-weight:600">↩ Refação solicitada</span>';
+  var card = btn.closest('.tarefa-card');
+  var id = card && card.dataset.id;
+  if(!id) return;
+  if(!confirm('Pedir refação? A tarefa voltará para pendente.')) return;
+  atualizarStatusTarefaReal(id, 'pendente', btn);
 }
 
 function verComprovacao(){
-  alert('📷 Comprovação: Foto enviada pela funcionária Maria Silva às 09:15\n\n[Em produção, exibiria a imagem aqui]');
+  alert('📷 Comprovação em foto — upload e visualização de imagem ainda não implementados neste sistema.');
+}
+
+/**
+ * Carrega as tarefas reais do backend e substitui os cards estáticos
+ * de #lista-tarefas. Antes, essa lista era 100% fixa (4 tarefas mock
+ * hardcoded no HTML) e nenhum botão persistia nada.
+ */
+function carregarTarefasReais(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+
+  fetch('https://worka-backend-awng.onrender.com/tarefas', {
+    headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(lista){
+    var container = document.getElementById('lista-tarefas');
+    if(!container || !Array.isArray(lista)) return;
+
+    if(lista.length === 0){
+      container.innerHTML = '<div style="text-align:center;color:var(--gray500);padding:30px;font-size:.9rem">Nenhuma tarefa cadastrada ainda.</div>';
+      return;
+    }
+
+    var badgePorStatus = {
+      pendente:      '<span class="badge badge-yellow">Pendente</span>',
+      em_andamento:  '<span class="badge badge-blue">Em andamento</span>',
+      concluida:     '<span class="badge badge-green">Concluída</span>',
+      atrasada:      '<span class="badge badge-red">Atrasada</span>'
+    };
+    var iconePorPrioridade = { normal: '📋', alta: '⚠️', urgente: '🚨' };
+
+    // Nomes de responsável resolvidos a partir do cache de
+    // funcionários já buscado (a rota de tarefas retorna só o id).
+    var nomesPorId = {};
+    funcionariosCache.forEach(function(f){ nomesPorId[f.id] = f.nome; });
+
+    container.innerHTML = lista.map(function(t){
+      var prazoTxt = t.prazo ? new Date(t.prazo).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : 'Sem prazo';
+      var responsavelTxt = t.responsavel_id ? (nomesPorId[t.responsavel_id] || 'Funcionário') : 'Geral (sem responsável)';
+      var icone = iconePorPrioridade[t.prioridade] || '📋';
+      var badge = badgePorStatus[t.status] || badgePorStatus.pendente;
+
+      var acoes = '';
+      if(t.status !== 'concluida'){
+        acoes = '<div style="margin-top:10px"><button class="btn btn-sm btn-primary" onclick="concluirTarefa(this)">✓ Concluir</button></div>';
+      } else {
+        acoes = '<div style="margin-top:10px"><button class="btn btn-sm btn-secondary" onclick="rejeitarTarefa(this)">↩ Pedir refação</button></div>';
+      }
+
+      return '<div class="tarefa-card" data-status="'+t.status+'" data-id="'+t.id+'"' + (t.status==='atrasada' ? ' style="border-left:3px solid var(--red)"' : '') + '>' +
+        '<div class="tarefa-header"><div class="tarefa-title">'+icone+' '+t.titulo+'</div>'+badge+'</div>' +
+        '<div class="tarefa-meta"><span>👤 '+responsavelTxt+'</span><span>📅 '+prazoTxt+'</span>' + (t.requer_foto ? '<span>📷 Requer foto</span>' : '') + '</div>' +
+        acoes +
+      '</div>';
+    }).join('');
+  })
+  .catch(function(){
+    // Falha silenciosa: mantém o que já estava renderizado
+  });
 }
 
 // ═══════════════════════════════════
@@ -2231,12 +2602,6 @@ function togglePerm(btn){
 // ═══════════════════════════════════
 // FUNCIONÁRIOS
 // ═══════════════════════════════════
-function aprovarFunc(btn){
-  var tr=btn.closest('tr');
-  tr.style.transition='.3s';tr.style.opacity='0';
-  setTimeout(function(){tr.remove()},300);
-}
-function recusarFunc(btn){aprovarFunc(btn)}
 
 function verFuncionario(nome){
   alert('Perfil de '+nome+'\n\n[Em produção: histórico de ponto, tarefas, avaliações]');
@@ -2246,7 +2611,28 @@ function verFuncionario(nome){
 // VALIDADE
 // ═══════════════════════════════════
 function criarTarefaValidade(produto){
-  alert('✅ Tarefa criada automaticamente!\n\n"Retirar '+produto+' do estoque — vencimento próximo"\n\nResponsável: Estoquista\nPrioridade: Alta');
+  if(!sessaoWorka || !sessaoWorka.token){
+    alert('Faça login para criar tarefas.');
+    return;
+  }
+  fetch('https://worka-backend-awng.onrender.com/tarefas', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
+    body: JSON.stringify({
+      titulo: 'Retirar '+produto+' do estoque — vencimento próximo',
+      prioridade: 'urgente'
+    })
+  })
+  .then(function(r){ return r.json().then(function(data){ return { status:r.status, data:data }; }); })
+  .then(function(res){
+    if(res.status === 201){
+      alert('✅ Tarefa criada: "Retirar '+produto+' do estoque — vencimento próximo"');
+      if(typeof carregarTarefasReais === 'function') carregarTarefasReais();
+    } else {
+      alert(res.data.error || 'Não foi possível criar a tarefa.');
+    }
+  })
+  .catch(function(){ alert('Erro de conexão. Tente novamente.'); });
 }
 
 // ═══════════════════════════════════
@@ -2385,14 +2771,14 @@ function confirmarAumento() {
 function mostrarMensagemAumento(nome, novoSalario) {
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(10,46,26,0.9);display:flex;align-items:center;justify-content:center;padding:20px;';
-  overlay.innerHTML = '<div style="background:white;border-radius:20px;padding:40px 32px;max-width:400px;width:100%;text-align:center;animation:fadeInUp .4s ease">' +
-    '<div style="font-size:3rem;margin-bottom:16px">🎉</div>' +
-    '<div style="font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;color:#16622f;margin-bottom:8px">Parabéns, ' + nome + '!</div>' +
-    '<p style="font-size:.95rem;color:#3a3d39;margin-bottom:20px;line-height:1.6">Você recebeu um <strong>aumento de salário</strong>!<br>Seu novo salário é</p>' +
-    '<div style="font-family:'Syne',sans-serif;font-size:2.5rem;font-weight:800;color:#1e8a40;margin-bottom:24px">R$ ' + novoSalario.toFixed(2) + '</div>' +
-    '<p style="font-size:.82rem;color:#6b7068;margin-bottom:20px">Continue com o ótimo trabalho! 💪</p>' +
-    '<button onclick="this.closest('div[style*=fixed]').remove()" style="background:#1e8a40;color:white;border:none;padding:12px 28px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif">Fechar 🎊</button>' +
-    '</div>';
+  overlay.innerHTML = "<div style=\"background:white;border-radius:20px;padding:40px 32px;max-width:400px;width:100%;text-align:center;animation:fadeInUp .4s ease\">" +
+    "<div style=\"font-size:3rem;margin-bottom:16px\">🎉</div>" +
+    "<div style=\"font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;color:#16622f;margin-bottom:8px\">Parabéns, " + nome + "!</div>" +
+    "<p style=\"font-size:.95rem;color:#3a3d39;margin-bottom:20px;line-height:1.6\">Você recebeu um <strong>aumento de salário</strong>!<br>Seu novo salário é</p>" +
+    "<div style=\"font-family:'Syne',sans-serif;font-size:2.5rem;font-weight:800;color:#1e8a40;margin-bottom:24px\">R$ " + novoSalario.toFixed(2) + "</div>" +
+    "<p style=\"font-size:.82rem;color:#6b7068;margin-bottom:20px\">Continue com o ótimo trabalho! 💪</p>" +
+    "<button onclick=\"this.closest('div[style*=fixed]').remove()\" style=\"background:#1e8a40;color:white;border:none;padding:12px 28px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif\">Fechar 🎊</button>" +
+    "</div>";
   document.body.appendChild(overlay);
   overlay.onclick = function(e) { if(e.target===this) this.remove(); };
 }
@@ -2538,7 +2924,7 @@ window.addEventListener('DOMContentLoaded', function(){
   // cadastro/login, ou por uma sessão anterior deste mesmo app).
   // Antes disso, mesmo com token válido salvo, a pessoa sempre caía
   // na tela de login pedindo credenciais de novo — o token nunca era
-  // aproveitado em lugar nenhum além do proxy do Wer.
+  // aproveitado em lugar nenhum.
   var tokenSalvo = localStorage.getItem('worka_token');
   if(tokenSalvo){
     fetch('https://worka-backend-awng.onrender.com/me', {
@@ -2563,539 +2949,6 @@ window.addEventListener('DOMContentLoaded', function(){
 });
 </script>
 
-
-<!-- ══════════════════════════════════════
-     WER — Assistente de IA da Worka
-══════════════════════════════════════ -->
-
-<!-- Botão flutuante -->
-<div id="wer-btn" onclick="toggleWer()" style="position:fixed;bottom:24px;right:24px;z-index:9000;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#0a2e1a,#25b251);box-shadow:0 4px 20px rgba(37,178,81,0.4);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.4rem;transition:transform .2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
-  <span id="wer-btn-icon">🤖</span>
-  <div id="wer-notif" style="position:absolute;top:-2px;right:-2px;width:18px;height:18px;background:#ef4444;border-radius:50%;border:2px solid white;font-size:.6rem;font-weight:700;color:white;display:flex;align-items:center;justify-content:center">1</div>
-</div>
-
-<!-- Janela do chat -->
-<div id="wer-chat" style="display:none;position:fixed;bottom:90px;right:24px;z-index:9000;width:360px;max-width:calc(100vw - 32px);background:white;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.2);overflow:hidden;flex-direction:column;max-height:520px;">
-
-  <!-- Header -->
-  <div style="background:linear-gradient(135deg,#0a2e1a,#1e8a40);padding:16px 18px;display:flex;align-items:center;justify-content:space-between;">
-    <div style="display:flex;align-items:center;gap:10px;">
-      <div style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">🤖</div>
-      <div>
-        <div style="font-family:'Syne',sans-serif;font-weight:800;color:white;font-size:.95rem;">Wer</div>
-        <div style="font-size:.7rem;color:rgba(255,255,255,.6);display:flex;align-items:center;gap:4px;"><span style="width:6px;height:6px;background:#3dd669;border-radius:50%;display:inline-block;animation:pulse 2s infinite"></span> Online agora</div>
-      </div>
-    </div>
-    <div style="display:flex;gap:8px;">
-      <button onclick="limparWer()" style="background:rgba(255,255,255,.1);border:none;color:white;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:.8rem;" title="Limpar conversa">🗑</button>
-      <button onclick="toggleWer()" style="background:rgba(255,255,255,.1);border:none;color:white;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:1rem;">✕</button>
-    </div>
-  </div>
-
-  <!-- Mensagens -->
-  <div id="wer-mensagens" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;max-height:340px;min-height:200px;background:#f7f8f7;">
-    <div class="wer-msg-bot">
-      <div class="wer-avatar">🤖</div>
-      <div class="wer-bubble-bot">Olá! Sou o <strong>Wer</strong>, assistente da Worka! 👋<br><br>Posso te ajudar a usar o sistema, responder dúvidas, criar tarefas, gerenciar sua equipe e muito mais.<br><br>O que você precisa?</div>
-    </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:32px;">
-      <button class="wer-sugestao" onclick="enviarWer('Como está a equipe hoje?')">👥 Equipe hoje</button>
-      <button class="wer-sugestao" onclick="enviarWer('Temos algum problema urgente?')">🚨 Alertas</button>
-      <button class="wer-sugestao" onclick="enviarWer('Como está o financeiro?')">💰 Financeiro</button>
-      <button class="wer-sugestao" onclick="enviarWer('Análise de performance da equipe')">📈 Performance</button>
-    </div>
-  </div>
-
-  <!-- Input -->
-  <div style="padding:12px 14px;background:white;border-top:1px solid #eff0ef;display:flex;gap:8px;align-items:flex-end;">
-    <textarea id="wer-input" placeholder="Digite sua pergunta..." rows="1" style="flex:1;padding:10px 14px;border:1.5px solid #eff0ef;border-radius:20px;font-family:'Inter',sans-serif;font-size:.85rem;resize:none;outline:none;max-height:100px;overflow-y:auto;line-height:1.5;transition:border-color .2s;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarWer();}"></textarea>
-    <button onclick="enviarWer()" id="wer-send" style="width:38px;height:38px;border-radius:50%;background:#1e8a40;border:none;color:white;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .2s;" onmouseover="this.style.background='#25b251'" onmouseout="this.style.background='#1e8a40'">➤</button>
-  </div>
-</div>
-
-<style>
-.wer-msg-bot,.wer-msg-user{display:flex;gap:8px;align-items:flex-start;}
-.wer-msg-user{flex-direction:row-reverse;}
-.wer-avatar{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#0a2e1a,#1e8a40);display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0;margin-top:2px;}
-.wer-bubble-bot{background:white;border:1px solid #eff0ef;border-radius:0 12px 12px 12px;padding:10px 14px;font-size:.82rem;color:#3a3d39;line-height:1.6;max-width:260px;box-shadow:0 1px 4px rgba(0,0,0,.06);}
-.wer-bubble-user{background:linear-gradient(135deg,#1e8a40,#25b251);border-radius:12px 0 12px 12px;padding:10px 14px;font-size:.82rem;color:white;line-height:1.6;max-width:260px;}
-.wer-typing{display:flex;gap:4px;align-items:center;padding:10px 14px;background:white;border:1px solid #eff0ef;border-radius:0 12px 12px 12px;}
-.wer-dot{width:6px;height:6px;border-radius:50%;background:#c4c7c4;animation:werBounce .8s infinite;}
-.wer-dot:nth-child(2){animation-delay:.15s;}
-.wer-dot:nth-child(3){animation-delay:.3s;}
-@keyframes werBounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}
-.wer-sugestao{background:white;border:1.5px solid #eff0ef;border-radius:100px;padding:5px 12px;font-size:.72rem;font-weight:600;color:#1e8a40;cursor:pointer;transition:.15s;font-family:'Inter',sans-serif;}
-.wer-sugestao:hover{background:#edfaf2;border-color:#3dd669;}
-</style>
-
-<script>
-// A chave da xAI foi movida para o backend (rota /wer/chat faz proxy) — não vive mais no frontend.
-var werHistorico = [];
-var werAberto = false;
-
-// ════════════════════════════════════════
-// AGENTE WER — FERRAMENTAS
-// ════════════════════════════════════════
-
-var WER_TOOLS = [
-  {
-    type: "function",
-    function: {
-      name: "get_dashboard_data",
-      description: "Retorna dados reais do dashboard: funcionários ativos, tarefas abertas, ponto de hoje, alertas urgentes e resumo financeiro.",
-      parameters: { type: "object", properties: {} }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_equipe",
-      description: "Lista todos os funcionários da equipe com status, cargo, salário e pontualidade.",
-      parameters: { type: "object", properties: {} }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_ponto_hoje",
-      description: "Retorna os registros de ponto do dia de todos os funcionários.",
-      parameters: { type: "object", properties: {} }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_tarefas",
-      description: "Lista tarefas abertas, atrasadas e pendentes de aprovação.",
-      parameters: {
-        type: "object",
-        properties: {
-          filtro: { type: "string", enum: ["todas", "atrasadas", "pendentes", "concluidas"], description: "Filtro de tarefas" }
-        }
-      }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_financeiro",
-      description: "Retorna resumo financeiro: saldo, boletos a vencer, folha do mês e fluxo de caixa.",
-      parameters: { type: "object", properties: {} }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_alertas",
-      description: "Lista todos os alertas ativos: validades próximas, faltas, boletos vencendo, tarefas atrasadas.",
-      parameters: { type: "object", properties: {} }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_performance",
-      description: "Análise de performance da equipe: pontualidade, tarefas concluídas, faltas e ranking.",
-      parameters: {
-        type: "object",
-        properties: {
-          periodo: { type: "string", enum: ["hoje", "semana", "mes"], description: "Período de análise" }
-        }
-      }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "criar_tarefa",
-      description: "Cria uma nova tarefa e atribui a um funcionário.",
-      parameters: {
-        type: "object",
-        required: ["titulo", "responsavel"],
-        properties: {
-          titulo: { type: "string", description: "Título da tarefa" },
-          responsavel: { type: "string", description: "Nome do funcionário responsável" },
-          prioridade: { type: "string", enum: ["normal", "alta", "urgente"] },
-          prazo: { type: "string", description: "Prazo em formato legível, ex: hoje às 18h" }
-        }
-      }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "navegar_para",
-      description: "Navega para uma tela do sistema.",
-      parameters: {
-        type: "object",
-        required: ["tela"],
-        properties: {
-          tela: { type: "string", enum: ["dash","funcs","ponto","tarefas","salarios","fin","ausencias","escala","validade","mural","cargos","analytics","alertas","relatorios","config","auditoria"] }
-        }
-      }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "sugerir_estrategia",
-      description: "Analisa dados da equipe e sugere estratégias de gestão, melhoria de produtividade ou resolução de problemas.",
-      parameters: {
-        type: "object",
-        required: ["area"],
-        properties: {
-          area: { type: "string", description: "Área de foco: produtividade, faltas, financeiro, tarefas, equipe" }
-        }
-      }
-    }
-  }
-];
-
-// ════════════════════════════════════════
-// EXECUÇÃO DAS FERRAMENTAS
-// ════════════════════════════════════════
-
-function executarFerramenta(nome, args) {
-  var hoje = new Date();
-  var pad = x => String(x).padStart(2,'0');
-  var hojeStr = pad(hoje.getDate()) + '/' + pad(hoje.getMonth()+1) + '/' + hoje.getFullYear();
-
-  switch(nome) {
-
-    case 'get_dashboard_data':
-      return JSON.stringify({
-        data: hojeStr,
-        funcionarios: { ativos: 8, online_agora: 6, ausentes: 1, pendentes: 1 },
-        tarefas: { abertas: 14, atrasadas: 4, concluidas_hoje: 3, em_revisao: 2 },
-        ponto: { registrados_hoje: 6, sem_registro: 2, em_intervalo: 1 },
-        financeiro: { saldo_caixa: 45800, folha_mes: 12400, boletos_vencer: 3, receita_mes: 28400 },
-        alertas: { urgentes: 3, produtos_vencendo: 2, boletos_urgentes: 2 },
-        pontualidade_media: '94%'
-      });
-
-    case 'get_equipe':
-      return JSON.stringify({
-        funcionarios: [
-          { nome: 'Maria Silva', cargo: 'Gerente', status: 'trabalhando', salario: 2500, pontualidade: '98%', tarefas_mes: '44/44', entrada_hoje: '08:02' },
-          { nome: 'João Pedro', cargo: 'Atendente', status: 'intervalo', salario: 1800, pontualidade: '82%', tarefas_mes: '28/36', entrada_hoje: '08:15' },
-          { nome: 'Ana Lima', cargo: 'Caixa', status: 'trabalhando', salario: 1600, pontualidade: '95%', tarefas_mes: '40/42', entrada_hoje: '07:58' },
-          { nome: 'Carlos Reis', cargo: 'Estoquista', status: 'ausente', salario: 1500, pontualidade: '68%', tarefas_mes: '20/32', entrada_hoje: null }
-        ],
-        total: 8, ativos: 4, ausentes: 1
-      });
-
-    case 'get_ponto_hoje':
-      return JSON.stringify({
-        data: hojeStr,
-        registros: [
-          { funcionario: 'Maria Silva', entrada: '08:02', intervalo: '12:00', retorno: '13:00', saida: null, status: 'trabalhando', biometria: true },
-          { funcionario: 'João Pedro', entrada: '08:15', intervalo: '12:30', retorno: null, saida: null, status: 'intervalo', biometria: true },
-          { funcionario: 'Ana Lima', entrada: '07:58', intervalo: null, retorno: null, saida: null, status: 'trabalhando', biometria: true },
-          { funcionario: 'Carlos Reis', entrada: null, intervalo: null, retorno: null, saida: null, status: 'ausente', biometria: false }
-        ],
-        resumo: { presentes: 6, ausentes: 2, em_intervalo: 1, com_biometria: 6 }
-      });
-
-    case 'get_tarefas':
-      var filtro = args.filtro || 'todas';
-      var todas = [
-        { titulo: 'Limpeza do salão', responsavel: 'Maria Silva', prioridade: 'normal', prazo: 'Hoje', status: 'concluida' },
-        { titulo: 'Reposição estoque', responsavel: 'João Pedro', prioridade: 'alta', prazo: 'Hoje 18h', status: 'pendente' },
-        { titulo: 'Auditoria do caixa', responsavel: 'Ana Lima', prioridade: 'urgente', prazo: 'Hoje 17h', status: 'revisao' },
-        { titulo: 'Conferir validades', responsavel: 'Carlos Reis', prioridade: 'urgente', prazo: 'Ontem', status: 'atrasada' },
-        { titulo: 'Inventário semanal', responsavel: 'João Pedro', prioridade: 'normal', prazo: 'Amanhã', status: 'pendente' }
-      ];
-      var filtradas = filtro === 'todas' ? todas : todas.filter(t => t.status === filtro || (filtro === 'atrasadas' && t.status === 'atrasada'));
-      return JSON.stringify({ tarefas: filtradas, total: filtradas.length });
-
-    case 'get_financeiro':
-      return JSON.stringify({
-        saldo_atual: 45800,
-        receita_mes: 28400,
-        despesas_mes: 18200,
-        lucro_mes: 10200,
-        folha_pagamento: { total: 12400, data_vencimento: '05/07', status: 'pendente' },
-        boletos_urgentes: [
-          { descricao: 'Conta de luz', valor: 480, vencimento: '28/06', status: 'urgente' },
-          { descricao: 'Internet fibra', valor: 189, vencimento: '29/06', status: 'urgente' },
-          { descricao: 'Aluguel', valor: 2800, vencimento: '05/07', status: 'proximo' }
-        ],
-        projecao_30dias: { saldo_projetado: 55931, entradas: 28000, saidas: 17869 }
-      });
-
-    case 'get_alertas':
-      return JSON.stringify({
-        alertas: [
-          { tipo: 'validade', mensagem: 'Leite integral Lote #A203 vence amanhã (24 un)', urgencia: 'critica' },
-          { tipo: 'validade', mensagem: 'Creme hidratante Lote #B441 vence em 5 dias', urgencia: 'alta' },
-          { tipo: 'financeiro', mensagem: 'Conta de luz R$480 vence em 1 dia', urgencia: 'critica' },
-          { tipo: 'financeiro', mensagem: 'Folha de pagamento R$12.400 vence em 5 dias', urgencia: 'alta' },
-          { tipo: 'tarefa', mensagem: 'Tarefa "Conferir validades" de Carlos Reis está atrasada', urgencia: 'alta' },
-          { tipo: 'falta', mensagem: 'Carlos Reis não registrou ponto hoje', urgencia: 'media' }
-        ],
-        total: 6, criticos: 2, altos: 3, medios: 1
-      });
-
-    case 'get_performance':
-      var periodo = args.periodo || 'mes';
-      return JSON.stringify({
-        periodo: periodo,
-        ranking: [
-          { nome: 'Maria Silva', pontuacao: 98, pontualidade: '100%', tarefas: '44/44', faltas: 0 },
-          { nome: 'Ana Lima', pontuacao: 95, pontualidade: '97%', tarefas: '40/42', faltas: 0 },
-          { nome: 'João Pedro', pontuacao: 82, pontualidade: '88%', tarefas: '28/36', faltas: 1 },
-          { nome: 'Carlos Reis', pontuacao: 68, pontualidade: '75%', tarefas: '20/32', faltas: 2 }
-        ],
-        media_equipe: 86,
-        destaques: { melhor: 'Maria Silva', precisa_atencao: 'Carlos Reis' },
-        pontualidade_geral: '94%',
-        tarefas_concluidas_geral: '82%'
-      });
-
-    case 'criar_tarefa':
-      // Navegar para tarefas e abrir modal
-      setTimeout(function() {
-        if (typeof go === 'function') go('tarefas');
-        setTimeout(function() {
-          if (typeof abrirMo === 'function') abrirMo('mo-tarefa');
-          // Preencher campos se possível
-          var tInput = document.querySelector('#mo-tarefa input[placeholder]');
-          if (tInput) tInput.value = args.titulo || '';
-        }, 500);
-      }, 800);
-      return JSON.stringify({ 
-        ok: true, 
-        mensagem: 'Abrindo formulário de criação de tarefa com os dados preenchidos.',
-        tarefa: { titulo: args.titulo, responsavel: args.responsavel, prioridade: args.prioridade || 'normal' }
-      });
-
-    case 'navegar_para':
-      setTimeout(function() {
-        if (typeof go === 'function') go(args.tela);
-      }, 600);
-      var nomes = {dash:'Dashboard',funcs:'Funcionários',ponto:'Ponto',tarefas:'Tarefas',salarios:'Salários',fin:'Financeiro',ausencias:'Ausências',escala:'Escala',validade:'Validade',mural:'Mural',cargos:'Cargos',analytics:'Analytics',alertas:'Alertas',relatorios:'Relatórios',config:'Configurações',auditoria:'Auditoria'};
-      return JSON.stringify({ ok: true, navegando_para: nomes[args.tela] || args.tela });
-
-    case 'sugerir_estrategia':
-      var area = args.area || 'geral';
-      var dados_perf = JSON.parse(executarFerramenta('get_performance', {periodo: 'mes'}));
-      var dados_fin = JSON.parse(executarFerramenta('get_financeiro', {}));
-      return JSON.stringify({ 
-        area: area,
-        dados_equipe: dados_perf,
-        dados_financeiros: dados_fin,
-        contexto: 'Analise esses dados e gere estratégias práticas e específicas para melhorar a gestão.'
-      });
-
-    default:
-      return JSON.stringify({ erro: 'Ferramenta não encontrada: ' + nome });
-  }
-}
-
-// ════════════════════════════════════════
-// SISTEMA DO WER (AGENTE)
-// ════════════════════════════════════════
-
-var WER_SISTEMA = `Você é o Wer, assistente de gestão de equipe da plataforma Worka. Você é um agente inteligente com acesso aos dados reais da empresa.
-
-## Suas capacidades:
-- 📊 Consultar dados reais: equipe, ponto, tarefas, financeiro, alertas e performance
-- 🧠 Analisar situações e dar sugestões estratégicas baseadas em dados
-- ✅ Executar ações: criar tarefas, navegar para telas, alertar sobre problemas
-- 💡 Proativamente identificar problemas e oportunidades de melhoria
-- 📈 Comparar períodos e identificar tendências
-
-## Comportamento:
-- SEMPRE use as ferramentas disponíveis antes de responder sobre dados da empresa
-- Seja direto e objetivo, use dados concretos nas respostas
-- Sugira ações práticas e específicas, não genéricas
-- Use emojis para tornar a leitura mais agradável
-- Quando identificar um problema, proponha a solução imediatamente
-- Responda sempre em português brasileiro
-- Quando o usuário pedir para ir a uma tela, use navegar_para
-
-## Exemplos do que você pode fazer:
-- "Quem faltou hoje?" → consulta ponto e responde com dados reais
-- "Como está a performance da equipe?" → analisa e dá ranking + estratégias
-- "Temos algum problema urgente?" → consulta alertas e prioriza ações
-- "Cria uma tarefa para João" → abre formulário preenchido
-- "Quais boletos vencem essa semana?" → consulta financeiro e lista
-- "Estratégia para melhorar pontualidade" → analisa dados e sugere ações
-
-Seja o melhor assistente de gestão que o dono jamais teve!`;
-
-function toggleWer() {
-  werAberto = !werAberto;
-  var chat = document.getElementById('wer-chat');
-  chat.style.display = werAberto ? 'flex' : 'none';
-  chat.style.flexDirection = 'column';
-  document.getElementById('wer-notif').style.display = 'none';
-  if (werAberto) {
-    setTimeout(function() {
-      var msgs = document.getElementById('wer-mensagens');
-      msgs.scrollTop = msgs.scrollHeight;
-      document.getElementById('wer-input').focus();
-    }, 100);
-  }
-}
-
-function limparWer() {
-  werHistorico = [];
-  var msgs = document.getElementById('wer-mensagens');
-  msgs.innerHTML = '<div class="wer-msg-bot"><div class="wer-avatar">🤖</div><div class="wer-bubble-bot">Conversa reiniciada! Como posso te ajudar? 😊</div></div>';
-}
-
-async function enviarWer(textoFixo) {
-  var input = document.getElementById('wer-input');
-  var texto = textoFixo || input.value.trim();
-  if (!texto) return;
-
-  input.value = '';
-  input.style.height = 'auto';
-
-  adicionarMensagemWer('user', texto);
-  werHistorico.push({ role: 'user', content: texto });
-
-  var contexto = '';
-  if (typeof usuarioAtual !== 'undefined' && usuarioAtual) {
-    contexto = '\n\n[Contexto: Usuário=' + usuarioAtual.nome + ', Cargo=' + usuarioAtual.cargo + ', Data=' + new Date().toLocaleDateString('pt-BR') + ']';
-  }
-
-  var typingId = adicionarTypingWer();
-
-  try {
-    // ── LOOP DO AGENTE ──────────────────────────
-    var msgs = [
-      { role: 'system', content: WER_SISTEMA + contexto },
-      ...werHistorico.slice(-12)
-    ];
-
-    var maxIteracoes = 5;
-    var resposta = '';
-
-    for (var iter = 0; iter < maxIteracoes; iter++) {
-      var response = await fetch('https://worka-backend-awng.onrender.com/wer/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + (localStorage.getItem('worka_token') || '')
-        },
-        body: JSON.stringify({ messages: msgs, tools: WER_TOOLS })
-      });
-
-      var data = await response.json();
-      var choice = data.choices && data.choices[0];
-      if (!choice) break;
-
-      var msg = choice.message;
-      msgs.push(msg);
-
-      // Se o modelo quer usar ferramentas
-      if (choice.finish_reason === 'tool_calls' && msg.tool_calls && msg.tool_calls.length > 0) {
-        // Mostrar indicador de "buscando dados"
-        removerTypingWer(typingId);
-        typingId = adicionarTypingWer('🔍 Buscando dados...');
-
-        // Executar cada ferramenta
-        for (var tc of msg.tool_calls) {
-          var fnNome = tc.function.name;
-          var fnArgs = {};
-          try { fnArgs = JSON.parse(tc.function.arguments || '{}'); } catch(e2) {}
-          
-          var resultado = executarFerramenta(fnNome, fnArgs);
-          
-          msgs.push({
-            role: 'tool',
-            tool_call_id: tc.id,
-            content: resultado
-          });
-        }
-        // Continuar o loop para o modelo processar os resultados
-        continue;
-      }
-
-      // Resposta final do modelo
-      resposta = msg.content || '';
-      break;
-    }
-    // ── FIM DO LOOP ─────────────────────────────
-
-    removerTypingWer(typingId);
-
-    if (!resposta) resposta = 'Desculpe, não consegui processar sua pergunta. Tente novamente!';
-    
-    adicionarMensagemWer('bot', resposta);
-    werHistorico.push({ role: 'assistant', content: resposta });
-
-  } catch(e) {
-    removerTypingWer(typingId);
-    console.error('Wer erro:', e);
-    adicionarMensagemWer('bot', '⚠️ Erro: ' + e.message + '. Tente novamente.');
-  }
-}
-
-function adicionarMensagemWer(tipo, texto) {
-  var msgs = document.getElementById('wer-mensagens');
-  var div = document.createElement('div');
-  div.className = tipo === 'user' ? 'wer-msg-user' : 'wer-msg-bot';
-
-  // Converter markdown básico
-  var html = texto
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/
-/g, '<br>');
-
-  if (tipo === 'user') {
-    div.innerHTML = '<div class="wer-bubble-user">' + html + '</div>';
-  } else {
-    div.innerHTML = '<div class="wer-avatar">🤖</div><div class="wer-bubble-bot">' + html + '</div>';
-  }
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
-}
-
-function adicionarTypingWer() {
-  var msgs = document.getElementById('wer-mensagens');
-  var id = 'typing-' + Date.now();
-  var div = document.createElement('div');
-  div.className = 'wer-msg-bot';
-  div.id = id;
-  div.innerHTML = '<div class="wer-avatar">🤖</div><div class="wer-typing"><div class="wer-dot"></div><div class="wer-dot"></div><div class="wer-dot"></div></div>';
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
-  return id;
-}
-
-function removerTypingWer(id) {
-  var el = document.getElementById(id);
-  if (el) el.remove();
-}
-
-function verificarNavegacaoWer(resposta, pergunta) {
-  var texto = (resposta + pergunta).toLowerCase();
-  var navegacoes = {
-    'funcionár': 'funcionarios', 'ponto': 'ponto', 'tarefa': 'tarefas',
-    'salário': 'salarios', 'ausência': 'ausencias', 'falta': 'ausencias',
-    'validade': 'validade', 'produto': 'validade', 'escala': 'escala',
-    'relatório': 'relatorios', 'mural': 'mural', 'comunicado': 'mural',
-    'cargo': 'cargos', 'permissão': 'cargos', 'visual': 'visual', 'cor': 'visual', 'logo': 'visual',
-    'notificação': 'notificacoes', 'dashboard': 'dashboard'
-  };
-  for (var chave in navegacoes) {
-    if (texto.includes(chave) && typeof abrirPagina === 'function') {
-      // Não navegar automaticamente, só sugerir
-      break;
-    }
-  }
-}
-
-// Auto-resize textarea
-document.getElementById('wer-input').addEventListener('input', function() {
-  this.style.height = 'auto';
-  this.style.height = Math.min(this.scrollHeight, 100) + 'px';
-});
-</script>
 
 
 <div id="pwa-install" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;background:#0a2e1a;color:white;border-radius:14px;padding:14px 20px;box-shadow:0 8px 30px rgba(0,0,0,.3);display:flex;align-items:center;gap:12px;max-width:320px;width:90%">
