@@ -48,7 +48,6 @@ const CONFIG = {
 
 // Validar variáveis críticas na inicialização
 const REQUIRED_ENV = ["JWT_SECRET", "SUPABASE_SERVICE_KEY", "RESEND_KEY"];
-// OPENROUTER_API_KEY é opcional — Wer fica indisponível se não definida
 for (var env of REQUIRED_ENV) {
   if (!process.env[env]) {
     console.error(`[SECURITY] FATAL: variável de ambiente ${env} não definida`);
@@ -654,8 +653,8 @@ var EMAIL_TEMPLATES = {
  * Faz uma requisição HTTP(S) a um serviço externo e resolve com
  * { status, body } (body já parseado como JSON quando possível).
  * Único ponto de implementação — antes, cada rota que precisava
- * chamar uma API externa (POST /pix, proxy do Wer) reimplementava
- * a mesma Promise de https.request na mão, com pequenas variações.
+ * chamar uma API externa reimplementava a mesma Promise de
+ * https.request na mão, com pequenas variações.
  */
 function httpRequestExterno(urlObj, method, payload, headersExtra) {
   return new Promise((resolve, reject) => {
@@ -1700,71 +1699,6 @@ var server = http.createServer(async (req, res) => {
       return jsonOk(res, result.body);
     }
 
-
-    // ── WER — PROXY SEGURO PARA OPENROUTER ──────────
-    if (method === "POST" && path === "/wer/chat") {
-      var raw = await getBody(req);
-      var body = parseBody(raw);
-      if (!body || !Array.isArray(body.messages)) return jsonErr(res, "Dados inválidos");
-
-      var openrouterKey = process.env.OPENROUTER_API_KEY;
-      if (!openrouterKey) return jsonErr(res, "Serviço indisponível", 503);
-
-      // Limitar histórico a 20 mensagens
-      var messages = body.messages.slice(-20);
-
-      // Sanitizar conteúdo das mensagens. A OpenRouter segue o mesmo
-      // formato OpenAI-compatible que o frontend já monta (role
-      // "system" dentro do array de mensagens, "tool_calls" no
-      // assistant, role "tool" com tool_call_id na resposta) — sem
-      // tradução necessária, diferente da integração com Claude.
-      messages = messages.filter(m => m && typeof m.content === "string" && m.role);
-      messages = messages.map(m => ({
-        role:    ["user","assistant","system","tool"].includes(m.role) ? m.role : "user",
-        content: m.content.substring(0, 4000), // limite de tokens
-        ...(m.tool_call_id && { tool_call_id: m.tool_call_id }),
-        ...(m.tool_calls && { tool_calls: m.tool_calls })
-      }));
-
-      var payload = JSON.stringify({
-        model:        "openai/gpt-4o",
-        max_tokens:   800,
-        tools:        body.tools || [],
-        tool_choice:  "auto",
-        messages
-      });
-
-      var response = await new Promise((resolve, reject) => {
-        var req2 = https.request({
-          hostname: "openrouter.ai",
-          path:     "/api/v1/chat/completions",
-          method:   "POST",
-          headers: {
-            "Content-Type":       "application/json",
-            "Authorization":      "Bearer " + openrouterKey,
-            "HTTP-Referer":       "https://811freitas.github.io",
-            "X-Title":            "Worka",
-            "Content-Length":     Buffer.byteLength(payload)
-          }
-        }, res2 => {
-          var raw2 = "";
-          res2.on("data", c => raw2 += c);
-          res2.on("end", () => {
-            try { resolve({ status: res2.statusCode, body: JSON.parse(raw2) }); }
-            catch(e) { resolve({ status: res2.statusCode, body: {} }); }
-          });
-        });
-        req2.on("error", reject);
-        req2.write(payload);
-        req2.end();
-      });
-
-      if (response.status >= 400) {
-        secLog("wer_erro", { status: response.status });
-        return jsonErr(res, "Erro no assistente", 502);
-      }
-      return jsonOk(res, response.body);
-    }
 
     // (POST /pix e GET /pix foram movidos para antes da linha
     // "A PARTIR DAQUI: REQUER JWT", junto de /enviar-codigo e
