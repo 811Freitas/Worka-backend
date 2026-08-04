@@ -35,6 +35,13 @@ const CONFIG = {
   ENCRYPT_KEY:   process.env.ENCRYPT_SECRET,
   VAPID_PUBLIC:  process.env.VAPID_PUBLIC_KEY,
   VAPID_PRIVATE: process.env.VAPID_PRIVATE_KEY,
+  // Conta administrativa única da Worka (painel Owner). Opcional — se
+  // não configurada, a rota /login/owner responde 503 em vez de negar
+  // acesso a uma conta que não existe. OWNER_PASSWORD_HASH é o hash
+  // bcrypt da senha (gerar com: node -e "console.log(require('bcryptjs').hashSync('SUA_SENHA',12))"),
+  // nunca a senha em texto plano.
+  OWNER_EMAIL:         process.env.OWNER_EMAIL ? process.env.OWNER_EMAIL.toLowerCase() : null,
+  OWNER_PASSWORD_HASH: process.env.OWNER_PASSWORD_HASH || null,
   BCRYPT_ROUNDS: 12,
   JWT_EXPIRES:   "8h",
   // Domínios permitidos no CORS
@@ -328,7 +335,7 @@ function supabase(method, table, options = {}) {
     if (bodyStr) headers["Content-Length"] = Buffer.byteLength(bodyStr);
 
     var req = https.request({
-      hostname: "veqwewppgcyjrmtwnzai.supabase.co",
+      hostname: new URL(CONFIG.SUPABASE_URL).hostname,
       path, method, headers
     }, (res) => {
       var raw = "";
@@ -966,11 +973,47 @@ var server = http.createServer(async (req, res) => {
       return jsonOk(res, { token, funcionario, empresa });
     }
 
+    // ── LOGIN OWNER (conta administrativa única da Worka) ───
+    // Substitui a checagem anterior, que comparava email/senha em
+    // texto plano dentro do JavaScript do frontend (worka.html e
+    // worka-app.html) — qualquer pessoa via "Ver código-fonte" via a
+    // senha real. Agora a senha nunca sai do servidor: só o hash
+    // bcrypt fica configurado (via OWNER_PASSWORD_HASH), a mesma
+    // disciplina de todo o resto deste arquivo.
+    if (method === "POST" && path === "/login/owner") {
+      if (!CONFIG.OWNER_EMAIL || !CONFIG.OWNER_PASSWORD_HASH) {
+        return jsonErr(res, "Login de owner não configurado", 503);
+      }
+      var raw = await getBody(req);
+      var body = parseBody(raw);
+      if (!body) return jsonErr(res, "Dados inválidos");
+
+      var v = validate(body, {
+        email: v => SANITIZE.email(v),
+        senha: v => typeof v === "string" && v.length >= 1 ? v : null,
+      });
+      if (!v.ok) return jsonErr(res, "Email ou senha inválidos", 401);
+
+      // bcrypt.compare roda sempre, mesmo com email errado, para não
+      // vazar por timing se o email configurado bate ou não.
+      var senhaOk = await verificarSenha(v.data.senha, CONFIG.OWNER_PASSWORD_HASH);
+      var emailOk = v.data.email === CONFIG.OWNER_EMAIL;
+
+      if (!emailOk || !senhaOk) {
+        secLog("login_owner_falhou", { ip });
+        return jsonErr(res, "Email ou senha incorretos", 401);
+      }
+
+      var token = jwtSign({ email: v.data.email, role: "owner_saas" });
+      secLog("login_owner_ok", {});
+      return jsonOk(res, { token, owner: { nome: "Owner Worka", email: v.data.email } });
+    }
+
     // ── ENVIAR CÓDIGO OTP ───────────────────────────
     if (method === "POST" && path === "/enviar-codigo") {
-      // Rate limiting extra para OTP
-      var rlOtp = rateLimit(`otp:${ip}`, 3, 10 * 60 * 1000);
-      if (rlOtp.blocked) return jsonErr(res, "Muitas requisições de código. Aguarde.", 429);
+      // Rate limiting já aplicado no bloco global (checkRateLimit acima),
+      // via RATE_LIMITS["/enviar-codigo"] = 3/10min — mesma janela que
+      // havia aqui duplicada sob uma chave diferente ("otp:"+ip).
 
       var raw = await getBody(req);
       var body = parseBody(raw);
@@ -1485,6 +1528,25 @@ var server = http.createServer(async (req, res) => {
       return jsonOk(res, { ok: true }, 201);
     }
 
+    // Histórico de ajustes de salário da empresa. historico_salarios
+    // não tem coluna empresa_id (só funcionario_id) — por isso busca
+    // primeiro os ids de funcionário da empresa e filtra por
+    // "in.(...)", em vez de assumir um embed/relacionamento do
+    // PostgREST que não dá pra confirmar sem acesso ao schema.
+    if (method === "GET" && path === "/historico_salarios") {
+      if (!hasPermission(authPayload, "salarios:read")) {
+        return jsonErr(res, "Sem permissão para ver histórico de salários", 403);
+      }
+      var funcsEmpresa = await DB.select("funcionarios", `empresa_id=eq.${authPayload.empresa_id}&select=id`);
+      var idsFuncs = (funcsEmpresa.body || []).map(f => f.id);
+      if (idsFuncs.length === 0) return jsonOk(res, []);
+
+      var historico = await DB.select("historico_salarios",
+        `funcionario_id=in.(${idsFuncs.join(",")})&order=created_at.desc&limit=100`
+      );
+      return jsonOk(res, historico.body);
+    }
+
     // ── VALIDADE ─────────────────────────────────────
     if (method === "POST" && path === "/validade") {
       if (!hasPermission(authPayload, "validade:write")) {
@@ -1528,6 +1590,14 @@ var server = http.createServer(async (req, res) => {
 
     // ── AUSÊNCIAS ────────────────────────────────────
     if (method === "POST" && path === "/ausencias") {
+      // Faltava a checagem de permissão que toda outra rota de
+      // escrita sensível já tem — sem isso, qualquer funcionário
+      // autenticado podia registrar falta/atestado/suspensão para
+      // qualquer colega, sabendo só o id (visível em GET /funcionarios).
+      if (!hasPermission(authPayload, "ausencias:write")) {
+        secLog("permission_denied", { role: authPayload.role, action: "ausencias:write" });
+        return jsonErr(res, "Sem permissão para registrar ausências", 403);
+      }
       var raw = await getBody(req);
       var body = parseBody(raw);
       if (!body) return jsonErr(res, "Dados inválidos");
@@ -1545,7 +1615,22 @@ var server = http.createServer(async (req, res) => {
         tipo:          ["falta_injustificada","falta_justificada","atestado","licenca","suspensao"].includes(body.tipo) ? body.tipo : "falta_injustificada",
         motivo:        SANITIZE.string(body.motivo || "", 500)
       });
+      secLog("ausencia_registrada", { empresa_id: authPayload.empresa_id, funcionario_id: funcId });
       return jsonOk(res, { ausencia: result.body[0] }, 201);
+    }
+
+    // Lista de ausências da empresa — faltava por completo; sem ela
+    // o frontend não tinha como mostrar o histórico registrado pelo
+    // POST acima, só o formulário de cadastro existia.
+    if (method === "GET" && path === "/ausencias") {
+      if (!hasPermission(authPayload, "ausencias:read")) {
+        return jsonErr(res, "Sem permissão para ver ausências", 403);
+      }
+      var inicioMesAus = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0];
+      var result = await DB.select("ausencias",
+        `empresa_id=eq.${authPayload.empresa_id}&data=gte.${inicioMesAus}&order=data.desc`
+      );
+      return jsonOk(res, result.body);
     }
 
     // ── PUSH — INSCREVER DISPOSITIVO ─────────────────
