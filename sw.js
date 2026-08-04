@@ -1,7 +1,13 @@
 // Worka PWA — Service Worker
 // Cache offline + Face ID support
 
-var CACHE = 'worka-v1';
+var CACHE = 'worka-v2';
+// Ícone usado em notificações push — mesmo SVG inline do manifest.json.
+// Não referenciamos um arquivo /icon-192.png porque ele nunca existiu
+// neste repositório (o app sempre usou apenas ícones SVG inline no
+// manifest); a referência antiga aqui sempre resultava em 404 e a
+// notificação caía sem ícone.
+var NOTIFICATION_ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' fill='%230a2e1a' rx='40'/%3E%3Ctext x='50%25' y='58%25' font-family='Georgia,serif' font-size='90' font-weight='900' fill='%233dd669' text-anchor='middle' dominant-baseline='middle'%3EW%3C/text%3E%3C/svg%3E";
 var ASSETS = [
   '/Worka-backend/worka-app.html',
   '/Worka-backend/worka.html',
@@ -78,8 +84,8 @@ self.addEventListener('push', function(e) {
   var title = data.title || 'Worka';
   var options = {
     body: data.body || 'Nova notificação',
-    icon: '/Worka-backend/icon-192.png',
-    badge: '/Worka-backend/icon-192.png',
+    icon: NOTIFICATION_ICON,
+    badge: NOTIFICATION_ICON,
     vibrate: [200, 100, 200],
     data: { url: data.url || '/Worka-backend/worka-app.html' },
     actions: [

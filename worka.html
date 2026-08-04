@@ -1472,18 +1472,14 @@ function setAcessoTipo(tipo){
 function entrarNoApp(){
   var email = document.getElementById('ac-email') ? document.getElementById('ac-email').value.trim().toLowerCase() : '';
   var senha = document.getElementById('ac-senha') ? document.getElementById('ac-senha').value : '';
-  // Login owner
-  if(email==='workappoficial@gmail.com'&&senha==='ale98798798798'){
-    fecharAcesso();
-    // NOTA: este login continua comparando senha hardcoded no frontend,
-    // não chama /login/empresa. Corrigido aqui apenas o bug que travava
-    // a função (referenciava "data" de uma chamada de API que nunca
-    // existiu neste fluxo). Migrar para login real via backend exige
-    // primeiro criar esta conta no banco com senha em bcrypt — ainda
-    // não decidido, registrado como pendência.
-    window.location.href='worka-app.html?role=owner&email='+encodeURIComponent(email);
-    return;
-  }
+  // Login de owner (conta administrativa da Worka) não é feito por
+  // este modal — ele existe na aba "Empresa" só para empresas
+  // clientes. Antes havia aqui uma comparação de email/senha em
+  // texto plano no JavaScript público (visível via "Ver
+  // código-fonte") que redirecionava para worka-app.html fingindo
+  // login; removida. O login de owner de verdade, autenticado no
+  // servidor via POST /login/owner, fica na aba "Owner" dentro do
+  // próprio worka-app.html.
   // Login do dono — chama o backend de verdade (antes era "demo":
   // aceitava qualquer email+senha preenchidos sem checar nada).
   // Zero empresas cadastradas no banco até agora, então essa falha

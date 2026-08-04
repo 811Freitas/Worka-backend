@@ -234,6 +234,7 @@ tr:hover td{background:var(--gray50)}
     <div class="login-tabs">
       <div class="login-tab active" onclick="setLoginTipo('dono')">Empresa</div>
       <div class="login-tab" onclick="setLoginTipo('funcionario')">Funcionário</div>
+      <div class="login-tab" onclick="setLoginTipo('owner')">Owner</div>
     </div>
 
     <div id="login-dono">
@@ -245,6 +246,11 @@ tr:hover td{background:var(--gray50)}
       <div class="field"><label>ID da Equipe</label><input id="lf-teamid" type="text" placeholder="#WK-0000"></div>
       <div class="field"><label>E-mail</label><input id="lf-email" type="email" placeholder="seu@email.com"></div>
       <div class="field"><label>Senha</label><input id="lf-senha" type="password" placeholder="••••••••"></div>
+    </div>
+
+    <div id="login-owner" style="display:none">
+      <div class="field"><label>E-mail</label><input id="lo-email" type="email" placeholder="admin@worka.com.br"></div>
+      <div class="field"><label>Senha</label><input id="lo-senha" type="password" placeholder="••••••••"></div>
     </div>
 
 
@@ -305,27 +311,27 @@ tr:hover td{background:var(--gray50)}
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-card-icon" style="background:#edfaf2">👥</div>
-          <div class="stat-card-num" id="stat-funcionarios">8</div>
+          <div class="stat-card-num" id="stat-funcionarios">—</div>
           <div class="stat-card-lbl">Funcionários</div>
-          <div class="stat-card-sub sub-green">↑ 2 este mês</div>
+          <div class="stat-card-sub sub-green" id="stat-funcionarios-sub">&nbsp;</div>
         </div>
         <div class="stat-card">
           <div class="stat-card-icon" style="background:#eff6ff">⏱</div>
-          <div class="stat-card-num">6</div>
+          <div class="stat-card-num" id="stat-online">—</div>
           <div class="stat-card-lbl">Online agora</div>
-          <div class="stat-card-sub sub-green">75% da equipe</div>
+          <div class="stat-card-sub sub-green" id="stat-online-sub">&nbsp;</div>
         </div>
         <div class="stat-card">
           <div class="stat-card-icon" style="background:#fffbeb">📋</div>
-          <div class="stat-card-num">12</div>
+          <div class="stat-card-num" id="stat-tarefas-hoje">—</div>
           <div class="stat-card-lbl">Tarefas hoje</div>
-          <div class="stat-card-sub sub-yellow">4 pendentes</div>
+          <div class="stat-card-sub sub-yellow" id="stat-tarefas-hoje-sub">&nbsp;</div>
         </div>
         <div class="stat-card">
           <div class="stat-card-icon" style="background:#fef2f2">⚠️</div>
-          <div class="stat-card-num" id="stat-alertas">3</div>
+          <div class="stat-card-num" id="stat-alertas">—</div>
           <div class="stat-card-lbl">Alertas validade</div>
-          <div class="stat-card-sub sub-red">Ação necessária</div>
+          <div class="stat-card-sub sub-red" id="stat-alertas-sub">&nbsp;</div>
         </div>
       </div>
 
@@ -337,12 +343,9 @@ tr:hover td{background:var(--gray50)}
           </div>
           <div class="card-body" style="padding:0">
             <table>
-              <thead><tr><th>Funcionário</th><th>Entrada</th><th>Status</th><th>Local</th></tr></thead>
+              <thead><tr><th>Funcionário</th><th>Horário</th><th>Status</th><th>Local</th></tr></thead>
               <tbody id="tabela-ponto-hoje">
-                <tr><td><div style="display:flex;align-items:center;gap:8px"><div style="width:28px;height:28px;border-radius:50%;background:#edfaf2;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:var(--g600)">M</div>Maria S.</div></td><td>08:02</td><td><span class="badge badge-green">Trabalhando</span></td><td><a href="#" onclick="verMapa(-15.7942,-47.8825,'Maria S.')" style="color:var(--g500);font-size:.8rem">📍 Ver</a></td></tr>
-                <tr><td><div style="display:flex;align-items:center;gap:8px"><div style="width:28px;height:28px;border-radius:50%;background:#eff6ff;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#1e40af">J</div>João P.</div></td><td>08:15</td><td><span class="badge badge-yellow">Intervalo</span></td><td><a href="#" onclick="verMapa(-15.7842,-47.8725,'João P.')" style="color:var(--g500);font-size:.8rem">📍 Ver</a></td></tr>
-                <tr><td><div style="display:flex;align-items:center;gap:8px"><div style="width:28px;height:28px;border-radius:50%;background:#f5f3ff;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#6d28d9">A</div>Ana L.</div></td><td>07:58</td><td><span class="badge badge-green">Trabalhando</span></td><td><a href="#" onclick="verMapa(-15.8042,-47.8625,'Ana L.')" style="color:var(--g500);font-size:.8rem">📍 Ver</a></td></tr>
-                <tr><td><div style="display:flex;align-items:center;gap:8px"><div style="width:28px;height:28px;border-radius:50%;background:#fef2f2;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#dc2626">C</div>Carlos R.</div></td><td>—</td><td><span class="badge badge-red">Ausente</span></td><td>—</td></tr>
+                <tr><td colspan="4" style="text-align:center;color:var(--gray500);padding:20px;font-size:.85rem">Carregando...</td></tr>
               </tbody>
             </table>
           </div>
@@ -356,11 +359,8 @@ tr:hover td{background:var(--gray50)}
           <div class="card-body" style="padding:0">
             <table>
               <thead><tr><th>Tarefa</th><th>Responsável</th><th>Status</th></tr></thead>
-              <tbody>
-                <tr><td>Limpeza do salão</td><td>Maria S.</td><td><span class="badge badge-green">Concluída ✓</span></td></tr>
-                <tr><td>Reposição estoque</td><td>João P.</td><td><span class="badge badge-yellow">Pendente</span></td></tr>
-                <tr><td>Auditoria caixa</td><td>Ana L.</td><td><span class="badge badge-blue">Em revisão</span></td></tr>
-                <tr><td>Conferir validades</td><td>Carlos R.</td><td><span class="badge badge-red">Atrasada</span></td></tr>
+              <tbody id="tabela-tarefas-recentes">
+                <tr><td colspan="3" style="text-align:center;color:var(--gray500);padding:20px;font-size:.85rem">Carregando...</td></tr>
               </tbody>
             </table>
           </div>
@@ -372,22 +372,8 @@ tr:hover td{background:var(--gray50)}
           <div class="card-title">⚠️ Alertas de validade urgentes</div>
           <button class="btn btn-sm btn-secondary" onclick="abrirPagina('validade')">Gerenciar</button>
         </div>
-        <div class="card-body" style="padding:12px 0">
-          <div class="validade-card" style="border-left:3px solid var(--red);margin:0 16px 8px">
-            <div class="validade-icon" style="background:#fef2f2">🥛</div>
-            <div class="validade-info"><div class="validade-nome">Leite integral — Lote #A203</div><div class="validade-data">Vence em 28/06/2026</div></div>
-            <div class="validade-dias" style="color:var(--red)">1 dia</div>
-          </div>
-          <div class="validade-card" style="border-left:3px solid var(--yellow);margin:0 16px 8px">
-            <div class="validade-icon" style="background:#fffbeb">🧴</div>
-            <div class="validade-info"><div class="validade-nome">Creme hidratante — Lote #B441</div><div class="validade-data">Vence em 02/07/2026</div></div>
-            <div class="validade-dias" style="color:var(--yellow)">5 dias</div>
-          </div>
-          <div class="validade-card" style="border-left:3px solid var(--yellow);margin:0 16px">
-            <div class="validade-icon" style="background:#fffbeb">💊</div>
-            <div class="validade-info"><div class="validade-nome">Anestésico tópico — Lote #C118</div><div class="validade-data">Vence em 05/07/2026</div></div>
-            <div class="validade-dias" style="color:var(--yellow)">8 dias</div>
-          </div>
+        <div class="card-body" style="padding:12px 0" id="dashboard-alertas-validade">
+          <div style="text-align:center;color:var(--gray500);padding:16px;font-size:.85rem">Carregando...</div>
         </div>
       </div>
     </div>
@@ -409,15 +395,12 @@ tr:hover td{background:var(--gray50)}
       </div>
 
       <div class="card">
-        <div class="card-header"><div class="card-title">Equipe ativa</div><span class="badge badge-green" id="badge-total-func">8 membros</span></div>
+        <div class="card-header"><div class="card-title">Equipe ativa</div><span class="badge badge-green" id="badge-total-func">—</span></div>
         <div class="card-body" style="padding:0">
           <table>
             <thead><tr><th>Funcionário</th><th>Cargo</th><th>Status</th><th>Ponto hoje</th><th>Ações</th></tr></thead>
             <tbody id="lista-funcionarios">
-              <tr><td><div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:50%;background:var(--g50);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--g600)">M</div><div><div style="font-weight:600">Maria Silva</div><div style="font-size:.72rem;color:var(--gray500)">maria@email.com</div></div></div></td><td><span class="badge badge-purple">Gerente</span></td><td><span class="badge badge-green">● Ativo</span></td><td>08:02 — Em andamento</td><td><div style="display:flex;gap:6px"><button class="btn btn-sm btn-secondary" onclick="verFuncionario('Maria Silva')">Ver</button><button class="btn btn-sm btn-danger" onclick="excluirFuncionario(this,'Maria Silva')">🗑</button></div></td></tr>
-              <tr><td><div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:50%;background:#eff6ff;display:flex;align-items:center;justify-content:center;font-weight:700;color:#1e40af">J</div><div><div style="font-weight:600">João Pedro</div><div style="font-size:.72rem;color:var(--gray500)">joao@email.com</div></div></div></td><td><span class="badge badge-blue">Atendente</span></td><td><span class="badge badge-yellow">Intervalo</span></td><td>08:15 — Intervalo</td><td><div style="display:flex;gap:6px"><button class="btn btn-sm btn-secondary">Ver</button><button class="btn btn-sm btn-danger">🗑</button></div></td></tr>
-              <tr><td><div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:50%;background:#f5f3ff;display:flex;align-items:center;justify-content:center;font-weight:700;color:#6d28d9">A</div><div><div style="font-weight:600">Ana Lima</div><div style="font-size:.72rem;color:var(--gray500)">ana@email.com</div></div></div></td><td><span class="badge badge-green">Caixa</span></td><td><span class="badge badge-green">● Ativo</span></td><td>07:58 — Em andamento</td><td><div style="display:flex;gap:6px"><button class="btn btn-sm btn-secondary">Ver</button><button class="btn btn-sm btn-danger">🗑</button></div></td></tr>
-              <tr><td><div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:50%;background:#fef2f2;display:flex;align-items:center;justify-content:center;font-weight:700;color:#dc2626">C</div><div><div style="font-weight:600">Carlos Reis</div><div style="font-size:.72rem;color:var(--gray500)">carlos@email.com</div></div></div></td><td><span class="badge badge-yellow">Estoquista</span></td><td><span class="badge badge-red">Ausente</span></td><td>Não registrado</td><td><div style="display:flex;gap:6px"><button class="btn btn-sm btn-secondary">Ver</button><button class="btn btn-sm btn-danger">🗑</button></div></td></tr>
+              <tr><td colspan="5" style="text-align:center;color:var(--gray500);padding:20px">Carregando...</td></tr>
             </tbody>
           </table>
         </div>
@@ -470,18 +453,18 @@ tr:hover td{background:var(--gray50)}
       <div class="card">
         <div class="card-header">
           <div class="card-title">Histórico do mês</div>
-          <button class="btn btn-sm btn-secondary">Exportar</button>
         </div>
-        <div class="card-body" style="padding:0">
-          <table>
-            <thead><tr><th>Data</th><th>Entrada</th><th>Intervalo</th><th>Retorno</th><th>Saída</th><th>Total</th><th>Status</th></tr></thead>
-            <tbody>
-              <tr><td>27/06</td><td>08:02</td><td>12:00</td><td>13:00</td><td>17:05</td><td>8h03m</td><td><span class="badge badge-green">Normal</span></td></tr>
-              <tr><td>26/06</td><td>08:10</td><td>12:05</td><td>13:05</td><td>17:00</td><td>7h55m</td><td><span class="badge badge-green">Normal</span></td></tr>
-              <tr><td>25/06</td><td>08:45</td><td>12:00</td><td>13:00</td><td>17:00</td><td>7h15m</td><td><span class="badge badge-yellow">Atraso</span></td></tr>
-              <tr><td>24/06</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td><span class="badge badge-red">Falta</span></td></tr>
-            </tbody>
-          </table>
+        <!-- Antes havia aqui 4 linhas fixas com datas de junho/2026 e
+             um botão "Exportar" sem nenhum onclick (não fazia nada).
+             GET /ponto só retorna os registros de HOJE (filtro
+             horario=gte.hoje no backend) — um histórico mensal
+             agrupado por dia com total de horas exigiria uma rota
+             nova de agregação por período, que não existe ainda.
+             Removido o dado fixo enganoso em vez de deixá-lo parado
+             mostrando sempre as mesmas datas passadas. -->
+        <div class="card-body empty-state">
+          <div class="icon">📅</div>
+          <p>Histórico mensal detalhado ainda não está disponível — em desenvolvimento.<br>O registro de hoje aparece na tabela acima.</p>
         </div>
       </div>
     </div>
@@ -499,24 +482,7 @@ tr:hover td{background:var(--gray50)}
       </div>
 
       <div id="lista-tarefas">
-        <div class="tarefa-card" data-status="concluida">
-          <div class="tarefa-header"><div class="tarefa-title">✅ Limpeza completa do salão</div><span class="badge badge-green">Concluída</span></div>
-          <div class="tarefa-meta"><span>👤 Maria Silva</span><span>📅 Prazo: hoje</span><span>📷 Com foto</span></div>
-          <div style="margin-top:10px"><button class="btn btn-sm btn-secondary" onclick="verComprovacao()">Ver comprovação 📷</button></div>
-        </div>
-        <div class="tarefa-card" data-status="pendente">
-          <div class="tarefa-header"><div class="tarefa-title">📦 Reposição de estoque — corredor 3</div><span class="badge badge-yellow">Pendente</span></div>
-          <div class="tarefa-meta"><span>👤 João Pedro</span><span>📅 Prazo: hoje 18h</span><span>🔄 Diária</span></div>
-        </div>
-        <div class="tarefa-card" data-status="revisao">
-          <div class="tarefa-header"><div class="tarefa-title">💰 Auditoria do caixa</div><span class="badge badge-blue">Em revisão</span></div>
-          <div class="tarefa-meta"><span>👤 Ana Lima</span><span>📅 Prazo: hoje 17h</span></div>
-          <div style="margin-top:10px"><div style="display:flex;gap:6px"><button class="btn btn-sm btn-primary" onclick="aprovarTarefa(this)">✓ Aprovar</button><button class="btn btn-sm btn-danger" onclick="rejeitarTarefa(this)">↩ Pedir refação</button></div></div>
-        </div>
-        <div class="tarefa-card" data-status="atrasada" style="border-left:3px solid var(--red)">
-          <div class="tarefa-header"><div class="tarefa-title">🏷️ Conferir validades do freezer</div><span class="badge badge-red">Atrasada</span></div>
-          <div class="tarefa-meta"><span>👤 Carlos Reis</span><span>📅 Venceu: ontem</span></div>
-        </div>
+        <div style="text-align:center;color:var(--gray500);padding:30px;font-size:.9rem">Carregando...</div>
       </div>
     </div>
 
@@ -667,15 +633,62 @@ tr:hover td{background:var(--gray50)}
     </div>
 
     <!-- NOTIFICAÇÕES -->
+    <!-- Antes: 5 notificações fixas no HTML (Pedro Alves, Carlos
+         Reis...), sempre as mesmas pra qualquer empresa, e o botão
+         "Marcar todas como lidas" não tinha onclick nenhum — não
+         fazia nada. Não existe tabela/rota de notificações
+         persistentes no backend ainda (só o envio de push via
+         enviarPush(), que é fire-and-forget, sem histórico
+         consultável) — substituído por um estado vazio honesto em
+         vez de manter dados inventados permanentemente na tela. -->
     <div class="page" id="pg-notificacoes">
       <div class="card">
-        <div class="card-header"><div class="card-title">Central de notificações</div><button class="btn btn-sm btn-secondary">Marcar todas como lidas</button></div>
-        <div class="card-body">
-          <div class="notif-item"><div class="notif-dot" style="background:var(--red)"></div><div><div class="notif-txt">⚠️ <strong>Leite integral Lote #A203</strong> vence amanhã! Providencie a retirada do estoque.</div><div class="notif-time">Hoje, 08:00</div></div></div>
-          <div class="notif-item"><div class="notif-dot" style="background:var(--g500)"></div><div><div class="notif-txt">👤 <strong>Pedro Alves</strong> solicitou entrada na equipe com o ID #WK-8932.</div><div class="notif-time">Hoje, 07:45</div></div></div>
-          <div class="notif-item"><div class="notif-dot" style="background:var(--yellow)"></div><div><div class="notif-txt">📋 Tarefa <strong>"Conferir validades do freezer"</strong> está atrasada. Responsável: Carlos Reis.</div><div class="notif-time">Ontem, 18:00</div></div></div>
-          <div class="notif-item" style="opacity:.5"><div class="notif-dot" style="background:var(--gray300)"></div><div><div class="notif-txt">✅ <strong>Maria Silva</strong> concluiu a tarefa "Limpeza do salão" com foto de comprovação.</div><div class="notif-time">Hoje, 09:15</div></div></div>
-          <div class="notif-item" style="opacity:.5"><div class="notif-dot" style="background:var(--gray300)"></div><div><div class="notif-txt">⏱ <strong>João Pedro</strong> registrou entrada às 08:15.</div><div class="notif-time">Hoje, 08:15</div></div></div>
+        <div class="card-header"><div class="card-title">Central de notificações</div></div>
+        <div class="card-body empty-state">
+          <div class="icon">🔔</div>
+          <div style="font-weight:700;color:var(--gray700);margin-bottom:6px">Central de notificações ainda não está disponível</div>
+          <p>Alertas de validade e tarefas atrasadas já chegam por push notification (quando ativado no navegador). O histórico consultável aqui está em desenvolvimento.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Escala de Trabalho, Mural/Comunicados e Relatórios: os itens
+         de menu (sidebar) já existiam e chamavam abrirPagina('escala'),
+         abrirPagina('mural') e abrirPagina('relatorios'), mas nenhuma
+         das 3 páginas existia no HTML — clicar neles limpava a página
+         atual (abrirPagina remove .active de tudo) e não mostrava nada
+         no lugar, uma tela em branco. Isso não implementa as 3
+         funcionalidades (exigiriam tabelas/rotas novas no backend que
+         não existem hoje: escala de turnos, quadro de comunicados,
+         relatórios agregados), mas garante que a navegação nunca
+         quebra — em vez de tela em branco, mostra um estado claro de
+         "ainda não disponível". -->
+    <div class="page" id="pg-escala">
+      <div class="card">
+        <div class="card-body empty-state">
+          <div class="icon">📅</div>
+          <div style="font-weight:700;color:var(--gray700);margin-bottom:6px">Escala de Trabalho ainda não está disponível</div>
+          <p>Esta funcionalidade está em desenvolvimento e será liberada em uma próxima atualização.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="page" id="pg-mural">
+      <div class="card">
+        <div class="card-body empty-state">
+          <div class="icon">📢</div>
+          <div style="font-weight:700;color:var(--gray700);margin-bottom:6px">Mural / Comunicados ainda não está disponível</div>
+          <p>Esta funcionalidade está em desenvolvimento e será liberada em uma próxima atualização.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="page" id="pg-relatorios">
+      <div class="card">
+        <div class="card-body empty-state">
+          <div class="icon">📈</div>
+          <div style="font-weight:700;color:var(--gray700);margin-bottom:6px">Relatórios ainda não estão disponíveis</div>
+          <p>Enquanto isso, os números reais de Dashboard, Salários e Ausências já refletem os dados da sua equipe.</p>
         </div>
       </div>
     </div>
@@ -1081,22 +1094,9 @@ tr:hover td{background:var(--gray50)}
       </div>
 
       <div class="card" style="margin-bottom:16px">
-        <div class="card-header"><div class="card-title">Minhas tarefas de hoje</div><span class="badge badge-yellow">2 pendentes</span></div>
-        <div class="card-body" style="padding:12px">
-          <div class="tarefa-card">
-            <div class="tarefa-header"><div class="tarefa-title">📦 Reposição de estoque — corredor 3</div><span class="badge badge-yellow">Pendente</span></div>
-            <div class="tarefa-meta"><span>📅 Prazo: hoje 18h</span><span>📷 Requer foto</span></div>
-            <div style="margin-top:10px"><button class="btn btn-sm btn-primary" onclick="concluirTarefa(this)">Concluir com foto 📷</button></div>
-          </div>
-          <div class="tarefa-card">
-            <div class="tarefa-header"><div class="tarefa-title">🧹 Limpeza do banheiro</div><span class="badge badge-yellow">Pendente</span></div>
-            <div class="tarefa-meta"><span>📅 Prazo: hoje 20h</span></div>
-            <div style="margin-top:10px"><button class="btn btn-sm btn-primary" onclick="concluirTarefa(this)">Marcar como concluída</button></div>
-          </div>
-          <div class="tarefa-card" style="opacity:.6">
-            <div class="tarefa-header"><div class="tarefa-title">✅ Abertura do caixa</div><span class="badge badge-green">Concluída</span></div>
-            <div class="tarefa-meta"><span>📅 Concluída às 08:30</span></div>
-          </div>
+        <div class="card-header"><div class="card-title">Minhas tarefas de hoje</div><span class="badge badge-yellow" id="meu-painel-badge">—</span></div>
+        <div class="card-body" style="padding:12px" id="meu-painel-tarefas">
+          <div style="text-align:center;color:var(--gray500);padding:20px;font-size:.85rem">Carregando...</div>
         </div>
       </div>
 
@@ -1122,81 +1122,28 @@ tr:hover td{background:var(--gray50)}
     <div class="page" id="pg-salarios">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
         <div></div>
-        <button class="btn btn-primary" onclick="abrirModal('modal-add-salario')">+ Definir salário</button>
+        <button class="btn btn-primary" onclick="abrirModalSalario()">+ Definir salário</button>
       </div>
 
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2">💰</div><div class="stat-card-num">R$ 12.400</div><div class="stat-card-lbl">Folha total/mês</div></div>
-        <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb">⚠️</div><div class="stat-card-num">3</div><div class="stat-card-lbl">Pagamentos este mês</div><div class="stat-card-sub sub-yellow">Próximo: 05/07</div></div>
-        <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2">📉</div><div class="stat-card-num">2</div><div class="stat-card-lbl">Faltas este mês</div><div class="stat-card-sub sub-red">R$ 200 descontados</div></div>
-        <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff">📈</div><div class="stat-card-num">1</div><div class="stat-card-lbl">Aumentos este mês</div></div>
+        <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2">💰</div><div class="stat-card-num" id="stat-folha-total">—</div><div class="stat-card-lbl">Folha total/mês</div></div>
+        <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff">👥</div><div class="stat-card-num" id="stat-folha-func">—</div><div class="stat-card-lbl">Funcionários com salário definido</div></div>
+        <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2">📉</div><div class="stat-card-num" id="stat-folha-faltas">—</div><div class="stat-card-lbl">Faltas este mês</div><div class="stat-card-sub sub-red" id="stat-folha-desconto">&nbsp;</div></div>
+        <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff">📈</div><div class="stat-card-num" id="stat-folha-aumentos">—</div><div class="stat-card-lbl">Aumentos este mês</div></div>
       </div>
 
       <div class="card">
-        <div class="card-header"><div class="card-title">Folha de pagamento</div><button class="btn btn-sm btn-secondary">Exportar</button></div>
+        <div class="card-header"><div class="card-title">Folha de pagamento</div></div>
         <div class="card-body" style="padding:0">
           <table>
-            <thead><tr><th>Funcionário</th><th>Cargo</th><th>Salário base</th><th>Faltas</th><th>Desconto</th><th>Líquido</th><th>Pagamento</th><th>Ações</th></tr></thead>
+            <thead><tr><th>Funcionário</th><th>Salário base</th><th>Faltas no mês</th><th>Desconto</th><th>Líquido estimado</th><th>Ações</th></tr></thead>
             <tbody id="tabela-salarios">
-              <tr>
-                <td><div style="font-weight:600">Maria Silva</div></td>
-                <td><span class="badge badge-purple">Gerente</span></td>
-                <td>R$ 2.500</td>
-                <td>0</td>
-                <td style="color:var(--g600)">R$ 0</td>
-                <td style="font-weight:700;color:var(--g600)">R$ 2.500</td>
-                <td><span class="badge badge-yellow">05/07</span></td>
-                <td><div style="display:flex;gap:4px">
-                  <button class="btn btn-sm btn-primary" onclick="darAumento('Maria Silva', 2500)">↑ Aumentar</button>
-                  <button class="btn btn-sm btn-secondary" onclick="darAjuste('Maria Silva', 2500, 'baixar')">↓ Ajustar</button>
-                  <button class="btn btn-sm btn-secondary" onclick="marcarPago('Maria Silva')">✓ Pago</button>
-                </div></td>
-              </tr>
-              <tr>
-                <td><div style="font-weight:600">João Pedro</div></td>
-                <td><span class="badge badge-blue">Atendente</span></td>
-                <td>R$ 1.800</td>
-                <td>1</td>
-                <td style="color:var(--red)">R$ 82</td>
-                <td style="font-weight:700;color:var(--g600)">R$ 1.718</td>
-                <td><span class="badge badge-yellow">05/07</span></td>
-                <td><div style="display:flex;gap:4px">
-                  <button class="btn btn-sm btn-primary" onclick="darAumento('João Pedro', 1800)">↑ Aumentar</button>
-                  <button class="btn btn-sm btn-secondary" onclick="marcarPago('João Pedro')">✓ Pago</button>
-                </div></td>
-              </tr>
-              <tr>
-                <td><div style="font-weight:600">Ana Lima</div></td>
-                <td><span class="badge badge-green">Caixa</span></td>
-                <td>R$ 1.600</td>
-                <td>0</td>
-                <td style="color:var(--g600)">R$ 0</td>
-                <td style="font-weight:700;color:var(--g600)">R$ 1.600</td>
-                <td><span class="badge badge-green">Pago ✓</span></td>
-                <td><div style="display:flex;gap:4px">
-                  <button class="btn btn-sm btn-primary" onclick="darAumento('Ana Lima', 1600)">↑ Aumentar</button>
-                </div></td>
-              </tr>
+              <tr><td colspan="6" style="text-align:center;color:var(--gray500);padding:20px">Carregando...</td></tr>
             </tbody>
           </table>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-header"><div class="card-title">🔔 Alertas de pagamento</div><button class="btn btn-sm btn-primary" onclick="abrirModal('modal-alerta-pagamento')">+ Configurar alerta</button></div>
-        <div class="card-body">
-          <div style="display:flex;flex-direction:column;gap:10px">
-            <div style="background:var(--g50);border-radius:var(--r);padding:14px;display:flex;align-items:center;justify-content:space-between">
-              <div><div style="font-size:.85rem;font-weight:600;color:var(--g600)">💰 Pagamento dia 05/07</div><div style="font-size:.75rem;color:var(--gray500);margin-top:2px">Aviso 3 dias antes • Todos os funcionários</div></div>
-              <span class="badge badge-green">Ativo</span>
-            </div>
-            <div style="background:var(--gray50);border-radius:var(--r);padding:14px;display:flex;align-items:center;justify-content:space-between">
-              <div><div style="font-size:.85rem;font-weight:600;color:var(--gray700)">📊 Relatório mensal de folha</div><div style="font-size:.75rem;color:var(--gray500);margin-top:2px">Enviado por e-mail no último dia do mês</div></div>
-              <span class="badge badge-green">Ativo</span>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- ── PÁGINA: AUSÊNCIAS ── -->
@@ -1207,33 +1154,16 @@ tr:hover td{background:var(--gray50)}
           <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb">📝</div><div class="stat-card-num">1</div><div class="stat-card-lbl">Justificadas</div></div>
           <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2">⚠️</div><div class="stat-card-num">1</div><div class="stat-card-lbl">Sem justificativa</div></div>
         </div>
-        <button class="btn btn-primary" onclick="abrirModal('modal-reg-ausencia')">+ Registrar ausência</button>
+        <button class="btn btn-primary" onclick="abrirModalAusencia()">+ Registrar ausência</button>
       </div>
 
       <div class="card">
         <div class="card-header"><div class="card-title">Registro de ausências</div></div>
         <div class="card-body" style="padding:0">
           <table>
-            <thead><tr><th>Funcionário</th><th>Data</th><th>Tipo</th><th>Motivo</th><th>Desconto</th><th>Registrado por</th><th>Ações</th></tr></thead>
+            <thead><tr><th>Funcionário</th><th>Data</th><th>Tipo</th><th>Motivo</th><th>Desconto</th></tr></thead>
             <tbody id="tabela-ausencias">
-              <tr>
-                <td><div style="font-weight:600">Carlos Reis</div></td>
-                <td>27/06/2026</td>
-                <td><span class="badge badge-red">Falta</span></td>
-                <td>Sem justificativa</td>
-                <td style="color:var(--red);font-weight:600">R$ 100</td>
-                <td style="font-size:.75rem;color:var(--gray500)">Sistema automático</td>
-                <td><button class="btn btn-sm btn-secondary" onclick="justificarAusencia(this)">Justificar</button></td>
-              </tr>
-              <tr>
-                <td><div style="font-weight:600">João Pedro</div></td>
-                <td>24/06/2026</td>
-                <td><span class="badge badge-yellow">Atestado</span></td>
-                <td>Consulta médica</td>
-                <td style="color:var(--g600);font-weight:600">Isento</td>
-                <td style="font-size:.75rem;color:var(--gray500)">João Pedro</td>
-                <td><span class="badge badge-green">Aprovada</span></td>
-              </tr>
+              <tr><td colspan="5" style="text-align:center;color:var(--gray500);padding:20px">Carregando...</td></tr>
             </tbody>
           </table>
         </div>
@@ -1300,99 +1230,44 @@ tr:hover td{background:var(--gray50)}
       <div class="modal">
         <div class="modal-title">Registrar ausência</div>
         <div class="form-grid">
-          <div class="field"><label>Funcionário</label><select><option>Carlos Reis</option><option>João Pedro</option><option>Maria Silva</option><option>Ana Lima</option></select></div>
-          <div class="field"><label>Data</label><input type="date"></div>
+          <div class="field"><label>Funcionário</label><select id="rega-func"></select></div>
+          <div class="field"><label>Data</label><input type="date" id="rega-data"></div>
           <div class="field"><label>Tipo</label>
-            <select>
-              <option>Falta injustificada</option>
-              <option>Atestado médico</option>
-              <option>Falta justificada</option>
-              <option>Licença</option>
-              <option>Suspensão</option>
+            <select id="rega-tipo">
+              <option value="falta_injustificada">Falta injustificada</option>
+              <option value="atestado">Atestado médico</option>
+              <option value="falta_justificada">Falta justificada</option>
+              <option value="licenca">Licença</option>
+              <option value="suspensao">Suspensão</option>
             </select>
           </div>
-          <div class="field"><label>Motivo</label><input placeholder="Descreva o motivo"></div>
-          <div class="field form-full">
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-              <input type="checkbox" checked> Aplicar desconto automático no salário
-            </label>
-          </div>
+          <div class="field form-full"><label>Motivo</label><input id="rega-motivo" placeholder="Descreva o motivo"></div>
         </div>
+        <div id="rega-erro" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;font-size:.82rem;color:#dc2626;margin-top:8px"></div>
         <div class="modal-footer">
           <button class="btn btn-secondary" onclick="fecharModal('modal-reg-ausencia')">Cancelar</button>
-          <button class="btn btn-primary" onclick="registrarAusencia()">Registrar</button>
+          <button class="btn btn-primary" id="rega-btn-salvar" onclick="registrarAusencia()">Registrar</button>
         </div>
       </div>
     </div>
 
     <!-- ── MODAL SALÁRIO ── -->
+    <!-- "Dia de pagamento" e "Forma de pagamento" existiam aqui antes,
+         mas não há coluna nenhuma no banco pra guardar isso — o botão
+         Salvar só fechava o modal sem persistir nada. Removidos até
+         existir suporte real; o campo restante usa a mesma rota
+         POST /salarios/ajuste já usada por "↑ Aumentar" na tabela. -->
     <div class="modal-overlay" id="modal-add-salario">
       <div class="modal">
         <div class="modal-title">Definir salário</div>
         <div class="form-grid">
-          <div class="field"><label>Funcionário</label><select><option>Maria Silva</option><option>João Pedro</option><option>Ana Lima</option><option>Carlos Reis</option></select></div>
-          <div class="field"><label>Salário base (R$)</label><input type="number" placeholder="0,00"></div>
-          <div class="field"><label>Dia de pagamento</label><input type="number" min="1" max="31" placeholder="Ex: 5"></div>
-          <div class="field"><label>Forma de pagamento</label><select><option>PIX</option><option>Transferência</option><option>Dinheiro</option></select></div>
+          <div class="field"><label>Funcionário</label><select id="das-func"></select></div>
+          <div class="field"><label>Salário base (R$)</label><input type="number" id="das-salario" placeholder="0,00"></div>
         </div>
+        <div id="das-erro" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;font-size:.82rem;color:#dc2626;margin-top:8px"></div>
         <div class="modal-footer">
           <button class="btn btn-secondary" onclick="fecharModal('modal-add-salario')">Cancelar</button>
-          <button class="btn btn-primary" onclick="fecharModal('modal-add-salario')">Salvar</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── MODAL ALERTA PAGAMENTO ── -->
-    <div class="modal-overlay" id="modal-alerta-pagamento">
-      <div class="modal">
-        <div class="modal-title">🔔 Configurar alerta de pagamento</div>
-        <div class="field"><label>Avisar quantos dias antes?</label><select><option>1 dia antes</option><option>2 dias antes</option><option>3 dias antes</option><option>5 dias antes</option><option>7 dias antes</option></select></div>
-        <div class="field"><label>Como avisar?</label><select><option>Notificação no sistema</option><option>E-mail</option><option>Ambos</option></select></div>
-        <div class="modal-footer">
-          <button class="btn btn-secondary" onclick="fecharModal('modal-alerta-pagamento')">Cancelar</button>
-          <button class="btn btn-primary" onclick="fecharModal('modal-alerta-pagamento')">Salvar alerta</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── MODAL COMUNICADO ── -->
-    <div class="modal-overlay" id="modal-add-comunicado">
-      <div class="modal">
-        <div class="modal-title">Novo comunicado</div>
-        <div class="field"><label>Título</label><input placeholder="Título do comunicado"></div>
-        <div class="field"><label>Mensagem</label><textarea placeholder="Escreva o comunicado..." style="width:100%;padding:10px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-family:var(--font);font-size:.9rem;resize:vertical;min-height:100px;outline:none"></textarea></div>
-        <div class="field"><label>Categoria</label><select><option>Geral</option><option>Operacional</option><option>Urgente</option><option>Financeiro</option></select></div>
-        <div class="field"><label>Destinatários</label><select><option>Toda a equipe</option><option>Apenas gerentes</option><option>Apenas atendentes</option></select></div>
-        <div class="modal-footer">
-          <button class="btn btn-secondary" onclick="fecharModal('modal-add-comunicado')">Cancelar</button>
-          <button class="btn btn-primary" onclick="fecharModal('modal-add-comunicado')">Publicar</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── MODAL ESCALA ── -->
-    <div class="modal-overlay" id="modal-add-escala">
-      <div class="modal">
-        <div class="modal-title">Definir escala</div>
-        <div class="field"><label>Funcionário</label><select><option>Maria Silva</option><option>João Pedro</option><option>Ana Lima</option><option>Carlos Reis</option></select></div>
-        <div class="form-grid">
-          <div class="field"><label>Entrada</label><input type="time" value="08:00"></div>
-          <div class="field"><label>Saída</label><input type="time" value="17:00"></div>
-        </div>
-        <div class="field"><label>Dias da semana</label>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
-            <label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox" checked> Seg</label>
-            <label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox" checked> Ter</label>
-            <label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox" checked> Qua</label>
-            <label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox" checked> Qui</label>
-            <label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox" checked> Sex</label>
-            <label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox"> Sáb</label>
-            <label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox"> Dom</label>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-secondary" onclick="fecharModal('modal-add-escala')">Cancelar</button>
-          <button class="btn btn-primary" onclick="fecharModal('modal-add-escala')">Salvar escala</button>
+          <button class="btn btn-primary" id="das-btn-salvar" onclick="salvarSalarioInicial()">Salvar</button>
         </div>
       </div>
     </div>
@@ -1484,9 +1359,11 @@ tr:hover td{background:var(--gray50)}
     <div class="perm-row"><span class="perm-label">Gerenciar e justificar pontos</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
     <div class="perm-row"><span class="perm-label">Gerenciar validade de produtos</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
     <div class="perm-row"><span class="perm-label">Ver relatórios e histórico</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+    <div id="cargo-aviso" style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;font-size:.82rem;color:#92400e;margin-top:8px">
+      ⚠️ Criação de cargos customizados ainda não é suportada pelo backend (a tabela existe, mas nenhuma rota grava ou lê cargos ainda). O sistema de permissões continua usando os papéis fixos Dono / Gerente / Funcionário.
+    </div>
     <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="fecharModal('modal-add-cargo')">Cancelar</button>
-      <button class="btn btn-primary" onclick="fecharModal('modal-add-cargo')">Criar cargo</button>
+      <button class="btn btn-secondary" onclick="fecharModal('modal-add-cargo')">Fechar</button>
     </div>
   </div>
 </div>
@@ -1612,10 +1489,50 @@ function entrarComoDono(token, empresa, trial){
   // conclusão, não só de disparo.
   carregarFuncionariosReais().then(function(){
     if(typeof carregarTarefasReais === 'function') carregarTarefasReais();
+    if(typeof carregarDashboardReal === 'function') carregarDashboardReal();
   });
   carregarPontoReal();
   carregarValidadeReal();
   verificarTrial();
+  if(typeof carregarVisualSalvo === 'function') carregarVisualSalvo();
+}
+
+/**
+ * Monta a sessão e a UI do owner (conta administrativa única da
+ * Worka) após POST /login/owner confirmar as credenciais no backend.
+ * Antes disso a "sessão" de owner era só uma comparação de
+ * email/senha em texto plano no JavaScript do cliente — qualquer
+ * pessoa via "Ver código-fonte" via a senha real, e nenhuma chamada
+ * ao servidor era feita. Segue o mesmo formato de entrarComoDono().
+ */
+function entrarComoOwner(token, email){
+  sessaoWorka = { token: token, trial: null };
+  localStorage.setItem('worka_token', token);
+
+  usuarioAtual = { nome: 'Owner Worka', cargo: 'Owner Worka', empresa: 'Worka HQ', avatar: 'W', tipo: 'owner' };
+  document.getElementById('tela-login').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('user-name-display').textContent = usuarioAtual.nome;
+  document.getElementById('user-role-display').textContent = usuarioAtual.cargo;
+  document.getElementById('user-avatar-icon').textContent = usuarioAtual.avatar;
+  document.getElementById('sidebar-appname').innerHTML = 'Work<span style="color:var(--brand-accent)">a</span>';
+  document.getElementById('sidebar-company').textContent = 'Worka — Admin Master';
+
+  var nav = document.getElementById('sidebar-nav');
+  nav.innerHTML = '';
+  (menus['owner']||[]).forEach(function(item){
+    if(item.sec){
+      var s=document.createElement('div');s.className='nav-section';s.textContent=item.sec;nav.appendChild(s);
+    } else {
+      var el=document.createElement('div');
+      el.className='nav-item';el.dataset.page=item.id;
+      el.innerHTML='<span class="icon">'+item.icon+'</span><span>'+item.label+'</span>';
+      el.onclick=function(){abrirPagina(item.id)};
+      nav.appendChild(el);
+    }
+  });
+  abrirPagina('owner');
+  if(typeof iniciarRelogio === 'function') iniciarRelogio();
 }
 
 /**
@@ -1658,12 +1575,63 @@ function entrarComoFuncionario(token, funcionario, empresa){
   });
   abrirPagina('meu-painel');
   if(typeof iniciarRelogio === 'function') iniciarRelogio();
+  if(typeof carregarMeuPainelReal === 'function') carregarMeuPainelReal();
+}
+
+/**
+ * Preenche "Minhas tarefas de hoje" (home do funcionário) com dados
+ * reais. Antes eram 3 cards fixos no HTML (mesmos sempre, pra
+ * qualquer funcionário) e o badge "2 pendentes" nunca mudava. GET
+ * /tarefas já filtra automaticamente pelo próprio funcionário no
+ * backend quando quem chama tem role=funcionario, então não precisa
+ * de funcionariosCache aqui (dono/gerente que precisam do nome de
+ * terceiros usam carregarTarefasReais(), na página Tarefas).
+ */
+function carregarMeuPainelReal(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+  fetch('https://worka-backend-awng.onrender.com/tarefas', {
+    headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(lista){
+    var container = document.getElementById('meu-painel-tarefas');
+    var badge = document.getElementById('meu-painel-badge');
+    if(!container || !Array.isArray(lista)) return;
+
+    var pendentes = lista.filter(function(t){ return t.status === 'pendente' || t.status === 'em_andamento'; });
+    if(badge) badge.textContent = pendentes.length + (pendentes.length===1?' pendente':' pendentes');
+
+    if(lista.length === 0){
+      container.innerHTML = '<div style="text-align:center;color:var(--gray500);padding:20px;font-size:.85rem">Nenhuma tarefa para você hoje. ✅</div>';
+      return;
+    }
+
+    var badgePorStatus = {
+      pendente:      '<span class="badge badge-yellow">Pendente</span>',
+      em_andamento:  '<span class="badge badge-blue">Em andamento</span>',
+      concluida:     '<span class="badge badge-green">Concluída</span>',
+      atrasada:      '<span class="badge badge-red">Atrasada</span>'
+    };
+
+    container.innerHTML = lista.map(function(t){
+      var prazoTxt = t.prazo ? new Date(t.prazo).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : 'Sem prazo';
+      var acoes = t.status !== 'concluida'
+        ? '<div style="margin-top:10px"><button class="btn btn-sm btn-primary" onclick="concluirTarefa(this)">'+(t.requer_foto ? 'Marcar como concluída 📷' : 'Marcar como concluída')+'</button></div>'
+        : '';
+      return '<div class="tarefa-card" data-id="'+t.id+'"' + (t.status==='concluida' ? ' style="opacity:.6"' : '') + '>' +
+        '<div class="tarefa-header"><div class="tarefa-title">'+t.titulo+'</div>'+(badgePorStatus[t.status]||badgePorStatus.pendente)+'</div>' +
+        '<div class="tarefa-meta"><span>📅 '+prazoTxt+'</span>' + (t.requer_foto ? '<span>📷 Requer foto</span>' : '') + '</div>' +
+        acoes +
+      '</div>';
+    }).join('');
+  })
+  .catch(function(){});
 }
 
 function fazerLogin() {
   var emailVal = '';
   var senhaVal = '';
-  
+
   // Pegar email e senha do painel ativo
   var painelAtivo = document.getElementById('login-'+tipoLogin);
   if(painelAtivo) {
@@ -1673,32 +1641,29 @@ function fazerLogin() {
     if(senhaEl) senhaVal = senhaEl.value;
   }
 
-  // Login owner master
-  if(emailVal === 'workappoficial@gmail.com' && senhaVal === 'ale98798798798') {
-    tipoLogin = 'owner';
-    usuarioAtual = {nome:'Alexandre Freitas', cargo:'Owner Worka', empresa:'Worka HQ', avatar:'W', tipo:'owner'};
-    document.getElementById('tela-login').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
-    document.getElementById('user-name-display').textContent = usuarioAtual.nome;
-    document.getElementById('user-role-display').textContent = usuarioAtual.cargo;
-    document.getElementById('user-avatar-icon').textContent = usuarioAtual.avatar;
-    document.getElementById('sidebar-appname').innerHTML = 'Work<span style="color:var(--brand-accent)">a</span>';
-    document.getElementById('sidebar-company').textContent = 'Worka — Admin Master';
-    var nav = document.getElementById('sidebar-nav');
-    nav.innerHTML = '';
-    (menus['owner']).forEach(function(item){
-      if(item.sec){
-        var s=document.createElement('div');s.className='nav-section';s.textContent=item.sec;nav.appendChild(s);
-      } else {
-        var el=document.createElement('div');
-        el.className='nav-item';el.dataset.page=item.id;
-        el.innerHTML='<span class="icon">'+item.icon+'</span><span>'+item.label+'</span>';
-        el.onclick=function(){abrirPagina(item.id)};
-        nav.appendChild(el);
+  if(tipoLogin === 'owner') {
+    if(!emailVal || !senhaVal){
+      var erroO = document.getElementById('login-erro');
+      if(erroO) erroO.style.display = 'block';
+      return;
+    }
+    fetch('https://worka-backend-awng.onrender.com/login/owner', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email: emailVal, senha: senhaVal })
+    })
+    .then(function(r){ return r.json().then(function(data){ return { status:r.status, data:data }; }); })
+    .then(function(res){
+      if(res.status !== 200 || !res.data.token){
+        var erroO2 = document.getElementById('login-erro');
+        if(erroO2){ erroO2.textContent = res.data.error || 'Email ou senha incorretos.'; erroO2.style.display = 'block'; }
+        return;
       }
+      entrarComoOwner(res.data.token, emailVal);
+    })
+    .catch(function(){
+      alert('Erro de conexão com o servidor. Tente novamente.');
     });
-    abrirPagina('owner');
-    iniciarRelogio();
     return;
   }
 
@@ -2091,7 +2056,7 @@ function carregarFuncionariosReais(){
         '<td>—</td>' + // cargo: ainda não gravado pelo backend (cargo_id sem tabela de resolução ligada)
         '<td>'+statusBadge+'</td>' +
         '<td>—</td>' + // ponto hoje: rota de listagem não faz join com registros_ponto ainda
-        '<td><div style="display:flex;gap:6px"><button class="btn btn-sm btn-danger" onclick="excluirFuncionarioReal(\''+f.id+'\')">🗑</button></div></td>' +
+        '<td><div style="display:flex;gap:6px"><button class="btn btn-sm btn-secondary" onclick="verFuncionario(\''+f.nome.replace(/'/g,"\\'")+'\')">Ver</button><button class="btn btn-sm btn-danger" onclick="excluirFuncionarioReal(\''+f.id+'\')">🗑</button></div></td>' +
         '</tr>';
     }).join('');
 
@@ -2217,6 +2182,121 @@ function carregarPontoReal(){
   });
 }
 
+/**
+ * Preenche o Dashboard com dados reais. Antes, os 4 cartões de
+ * estatística e as tabelas "Ponto de hoje" / "Tarefas recentes" /
+ * "Alertas de validade" ficavam permanentemente com dados de
+ * demonstração fixos no HTML (Maria S., João P., "↑ 2 este mês"
+ * etc.) mesmo depois de login real — a rota GET /dashboard-data já
+ * existia no backend especificamente para isso, mas nada no
+ * frontend chamava. Chamado depois que funcionariosCache está
+ * populado, para poder resolver nome por id nas tabelas de ponto e
+ * tarefas (as rotas retornam só o id).
+ */
+function carregarDashboardReal(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+  var headers = { 'Authorization': 'Bearer ' + sessaoWorka.token };
+
+  fetch('https://worka-backend-awng.onrender.com/dashboard-data', { headers: headers })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if(!d || !d.funcionarios) return;
+    document.getElementById('stat-funcionarios').textContent = d.funcionarios.total;
+    document.getElementById('stat-funcionarios-sub').textContent = d.funcionarios.ativos + ' ativo(s)';
+    document.getElementById('stat-online').textContent = d.funcionarios.online_agora;
+    var pct = d.funcionarios.total > 0 ? Math.round(d.funcionarios.online_agora / d.funcionarios.total * 100) : 0;
+    document.getElementById('stat-online-sub').textContent = pct + '% da equipe';
+    document.getElementById('stat-tarefas-hoje').textContent = d.tarefas.abertas;
+    document.getElementById('stat-tarefas-hoje-sub').textContent = d.tarefas.atrasadas + ' atrasada(s)';
+    document.getElementById('stat-alertas').textContent = d.alertas.validades_urgentes;
+    document.getElementById('stat-alertas-sub').textContent = d.alertas.validades_urgentes > 0 ? 'Ação necessária' : 'Tudo em dia';
+
+    var contAlertas = document.getElementById('dashboard-alertas-validade');
+    if(contAlertas){
+      if(!d.alertas.produtos || d.alertas.produtos.length === 0){
+        contAlertas.innerHTML = '<div style="text-align:center;color:var(--gray500);padding:16px;font-size:.85rem">Nenhum produto com vencimento próximo. ✅</div>';
+      } else {
+        contAlertas.innerHTML = d.alertas.produtos.map(function(p){
+          var venc = new Date(p.vencimento+'T00:00:00');
+          var hoje = new Date(); hoje.setHours(0,0,0,0);
+          var dias = Math.ceil((venc - hoje) / (1000*60*60*24));
+          var diasTxt = dias < 0 ? 'Vencido há '+Math.abs(dias)+' dia(s)' : dias === 0 ? 'Vence hoje' : dias+' dia(s)';
+          return '<div class="validade-card" style="border-left:3px solid var(--red);margin:0 16px 8px">' +
+            '<div class="validade-icon" style="background:#fef2f2">⚠️</div>' +
+            '<div class="validade-info"><div class="validade-nome">'+p.nome+'</div><div class="validade-data">Vence em '+venc.toLocaleDateString('pt-BR')+'</div></div>' +
+            '<div class="validade-dias" style="color:var(--red)">'+diasTxt+'</div>' +
+          '</div>';
+        }).join('');
+      }
+    }
+  })
+  .catch(function(){ /* falha silenciosa: mantém o último estado renderizado */ });
+
+  // "Ponto de hoje" (resumo) — mesma rota GET /ponto da página de
+  // Controle de Ponto, mas mostrando só o registro mais recente de
+  // cada pessoa (a lista completa fica na página dedicada).
+  fetch('https://worka-backend-awng.onrender.com/ponto', { headers: headers })
+  .then(function(r){ return r.json(); })
+  .then(function(lista){
+    var tbody = document.getElementById('tabela-ponto-hoje');
+    if(!tbody || !Array.isArray(lista)) return;
+    if(lista.length === 0){
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--gray500);padding:20px;font-size:.85rem">Nenhum ponto registrado hoje</td></tr>';
+      return;
+    }
+    var nomesPorId = {};
+    funcionariosCache.forEach(function(f){ nomesPorId[f.id] = f.nome; });
+    var labelsPonto  = { entrada:'Trabalhando', intervalo:'Intervalo', retorno:'Trabalhando', saida:'Saiu' };
+    var badgePorTipo = { entrada:'badge-green', intervalo:'badge-yellow', retorno:'badge-green', saida:'badge-red' };
+    // A lista já vem ordenada por horario.desc — mantém só a
+    // primeira ocorrência (mais recente) de cada funcionário.
+    var vistos = {};
+    var linhas = [];
+    lista.forEach(function(r){
+      var chave = r.funcionario_id || 'dono';
+      if(vistos[chave]) return;
+      vistos[chave] = true;
+      linhas.push(r);
+    });
+    tbody.innerHTML = linhas.slice(0,6).map(function(r){
+      var nome = r.funcionario_id ? (nomesPorId[r.funcionario_id] || 'Funcionário') : 'Você';
+      var inicial = nome.charAt(0).toUpperCase();
+      var h = new Date(r.horario).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+      var linkMapa = (r.latitude!=null && r.longitude!=null)
+        ? '<a href="#" onclick="verMapa('+r.latitude+','+r.longitude+',\''+nome.replace(/'/g,"\\'")+'\')" style="color:var(--g500);font-size:.8rem">📍 Ver</a>'
+        : '—';
+      return '<tr><td><div style="display:flex;align-items:center;gap:8px"><div style="width:28px;height:28px;border-radius:50%;background:var(--g50);display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:var(--g600)">'+inicial+'</div>'+nome+'</div></td><td>'+h+'</td><td><span class="badge '+(badgePorTipo[r.tipo]||'badge-blue')+'">'+(labelsPonto[r.tipo]||r.tipo)+'</span></td><td>'+linkMapa+'</td></tr>';
+    }).join('');
+  })
+  .catch(function(){});
+
+  // "Tarefas recentes" (resumo) — 4 mais recentes da mesma lista
+  // completa usada na página de Tarefas.
+  fetch('https://worka-backend-awng.onrender.com/tarefas', { headers: headers })
+  .then(function(r){ return r.json(); })
+  .then(function(lista){
+    var tbody = document.getElementById('tabela-tarefas-recentes');
+    if(!tbody || !Array.isArray(lista)) return;
+    if(lista.length === 0){
+      tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--gray500);padding:20px;font-size:.85rem">Nenhuma tarefa cadastrada ainda</td></tr>';
+      return;
+    }
+    var nomesPorId = {};
+    funcionariosCache.forEach(function(f){ nomesPorId[f.id] = f.nome; });
+    var badgePorStatus = {
+      pendente:      '<span class="badge badge-yellow">Pendente</span>',
+      em_andamento:  '<span class="badge badge-blue">Em andamento</span>',
+      concluida:     '<span class="badge badge-green">Concluída ✓</span>',
+      atrasada:      '<span class="badge badge-red">Atrasada</span>'
+    };
+    tbody.innerHTML = lista.slice(0,4).map(function(t){
+      var responsavelTxt = t.responsavel_id ? (nomesPorId[t.responsavel_id] || 'Funcionário') : 'Geral';
+      return '<tr><td>'+t.titulo+'</td><td>'+responsavelTxt+'</td><td>'+(badgePorStatus[t.status]||badgePorStatus.pendente)+'</td></tr>';
+    }).join('');
+  })
+  .catch(function(){});
+}
+
 function fazerLogout() {
   document.getElementById('app').style.display = 'none';
   document.getElementById('tela-login').style.display = 'flex';
@@ -2262,6 +2342,13 @@ function abrirPagina(id) {
     }
   }
   if(id==='validade' && typeof carregarValidadeReal === 'function') carregarValidadeReal();
+  if(id==='dashboard' && typeof carregarDashboardReal === 'function') carregarDashboardReal();
+  if(id==='salarios' && typeof carregarSalariosReal === 'function') carregarSalariosReal();
+  if(id==='meu-painel' && typeof carregarMeuPainelReal === 'function') carregarMeuPainelReal();
+  if(id==='ausencias'){
+    if(typeof carregarAusenciasReal === 'function') carregarAusenciasReal();
+    if(typeof aplicarConfigFaltaNaTela === 'function') aplicarConfigFaltaNaTela();
+  }
 
   // Fechar sidebar no mobile
   if(window.innerWidth<=768) document.getElementById('sidebar').classList.remove('open');
@@ -2511,25 +2598,12 @@ function concluirTarefa(btn){
   atualizarStatusTarefaReal(id, 'concluida', btn);
 }
 
-function aprovarTarefa(btn){
-  // No modelo real (sem status intermediário de "revisão"), aprovar
-  // uma tarefa já concluída é apenas confirmar — o status já é
-  // concluida. Mantido só como reforço visual/no-op de UI; o estado
-  // real já reflete a conclusão desde que concluirTarefa() rodou.
-  var card = btn.closest('.tarefa-card');
-  if(card) card.querySelector('.badge').textContent = 'Concluída ✓';
-}
-
 function rejeitarTarefa(btn){
   var card = btn.closest('.tarefa-card');
   var id = card && card.dataset.id;
   if(!id) return;
   if(!confirm('Pedir refação? A tarefa voltará para pendente.')) return;
   atualizarStatusTarefaReal(id, 'pendente', btn);
-}
-
-function verComprovacao(){
-  alert('📷 Comprovação em foto — upload e visualização de imagem ainda não implementados neste sistema.');
 }
 
 /**
@@ -2672,7 +2746,34 @@ function salvarVisual(){
   document.documentElement.style.setProperty('--brand-accent',accent);
   document.getElementById('sidebar-appname').innerHTML=name.slice(0,-1)+'<span style="color:'+accent+'">'+name.slice(-1)+'</span>';
 
-  alert('✅ Identidade visual salva com sucesso!');
+  // Não há coluna na tabela empresas para guardar identidade visual
+  // ainda, então isto fica só neste navegador (localStorage) — antes
+  // nem isso: a cor aplicada sumia no primeiro F5, mesmo dentro do
+  // mesmo aparelho, porque nada persistia em lugar nenhum.
+  try {
+    localStorage.setItem('worka_visual', JSON.stringify({ bg: bg, btn: btn, accent: accent, name: name }));
+  } catch(e) {}
+
+  alert('✅ Identidade visual salva neste dispositivo!');
+}
+
+function carregarVisualSalvo(){
+  var salvo = null;
+  try { salvo = JSON.parse(localStorage.getItem('worka_visual')); } catch(e) {}
+  if(!salvo) return;
+  var elBg = document.getElementById('wl-bg'), elBtn = document.getElementById('wl-btn'),
+      elAccent = document.getElementById('wl-accent'), elName = document.getElementById('wl-appname');
+  if(elBg && salvo.bg) elBg.value = salvo.bg;
+  if(elBtn && salvo.btn) elBtn.value = salvo.btn;
+  if(elAccent && salvo.accent) elAccent.value = salvo.accent;
+  if(elName && salvo.name) elName.value = salvo.name;
+  if(typeof atualizarPreview === 'function') atualizarPreview();
+
+  document.documentElement.style.setProperty('--brand-bg', salvo.bg);
+  document.documentElement.style.setProperty('--brand-btn', salvo.btn);
+  document.documentElement.style.setProperty('--brand-accent', salvo.accent);
+  var sbName = document.getElementById('sidebar-appname');
+  if(sbName && salvo.name) sbName.innerHTML = salvo.name.slice(0,-1)+'<span style="color:'+salvo.accent+'">'+salvo.name.slice(-1)+'</span>';
 }
 
 
@@ -2720,10 +2821,25 @@ function salvarFotoPerfil() {
 // ═══════════════════════════════════
 // SALÁRIOS E AUMENTOS
 // ═══════════════════════════════════
+var funcIdAumento = '';
 var funcNomeAumento = '';
 var funcSalarioAtual = 0;
+var ausenciasCache = []; // última lista real buscada (GET /ausencias), reaproveitada pelos cálculos da página de Salários
 
-function darAumento(nome, salario) {
+/**
+ * Configuração de desconto por falta. É só local (por navegador),
+ * não existe coluna na empresa para isso no banco — diferente de
+ * salário e ausência, que são dados reais compartilhados pela
+ * equipe, esta é só uma preferência de cálculo do dono.
+ */
+function configDescontoFalta(){
+  try {
+    return JSON.parse(localStorage.getItem('worka_config_falta')) || { tipo: 'fixo', valor: 100 };
+  } catch(e) { return { tipo: 'fixo', valor: 100 }; }
+}
+
+function darAumento(id, nome, salario) {
+  funcIdAumento = id;
   funcNomeAumento = nome;
   funcSalarioAtual = salario;
   document.getElementById('aumento-nome').textContent = 'Funcionário: ' + nome;
@@ -2751,21 +2867,37 @@ function darAumento(nome, salario) {
   abrirModal('modal-aumento');
 }
 
-function darAjuste(nome, salario) { darAumento(nome, salario); }
-
 function confirmarAumento() {
   var novo = parseFloat(document.getElementById('salario-novo').value);
   if(!novo || novo <= 0) { alert('Informe o novo salário!'); return; }
-  fecharModal('modal-aumento');
+  if(!sessaoWorka || !sessaoWorka.token){ alert('Faça login novamente.'); return; }
 
-  if(novo > funcSalarioAtual) {
-    // Mensagem de parabéns
-    setTimeout(function() {
-      mostrarMensagemAumento(funcNomeAumento, novo);
-    }, 300);
-  } else {
-    alert('✅ Salário de ' + funcNomeAumento + ' atualizado para R$ ' + novo.toFixed(2));
-  }
+  var btn = document.querySelector('#modal-aumento .btn-primary');
+  var textoOriginal = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = 'Salvando...'; }
+
+  fetch('https://worka-backend-awng.onrender.com/salarios/ajuste', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
+    body: JSON.stringify({ funcionario_id: funcIdAumento, salario_novo: novo, salario_anterior: funcSalarioAtual })
+  })
+  .then(function(r){ return r.json().then(function(data){ return { status:r.status, data:data }; }); })
+  .then(function(res){
+    if(btn){ btn.disabled = false; btn.textContent = textoOriginal; }
+    if(res.status !== 201){
+      alert(res.data.error || 'Não foi possível salvar o novo salário.');
+      return;
+    }
+    fecharModal('modal-aumento');
+    if(typeof carregarSalariosReal === 'function') carregarSalariosReal();
+    if(novo > funcSalarioAtual){
+      setTimeout(function(){ mostrarMensagemAumento(funcNomeAumento, novo); }, 300);
+    }
+  })
+  .catch(function(){
+    if(btn){ btn.disabled = false; btn.textContent = textoOriginal; }
+    alert('Erro de conexão. Tente novamente.');
+  });
 }
 
 function mostrarMensagemAumento(nome, novoSalario) {
@@ -2783,48 +2915,247 @@ function mostrarMensagemAumento(nome, novoSalario) {
   overlay.onclick = function(e) { if(e.target===this) this.remove(); };
 }
 
-function marcarPago(nome) {
-  alert('✅ Pagamento de ' + nome + ' marcado como realizado!');
+function abrirModalSalario(){
+  var sel = document.getElementById('das-func');
+  if(sel){
+    sel.innerHTML = funcionariosCache.map(function(f){ return '<option value="'+f.id+'">'+f.nome+'</option>'; }).join('') ||
+      '<option value="">Nenhum funcionário cadastrado</option>';
+  }
+  var input = document.getElementById('das-salario');
+  if(input) input.value = '';
+  var erroEl = document.getElementById('das-erro');
+  if(erroEl) erroEl.style.display = 'none';
+  abrirModal('modal-add-salario');
+}
+
+function salvarSalarioInicial(){
+  var erroEl = document.getElementById('das-erro');
+  erroEl.style.display = 'none';
+  if(!sessaoWorka || !sessaoWorka.token){ erroEl.textContent = 'Faça login novamente.'; erroEl.style.display='block'; return; }
+
+  var funcId = document.getElementById('das-func').value;
+  var salario = parseFloat(document.getElementById('das-salario').value);
+  if(!funcId){ erroEl.textContent = 'Selecione um funcionário.'; erroEl.style.display='block'; return; }
+  if(!salario || salario <= 0){ erroEl.textContent = 'Informe um salário válido.'; erroEl.style.display='block'; return; }
+
+  var btn = document.getElementById('das-btn-salvar');
+  var textoOriginal = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Salvando...';
+
+  fetch('https://worka-backend-awng.onrender.com/salarios/ajuste', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
+    body: JSON.stringify({ funcionario_id: funcId, salario_novo: salario, salario_anterior: 0 })
+  })
+  .then(function(r){ return r.json().then(function(data){ return { status:r.status, data:data }; }); })
+  .then(function(res){
+    btn.disabled = false; btn.textContent = textoOriginal;
+    if(res.status !== 201){
+      erroEl.textContent = res.data.error || 'Não foi possível salvar.';
+      erroEl.style.display = 'block';
+      return;
+    }
+    fecharModal('modal-add-salario');
+    if(typeof carregarSalariosReal === 'function') carregarSalariosReal();
+  })
+  .catch(function(){
+    btn.disabled = false; btn.textContent = textoOriginal;
+    erroEl.textContent = 'Erro de conexão. Tente novamente.';
+    erroEl.style.display = 'block';
+  });
+}
+
+/**
+ * Preenche a página de Salários com dados reais: funcionariosCache
+ * (já buscado por carregarFuncionariosReais) para nome + salário
+ * base, GET /ausencias para contar faltas do mês e calcular
+ * desconto, e GET /historico_salarios para o card "Aumentos este
+ * mês". Antes, a tabela inteira e os 4 cartões eram HTML fixo
+ * (Maria Silva, João Pedro... nunca mudavam).
+ */
+function carregarSalariosReal(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+  var headers = { 'Authorization': 'Bearer ' + sessaoWorka.token };
+  var cfg = configDescontoFalta();
+
+  Promise.all([
+    fetch('https://worka-backend-awng.onrender.com/ausencias', { headers: headers }).then(function(r){ return r.ok ? r.json() : []; }).catch(function(){ return []; }),
+    fetch('https://worka-backend-awng.onrender.com/historico_salarios', { headers: headers }).then(function(r){ return r.ok ? r.json() : []; }).catch(function(){ return []; })
+  ]).then(function(results){
+    var ausencias = Array.isArray(results[0]) ? results[0] : [];
+    var historico = Array.isArray(results[1]) ? results[1] : [];
+    ausenciasCache = ausencias;
+
+    var faltasPorFunc = {};
+    ausencias.forEach(function(a){
+      if(a.tipo !== 'falta_injustificada') return; // só falta sem justificativa gera desconto
+      faltasPorFunc[a.funcionario_id] = (faltasPorFunc[a.funcionario_id] || 0) + 1;
+    });
+
+    var comSalario = funcionariosCache.filter(function(f){ return f.salario_base != null; });
+    var folhaTotal = comSalario.reduce(function(s,f){ return s + parseFloat(f.salario_base); }, 0);
+
+    var stFolha = document.getElementById('stat-folha-total'); if(stFolha) stFolha.textContent = 'R$ ' + folhaTotal.toFixed(2);
+    var stFunc = document.getElementById('stat-folha-func'); if(stFunc) stFunc.textContent = comSalario.length;
+    var stFaltas = document.getElementById('stat-folha-faltas'); if(stFaltas) stFaltas.textContent = ausencias.filter(function(a){return a.tipo==='falta_injustificada';}).length;
+    var descontoTotal = ausencias.filter(function(a){return a.tipo==='falta_injustificada';}).length * (cfg.tipo === 'fixo' ? (parseFloat(cfg.valor)||0) : 0);
+    var stDesc = document.getElementById('stat-folha-desconto'); if(stDesc) stDesc.textContent = 'R$ ' + descontoTotal.toFixed(2) + ' descontados';
+    var stAum = document.getElementById('stat-folha-aumentos'); if(stAum) stAum.textContent = historico.filter(function(h){return h.tipo==='aumento';}).length;
+
+    var tbody = document.getElementById('tabela-salarios');
+    if(!tbody) return;
+    if(comSalario.length === 0){
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gray500);padding:20px">Nenhum funcionário com salário definido ainda.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = comSalario.map(function(f){
+      var base = parseFloat(f.salario_base);
+      var faltas = faltasPorFunc[f.id] || 0;
+      var desconto = cfg.tipo === 'fixo' ? faltas * (parseFloat(cfg.valor)||0) : (cfg.tipo === 'diaria' ? faltas * (base/22) : 0);
+      var liquido = Math.max(0, base - desconto);
+      return '<tr>' +
+        '<td><div style="font-weight:600">'+f.nome+'</div></td>' +
+        '<td>R$ '+base.toFixed(2)+'</td>' +
+        '<td>'+faltas+'</td>' +
+        '<td style="color:'+(desconto>0?'var(--red)':'var(--g600)')+'">R$ '+desconto.toFixed(2)+'</td>' +
+        '<td style="font-weight:700;color:var(--g600)">R$ '+liquido.toFixed(2)+'</td>' +
+        '<td><button class="btn btn-sm btn-primary" onclick="darAumento(\''+f.id+'\',\''+f.nome.replace(/'/g,"\\'")+'\','+base+')">↑ Ajustar</button></td>' +
+      '</tr>';
+    }).join('');
+  });
 }
 
 // ═══════════════════════════════════
 // AUSÊNCIAS
 // ═══════════════════════════════════
-function justificarAusencia(btn) {
-  var motivo = prompt('Informe o motivo da justificativa:');
-  if(motivo) {
-    var tr = btn.closest('tr');
-    tr.querySelector('.badge').className = 'badge badge-yellow';
-    tr.querySelector('.badge').textContent = 'Justificada';
-    btn.textContent = '✓ Justificada';
-    btn.disabled = true;
-    alert('✅ Ausência justificada: ' + motivo);
+function abrirModalAusencia(){
+  var sel = document.getElementById('rega-func');
+  if(sel){
+    sel.innerHTML = funcionariosCache.map(function(f){ return '<option value="'+f.id+'">'+f.nome+'</option>'; }).join('') ||
+      '<option value="">Nenhum funcionário cadastrado</option>';
   }
+  var data = document.getElementById('rega-data'); if(data) data.value = new Date().toISOString().split('T')[0];
+  var motivo = document.getElementById('rega-motivo'); if(motivo) motivo.value = '';
+  var erroEl = document.getElementById('rega-erro'); if(erroEl) erroEl.style.display = 'none';
+  abrirModal('modal-reg-ausencia');
 }
 
 function registrarAusencia() {
-  fecharModal('modal-reg-ausencia');
-  alert('✅ Ausência registrada com sucesso!');
+  var erroEl = document.getElementById('rega-erro');
+  erroEl.style.display = 'none';
+  if(!sessaoWorka || !sessaoWorka.token){ erroEl.textContent = 'Faça login novamente.'; erroEl.style.display='block'; return; }
+
+  var funcId = document.getElementById('rega-func').value;
+  var data = document.getElementById('rega-data').value;
+  var tipo = document.getElementById('rega-tipo').value;
+  var motivo = document.getElementById('rega-motivo').value.trim();
+
+  if(!funcId){ erroEl.textContent = 'Selecione um funcionário.'; erroEl.style.display='block'; return; }
+  if(!data){ erroEl.textContent = 'Informe a data.'; erroEl.style.display='block'; return; }
+
+  var btn = document.getElementById('rega-btn-salvar');
+  var textoOriginal = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Registrando...';
+
+  fetch('https://worka-backend-awng.onrender.com/ausencias', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
+    body: JSON.stringify({ funcionario_id: funcId, data: data, tipo: tipo, motivo: motivo })
+  })
+  .then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }); })
+  .then(function(res){
+    btn.disabled = false; btn.textContent = textoOriginal;
+    if(res.status !== 201){
+      erroEl.textContent = res.data.error || 'Não foi possível registrar a ausência.';
+      erroEl.style.display = 'block';
+      return;
+    }
+    fecharModal('modal-reg-ausencia');
+    if(typeof carregarAusenciasReal === 'function') carregarAusenciasReal();
+    if(typeof carregarSalariosReal === 'function') carregarSalariosReal();
+
+    var criarTarefaChk = document.getElementById('criar-tarefa-falta');
+    if(tipo === 'falta_injustificada' && criarTarefaChk && criarTarefaChk.checked){
+      var nomeFunc = (funcionariosCache.filter(function(f){return f.id===funcId;})[0]||{}).nome || 'funcionário';
+      fetch('https://worka-backend-awng.onrender.com/tarefas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
+        body: JSON.stringify({ titulo: 'Falta sem justificativa — '+nomeFunc, prioridade: 'alta', responsavel_id: funcId })
+      })
+      .then(function(){ if(typeof carregarTarefasReais === 'function') carregarTarefasReais(); })
+      .catch(function(){});
+    }
+  })
+  .catch(function(){
+    btn.disabled = false; btn.textContent = textoOriginal;
+    erroEl.textContent = 'Erro de conexão. Tente novamente.';
+    erroEl.style.display = 'block';
+  });
+}
+
+/**
+ * Preenche a tabela de ausências com dados reais (GET /ausencias).
+ * Antes eram 2 linhas fixas no HTML (Carlos Reis, João Pedro) que
+ * nunca refletiam o que era de fato registrado pelo modal.
+ */
+function carregarAusenciasReal(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+  var cfg = configDescontoFalta();
+  var labelsTipo = {
+    falta_injustificada: '<span class="badge badge-red">Falta</span>',
+    falta_justificada:   '<span class="badge badge-yellow">Falta justificada</span>',
+    atestado:             '<span class="badge badge-yellow">Atestado</span>',
+    licenca:               '<span class="badge badge-blue">Licença</span>',
+    suspensao:             '<span class="badge badge-red">Suspensão</span>'
+  };
+
+  fetch('https://worka-backend-awng.onrender.com/ausencias', {
+    headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(lista){
+    ausenciasCache = Array.isArray(lista) ? lista : [];
+    var tbody = document.getElementById('tabela-ausencias');
+    if(!tbody || !Array.isArray(lista)) return;
+    if(lista.length === 0){
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--gray500);padding:20px">Nenhuma ausência registrada este mês.</td></tr>';
+      return;
+    }
+    var nomesPorId = {};
+    funcionariosCache.forEach(function(f){ nomesPorId[f.id] = f.nome; });
+
+    tbody.innerHTML = lista.map(function(a){
+      var nome = nomesPorId[a.funcionario_id] || 'Funcionário';
+      var dataFmt = a.data ? new Date(a.data+'T00:00:00').toLocaleDateString('pt-BR') : '—';
+      var desconto = a.tipo === 'falta_injustificada' ? (cfg.tipo === 'fixo' ? (parseFloat(cfg.valor)||0) : 0) : 0;
+      var descontoTxt = desconto > 0 ? '<span style="color:var(--red);font-weight:600">R$ '+desconto.toFixed(2)+'</span>' : '<span style="color:var(--g600);font-weight:600">Isento</span>';
+      return '<tr>' +
+        '<td><div style="font-weight:600">'+nome+'</div></td>' +
+        '<td>'+dataFmt+'</td>' +
+        '<td>'+(labelsTipo[a.tipo]||a.tipo)+'</td>' +
+        '<td>'+(a.motivo||'—')+'</td>' +
+        '<td>'+descontoTxt+'</td>' +
+      '</tr>';
+    }).join('');
+  })
+  .catch(function(){});
+}
+
+function aplicarConfigFaltaNaTela(){
+  var cfg = configDescontoFalta();
+  var selTipo = document.getElementById('tipo-desconto-falta');
+  var inpValor = document.getElementById('valor-falta');
+  if(selTipo) selTipo.value = cfg.tipo;
+  if(inpValor) inpValor.value = cfg.valor;
 }
 
 function salvarConfigFalta() {
   var tipo = document.getElementById('tipo-desconto-falta').value;
   var valor = document.getElementById('valor-falta').value;
-  alert('✅ Configuração salva! Desconto por falta: ' + (tipo==='fixo' ? 'R$ '+valor : tipo));
-}
-
-// ═══════════════════════════════════
-// EXCLUIR FUNCIONÁRIO
-// ═══════════════════════════════════
-function excluirFuncionario(btn, nome) {
-  if(confirm('Tem certeza que deseja excluir ' + nome + ' da equipe?\n\nEsta ação não pode ser desfeita.')) {
-    var tr = btn.closest('tr');
-    tr.style.transition = '.3s';
-    tr.style.opacity = '0';
-    tr.style.transform = 'translateX(20px)';
-    setTimeout(function(){ tr.remove(); }, 300);
-    alert('✅ ' + nome + ' foi removido da equipe.');
-  }
+  localStorage.setItem('worka_config_falta', JSON.stringify({ tipo: tipo, valor: valor }));
+  if(typeof carregarSalariosReal === 'function') carregarSalariosReal();
+  if(typeof carregarAusenciasReal === 'function') carregarAusenciasReal();
+  alert('✅ Configuração salva! Desconto por falta: ' + (tipo==='fixo' ? 'R$ '+valor : tipo === 'diaria' ? 'diário (salário ÷ 22)' : 'sem desconto automático'));
 }
 
 // ═══════════════════════════════════
@@ -2905,18 +3236,26 @@ window.addEventListener('DOMContentLoaded', function(){
   var role = params.get('role');
   var email = params.get('email');
 
-  if(role === 'owner' && email){
-    // Login de owner: fluxo separado, senha fixa conhecida (não é
-    // dado sensível de cliente real, é a conta administrativa única
-    // da Worka) — mantido como estava.
+  if(role === 'owner'){
+    // Antes, este bloco preenchia e submetia automaticamente uma
+    // senha fixa embutida no código — visível para qualquer um via
+    // "Ver código-fonte" da página pública, e que já nem funcionava
+    // (procurava um painel #login-owner que não existia, então a
+    // senha nunca era realmente lida). Agora só troca para a aba
+    // "Owner" e deixa a pessoa digitar a senha real, que é validada
+    // no servidor via POST /login/owner — a senha nunca aparece em
+    // lugar nenhum do código-fonte.
     tipoLogin = 'owner';
-    setTimeout(function(){
-      var emailEl = document.querySelector('#login-dono input[type=email]');
+    document.querySelectorAll('.login-tab').forEach(function(t){ t.classList.remove('active'); });
+    var tabs = document.querySelectorAll('.login-tab');
+    if(tabs[2]) tabs[2].classList.add('active');
+    document.getElementById('login-dono').style.display = 'none';
+    document.getElementById('login-funcionario').style.display = 'none';
+    document.getElementById('login-owner').style.display = 'block';
+    if(email){
+      var emailEl = document.querySelector('#login-owner input[type=email]');
       if(emailEl) emailEl.value = email;
-      var senhaEl = document.querySelector('#login-dono input[type=password]');
-      if(senhaEl) senhaEl.value = 'ale98798798798';
-      fazerLogin();
-    }, 100);
+    }
     return;
   }
 
