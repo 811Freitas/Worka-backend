@@ -1,17 +1,34 @@
 // Worka PWA — Service Worker
-// Cache offline + Face ID support
+// Cache offline + push notifications
+//
+// NOTA: este cabeçalho dizia "Face ID support", mas nunca houve
+// nenhuma implementação de biometria no projeto — não existe WebAuthn,
+// navigator.credentials nem tabela de credenciais em lugar nenhum do
+// código. O comentário foi removido para não sugerir uma proteção que
+// o sistema não tem. Login biométrico continua sendo uma feature em
+// aberto (exige WebAuthn + tabela de credenciais no banco).
 
-var CACHE = 'worka-v2';
+// Cache bumped para v3: os caminhos abaixo mudaram de
+// "/Worka-backend/..." para relativos. Sem trocar o nome do cache, os
+// navegadores que já instalaram o SW antigo continuariam servindo as
+// URLs velhas (404) do cache para sempre.
+var CACHE = 'worka-v3';
 // Ícone usado em notificações push — mesmo SVG inline do manifest.json.
 // Não referenciamos um arquivo /icon-192.png porque ele nunca existiu
 // neste repositório (o app sempre usou apenas ícones SVG inline no
 // manifest); a referência antiga aqui sempre resultava em 404 e a
 // notificação caía sem ícone.
 var NOTIFICATION_ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' fill='%230a2e1a' rx='40'/%3E%3Ctext x='50%25' y='58%25' font-family='Georgia,serif' font-size='90' font-weight='900' fill='%233dd669' text-anchor='middle' dominant-baseline='middle'%3EW%3C/text%3E%3C/svg%3E";
+// Caminhos RELATIVOS de propósito: o site agora é servido na raiz do
+// domínio próprio (workap.com.br), onde "/Worka-backend/..." não
+// existe e dava 404 em tudo — quebrando cache offline e PWA. Relativo
+// funciona tanto na raiz do domínio quanto em
+// 811freitas.github.io/Worka-backend/, sem precisar escolher um dos dois.
+// (worka.html virou index.html no repositório.)
 var ASSETS = [
-  '/Worka-backend/worka-app.html',
-  '/Worka-backend/worka.html',
-  '/Worka-backend/manifest.json',
+  'worka-app.html',
+  'index.html',
+  'manifest.json',
   'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Syne:wght@700;800&display=swap'
 ];
 
@@ -87,7 +104,7 @@ self.addEventListener('push', function(e) {
     icon: NOTIFICATION_ICON,
     badge: NOTIFICATION_ICON,
     vibrate: [200, 100, 200],
-    data: { url: data.url || '/Worka-backend/worka-app.html' },
+    data: { url: data.url || 'worka-app.html' },
     actions: [
       { action: 'open', title: 'Abrir' },
       { action: 'close', title: 'Fechar' }
@@ -100,7 +117,7 @@ self.addEventListener('push', function(e) {
 self.addEventListener('notificationclick', function(e) {
   e.notification.close();
   if (e.action === 'open' || !e.action) {
-    var url = e.notification.data.url || '/Worka-backend/worka-app.html';
+    var url = e.notification.data.url || 'worka-app.html';
     e.waitUntil(clients.openWindow(url));
   }
 });

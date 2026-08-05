@@ -546,7 +546,7 @@
         <a href="#funcionalidades" class="btn-ghost">Ver funcionalidades</a>
       </div>
       <div class="hero-price">
-        <strong>R$ 24,90</strong>
+        <strong>R$ 49,99</strong>
         <span>/mês · valor fixo · cancele quando quiser</span>
       </div>
     </div>
@@ -615,7 +615,7 @@
       </div>
       <div class="step">
         <div class="step-num">2</div>
-        <h3>Assine por R$ 24,90/mês</h3>
+        <h3>Assine por R$ 49,99/mês</h3>
         <p>Valor fixo, sem pegadinhas. Um único plano dá acesso a todas as funcionalidades da plataforma.</p>
       </div>
       <div class="step">
@@ -784,7 +784,7 @@
     <p class="section-sub" style="margin:0 auto 48px;text-align:center">Sem cobrança por funcionalidade, sem surpresas no boleto.</p>
     <div class="pricing-card reveal">
       <div style="font-size:.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--green-500)">Plano Completo</div>
-      <div class="price-amount">R$ 24,90</div>
+      <div class="price-amount">R$ 49,99</div>
       <div class="price-period">por mês · assinatura recorrente</div>
       <ul class="price-features">
         <li>Controle de ponto digital em tempo real</li>
@@ -814,7 +814,7 @@
     <div style="background:linear-gradient(135deg,#0a2e1a,#1e8a40);padding:24px 28px;display:flex;align-items:center;justify-content:space-between;">
       <div>
         <div style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:#fff;">Worka</div>
-        <div style="font-size:0.75rem;color:rgba(255,255,255,0.65);margin-top:2px;">Plano Completo · R$ 24,90/mês</div>
+        <div style="font-size:0.75rem;color:rgba(255,255,255,0.65);margin-top:2px;">Plano Completo · R$ 49,99/mês</div>
       </div>
       <button onclick="fecharCheckout()" style="background:rgba(255,255,255,0.15);border:none;color:white;width:36px;height:36px;border-radius:50%;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
     </div>
@@ -852,13 +852,29 @@
       <!-- Erro -->
       <div id="form-erro" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;font-size:0.82rem;color:#dc2626;margin-top:14px;"></div>
 
+      <!-- Cupom de desconto -->
+      <div style="margin-top:20px;border:1.5px dashed #c7e3d0;border-radius:10px;padding:14px 16px;background:#fbfdfb;">
+        <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:6px;">🎟️ Tem um cupom de desconto?</label>
+        <div style="display:flex;gap:8px;">
+          <input id="f-cupom" type="text" placeholder="Digite o código" maxlength="40"
+            style="flex:1;padding:10px 12px;border:1.5px solid #eff0ef;border-radius:8px;font-size:0.85rem;font-family:'Inter',sans-serif;outline:none;text-transform:uppercase;"
+            onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
+          <button id="btn-aplicar-cupom" onclick="aplicarCupom()"
+            style="background:#0a2e1a;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:0.8rem;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;">Aplicar</button>
+        </div>
+        <div id="cupom-feedback" style="display:none;font-size:0.78rem;margin-top:8px;font-weight:600;"></div>
+      </div>
+
       <!-- Resumo -->
-      <div style="background:#edfaf2;border-radius:10px;padding:14px 16px;margin-top:20px;display:flex;align-items:center;justify-content:space-between;">
+      <div style="background:#edfaf2;border-radius:10px;padding:14px 16px;margin-top:14px;display:flex;align-items:center;justify-content:space-between;">
         <div>
           <div style="font-size:0.78rem;color:#6b7068;">Plano Completo Worka</div>
-          <div style="font-size:0.75rem;color:#6b7068;">Assinatura mensal recorrente</div>
+          <div style="font-size:0.75rem;color:#6b7068;" id="resumo-subtitulo">Assinatura mensal recorrente</div>
         </div>
-        <div style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:#16622f;">R$ 24,90</div>
+        <div style="text-align:right">
+          <div id="resumo-preco-antigo" style="display:none;font-size:0.85rem;color:#9aab9a;text-decoration:line-through;">R$ 49,99</div>
+          <div id="resumo-preco" style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:#16622f;">R$ 49,99</div>
+        </div>
       </div>
 
       <button onclick="escolherPlano()" id="btn-gerar" style="width:100%;margin-top:16px;background:#1e8a40;color:white;border:none;padding:15px;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:background .2s;display:flex;align-items:center;justify-content:center;gap:8px;">
@@ -889,7 +905,7 @@
       </button>
 
       <div style="text-align:center">
-        <a href="#" onclick="escolherAssinarAgora();return false;" style="font-size:.78rem;color:#9aab9a;text-decoration:underline;cursor:pointer">Já decidi: prefiro assinar direto por R$ 24,90/mês</a>
+        <a href="#" onclick="escolherAssinarAgora();return false;" style="font-size:.78rem;color:#9aab9a;text-decoration:underline;cursor:pointer">Já decidi: prefiro assinar direto por R$ 49,99/mês</a>
       </div>
     </div>
 
@@ -925,7 +941,7 @@
       <div style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:#0a2e1a;margin-bottom:8px">Trial ativado!</div>
       <div style="font-size:.85rem;color:#6b7068;line-height:1.6;margin-bottom:20px">
         Seu período de <strong>7 dias grátis</strong> começou agora.<br>
-        Quando expirar, você será avisado para renovar por R$ 24,90/mês.
+        Quando expirar, você será avisado para renovar por R$ 49,99/mês.
       </div>
       <div style="background:#edfaf2;border-radius:12px;padding:16px;margin-bottom:20px">
         <div style="font-size:.78rem;color:#16622f;font-weight:600">⏰ Trial expira em:</div>
@@ -1043,6 +1059,85 @@ function resetModal() {
   document.getElementById('qrcode').innerHTML = '';
   document.getElementById('btn-gerar').disabled = false;
   document.getElementById('btn-gerar').innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
+  limparCupom();
+}
+
+// ── Cupom de desconto ─────────────────────────────────────────
+// O código aplicado fica guardado aqui e é enviado junto no POST
+// /pix. O desconto exibido é só um preview: o servidor recalcula
+// tudo na hora de cobrar, então mexer nisso pelo console não muda
+// o valor real da cobrança.
+var cupomAplicado = null;
+
+function limparCupom(){
+  cupomAplicado = null;
+  var campo = document.getElementById('f-cupom');
+  if(campo) campo.value = '';
+  var fb = document.getElementById('cupom-feedback');
+  if(fb){ fb.style.display = 'none'; fb.textContent = ''; }
+  var antigo = document.getElementById('resumo-preco-antigo');
+  if(antigo) antigo.style.display = 'none';
+  var preco = document.getElementById('resumo-preco');
+  if(preco) preco.textContent = 'R$ 49,99';
+  var sub = document.getElementById('resumo-subtitulo');
+  if(sub) sub.textContent = 'Assinatura mensal recorrente';
+}
+
+function aplicarCupom(){
+  var campo = document.getElementById('f-cupom');
+  var fb = document.getElementById('cupom-feedback');
+  var btn = document.getElementById('btn-aplicar-cupom');
+  var codigo = (campo.value || '').trim().toUpperCase();
+
+  if(!codigo){
+    fb.textContent = 'Digite um código de cupom.';
+    fb.style.color = '#dc2626';
+    fb.style.display = 'block';
+    return;
+  }
+
+  var txtOriginal = btn.textContent;
+  btn.disabled = true; btn.textContent = '...';
+
+  fetch(API_BASE + '/cupom/validar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ codigo: codigo })
+  })
+  .then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }); })
+  .then(function(res){
+    btn.disabled = false; btn.textContent = txtOriginal;
+    if(res.status !== 200 || !res.data.ok){
+      cupomAplicado = null;
+      fb.textContent = '✕ ' + (res.data.error || 'Cupom inválido.');
+      fb.style.color = '#dc2626';
+      fb.style.display = 'block';
+      // Volta o resumo ao preço cheio, caso um cupom válido tenha
+      // sido aplicado antes e depois trocado por um inválido.
+      document.getElementById('resumo-preco-antigo').style.display = 'none';
+      document.getElementById('resumo-preco').textContent = 'R$ 49,99';
+      document.getElementById('resumo-subtitulo').textContent = 'Assinatura mensal recorrente';
+      return;
+    }
+
+    cupomAplicado = res.data.codigo;
+    fb.textContent = '✓ Cupom aplicado — você economiza R$ ' + res.data.desconto_reais;
+    fb.style.color = '#16622f';
+    fb.style.display = 'block';
+
+    var antigo = document.getElementById('resumo-preco-antigo');
+    antigo.textContent = 'R$ ' + res.data.valor_original;
+    antigo.style.display = 'block';
+    document.getElementById('resumo-preco').textContent = 'R$ ' + res.data.valor_final;
+    document.getElementById('resumo-subtitulo').textContent = 'Cupom ' + res.data.codigo + ' aplicado';
+  })
+  .catch(function(){
+    btn.disabled = false; btn.textContent = txtOriginal;
+    cupomAplicado = null;
+    fb.textContent = 'Erro de conexão ao validar o cupom.';
+    fb.style.color = '#dc2626';
+    fb.style.display = 'block';
+  });
 }
 function mostrarStep(s) {
   ['form','verify','pix','ok','trial','trial-verify','trial-ok'].forEach(id => {
@@ -1214,6 +1309,9 @@ async function gerarPixReal() {
     phone: dadosFormulario.phone,
     utm: utm
   };
+  // Só o código vai para o servidor — nunca o valor com desconto.
+  // Quem calcula quanto cobrar é sempre o backend.
+  if (cupomAplicado) body.cupom = cupomAplicado;
 
   // btn era referenciado mas nunca declarado nesta função — pega o
   // botão de confirmar código, que é quem chama gerarPixReal() e
@@ -1432,7 +1530,24 @@ async function confirmarTrialCodigo() {
       body: JSON.stringify({ email, codigo, nome, senha })
     });
     var data = await r.json();
-    if (!data.ok) throw new Error(data.error || 'Código inválido');
+
+    // E-mail já cadastrado: o backend agora responde 409 com
+    // ja_cadastrado. Antes esse caso caía silenciosamente em ok:true e
+    // a tela dizia "Trial ativado!" sem ter criado conta nenhuma —
+    // a pessoa saía sem conseguir logar depois. Agora mostramos a
+    // mensagem certa com um caminho de saída (ir para o login).
+    if (r.status === 409 && data.ja_cadastrado) {
+      if (btn) { btn.textContent = intencaoAssinarDireto ? 'Confirmar e continuar' : 'Confirmar e ativar trial ✓'; btn.disabled = false; }
+      var erroDup = document.getElementById('trial-verify-erro');
+      if (erroDup) {
+        erroDup.innerHTML = 'Este e-mail já tem uma conta Worka. ' +
+          '<a href="#" onclick="fecharCheckout();setTimeout(abrirAcesso,300);return false;" style="color:#dc2626;font-weight:700;text-decoration:underline">Fazer login</a>';
+        erroDup.style.display = 'block';
+      }
+      return;
+    }
+
+    if (!r.ok || !data.ok) throw new Error(data.error || 'Código inválido');
 
     // O backend retorna token quando cria a empresa (nome+senha
     // enviados) — sem isso, "Acessar o Worka →" levaria a pessoa
@@ -1510,7 +1625,12 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
     <div id="acesso-erro" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px;font-size:0.8rem;color:#dc2626;margin-bottom:12px;"></div>
 
     <button id="acesso-btn-entrar" onclick="entrarNoApp()" style="width:100%;background:#1e8a40;color:white;border:none;padding:13px;border-radius:10px;font-size:0.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:12px;">Entrar no Worka →</button>
-    <div style="text-align:center;font-size:0.78rem;color:#6b7068;">Não tem conta? <a href="#" onclick="fecharAcesso();abrirFunil();return false;" style="color:#1e8a40;font-weight:600;">Assinar por R$ 24,90/mês</a></div>
+    <div style="text-align:center;margin-bottom:10px;">
+      <!-- ?recuperar=1 abre o app já na tela de redefinição, em vez de
+           só na tela de login pedindo pra clicar de novo. -->
+      <a href="worka-app.html?recuperar=1" style="color:#6b7068;font-size:0.78rem;text-decoration:underline;">Esqueci minha senha</a>
+    </div>
+    <div style="text-align:center;font-size:0.78rem;color:#6b7068;">Não tem conta? <a href="#" onclick="fecharAcesso();abrirFunil();return false;" style="color:#1e8a40;font-weight:600;">Assinar por R$ 49,99/mês</a></div>
   </div>
 </div>
 
@@ -1562,9 +1682,16 @@ function entrarNoApp(){
     .then(function(res){
       if(res.status !== 200 || !res.data.token){
         var erro=document.getElementById('acesso-erro');
-        erro.textContent = res.data.error || 'Email ou senha incorretos.';
+        if(res.data.nao_cadastrado){
+          // Conta não existe: em vez de deixar a pessoa tentando a
+          // senha à toa, aponta direto para o cadastro.
+          erro.innerHTML = 'Não encontramos uma conta com esse e-mail. ' +
+            '<a href="#" onclick="fecharAcesso();abrirFunil();return false;" style="color:#dc2626;font-weight:700;text-decoration:underline">Criar minha conta</a>';
+        } else {
+          erro.textContent = res.data.error || 'Email ou senha incorretos.';
+        }
         erro.style.display='block';
-        if(btnEntrar){ btnEntrar.textContent='Entrar'; btnEntrar.disabled=false; }
+        if(btnEntrar){ btnEntrar.textContent='Entrar no Worka →'; btnEntrar.disabled=false; }
         return;
       }
       localStorage.setItem('worka_token', res.data.token);
@@ -1671,7 +1798,7 @@ document.getElementById('acesso-overlay').addEventListener('click',function(e){i
       <p style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-bottom:24px;">Um plano único. Sem cobranças extras. Sem surpresas.</p>
       <div style="background:white;border-radius:20px;padding:28px;margin-bottom:16px;text-align:center;">
         <div style="font-size:0.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1e8a40;margin-bottom:8px;">Plano Completo</div>
-        <div style="font-family:'Syne',sans-serif;font-size:3rem;font-weight:800;color:#16622f;letter-spacing:-2px;">R$ 24,90</div>
+        <div style="font-family:'Syne',sans-serif;font-size:3rem;font-weight:800;color:#16622f;letter-spacing:-2px;">R$ 49,99</div>
         <div style="font-size:0.85rem;color:#6b7068;margin-bottom:20px;">/mês · cancele quando quiser</div>
         <div style="text-align:left;display:flex;flex-direction:column;gap:8px;margin-bottom:24px;">
           <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Ponto digital em tempo real</div>
@@ -1683,12 +1810,12 @@ document.getElementById('acesso-overlay').addEventListener('click',function(e){i
           <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Localização no ponto via Google Maps</div>
           <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> 7 dias grátis para testar</div>
         </div>
-        <button onclick="fecharFunil();setTimeout(abrirCheckout,300);" style="width:100%;background:#1e8a40;color:white;border:none;padding:16px;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Assinar agora — R$ 24,90/mês ⚡</button>
+        <button onclick="fecharFunil();setTimeout(abrirCheckout,300);" style="width:100%;background:#1e8a40;color:white;border:none;padding:16px;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Assinar agora — R$ 49,99/mês ⚡</button>
         <div style="font-size:0.75rem;color:#6b7068;margin-top:10px;">🔒 Pagamento 100% seguro via PIX</div>
       </div>
       <div style="background:rgba(255,200,0,0.1);border:1px solid rgba(255,200,0,0.3);border-radius:12px;padding:14px;text-align:center;">
         <div style="font-size:0.82rem;color:#ffd966;font-weight:600;">⏰ Oferta especial de lançamento</div>
-        <div style="font-size:0.75rem;color:rgba(255,255,255,0.6);margin-top:4px;">Garanta o preço de R$ 24,90 antes do reajuste</div>
+        <div style="font-size:0.75rem;color:rgba(255,255,255,0.6);margin-top:4px;">Garanta o preço de R$ 49,99 antes do reajuste</div>
       </div>
     </div>
 

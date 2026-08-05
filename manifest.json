@@ -2,12 +2,12 @@
   "name": "Worka — Gestão de Equipe",
   "short_name": "Worka",
   "description": "Sistema de gestão de equipe para micro e pequenas empresas",
-  "start_url": "/Worka-backend/worka-app.html",
+  "start_url": "worka-app.html",
   "display": "standalone",
   "background_color": "#0a2e1a",
   "theme_color": "#0a2e1a",
   "orientation": "portrait",
-  "scope": "/Worka-backend/",
+  "scope": "./",
   "lang": "pt-BR",
   "icons": [
     {
@@ -27,13 +27,13 @@
     {
       "name": "Bater Ponto",
       "short_name": "Ponto",
-      "url": "/Worka-backend/worka-app.html#ponto",
+      "url": "worka-app.html#ponto",
       "description": "Registrar entrada ou saída"
     },
     {
       "name": "Minhas Tarefas",
       "short_name": "Tarefas",
-      "url": "/Worka-backend/worka-app.html#tarefas",
+      "url": "worka-app.html#tarefas",
       "description": "Ver tarefas do dia"
     }
   ],
