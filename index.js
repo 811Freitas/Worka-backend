@@ -25,23 +25,39 @@ const webpush = require("web-push");
 // ════════════════════════════════════════
 // CONFIGURAÇÃO — 100% VIA ENV VARS
 // ════════════════════════════════════════
+
+/**
+ * Lê uma variável de ambiente removendo espaços e quebras de linha nas
+ * pontas. Colar um valor no painel do Render arrasta com frequência um
+ * espaço ou um "\n" invisível no fim — e um segredo com um caractere a
+ * mais simplesmente não confere, sem nenhuma pista do motivo. Valor
+ * vazio (ou só espaços) vira null, para que os testes de "está
+ * configurado?" não sejam enganados por uma string vazia.
+ */
+function env(nome) {
+  var v = process.env[nome];
+  if (typeof v !== "string") return null;
+  v = v.trim();
+  return v === "" ? null : v;
+}
+
 const CONFIG = {
   PORT:          process.env.PORT || 3000,
-  JWT_SECRET:    process.env.JWT_SECRET,          // OBRIGATÓRIO
+  JWT_SECRET:    env("JWT_SECRET"),                // OBRIGATÓRIO
   SUPABASE_URL:  "https://vtkmqykwyilcdnigaxsr.supabase.co", // Worka1 — projeto ativo (Worka original pausado)
-  SUPABASE_KEY:  process.env.SUPABASE_SERVICE_KEY,
-  RESEND_KEY:    process.env.RESEND_KEY,
-  PIX_URL:       process.env.DUTTYFY_PIX_URL_ENCRYPTED,
-  ENCRYPT_KEY:   process.env.ENCRYPT_SECRET,
-  VAPID_PUBLIC:  process.env.VAPID_PUBLIC_KEY,
-  VAPID_PRIVATE: process.env.VAPID_PRIVATE_KEY,
+  SUPABASE_KEY:  env("SUPABASE_SERVICE_KEY"),
+  RESEND_KEY:    env("RESEND_KEY"),
+  PIX_URL:       env("DUTTYFY_PIX_URL_ENCRYPTED"),
+  ENCRYPT_KEY:   env("ENCRYPT_SECRET"),
+  VAPID_PUBLIC:  env("VAPID_PUBLIC_KEY"),
+  VAPID_PRIVATE: env("VAPID_PRIVATE_KEY"),
   // Conta administrativa única da Worka (painel Owner). Opcional — se
   // não configurada, a rota /login/owner responde 503 em vez de negar
   // acesso a uma conta que não existe. OWNER_PASSWORD_HASH é o hash
   // bcrypt da senha (gerar com: node -e "console.log(require('bcryptjs').hashSync('SUA_SENHA',12))"),
   // nunca a senha em texto plano.
-  OWNER_EMAIL:         process.env.OWNER_EMAIL ? process.env.OWNER_EMAIL.toLowerCase() : null,
-  OWNER_PASSWORD_HASH: process.env.OWNER_PASSWORD_HASH || null,
+  OWNER_EMAIL:         env("OWNER_EMAIL") ? env("OWNER_EMAIL").toLowerCase() : null,
+  OWNER_PASSWORD_HASH: env("OWNER_PASSWORD_HASH"),
   BCRYPT_ROUNDS: 12,
   JWT_EXPIRES:   "8h",
   // Valor do plano em CENTAVOS — é assim que o gateway PIX espera
@@ -68,9 +84,11 @@ const CONFIG = {
 
 // Validar variáveis críticas na inicialização
 const REQUIRED_ENV = ["JWT_SECRET", "SUPABASE_SERVICE_KEY", "RESEND_KEY"];
-for (var env of REQUIRED_ENV) {
-  if (!process.env[env]) {
-    console.error(`[SECURITY] FATAL: variável de ambiente ${env} não definida`);
+for (var nomeEnv of REQUIRED_ENV) {
+  // env() já corta espaços: uma variável preenchida só com espaço conta
+  // como não definida, que é o que ela é na prática.
+  if (!env(nomeEnv)) {
+    console.error(`[SECURITY] FATAL: variável de ambiente ${nomeEnv} não definida`);
     process.exit(1);
   }
 }
@@ -373,17 +391,36 @@ function supabase(method, table, options = {}) {
       var raw = "";
       res.on("data", c => raw += c);
       res.on("end", () => {
+        var body;
         try {
-          var body = JSON.parse(raw || "[]");
-          // Supabase retorna erro como objeto com message
-          if (body && body.code && body.message) {
-            secLog("supabase_error", { table, status: res.statusCode, code: body.code });
-            return reject(new Error(body.message));
-          }
-          resolve({ status: res.statusCode, body });
+          body = JSON.parse(raw || "[]");
         } catch(e) {
-          resolve({ status: res.statusCode, body: raw });
+          // Resposta que não é JSON: página de erro do proxy, 502 do
+          // gateway, corpo truncado. Antes isso resolvia com body sendo
+          // a STRING crua — e aí `body[0]` virava o primeiro CARACTERE
+          // do texto, que é truthy. O login lia esse caractere como se
+          // fosse a empresa encontrada e chamava bcrypt com senha_hash
+          // undefined (erro 500); a checagem de e-mail duplicado no
+          // cadastro lia `body.length` como o tamanho do texto e
+          // acusava "e-mail já cadastrado" para quem nunca se cadastrou.
+          // Falha de infraestrutura tem que falhar como falha, nunca
+          // ser confundida com dado vindo do banco.
+          secLog("supabase_resposta_invalida", { table, status: res.statusCode, tamanho: raw.length });
+          return reject(new Error("Resposta inválida do banco de dados"));
         }
+
+        // Erro do PostgREST: às vezes vem com code+message, às vezes só
+        // com message ("Invalid API key"). O status HTTP é o sinal
+        // confiável — qualquer 4xx/5xx é erro, não resultado.
+        if (res.statusCode >= 400) {
+          secLog("supabase_error", { table, status: res.statusCode, code: (body && body.code) || null });
+          return reject(new Error((body && body.message) || `Erro ${res.statusCode} no banco de dados`));
+        }
+
+        // Consulta bem-sucedida sempre devolve array (GET/POST/PATCH com
+        // return=representation) ou vazio (DELETE 204). Um objeto solto
+        // aqui não é linha de tabela.
+        resolve({ status: res.statusCode, body });
       });
     });
     req.on("error", reject);
@@ -729,8 +766,35 @@ async function verificarOTP(email, codigo) {
 // REQUIRED_ENV: push é uma funcionalidade de reengajamento, não
 // algo que impeça o sistema de funcionar. Sem as chaves, o helper
 // abaixo simplesmente não envia (log de aviso), sem derrubar o boot.
+//
+// O try/catch não é decoração. setVapidDetails() valida o formato das
+// chaves e LANÇA se algo estiver fora do padrão base64url — um espaço
+// invisível colado junto no painel do Render já basta. Sem o catch,
+// essa exceção acontece no topo do arquivo, antes do servidor subir, e
+// o processo morre com "Exited with status 1": ponto, tarefas, folha,
+// pagamento, tudo fora do ar por causa de uma chave de notificação.
+// Aqui a falha é registrada, o push é desligado, e o resto do sistema
+// continua funcionando normalmente.
 if (CONFIG.VAPID_PUBLIC && CONFIG.VAPID_PRIVATE) {
-  webpush.setVapidDetails("mailto:workappoficial@gmail.com", CONFIG.VAPID_PUBLIC, CONFIG.VAPID_PRIVATE);
+  try {
+    webpush.setVapidDetails("mailto:workappoficial@gmail.com", CONFIG.VAPID_PUBLIC, CONFIG.VAPID_PRIVATE);
+  } catch (e) {
+    console.error(JSON.stringify({
+      ts: new Date().toISOString(),
+      event: "vapid_invalido",
+      message: e.message,
+      dica: "Confira VAPID_PUBLIC_KEY (87 caracteres) e VAPID_PRIVATE_KEY (43 caracteres). " +
+            "Só podem conter A-Z a-z 0-9 - _ — sem espaços, sem aspas, sem quebra de linha e sem '='. " +
+            "Gere um par novo com: npx web-push generate-vapid-keys",
+      tamanho_publica:  CONFIG.VAPID_PUBLIC.length,
+      tamanho_privada:  CONFIG.VAPID_PRIVATE.length
+    }));
+    // Desliga o push explicitamente: enviarPush() e /push/vapid-key
+    // checam VAPID_PUBLIC, então zerar aqui evita que o resto do
+    // código tente usar uma configuração que nunca foi aceita.
+    CONFIG.VAPID_PUBLIC  = null;
+    CONFIG.VAPID_PRIVATE = null;
+  }
 }
 
 /**
