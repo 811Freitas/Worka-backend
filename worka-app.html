@@ -9,8 +9,12 @@
 <meta name="apple-mobile-web-app-title" content="Worka"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <link rel="manifest" href="manifest.json"/>
-<link rel="apple-touch-icon" href="icon-192.png"/>
-<link rel="apple-touch-startup-image" href="icon-512.png"/>
+<!-- Apontavam para icon-192.png e icon-512.png na raiz, arquivos que
+     nunca existiram: o iPhone caía no ícone genérico (print da tela)
+     ao adicionar o app à tela inicial, e as duas requisições davam 404. -->
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png"/>
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png"/>
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Worka — Sistema de Gestão</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
@@ -83,8 +87,9 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{box-shadow:var(-
   padding:20px;position:relative;overflow:hidden}
 #tela-login::before{content:'';position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.07) 1px,transparent 1px);background-size:26px 26px;opacity:.5;pointer-events:none}
 .login-card{background:rgba(255,255,255,.98);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.6);border-radius:var(--rxl);padding:44px 34px;width:100%;max-width:410px;box-shadow:var(--shadow-xl);position:relative;z-index:1;animation:scaleIn var(--dur-slow) var(--ease-out) both}
-.login-logo{font-family:var(--display);font-size:2rem;font-weight:800;color:var(--g600);text-align:center;margin-bottom:6px;letter-spacing:-.5px}
-.login-logo span{color:var(--g400)}
+/* A arte da logo já traz o nome escrito, então aqui ela substitui o
+   texto por inteiro — é a tela de entrada, tem espaço de sobra. */
+.login-logo-img{display:block;width:84px;height:84px;margin:0 auto 10px;border-radius:19px}
 .login-sub{text-align:center;font-size:0.86rem;color:var(--gray500);margin-bottom:30px}
 .login-tabs{display:flex;background:var(--gray50);border-radius:var(--r);padding:4px;margin-bottom:24px;gap:4px;border:1px solid var(--gray100)}
 .login-tab{flex:1;padding:9px;text-align:center;border-radius:calc(var(--r) - 4px);font-size:0.8rem;font-weight:600;cursor:pointer;color:var(--gray500);transition:all var(--dur) var(--ease)}
@@ -415,7 +420,7 @@ tr:hover td{background:var(--g50)}
 ═══════════════════════════════════════════ -->
 <div id="tela-login">
   <div class="login-card" id="card-login">
-    <div class="login-logo">Work<span>a</span></div>
+    <img class="login-logo-img" src="assets/logo-worka-192.png" alt="Worka" width="84" height="84" />
     <div class="login-sub">Gestão de equipe simplificada</div>
 
     <!-- Sem aba "Owner": a conta administrativa da Worka entra por
@@ -452,7 +457,7 @@ tr:hover td{background:var(--g50)}
 
   <!-- ── RECUPERAÇÃO DE SENHA ── -->
   <div class="login-card" id="card-recuperar" style="display:none">
-    <div class="login-logo">Work<span>a</span></div>
+    <img class="login-logo-img" src="assets/logo-worka-192.png" alt="Worka" width="84" height="84" />
     <div class="login-sub" id="rec-subtitulo">Vamos redefinir sua senha</div>
 
     <!-- Passo 1: pedir o código -->
@@ -481,7 +486,7 @@ tr:hover td{background:var(--g50)}
 
   <!-- ── CONFIRMAÇÃO DE APARELHO NOVO ── -->
   <div class="login-card" id="card-dispositivo" style="display:none">
-    <div class="login-logo">Work<span>a</span></div>
+    <img class="login-logo-img" src="assets/logo-worka-192.png" alt="Worka" width="84" height="84" />
     <div class="login-sub">Confirme este aparelho</div>
 
     <div style="background:var(--g50);border-radius:var(--r);padding:14px;font-size:.82rem;color:var(--g600);margin-bottom:18px;line-height:1.5">
