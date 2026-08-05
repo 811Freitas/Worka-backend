@@ -348,7 +348,7 @@ function supabase(method, table, options = {}) {
     "produtos_validade", "ausencias", "escalas",
     "historico_salarios", "logs_sistema", "codigos_verificacao",
     "lancamentos_financeiros", "push_subscriptions", "cupons",
-    "dispositivos_confiaveis"
+    "dispositivos_confiaveis", "comunicados_plataforma"
   ];
   if (!ALLOWED_TABLES.includes(table)) {
     return Promise.reject(new Error(`Tabela não permitida: ${table}`));
@@ -855,6 +855,16 @@ var EMAIL_TEMPLATES = {
   trialExpirado: (nome) => emailBase(`
     <h2 style="text-align:center;margin:0 0 8px;color:#0a2e1a;font-weight:800">Seu trial expirou 😢</h2>
     <p style="color:#5a6b5a;text-align:center">Olá, <strong>${SANITIZE.string(nome)}</strong>! Seus dados estão salvos. Reative por R$ 49,99/mês.</p>`),
+
+  // Comunicado da plataforma para as empresas clientes. O texto vem do
+  // painel Owner, então passa por SANITIZE.string antes de entrar no
+  // HTML — sem isso, um comunicado com "<" quebraria o e-mail.
+  comunicadoPlataforma: (titulo, mensagem) => emailBase(`
+    <h2 style="margin:0 0 16px;color:#0a2e1a;font-size:22px;font-weight:800">${SANITIZE.string(titulo, 150)}</h2>
+    <div style="color:#3a3d39;font-size:15px;line-height:1.7;white-space:pre-wrap">${SANITIZE.string(mensagem, 4000)}</div>
+    <div style="margin-top:28px;padding-top:20px;border-top:1px solid #e8ede8">
+      <p style="margin:0;font-size:12px;color:#9aab9a">Você recebeu este aviso porque tem uma conta no Worka.</p>
+    </div>`),
 
   novoDispositivo: (nome, codigo) => emailBase(`
     <h2 style="margin:0 0 8px;color:#0a2e1a;font-size:22px;font-weight:800">Confirme seu acesso 🔐</h2>
@@ -1710,6 +1720,110 @@ var server = http.createServer(async (req, res) => {
       }
       delete meEmpresa.senha_hash;
       return jsonOk(res, { empresa: meEmpresa, trial: meTrialInfo });
+    }
+
+    // ── COMUNICADOS DA PLATAFORMA (somente owner) ────
+    // Envia um aviso da Worka para as empresas clientes, por e-mail e
+    // push. Só o owner_saas pode: é comunicação da plataforma, não de
+    // uma empresa para os funcionários dela.
+    if (method === "POST" && path === "/owner/comunicados") {
+      if (!hasPermission(authPayload, "saas:write")) {
+        secLog("permission_denied", { role: authPayload.role, action: "comunicado_plataforma" });
+        return jsonErr(res, "Apenas o owner da Worka pode enviar comunicados", 403);
+      }
+      var raw = await getBody(req);
+      var body = parseBody(raw);
+      if (!body) return jsonErr(res, "Dados inválidos");
+
+      var tituloCom = SANITIZE.string(body.titulo, 150);
+      var mensagemCom = SANITIZE.string(body.mensagem, 4000);
+      if (!tituloCom) return jsonErr(res, "Informe o título do comunicado.");
+      if (!mensagemCom) return jsonErr(res, "Informe a mensagem do comunicado.");
+
+      var destinoCom = ["todas", "ativa", "trial", "inadimplente"].includes(body.destino)
+        ? body.destino : "todas";
+
+      // Monta o filtro por status. "todas" não filtra nada.
+      var filtroEmpresas = "select=id,nome,email";
+      if (destinoCom !== "todas") filtroEmpresas = `status=eq.${destinoCom}&` + filtroEmpresas;
+
+      var alvo = await DB.select("empresas", filtroEmpresas);
+      var empresasAlvo = (alvo.body || []).filter(e => e.email);
+
+      if (empresasAlvo.length === 0) {
+        return jsonErr(res, "Nenhuma empresa encontrada para esse destino.", 404);
+      }
+
+      // Envio sequencial de propósito: o Resend tem limite por segundo
+      // e disparar tudo em paralelo com muitas empresas derrubaria os
+      // envios em cascata. Cada falha é contada, não interrompe o resto.
+      var enviados = 0;
+      var falhas = 0;
+      for (var emp of empresasAlvo) {
+        try {
+          await enviarEmail(emp.email, tituloCom, EMAIL_TEMPLATES.comunicadoPlataforma(tituloCom, mensagemCom));
+          enviados++;
+        } catch (e) {
+          falhas++;
+          secLog("comunicado_email_falhou", { empresa_id: emp.id, message: e.message });
+        }
+        // Push é complementar: quem não tiver aparelho inscrito
+        // simplesmente não recebe, sem afetar a contagem de e-mails.
+        enviarPush(emp.id, { title: tituloCom, body: mensagemCom.substring(0, 140), url: "worka-app.html" })
+          .catch(() => {});
+      }
+
+      // Histórico: registra o que foi enviado para o owner poder
+      // consultar depois, mesmo que o status das empresas mude.
+      var registroCom = await DB.insert("comunicados_plataforma", {
+        titulo: tituloCom,
+        mensagem: mensagemCom,
+        destino: destinoCom,
+        total_enviado: enviados,
+        total_falhou: falhas
+      }).catch(e => {
+        secLog("comunicado_historico_falhou", { message: e.message });
+        return { body: [] };
+      });
+
+      secLog("comunicado_enviado", { destino: destinoCom, enviados, falhas });
+      return jsonOk(res, {
+        ok: true,
+        enviados,
+        falhas,
+        total: empresasAlvo.length,
+        comunicado: (registroCom.body && registroCom.body[0]) || null
+      }, 201);
+    }
+
+    if (method === "GET" && path === "/owner/comunicados") {
+      if (!hasPermission(authPayload, "saas:read")) {
+        return jsonErr(res, "Apenas o owner da Worka pode ver comunicados", 403);
+      }
+      var historico = await DB.select("comunicados_plataforma", "select=*&order=created_at.desc&limit=50")
+        .catch(e => {
+          secLog("comunicados_listagem_falhou", { message: e.message });
+          return { body: null };
+        });
+      if (historico.body === null) return jsonOk(res, { comunicados: [], tabela_ausente: true });
+      return jsonOk(res, { comunicados: historico.body || [] });
+    }
+
+    // Quantas empresas receberiam um comunicado, por destino. Usado
+    // para o painel mostrar "vai para N empresas" ANTES de enviar —
+    // disparar e-mail para a base inteira não pode ser uma surpresa.
+    if (method === "GET" && path === "/owner/comunicados/alcance") {
+      if (!hasPermission(authPayload, "saas:read")) {
+        return jsonErr(res, "Apenas o owner da Worka pode ver isso", 403);
+      }
+      var todasEmp = await DB.select("empresas", "select=id,status").catch(() => ({ body: [] }));
+      var lista = todasEmp.body || [];
+      return jsonOk(res, {
+        todas:        lista.length,
+        ativa:        lista.filter(e => e.status === "ativa").length,
+        trial:        lista.filter(e => e.status === "trial").length,
+        inadimplente: lista.filter(e => e.status === "inadimplente").length
+      });
     }
 
     // ── CUPONS — GESTÃO (somente owner da Worka) ─────
