@@ -311,7 +311,7 @@ tr:hover td{background:var(--g50)}
      TELA DE LOGIN
 ═══════════════════════════════════════════ -->
 <div id="tela-login">
-  <div class="login-card">
+  <div class="login-card" id="card-login">
     <div class="login-logo">Work<span>a</span></div>
     <div class="login-sub">Gestão de equipe simplificada</div>
 
@@ -340,7 +340,39 @@ tr:hover td{background:var(--g50)}
 
     <div class="login-erro" id="login-erro">Credenciais inválidas. Tente novamente.</div>
     <button class="btn-full" onclick="fazerLogin()">Entrar no Worka</button>
-    <div style="text-align:center;margin-top:16px;font-size:0.78rem;color:var(--gray500)">Não tem conta? <a href="#" style="color:var(--g500);font-weight:600">Assine por R$ 24,90/mês</a></div>
+    <div style="text-align:center;margin-top:14px">
+      <a href="#" id="link-esqueci-senha" onclick="abrirRecuperarSenha();return false;" style="color:var(--gray500);font-size:0.78rem;text-decoration:underline">Esqueci minha senha</a>
+    </div>
+    <div style="text-align:center;margin-top:12px;font-size:0.78rem;color:var(--gray500)">Não tem conta? <a href="worka.html" style="color:var(--g500);font-weight:600">Assine por R$ 49,99/mês</a></div>
+  </div>
+
+  <!-- ── RECUPERAÇÃO DE SENHA ── -->
+  <div class="login-card" id="card-recuperar" style="display:none">
+    <div class="login-logo">Work<span>a</span></div>
+    <div class="login-sub" id="rec-subtitulo">Vamos redefinir sua senha</div>
+
+    <!-- Passo 1: pedir o código -->
+    <div id="rec-passo-email">
+      <div class="field"><label>E-mail da conta</label><input id="rec-email" type="email" placeholder="seu@email.com"></div>
+      <div class="login-erro" id="rec-erro-email">Informe um e-mail válido.</div>
+      <button class="btn-full" id="rec-btn-enviar" onclick="enviarCodigoRecuperacao()">Enviar código</button>
+    </div>
+
+    <!-- Passo 2: código + nova senha -->
+    <div id="rec-passo-codigo" style="display:none">
+      <div style="background:var(--g50);border-radius:var(--r);padding:12px 14px;font-size:.8rem;color:var(--g600);margin-bottom:16px">
+        📧 Se existir uma conta com esse e-mail, enviamos um código de 6 dígitos. Confira também a caixa de spam.
+      </div>
+      <div class="field"><label>Código recebido</label><input id="rec-codigo" type="text" inputmode="numeric" maxlength="6" placeholder="000000" style="text-align:center;letter-spacing:8px;font-weight:700;font-size:1.2rem"></div>
+      <div class="field"><label>Nova senha</label><input id="rec-senha" type="password" placeholder="Mínimo 8 caracteres" autocomplete="new-password"></div>
+      <div class="field"><label>Confirmar nova senha</label><input id="rec-senha2" type="password" placeholder="Repita a nova senha" autocomplete="new-password"></div>
+      <div class="login-erro" id="rec-erro-codigo">Código inválido.</div>
+      <button class="btn-full" id="rec-btn-redefinir" onclick="redefinirSenha()">Redefinir e entrar</button>
+    </div>
+
+    <div style="text-align:center;margin-top:16px">
+      <a href="#" onclick="voltarParaLogin();return false;" style="color:var(--gray500);font-size:0.78rem;text-decoration:underline">← Voltar para o login</a>
+    </div>
   </div>
 </div>
 
@@ -747,6 +779,30 @@ tr:hover td{background:var(--g50)}
       </div>
     </div>
 
+    <!-- ── CUPONS DE DESCONTO (somente owner da Worka) ── -->
+    <div class="page" id="pg-cupons">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;gap:12px;flex-wrap:wrap">
+        <div style="font-size:.85rem;color:var(--gray500)">Cupons aplicáveis na assinatura da plataforma (R$ <span id="cupom-preco-plano">49,99</span>/mês).</div>
+        <button class="btn btn-primary" onclick="abrirModalCupom()">+ Criar cupom</button>
+      </div>
+
+      <div id="cupons-aviso-tabela" style="display:none;background:var(--yellow-bg);border:1px solid #fde68a;border-radius:var(--r);padding:14px 16px;font-size:.85rem;color:#92400e;margin-bottom:16px">
+        ⚠️ A tabela <strong>cupons</strong> ainda não existe no banco de dados. Rode o arquivo <code>migrations/001_cupons.sql</code> no SQL Editor do Supabase para ativar os cupons.
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">Cupons cadastrados</div><span class="badge badge-green" id="badge-total-cupons">—</span></div>
+        <div class="card-body" style="padding:0">
+          <table>
+            <thead><tr><th>Código</th><th>Desconto</th><th>Preço final</th><th>Usos</th><th>Validade</th><th>Status</th><th>Ações</th></tr></thead>
+            <tbody id="tabela-cupons">
+              <tr><td colspan="7" style="padding:0"><div class="skel-row"><div style="flex:1"><div class="skel skel-text" style="width:35%"></div><div class="skel skel-text" style="width:55%"></div></div></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- Escala de Trabalho, Mural/Comunicados e Relatórios: os itens
          de menu (sidebar) já existiam e chamavam abrirPagina('escala'),
          abrirPagina('mural') e abrirPagina('relatorios'), mas nenhuma
@@ -1136,7 +1192,7 @@ tr:hover td{background:var(--g50)}
             <div class="card-body">
               <div class="field"><label>Nome da plataforma</label><input value="Worka"></div>
               <div class="field"><label>E-mail de suporte</label><input value="suporte@worka.app"></div>
-              <div class="field"><label>Preço mensal (R$)</label><input type="number" value="24.90" step="0.01"></div>
+              <div class="field"><label>Preço mensal (R$)</label><input type="number" value="49.99" step="0.01"></div>
               <div class="field"><label>Dias de trial gratuito</label><input type="number" value="7"></div>
               <div class="divider"></div>
               <div class="perm-row"><span class="perm-label">Novos cadastros abertos</span><button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
@@ -1443,6 +1499,44 @@ tr:hover td{background:var(--g50)}
   </div>
 </div>
 
+<!-- Modal criar cupom -->
+<div class="modal-overlay" id="modal-add-cupom">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-title">🎟️ Criar cupom de desconto</div>
+    <div class="field">
+      <label>Código do cupom</label>
+      <input id="cp-codigo" placeholder="Ex: LANCAMENTO20" style="text-transform:uppercase" maxlength="40">
+      <div style="font-size:.72rem;color:var(--gray500);margin-top:4px">É o que o cliente digita no checkout. Sem espaços.</div>
+    </div>
+    <div class="form-grid">
+      <div class="field">
+        <label>Tipo de desconto</label>
+        <select id="cp-tipo" onchange="atualizarPreviewCupom()">
+          <option value="percentual">Percentual (%)</option>
+          <option value="valor">Valor em reais (R$)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Valor do desconto</label>
+        <input type="number" id="cp-valor" placeholder="20" step="0.01" min="0.01" oninput="atualizarPreviewCupom()">
+      </div>
+    </div>
+    <div id="cp-preview" style="background:var(--g50);border-radius:var(--r);padding:12px 14px;font-size:.85rem;color:var(--g600);font-weight:600;margin-bottom:14px">
+      Informe o valor para ver o preço final.
+    </div>
+    <div class="field"><label>Descrição (opcional)</label><input id="cp-descricao" placeholder="Ex: Promoção de lançamento" maxlength="200"></div>
+    <div class="form-grid">
+      <div class="field"><label>Validade (opcional)</label><input type="date" id="cp-validade"></div>
+      <div class="field"><label>Limite de usos (opcional)</label><input type="number" id="cp-usos-max" placeholder="Ilimitado" min="1"></div>
+    </div>
+    <div id="cp-erro" style="display:none;background:var(--red-bg);border:1px solid #fca5a5;border-radius:var(--rs);padding:10px 14px;font-size:.82rem;color:#dc2626;margin-top:8px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="fecharModal('modal-add-cupom')">Cancelar</button>
+      <button class="btn btn-primary" id="cp-btn-salvar" onclick="salvarCupom()">Criar cupom</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal add cargo -->
 <div class="modal-overlay" id="modal-add-cargo">
   <div class="modal">
@@ -1517,9 +1611,30 @@ var menus = {
     {id:'mural',icon:'📢',label:'Comunicados'},
     {id:'notificacoes',icon:'🔔',label:'Notificações'},
   ],
+  // O owner da Worka vê o produto inteiro (mesmos itens do dono) mais
+  // a seção administrativa da plataforma. Os dados das telas de dono
+  // vêm filtrados por empresa_id, que o token de owner não carrega —
+  // então ele navega por tudo sem acessar a conta de nenhum cliente.
   owner: [
     {sec:'Worka Admin'},
     {id:'owner',icon:'👑',label:'Painel Owner'},
+    {id:'cupons',icon:'🎟️',label:'Cupons de Desconto'},
+    {sec:'Principal'},
+    {id:'dashboard',icon:'📊',label:'Dashboard'},
+    {id:'funcionarios',icon:'👥',label:'Funcionários'},
+    {id:'ponto',icon:'⏱',label:'Controle de Ponto'},
+    {id:'tarefas',icon:'📋',label:'Tarefas'},
+    {sec:'Gestão'},
+    {id:'salarios',icon:'💰',label:'Salários e Pagamentos'},
+    {id:'ausencias',icon:'❌',label:'Ausências e Faltas'},
+    {id:'escala',icon:'📅',label:'Escala de Trabalho'},
+    {id:'relatorios',icon:'📈',label:'Relatórios'},
+    {sec:'Recursos'},
+    {id:'validade',icon:'⚠️',label:'Validade de Produtos'},
+    {id:'mural',icon:'📢',label:'Mural / Comunicados'},
+    {id:'cargos',icon:'🔐',label:'Cargos e Permissões'},
+    {sec:'Configurações'},
+    {id:'visual',icon:'🎨',label:'Identidade Visual'},
     {id:'notificacoes',icon:'🔔',label:'Notificações'},
   ]
 };
@@ -2421,7 +2536,8 @@ function abrirPagina(id) {
     'visual':'Identidade Visual','notificacoes':'Notificações',
     'owner':'Painel Owner Worka','meu-painel':'Meu Painel',
     'salarios':'Salários e Pagamentos','ausencias':'Ausências e Faltas',
-    'escala':'Escala de Trabalho','relatorios':'Relatórios','mural':'Mural / Comunicados'
+    'escala':'Escala de Trabalho','relatorios':'Relatórios','mural':'Mural / Comunicados',
+    'cupons':'Cupons de Desconto'
   };
   document.getElementById('topbar-title').textContent = labels[id]||id;
 
@@ -2443,6 +2559,7 @@ function abrirPagina(id) {
   if(id==='dashboard' && typeof carregarDashboardReal === 'function') carregarDashboardReal();
   if(id==='salarios' && typeof carregarSalariosReal === 'function') carregarSalariosReal();
   if(id==='meu-painel' && typeof carregarMeuPainelReal === 'function') carregarMeuPainelReal();
+  if(id==='cupons' && typeof carregarCuponsReal === 'function') carregarCuponsReal();
   if(id==='ausencias'){
     if(typeof carregarAusenciasReal === 'function') carregarAusenciasReal();
     if(typeof aplicarConfigFaltaNaTela === 'function') aplicarConfigFaltaNaTela();
@@ -3015,6 +3132,289 @@ function mostrarMensagemAumento(nome, novoSalario) {
   overlay.onclick = function(e) { if(e.target===this) this.remove(); };
 }
 
+// ═══════════════════════════════════
+// RECUPERAÇÃO DE SENHA
+// ═══════════════════════════════════
+// Vale só para conta de empresa (dono). Funcionário não tem e-mail
+// próprio de acesso no modelo atual — quem redefine a senha dele é o
+// dono, pelo painel. Owner é conta única, com senha em variável de
+// ambiente, então também fica de fora deste fluxo.
+function abrirRecuperarSenha(){
+  document.getElementById('card-login').style.display = 'none';
+  document.getElementById('card-recuperar').style.display = 'block';
+  document.getElementById('rec-passo-email').style.display = 'block';
+  document.getElementById('rec-passo-codigo').style.display = 'none';
+  document.getElementById('rec-erro-email').style.display = 'none';
+  document.getElementById('rec-erro-codigo').style.display = 'none';
+  // Reaproveita o e-mail já digitado no login, se houver.
+  var emailLogin = (document.getElementById('l-email') || {}).value || '';
+  document.getElementById('rec-email').value = emailLogin.trim();
+}
+
+function voltarParaLogin(){
+  document.getElementById('card-recuperar').style.display = 'none';
+  document.getElementById('card-login').style.display = 'block';
+}
+
+function enviarCodigoRecuperacao(){
+  var email = (document.getElementById('rec-email').value || '').trim().toLowerCase();
+  var erroEl = document.getElementById('rec-erro-email');
+  erroEl.style.display = 'none';
+
+  if(!email || email.indexOf('@') === -1){
+    erroEl.textContent = 'Informe um e-mail válido.';
+    erroEl.style.display = 'block';
+    return;
+  }
+
+  var btn = document.getElementById('rec-btn-enviar');
+  var txt = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Enviando...';
+
+  fetch('https://worka-backend-awng.onrender.com/recuperar-senha', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email })
+  })
+  .then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }); })
+  .then(function(res){
+    btn.disabled = false; btn.textContent = txt;
+    if(res.status !== 200){
+      erroEl.textContent = res.data.error || 'Não foi possível enviar o código.';
+      erroEl.style.display = 'block';
+      return;
+    }
+    // A resposta é sempre a mesma exista ou não a conta (anti-varredura
+    // de e-mails), então seguimos para o passo do código de qualquer forma.
+    document.getElementById('rec-passo-email').style.display = 'none';
+    document.getElementById('rec-passo-codigo').style.display = 'block';
+    document.getElementById('rec-subtitulo').textContent = 'Digite o código e crie a nova senha';
+  })
+  .catch(function(){
+    btn.disabled = false; btn.textContent = txt;
+    erroEl.textContent = 'Erro de conexão. Tente novamente.';
+    erroEl.style.display = 'block';
+  });
+}
+
+function redefinirSenha(){
+  var email  = (document.getElementById('rec-email').value || '').trim().toLowerCase();
+  var codigo = (document.getElementById('rec-codigo').value || '').trim();
+  var senha  = document.getElementById('rec-senha').value || '';
+  var senha2 = document.getElementById('rec-senha2').value || '';
+  var erroEl = document.getElementById('rec-erro-codigo');
+  erroEl.style.display = 'none';
+
+  if(!/^\d{6}$/.test(codigo)){ erroEl.textContent = 'O código tem 6 dígitos.'; erroEl.style.display='block'; return; }
+  if(senha.length < 8){ erroEl.textContent = 'A nova senha precisa ter no mínimo 8 caracteres.'; erroEl.style.display='block'; return; }
+  if(senha !== senha2){ erroEl.textContent = 'As duas senhas não são iguais.'; erroEl.style.display='block'; return; }
+
+  var btn = document.getElementById('rec-btn-redefinir');
+  var txt = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Redefinindo...';
+
+  fetch('https://worka-backend-awng.onrender.com/redefinir-senha', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email, codigo: codigo, senha: senha })
+  })
+  .then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }); })
+  .then(function(res){
+    btn.disabled = false; btn.textContent = txt;
+    if(res.status !== 200 || !res.data.token){
+      erroEl.textContent = res.data.error || 'Não foi possível redefinir a senha.';
+      erroEl.style.display = 'block';
+      return;
+    }
+    // Backend já devolve o token — entra direto, sem pedir a senha
+    // que a pessoa acabou de criar.
+    voltarParaLogin();
+    entrarComoDono(res.data.token, res.data.empresa, res.data.trial);
+  })
+  .catch(function(){
+    btn.disabled = false; btn.textContent = txt;
+    erroEl.textContent = 'Erro de conexão. Tente novamente.';
+    erroEl.style.display = 'block';
+  });
+}
+
+// ═══════════════════════════════════
+// CUPONS DE DESCONTO (painel Owner)
+// ═══════════════════════════════════
+// Valor do plano em centavos — espelha CONFIG.PLANO_CENTAVOS no
+// backend. Usado só para o preview na tela; o desconto que vale de
+// verdade é sempre o que o servidor recalcula na hora de cobrar.
+var PLANO_CENTAVOS_UI = 4999;
+
+function formatarReais(centavos){
+  return (centavos/100).toFixed(2).replace('.', ',');
+}
+
+function abrirModalCupom(){
+  ['cp-codigo','cp-valor','cp-descricao','cp-validade','cp-usos-max'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.value = '';
+  });
+  var tipo = document.getElementById('cp-tipo'); if(tipo) tipo.value = 'percentual';
+  var erro = document.getElementById('cp-erro'); if(erro) erro.style.display = 'none';
+  atualizarPreviewCupom();
+  abrirModal('modal-add-cupom');
+}
+
+function atualizarPreviewCupom(){
+  var preview = document.getElementById('cp-preview');
+  if(!preview) return;
+  var tipo = document.getElementById('cp-tipo').value;
+  var valor = parseFloat(document.getElementById('cp-valor').value);
+
+  if(isNaN(valor) || valor <= 0){
+    preview.textContent = 'Informe o valor para ver o preço final.';
+    preview.style.color = 'var(--gray500)';
+    return;
+  }
+
+  var desconto = tipo === 'percentual'
+    ? Math.round(PLANO_CENTAVOS_UI * (Math.min(valor,100)/100))
+    : Math.round(valor * 100);
+  // Mesmo piso de R$ 1,00 aplicado no backend, para o preview não
+  // prometer um preço que a cobrança não vai praticar.
+  if(desconto >= PLANO_CENTAVOS_UI) desconto = PLANO_CENTAVOS_UI - 100;
+  var final = PLANO_CENTAVOS_UI - desconto;
+
+  preview.innerHTML = 'De <s style="opacity:.6">R$ '+formatarReais(PLANO_CENTAVOS_UI)+'</s> por <strong>R$ '+formatarReais(final)+'</strong> ' +
+    '<span style="font-weight:500">(desconto de R$ '+formatarReais(desconto)+')</span>';
+  preview.style.color = 'var(--g600)';
+}
+
+function salvarCupom(){
+  var erroEl = document.getElementById('cp-erro');
+  erroEl.style.display = 'none';
+  if(!sessaoWorka || !sessaoWorka.token){ erroEl.textContent = 'Faça login novamente.'; erroEl.style.display='block'; return; }
+
+  var payload = {
+    codigo:    (document.getElementById('cp-codigo').value || '').trim().toUpperCase(),
+    tipo:      document.getElementById('cp-tipo').value,
+    valor:     parseFloat(document.getElementById('cp-valor').value),
+    descricao: (document.getElementById('cp-descricao').value || '').trim(),
+    validade:  document.getElementById('cp-validade').value || null,
+    usos_max:  parseInt(document.getElementById('cp-usos-max').value) || null
+  };
+
+  if(!payload.codigo || payload.codigo.length < 3){ erroEl.textContent = 'O código precisa ter ao menos 3 caracteres.'; erroEl.style.display='block'; return; }
+  if(isNaN(payload.valor) || payload.valor <= 0){ erroEl.textContent = 'Informe um valor de desconto maior que zero.'; erroEl.style.display='block'; return; }
+
+  var btn = document.getElementById('cp-btn-salvar');
+  var txt = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Criando...';
+
+  fetch('https://worka-backend-awng.onrender.com/cupons', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
+    body: JSON.stringify(payload)
+  })
+  .then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }); })
+  .then(function(res){
+    btn.disabled = false; btn.textContent = txt;
+    if(res.status !== 201){
+      erroEl.textContent = res.data.error || 'Não foi possível criar o cupom.';
+      erroEl.style.display = 'block';
+      return;
+    }
+    fecharModal('modal-add-cupom');
+    carregarCuponsReal();
+  })
+  .catch(function(){
+    btn.disabled = false; btn.textContent = txt;
+    erroEl.textContent = 'Erro de conexão. Tente novamente.';
+    erroEl.style.display = 'block';
+  });
+}
+
+function carregarCuponsReal(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+  var precoEl = document.getElementById('cupom-preco-plano');
+  if(precoEl) precoEl.textContent = formatarReais(PLANO_CENTAVOS_UI);
+
+  fetch('https://worka-backend-awng.onrender.com/cupons', {
+    headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    var tbody = document.getElementById('tabela-cupons');
+    var aviso = document.getElementById('cupons-aviso-tabela');
+    var badge = document.getElementById('badge-total-cupons');
+    if(!tbody) return;
+
+    // Backend sinaliza quando a migration ainda não foi rodada, para a
+    // tela orientar em vez de fingir que simplesmente não há cupons.
+    if(aviso) aviso.style.display = data.tabela_ausente ? 'block' : 'none';
+
+    var lista = data.cupons || [];
+    if(badge) badge.textContent = lista.length + (lista.length === 1 ? ' cupom' : ' cupons');
+
+    if(lista.length === 0){
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--gray500);padding:24px">Nenhum cupom criado ainda.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = lista.map(function(c){
+      var valorNum = parseFloat(c.valor);
+      var desconto = c.tipo === 'percentual'
+        ? Math.round(PLANO_CENTAVOS_UI * (Math.min(valorNum,100)/100))
+        : Math.round(valorNum * 100);
+      if(desconto >= PLANO_CENTAVOS_UI) desconto = PLANO_CENTAVOS_UI - 100;
+      var final = PLANO_CENTAVOS_UI - desconto;
+
+      var descontoTxt = c.tipo === 'percentual' ? valorNum.toFixed(0)+'%' : 'R$ '+formatarReais(Math.round(valorNum*100));
+      var usosTxt = c.usos_max != null ? (c.usos||0)+' / '+c.usos_max : (c.usos||0)+' / ∞';
+      var validadeTxt = c.validade ? new Date(c.validade+'T00:00:00').toLocaleDateString('pt-BR') : 'Sem prazo';
+      var expirado = c.validade && c.validade < new Date().toISOString().split('T')[0];
+      var statusBadge = !c.ativo
+        ? '<span class="badge badge-gray">Inativo</span>'
+        : expirado
+          ? '<span class="badge badge-red">Expirado</span>'
+          : '<span class="badge badge-green">Ativo</span>';
+
+      return '<tr>' +
+        '<td><div style="font-weight:700;font-family:monospace;letter-spacing:.5px">'+c.codigo+'</div>' +
+          (c.descricao ? '<div style="font-size:.72rem;color:var(--gray500)">'+c.descricao+'</div>' : '') + '</td>' +
+        '<td>'+descontoTxt+'</td>' +
+        '<td style="font-weight:700;color:var(--g600)">R$ '+formatarReais(final)+'</td>' +
+        '<td>'+usosTxt+'</td>' +
+        '<td>'+validadeTxt+'</td>' +
+        '<td>'+statusBadge+'</td>' +
+        '<td><div style="display:flex;gap:6px">' +
+          '<button class="btn btn-sm btn-secondary" onclick="alternarCupom(\''+c.id+'\','+(!c.ativo)+')">'+(c.ativo?'Desativar':'Ativar')+'</button>' +
+          '<button class="btn btn-sm btn-danger" onclick="removerCupom(\''+c.id+'\',\''+c.codigo+'\')">🗑</button>' +
+        '</div></td>' +
+      '</tr>';
+    }).join('');
+  })
+  .catch(function(){});
+}
+
+function alternarCupom(id, ativar){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+  fetch('https://worka-backend-awng.onrender.com/cupons/'+encodeURIComponent(id), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
+    body: JSON.stringify({ ativo: ativar })
+  })
+  .then(function(){ carregarCuponsReal(); })
+  .catch(function(){ alert('Erro de conexão. Tente novamente.'); });
+}
+
+function removerCupom(id, codigo){
+  if(!confirm('Remover o cupom "'+codigo+'"?\n\nO histórico de usos dele será perdido. Se quiser apenas parar de aceitá-lo, use "Desativar".')) return;
+  if(!sessaoWorka || !sessaoWorka.token) return;
+  fetch('https://worka-backend-awng.onrender.com/cupons/'+encodeURIComponent(id), {
+    method: 'DELETE',
+    headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
+  })
+  .then(function(){ carregarCuponsReal(); })
+  .catch(function(){ alert('Erro de conexão. Tente novamente.'); });
+}
+
 function abrirModalSalario(){
   var sel = document.getElementById('das-func');
   if(sel){
@@ -3309,8 +3709,8 @@ function mostrarModalTrialExpirado(nome) {
   overlay.innerHTML = '<div style="background:white;border-radius:20px;padding:36px 28px;max-width:380px;width:100%;text-align:center">' +
     '<div style="font-size:2.5rem;margin-bottom:12px">⏰</div>' +
     '<div style="font-family:Syne,sans-serif;font-size:1.2rem;font-weight:800;color:#0a2e1a;margin-bottom:8px">Trial expirado, ' + (nome ? nome.split(' ')[0] : '') + '!</div>' +
-    '<p style="font-size:.85rem;color:#6b7068;line-height:1.6;margin-bottom:20px">Seu período gratuito de 7 dias terminou.<br>Assine por apenas <strong>R$ 24,90/mês</strong> para continuar usando o Worka.</p>' +
-    '<a href="worka.html" style="display:block;width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;text-decoration:none;text-align:center;margin-bottom:10px">💳 Renovar agora — R$ 24,90/mês</a>' +
+    '<p style="font-size:.85rem;color:#6b7068;line-height:1.6;margin-bottom:20px">Seu período gratuito de 7 dias terminou.<br>Assine por apenas <strong>R$ 49,99/mês</strong> para continuar usando o Worka.</p>' +
+    '<a href="worka.html" style="display:block;width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;text-decoration:none;text-align:center;margin-bottom:10px">💳 Renovar agora — R$ 49,99/mês</a>' +
     '<button onclick="fazerLogout();this.closest(\'div[style*=fixed]\').remove()" style="width:100%;background:none;border:1.5px solid #eff0ef;color:#6b7068;padding:11px;border-radius:10px;font-size:.82rem;font-weight:600;cursor:pointer;font-family:Inter,sans-serif">Sair</button>' +
   '</div>';
   document.body.appendChild(overlay);
@@ -3337,6 +3737,17 @@ window.addEventListener('DOMContentLoaded', function(){
   var params = new URLSearchParams(window.location.search);
   var role = params.get('role');
   var email = params.get('email');
+
+  // Vindo do "Esqueci minha senha" do site: abre direto a tela de
+  // redefinição, sem obrigar a clicar no link de novo.
+  if(params.get('recuperar') === '1'){
+    if(typeof abrirRecuperarSenha === 'function') abrirRecuperarSenha();
+    if(email){
+      var recEmailEl = document.getElementById('rec-email');
+      if(recEmailEl) recEmailEl.value = email;
+    }
+    return;
+  }
 
   if(role === 'owner'){
     // Antes, este bloco preenchia e submetia automaticamente uma

@@ -1,5 +1,12 @@
 // Worka PWA — Service Worker
-// Cache offline + Face ID support
+// Cache offline + push notifications
+//
+// NOTA: este cabeçalho dizia "Face ID support", mas nunca houve
+// nenhuma implementação de biometria no projeto — não existe WebAuthn,
+// navigator.credentials nem tabela de credenciais em lugar nenhum do
+// código. O comentário foi removido para não sugerir uma proteção que
+// o sistema não tem. Login biométrico continua sendo uma feature em
+// aberto (exige WebAuthn + tabela de credenciais no banco).
 
 var CACHE = 'worka-v2';
 // Ícone usado em notificações push — mesmo SVG inline do manifest.json.

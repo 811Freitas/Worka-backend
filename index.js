@@ -44,6 +44,11 @@ const CONFIG = {
   OWNER_PASSWORD_HASH: process.env.OWNER_PASSWORD_HASH || null,
   BCRYPT_ROUNDS: 12,
   JWT_EXPIRES:   "8h",
+  // Valor do plano em CENTAVOS — é assim que o gateway PIX espera
+  // receber. Fonte única da verdade: o cálculo de desconto por cupom
+  // e a cobrança partem daqui, para o preço nunca divergir entre a
+  // tela de checkout e o que é realmente cobrado.
+  PLANO_CENTAVOS: 4999,
   // Domínios permitidos no CORS
   ALLOWED_ORIGINS: [
     "https://811freitas.github.io",
@@ -100,6 +105,9 @@ var RATE_LIMITS = {
   "/verificar-codigo":{ max: 5,  window: 10 * 60 * 1000 }, // 5/10min
   "/empresas":       { max: 10,  window: 60 * 60 * 1000 }, // 10/hora
   "/pix":            { max: 10,  window: 60 * 60 * 1000 }, // 10/hora
+  "/recuperar-senha": { max: 3,  window: 15 * 60 * 1000 }, // 3/15min — anti spam de email
+  "/redefinir-senha": { max: 5,  window: 15 * 60 * 1000 }, // 5/15min — anti brute force do código
+  "/cupom/validar":  { max: 20,  window: 10 * 60 * 1000 }, // 20/10min — anti varredura de cupons
   "default":         { max: 100, window: 60 * 1000 }       // 100/min geral
 };
 
@@ -154,18 +162,20 @@ function requireAuth(req) {
 // Cada role carrega um conjunto fixo de permissões. O JWT nunca
 // carrega permissões — apenas o role — para que revogar/alterar
 // acesso não exija invalidar tokens já emitidos além do necessário.
+var PERMISSOES_DONO = [
+  "funcionarios:read", "funcionarios:write", "funcionarios:delete",
+  "salarios:read", "salarios:write",
+  "financeiro:read", "financeiro:write",
+  "ponto:read", "ponto:write",
+  "tarefas:read", "tarefas:write",
+  "validade:read", "validade:write",
+  "ausencias:read", "ausencias:write",
+  "logs:read",
+  "config:write"
+];
+
 var ROLE_PERMISSIONS = {
-  dono: new Set([
-    "funcionarios:read", "funcionarios:write", "funcionarios:delete",
-    "salarios:read", "salarios:write",
-    "financeiro:read", "financeiro:write",
-    "ponto:read", "ponto:write",
-    "tarefas:read", "tarefas:write",
-    "validade:read", "validade:write",
-    "ausencias:read", "ausencias:write",
-    "logs:read",
-    "config:write"
-  ]),
+  dono: new Set(PERMISSOES_DONO),
   gerente: new Set([
     "funcionarios:read", "funcionarios:write",
     "salarios:read",
@@ -181,8 +191,20 @@ var ROLE_PERMISSIONS = {
     "tarefas:read",
     "validade:read"
   ]),
-  owner_saas: new Set([  // dono da Worka, não do cliente — painel Owner
-    "saas:read", "saas:write"
+  // Dono da Worka (não do cliente). Recebe as mesmas permissões de um
+  // "dono" — para navegar por todas as telas do produto — MAIS as
+  // permissões administrativas do painel Owner (incluindo cupons).
+  //
+  // Importante: dar permissão de dono NÃO dá acesso aos dados de
+  // nenhuma empresa cliente. Toda rota filtra por
+  // `authPayload.empresa_id`, que vem do JWT, e o token de owner é
+  // emitido sem empresa_id — então as consultas não casam com empresa
+  // alguma. Na prática o owner enxerga o produto inteiro, com os dados
+  // da própria conta (vazios), e nunca a conta de outra pessoa.
+  owner_saas: new Set([
+    ...PERMISSOES_DONO,
+    "saas:read", "saas:write",
+    "cupons:read", "cupons:write"
   ])
 };
 
@@ -316,7 +338,7 @@ function supabase(method, table, options = {}) {
     "empresas", "funcionarios", "registros_ponto", "tarefas",
     "produtos_validade", "ausencias", "escalas",
     "historico_salarios", "logs_sistema", "codigos_verificacao",
-    "lancamentos_financeiros", "push_subscriptions"
+    "lancamentos_financeiros", "push_subscriptions", "cupons"
   ];
   if (!ALLOWED_TABLES.includes(table)) {
     return Promise.reject(new Error(`Tabela não permitida: ${table}`));
@@ -453,6 +475,85 @@ function gerarCodigo() {
 
 function gerarTeamId() {
   return "#WK-" + crypto.randomInt(1000, 9999).toString();
+}
+
+// ════════════════════════════════════════
+// CUPONS DE DESCONTO
+// ════════════════════════════════════════
+
+/**
+ * Busca um cupom pelo código e valida se ele pode ser usado agora.
+ * Devolve sempre o mesmo formato — { ok, erro?, cupom?, ... } — para
+ * a rota de preview (/cupom/validar) e a de cobrança (/pix) usarem
+ * exatamente a mesma regra. Duplicar essa lógica nos dois lugares
+ * abriria espaço para o checkout mostrar um preço e o cliente ser
+ * cobrado outro.
+ *
+ * O desconto é calculado em CENTAVOS o tempo todo (nunca em reais
+ * com casa decimal) para não acumular erro de ponto flutuante no
+ * valor que vai para o gateway de pagamento.
+ */
+async function validarCupom(codigoBruto) {
+  var codigo = SANITIZE.string(codigoBruto || "", 40).toUpperCase().trim();
+  if (!codigo) return { ok: false, erro: "Informe um código de cupom." };
+
+  var resultado = await supabase("GET", "cupons",
+    { query: `codigo=eq.${encodeURIComponent(codigo)}&select=*&limit=1` }
+  ).catch(e => {
+    // Tabela ainda não criada no banco (migration não rodada) ou banco
+    // fora do ar: tratado como "cupom não encontrado" para o checkout
+    // seguir funcionando sem desconto, em vez de travar a venda.
+    secLog("cupom_lookup_falhou", { message: e.message });
+    return { body: [] };
+  });
+
+  var cupom = resultado.body && resultado.body[0];
+  if (!cupom) return { ok: false, erro: "Cupom não encontrado." };
+  if (!cupom.ativo) return { ok: false, erro: "Este cupom não está mais ativo." };
+
+  if (cupom.validade) {
+    // Compara só a data (sem hora): um cupom válido "até 31/12" deve
+    // funcionar o dia 31 inteiro, não expirar à meia-noite do dia 30.
+    var hojeStr = new Date().toISOString().split("T")[0];
+    if (cupom.validade < hojeStr) return { ok: false, erro: "Este cupom expirou." };
+  }
+
+  if (cupom.usos_max != null && (cupom.usos || 0) >= cupom.usos_max) {
+    return { ok: false, erro: "Este cupom atingiu o limite de usos." };
+  }
+
+  var valorCupom = parseFloat(cupom.valor);
+  if (isNaN(valorCupom) || valorCupom <= 0) return { ok: false, erro: "Cupom inválido." };
+
+  var precoOriginal = CONFIG.PLANO_CENTAVOS;
+  var desconto;
+  if (cupom.tipo === "percentual") {
+    if (valorCupom > 100) valorCupom = 100; // trava de segurança
+    desconto = Math.round(precoOriginal * (valorCupom / 100));
+  } else {
+    desconto = Math.round(valorCupom * 100); // reais → centavos
+  }
+
+  // Nunca deixar o valor final ficar zero ou negativo: um PIX de R$ 0
+  // seria rejeitado pelo gateway e um valor negativo é sem sentido.
+  // Piso de R$ 1,00 — cupons de 100% precisam de um fluxo próprio de
+  // "conta cortesia", que não existe hoje.
+  if (desconto >= precoOriginal) desconto = precoOriginal - 100;
+  if (desconto < 0) desconto = 0;
+
+  return {
+    ok: true,
+    cupom,
+    codigo,
+    desconto_centavos: desconto,
+    valor_original_centavos: precoOriginal,
+    valor_final_centavos: precoOriginal - desconto
+  };
+}
+
+// Formata centavos como "49,99" para exibir/enviar em texto.
+function centavosParaReais(centavos) {
+  return (centavos / 100).toFixed(2).replace(".", ",");
 }
 
 // ════════════════════════════════════════
@@ -633,7 +734,7 @@ var EMAIL_TEMPLATES = {
       <div style="font-size:12px;color:rgba(255,255,255,.5);margin-top:6px">Compartilhe com seus funcionários</div>
     </div>
     <div style="background:#fffbeb;border-radius:12px;padding:16px;border-left:4px solid #f59e0b">
-      <p style="margin:0;font-size:13px;color:#78350f">⏰ Trial termina em <strong>${new Date(trialFim).toLocaleDateString("pt-BR")}</strong>. Após: R$ 24,90/mês.</p>
+      <p style="margin:0;font-size:13px;color:#78350f">⏰ Trial termina em <strong>${new Date(trialFim).toLocaleDateString("pt-BR")}</strong>. Após: R$ 49,99/mês.</p>
     </div>`),
 
   pagamentoConfirmado: (nome, valor) => emailBase(`
@@ -645,11 +746,22 @@ var EMAIL_TEMPLATES = {
 
   trialAcabando: (nome, dias) => emailBase(`
     <h2 style="text-align:center;margin:0 0 8px;color:#0a2e1a;font-weight:800">Seu trial acaba em ${SANITIZE.int(dias, 0, 30)} dia(s)! ⏰</h2>
-    <p style="color:#5a6b5a;text-align:center">Olá, <strong>${SANITIZE.string(nome)}</strong>! Renove por R$ 24,90/mês para não perder o acesso.</p>`),
+    <p style="color:#5a6b5a;text-align:center">Olá, <strong>${SANITIZE.string(nome)}</strong>! Renove por R$ 49,99/mês para não perder o acesso.</p>`),
 
   trialExpirado: (nome) => emailBase(`
     <h2 style="text-align:center;margin:0 0 8px;color:#0a2e1a;font-weight:800">Seu trial expirou 😢</h2>
-    <p style="color:#5a6b5a;text-align:center">Olá, <strong>${SANITIZE.string(nome)}</strong>! Seus dados estão salvos. Reative por R$ 24,90/mês.</p>`)
+    <p style="color:#5a6b5a;text-align:center">Olá, <strong>${SANITIZE.string(nome)}</strong>! Seus dados estão salvos. Reative por R$ 49,99/mês.</p>`),
+
+  recuperarSenha: (nome, codigo) => emailBase(`
+    <h2 style="margin:0 0 8px;color:#0a2e1a;font-size:22px;font-weight:800">Redefinir sua senha 🔑</h2>
+    <p style="color:#5a6b5a;font-size:15px;margin:0 0 28px;line-height:1.6">Olá, <strong>${SANITIZE.string(nome)}</strong>! Recebemos um pedido para redefinir a senha da sua conta Worka. Use o código abaixo:</p>
+    <div style="background:linear-gradient(135deg,#0a2e1a,#16622f);border-radius:16px;padding:28px;text-align:center;margin:0 0 28px">
+      <div style="font-size:44px;font-weight:900;color:#3dd669;letter-spacing:14px;font-family:'Courier New',monospace">${codigo}</div>
+      <div style="font-size:13px;color:rgba(255,255,255,.6);margin-top:10px">⏰ Expira em <strong style="color:#fff">10 minutos</strong></div>
+    </div>
+    <div style="background:#fff5f5;border-radius:12px;padding:16px;border-left:4px solid #ef4444">
+      <p style="margin:0;font-size:13px;color:#991b1b">🔒 <strong>Não foi você?</strong> Ignore este e-mail — sua senha atual continua valendo e nada foi alterado.</p>
+    </div>`)
 };
 
 // ════════════════════════════════════════
@@ -905,9 +1017,25 @@ var server = http.createServer(async (req, res) => {
         await bcrypt.compare(v.data.senha, "$2b$12$abcdefghijklmnopqrstuvuxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
       }
 
-      if (!empresa || !senhaOk) {
+      // Mensagem distinta para "não existe conta" vs "senha errada", a
+      // pedido do produto: sem isso, quem ainda não se cadastrou ficava
+      // preso tentando a senha de novo, achando que tinha errado a senha.
+      // Contrapartida consciente: isso permite descobrir se um e-mail tem
+      // conta na Worka (enumeração de usuários). O risco é aceitável aqui
+      // porque a lista de e-mails de empresas clientes não é segredo, e o
+      // rate limit de 5 tentativas/15min já barra varredura em massa.
+      if (!empresa) {
+        secLog("login_email_inexistente", { ip });
+        res.writeHead(401);
+        return res.end(JSON.stringify({
+          error: "Não encontramos uma conta com esse e-mail. Você precisa realizar o cadastro.",
+          nao_cadastrado: true
+        }));
+      }
+
+      if (!senhaOk) {
         secLog("login_falhou", { ip, email_hash: crypto.createHash("sha256").update(v.data.email).digest("hex").substring(0, 8) });
-        return jsonErr(res, "Email ou senha incorretos", 401);
+        return jsonErr(res, "Senha incorreta. Tente novamente ou use \"Esqueci minha senha\".", 401);
       }
 
       var token = jwtSign({ empresa_id: empresa.id, email: empresa.email, role: "dono" });
@@ -1058,6 +1186,26 @@ var server = http.createServer(async (req, res) => {
         var senha = SANITIZE.senha(body.senha);
         if (!nome || !senha) return jsonErr(res, "Dados de cadastro inválidos");
 
+        // BUG CORRIGIDO: antes, o INSERT era feito direto e um email já
+        // cadastrado fazia o banco rejeitar por chave única. O
+        // .catch(() => ({ body: [] })) engolia esse erro em silêncio e a
+        // função caía no `return jsonOk(res, { ok: true })` lá embaixo —
+        // então o site mostrava "Trial ativado!" com toda a confiança,
+        // sem ter criado conta nenhuma e sem devolver token. A pessoa
+        // saía achando que tinha conta, e não conseguia logar depois.
+        // Agora a existência é checada ANTES, com resposta explícita.
+        var jaExiste = await DB.select("empresas", `email=eq.${encodeURIComponent(email)}&select=id`);
+        if (jaExiste.body && jaExiste.body.length > 0) {
+          secLog("cadastro_duplicado_trial", { email_hash: crypto.createHash("sha256").update(email).digest("hex").substring(0, 8) });
+          // ja_cadastrado permite o frontend oferecer "Fazer login" em vez
+          // de só mostrar um erro genérico e deixar a pessoa travada.
+          res.writeHead(409);
+          return res.end(JSON.stringify({
+            error: "Este e-mail já tem uma conta Worka. Faça login para continuar.",
+            ja_cadastrado: true
+          }));
+        }
+
         var senhaHash = await hashSenha(senha);
         var trialFim  = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -1065,7 +1213,7 @@ var server = http.createServer(async (req, res) => {
           nome, email, senha_hash: senhaHash,
           team_id: gerarTeamId(), status: "trial",
           trial_fim: trialFim, aviso_trial_sent: false, aviso_expirado_sent: false
-        }).catch(() => ({ body: [] }));
+        }).catch(e => { secLog("erro_criar_empresa", { message: e.message }); return { body: [] }; });
 
         if (result.body[0]) {
           var emp = result.body[0];
@@ -1076,9 +1224,109 @@ var server = http.createServer(async (req, res) => {
           delete emp.senha_hash;
           return jsonOk(res, { ok: true, token, empresa: emp, trial_fim: trialFim });
         }
+
+        // Chegou aqui: o insert falhou por outro motivo (banco fora do ar,
+        // coluna faltando etc.). Nunca mais responder ok:true nesse caso —
+        // era exatamente isso que fazia o site mentir "Trial ativado!".
+        return jsonErr(res, "Não foi possível criar sua conta agora. Tente novamente em instantes.", 500);
       }
 
       return jsonOk(res, { ok: true });
+    }
+
+    // ── RECUPERAR SENHA — PEDIR CÓDIGO (rota pública) ─
+    // Reaproveita a mesma infra de OTP do cadastro (tabela
+    // codigos_verificacao, com hash do código e limite de tentativas),
+    // em vez de criar um segundo mecanismo de token por email.
+    if (method === "POST" && path === "/recuperar-senha") {
+      var raw = await getBody(req);
+      var body = parseBody(raw);
+      if (!body) return jsonErr(res, "Dados inválidos");
+
+      var email = SANITIZE.email(body.email);
+      if (!email) return jsonErr(res, "E-mail inválido");
+
+      var contaResult = await DB.select("empresas", `email=eq.${encodeURIComponent(email)}&select=id,nome`);
+      var conta = contaResult.body && contaResult.body[0];
+
+      // Diferente do login, aqui a resposta é SEMPRE a mesma exista ou
+      // não a conta. Um formulário de "esqueci a senha" é aberto ao
+      // público e não tem rate limit por conta, então revelar quais
+      // e-mails existem aqui viraria uma ferramenta de varredura — e,
+      // ao contrário do login, não há ganho de UX real em revelar
+      // (quem não tem conta é orientado a conferir o e-mail digitado).
+      if (conta) {
+        var codigoRec = gerarCodigo();
+        await salvarOTP(email, codigoRec);
+        secLog("recuperacao_senha_solicitada", { empresa_id: conta.id });
+        enviarEmail(email, "🔑 Redefinir sua senha — Worka", EMAIL_TEMPLATES.recuperarSenha(conta.nome, codigoRec))
+          .catch(e => secLog("email_error", { type: "recuperar_senha", message: e.message }));
+      } else {
+        secLog("recuperacao_senha_email_inexistente", { ip });
+      }
+
+      return jsonOk(res, { ok: true, message: "Se existir uma conta com esse e-mail, enviamos um código de redefinição." });
+    }
+
+    // ── RECUPERAR SENHA — DEFINIR NOVA (rota pública) ─
+    if (method === "POST" && path === "/redefinir-senha") {
+      var raw = await getBody(req);
+      var body = parseBody(raw);
+      if (!body) return jsonErr(res, "Dados inválidos");
+
+      var email = SANITIZE.email(body.email);
+      var codigo = SANITIZE.string(body.codigo || "", 6);
+      var senhaNova = SANITIZE.senha(body.senha);
+
+      if (!email || !codigo || !/^\d{6}$/.test(codigo)) return jsonErr(res, "Dados inválidos");
+      if (!senhaNova) return jsonErr(res, "A nova senha precisa ter no mínimo 8 caracteres, sem espaços.");
+
+      var otpRec = await verificarOTP(email, codigo);
+      if (!otpRec.ok) return jsonErr(res, otpRec.erro);
+
+      var contaRec = await DB.select("empresas", `email=eq.${encodeURIComponent(email)}&select=id,nome,team_id,status,trial_fim`);
+      var empRec = contaRec.body && contaRec.body[0];
+      // O código só é gerado para e-mail existente, então cair aqui
+      // significa que a conta sumiu no meio do processo.
+      if (!empRec) return jsonErr(res, "Conta não encontrada.", 404);
+
+      var novoHash = await hashSenha(senhaNova);
+      await DB.update("empresas", `id=eq.${empRec.id}`, { senha_hash: novoHash });
+      secLog("senha_redefinida", { empresa_id: empRec.id });
+
+      // Já devolve o token para a pessoa entrar direto, sem ter que
+      // digitar a senha que acabou de criar.
+      var tokenRec = jwtSign({ empresa_id: empRec.id, email, role: "dono" });
+      var trialRec = null;
+      if (empRec.status === "trial") {
+        var diasRec = Math.ceil((new Date(empRec.trial_fim) - Date.now()) / (1000*60*60*24));
+        trialRec = { dias_restantes: diasRec, expirado: diasRec <= 0 };
+      }
+      return jsonOk(res, { ok: true, token: tokenRec, empresa: empRec, trial: trialRec });
+    }
+
+    // ── CUPOM — VALIDAR / PREVIEW (rota pública) ─────
+    // Chamada pelo checkout quando a pessoa digita um código, antes
+    // de gerar o PIX, só para mostrar o desconto na tela.
+    if (method === "POST" && path === "/cupom/validar") {
+      var raw = await getBody(req);
+      var body = parseBody(raw);
+      if (!body) return jsonErr(res, "Dados inválidos");
+
+      var checagem = await validarCupom(body.codigo);
+      if (!checagem.ok) return jsonErr(res, checagem.erro, 404);
+
+      secLog("cupom_validado", { codigo: checagem.codigo });
+      return jsonOk(res, {
+        ok: true,
+        codigo:         checagem.codigo,
+        descricao:      checagem.cupom.descricao || null,
+        tipo:           checagem.cupom.tipo,
+        valor:          parseFloat(checagem.cupom.valor),
+        desconto_reais: centavosParaReais(checagem.desconto_centavos),
+        valor_original: centavosParaReais(checagem.valor_original_centavos),
+        valor_final:    centavosParaReais(checagem.valor_final_centavos)
+      });
     }
 
     // ── PIX — GERAR COBRANÇA (rota pública) ──────────
@@ -1107,20 +1355,50 @@ var server = http.createServer(async (req, res) => {
         return jsonErr(res, "Configuração inválida", 500);
       }
 
+      // Cupom: o desconto é SEMPRE recalculado aqui no servidor a
+      // partir do código enviado. O valor final que o navegador
+      // mostrou é ignorado de propósito — se o cliente adulterasse o
+      // valor no JavaScript, ele pagaria o que quisesse.
+      var valorCobrado = CONFIG.PLANO_CENTAVOS;
+      var cupomAplicado = null;
+      if (body.cupom) {
+        var cupomCheck = await validarCupom(body.cupom);
+        if (cupomCheck.ok) {
+          valorCobrado = cupomCheck.valor_final_centavos;
+          cupomAplicado = cupomCheck;
+        }
+        // Cupom inválido não bloqueia a compra: cobra o valor cheio.
+        // Barrar a venda por causa de um código digitado errado seria
+        // perder o cliente na última etapa do funil.
+      }
+
       var response = await httpRequestExterno(pixUrl, "POST", {
-        amount: 2490,
+        amount: valorCobrado,
         customer: { name: nome, document: doc, email, phone: tel },
-        item: { title: "Plano Completo Worka", price: 2490, quantity: 1 },
+        item: { title: "Plano Completo Worka", price: valorCobrado, quantity: 1 },
         paymentMethod: "PIX"
       });
 
       if (response.status >= 400) return jsonErr(res, "Erro no processamento do pagamento", 502);
 
-      secLog("pix_gerado", { email_hash: crypto.createHash("sha256").update(email).digest("hex").substring(0, 8) });
+      // Contabiliza o uso só depois que a cobrança foi realmente
+      // criada no gateway. Fire-and-forget: falhar aqui não pode
+      // derrubar um PIX que já foi gerado com sucesso.
+      if (cupomAplicado) {
+        supabase("PATCH", "cupons", {
+          query: `id=eq.${cupomAplicado.cupom.id}`,
+          body: { usos: (cupomAplicado.cupom.usos || 0) + 1 }
+        }).catch(e => secLog("cupom_incremento_falhou", { message: e.message }));
+        secLog("cupom_usado", { codigo: cupomAplicado.codigo, valor_final: valorCobrado });
+      }
+
+      secLog("pix_gerado", { email_hash: crypto.createHash("sha256").update(email).digest("hex").substring(0, 8), valor: valorCobrado });
       return jsonOk(res, {
         pixCode:       response.body.pixCode,
         transactionId: response.body.transactionId,
-        status:        response.body.status
+        status:        response.body.status,
+        valor_cobrado: centavosParaReais(valorCobrado),
+        cupom_aplicado: cupomAplicado ? cupomAplicado.codigo : null
       });
     }
 
@@ -1170,7 +1448,7 @@ var server = http.createServer(async (req, res) => {
             aviso_trial_sent: false,
             aviso_expirado_sent: false
           });
-          enviarEmail(empPag.email, "✅ Pagamento confirmado — Worka", EMAIL_TEMPLATES.pagamentoConfirmado(empPag.nome, "24,90"))
+          enviarEmail(empPag.email, "✅ Pagamento confirmado — Worka", EMAIL_TEMPLATES.pagamentoConfirmado(empPag.nome, "49,99"))
             .catch(() => {});
           secLog("pagamento_confirmado", { empresa_id: empPag.id });
         }
@@ -1193,6 +1471,16 @@ var server = http.createServer(async (req, res) => {
     // worka-app.html carregava, a pessoa caía na tela de login e
     // precisava digitar email/senha de novo, mesmo já autenticada.
     if (method === "GET" && path === "/me") {
+      // Owner da Worka: sessão válida, mas sem empresa vinculada — o
+      // app monta o menu completo a partir do role, sem depender de
+      // dados de empresa nenhuma.
+      if (authPayload.role === "owner_saas") {
+        return jsonOk(res, {
+          owner: { email: authPayload.email, nome: "Owner Worka" },
+          empresa: null,
+          trial: null
+        });
+      }
       if (authPayload.role !== "dono") {
         // Login de funcionário continua 100% local no app hoje (não
         // migrado ainda) — não há uma tabela/rota que sirva o perfil
@@ -1210,6 +1498,110 @@ var server = http.createServer(async (req, res) => {
       }
       delete meEmpresa.senha_hash;
       return jsonOk(res, { empresa: meEmpresa, trial: meTrialInfo });
+    }
+
+    // ── CUPONS — GESTÃO (somente owner da Worka) ─────
+    // Cupom vale para a assinatura da plataforma, não para nada dentro
+    // da empresa cliente — por isso só o role owner_saas administra.
+    if (method === "GET" && path === "/cupons") {
+      if (!hasPermission(authPayload, "cupons:read")) {
+        secLog("permission_denied", { role: authPayload.role, action: "cupons:read" });
+        return jsonErr(res, "Apenas o owner da Worka pode ver cupons", 403);
+      }
+      var listaCupons = await DB.select("cupons", "select=*&order=created_at.desc&limit=200")
+        .catch(e => {
+          secLog("cupons_listagem_falhou", { message: e.message });
+          return { body: null };
+        });
+      // body null = tabela ainda não existe (migration não rodada).
+      // Sinalizamos isso explicitamente para o painel poder orientar,
+      // em vez de mostrar uma lista vazia como se não houvesse cupons.
+      if (listaCupons.body === null) {
+        return jsonOk(res, { cupons: [], tabela_ausente: true });
+      }
+      return jsonOk(res, { cupons: listaCupons.body || [] });
+    }
+
+    if (method === "POST" && path === "/cupons") {
+      if (!hasPermission(authPayload, "cupons:write")) {
+        secLog("permission_denied", { role: authPayload.role, action: "cupons:write" });
+        return jsonErr(res, "Apenas o owner da Worka pode criar cupons", 403);
+      }
+      var raw = await getBody(req);
+      var body = parseBody(raw);
+      if (!body) return jsonErr(res, "Dados inválidos");
+
+      var codigoNovo = SANITIZE.string(body.codigo || "", 40).toUpperCase().replace(/\s+/g, "");
+      if (!codigoNovo || codigoNovo.length < 3) return jsonErr(res, "Código do cupom precisa ter ao menos 3 caracteres.");
+
+      var tipoNovo = ["percentual", "valor"].includes(body.tipo) ? body.tipo : null;
+      if (!tipoNovo) return jsonErr(res, "Tipo inválido — use 'percentual' ou 'valor'.");
+
+      var valorNovo = parseFloat(body.valor);
+      if (isNaN(valorNovo) || valorNovo <= 0) return jsonErr(res, "Informe um valor de desconto maior que zero.");
+      if (tipoNovo === "percentual" && valorNovo > 100) return jsonErr(res, "Desconto percentual não pode passar de 100%.");
+      if (tipoNovo === "valor" && valorNovo * 100 >= CONFIG.PLANO_CENTAVOS) {
+        return jsonErr(res, `Desconto em reais precisa ser menor que o valor do plano (R$ ${centavosParaReais(CONFIG.PLANO_CENTAVOS)}).`);
+      }
+
+      var jaExisteCupom = await DB.select("cupons", `codigo=eq.${encodeURIComponent(codigoNovo)}&select=id`)
+        .catch(() => ({ body: [] }));
+      if (jaExisteCupom.body && jaExisteCupom.body.length > 0) {
+        return jsonErr(res, "Já existe um cupom com esse código.", 409);
+      }
+
+      var registroCupom = {
+        codigo:    codigoNovo,
+        tipo:      tipoNovo,
+        valor:     valorNovo,
+        descricao: SANITIZE.string(body.descricao || "", 200) || null,
+        ativo:     body.ativo !== false,
+        validade:  null,
+        usos_max:  SANITIZE.int(body.usos_max, 1, 100000) || null,
+        usos:      0
+      };
+      if (body.validade && /^\d{4}-\d{2}-\d{2}$/.test(body.validade)) {
+        registroCupom.validade = body.validade;
+      }
+
+      var criado = await DB.insert("cupons", registroCupom).catch(e => {
+        secLog("cupom_criacao_falhou", { message: e.message });
+        return { body: [] };
+      });
+      if (!criado.body || !criado.body[0]) {
+        return jsonErr(res, "Não foi possível criar o cupom. Confirme se a tabela 'cupons' já existe no banco (migrations/001_cupons.sql).", 500);
+      }
+
+      secLog("cupom_criado", { codigo: codigoNovo, tipo: tipoNovo });
+      return jsonOk(res, { cupom: criado.body[0] }, 201);
+    }
+
+    // Ativar/desativar um cupom sem apagá-lo — preserva o histórico de
+    // usos, que some se o registro for excluído.
+    if (method === "PUT" && path.match(/^\/cupons\/[\w-]+$/)) {
+      if (!hasPermission(authPayload, "cupons:write")) {
+        return jsonErr(res, "Apenas o owner da Worka pode alterar cupons", 403);
+      }
+      var cupomId = SANITIZE.uuid(path.split("/")[2]);
+      if (!cupomId) return jsonErr(res, "ID inválido");
+      var raw = await getBody(req);
+      var body = parseBody(raw);
+      if (!body || typeof body.ativo !== "boolean") return jsonErr(res, "Informe 'ativo' (true/false).");
+
+      await DB.update("cupons", `id=eq.${cupomId}`, { ativo: body.ativo });
+      secLog("cupom_atualizado", { cupom_id: cupomId, ativo: body.ativo });
+      return jsonOk(res, { ok: true });
+    }
+
+    if (method === "DELETE" && path.match(/^\/cupons\/[\w-]+$/)) {
+      if (!hasPermission(authPayload, "cupons:write")) {
+        return jsonErr(res, "Apenas o owner da Worka pode remover cupons", 403);
+      }
+      var cupomIdDel = SANITIZE.uuid(path.split("/")[2]);
+      if (!cupomIdDel) return jsonErr(res, "ID inválido");
+      await DB.delete("cupons", `id=eq.${cupomIdDel}`);
+      secLog("cupom_removido", { cupom_id: cupomIdDel });
+      return jsonOk(res, { ok: true });
     }
 
     // ── FUNCIONÁRIOS ─────────────────────────────────
