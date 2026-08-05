@@ -1594,6 +1594,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
     <div style="display:flex;background:#f7f8f7;border-radius:10px;padding:4px;margin-bottom:20px;gap:4px;">
       <div id="tab-empresa" onclick="setAcessoTipo('dono')" style="flex:1;padding:8px;text-align:center;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;background:white;color:#16622f;box-shadow:0 1px 4px rgba(0,0,0,0.1);">Empresa</div>
       <div id="tab-func" onclick="setAcessoTipo('funcionario')" style="flex:1;padding:8px;text-align:center;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;color:#6b7068;">Funcionário</div>
+      <div id="tab-owner" onclick="setAcessoTipo('owner')" style="flex:1;padding:8px;text-align:center;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;color:#6b7068;">Owner</div>
     </div>
 
     <div id="acesso-dono">
@@ -1627,6 +1628,32 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
       </div>
     </div>
 
+    <!-- Owner da Worka: conta administrativa da plataforma, não de
+         cliente. Antes só era possível entrar indo direto na URL do
+         app (worka-app.html), porque este modal não tinha a aba. -->
+    <div id="acesso-owner" style="display:none;">
+      <div style="margin-bottom:12px;">
+        <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">E-mail do owner</label>
+        <input id="ac-owner-email" type="email" placeholder="admin@workap.com.br" style="width:100%;padding:11px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">Senha</label>
+        <input id="ac-owner-senha" type="password" placeholder="••••••••" style="width:100%;padding:11px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
+      </div>
+    </div>
+
+    <!-- Confirmação de aparelho novo (2º passo do login) -->
+    <div id="acesso-dispositivo" style="display:none;">
+      <div style="background:#edfaf2;border-radius:10px;padding:14px;font-size:0.82rem;color:#16622f;margin-bottom:16px;line-height:1.5;">
+        🔐 Este aparelho é novo por aqui. Enviamos um código de 6 dígitos para <strong id="ac-disp-email"></strong>.
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">Código recebido</label>
+        <input id="ac-disp-codigo" type="text" inputmode="numeric" maxlength="6" placeholder="000000" style="width:100%;padding:14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:1.2rem;font-weight:700;text-align:center;letter-spacing:8px;font-family:'Inter',sans-serif;outline:none;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
+      </div>
+      <div style="font-size:0.72rem;color:#6b7068;text-align:center;margin-bottom:4px;">Depois de confirmado, este aparelho não pedirá código por 30 dias.</div>
+    </div>
+
     <div id="acesso-erro" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px;font-size:0.8rem;color:#dc2626;margin-bottom:12px;"></div>
 
     <button id="acesso-btn-entrar" onclick="entrarNoApp()" style="width:100%;background:#1e8a40;color:white;border:none;padding:13px;border-radius:10px;font-size:0.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:12px;">Entrar no Worka →</button>
@@ -1651,18 +1678,166 @@ function fecharAcesso(){
 }
 function setAcessoTipo(tipo){
   acessoTipo=tipo;
+  // Sair do passo de confirmação de aparelho se estiver nele
+  loginPendenteSite = null;
+  document.getElementById('acesso-dispositivo').style.display='none';
+  document.getElementById('acesso-erro').style.display='none';
+  var btnEntrar = document.getElementById('acesso-btn-entrar');
+  if(btnEntrar) btnEntrar.textContent = 'Entrar no Worka →';
+
   document.getElementById('acesso-dono').style.display=tipo==='dono'?'block':'none';
   document.getElementById('acesso-func').style.display=tipo==='funcionario'?'block':'none';
-  document.getElementById('tab-empresa').style.background=tipo==='dono'?'white':'transparent';
-  document.getElementById('tab-empresa').style.color=tipo==='dono'?'#16622f':'#6b7068';
-  document.getElementById('tab-empresa').style.boxShadow=tipo==='dono'?'0 1px 4px rgba(0,0,0,0.1)':'none';
-  document.getElementById('tab-func').style.background=tipo==='funcionario'?'white':'transparent';
-  document.getElementById('tab-func').style.color=tipo==='funcionario'?'#16622f':'#6b7068';
-  document.getElementById('tab-func').style.boxShadow=tipo==='funcionario'?'0 1px 4px rgba(0,0,0,0.1)':'none';
+  document.getElementById('acesso-owner').style.display=tipo==='owner'?'block':'none';
+
+  [['tab-empresa','dono'],['tab-func','funcionario'],['tab-owner','owner']].forEach(function(par){
+    var el = document.getElementById(par[0]);
+    if(!el) return;
+    var ativo = tipo === par[1];
+    el.style.background = ativo ? 'white' : 'transparent';
+    el.style.color      = ativo ? '#16622f' : '#6b7068';
+    el.style.boxShadow  = ativo ? '0 1px 4px rgba(0,0,0,0.1)' : 'none';
+  });
+}
+
+// ── Identidade do aparelho (mesma lógica do app) ───────────────
+// Número aleatório no localStorage; o servidor usa para lembrar que
+// este navegador já confirmou um código. Não identifica a pessoa.
+function obterDeviceIdSite(){
+  try {
+    var id = localStorage.getItem('worka_device_id');
+    if(!id){
+      id = (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID().replace(/-/g,'')
+        : String(Date.now()) + Math.random().toString(36).slice(2).padEnd(16,'0');
+      localStorage.setItem('worka_device_id', id);
+    }
+    return id;
+  } catch(e) { return null; }
+}
+
+function descreverDispositivoSite(){
+  var ua = navigator.userAgent || '';
+  var so = /iPhone|iPad/i.test(ua) ? 'iPhone/iPad' : /Android/i.test(ua) ? 'Android'
+         : /Mac/i.test(ua) ? 'Mac' : /Windows/i.test(ua) ? 'Windows' : 'Outro';
+  var nav = /CriOS|Chrome/i.test(ua) ? 'Chrome' : /Firefox/i.test(ua) ? 'Firefox'
+          : /Safari/i.test(ua) ? 'Safari' : 'Navegador';
+  return so + ' · ' + nav;
+}
+
+// Guardado só em memória entre o passo da senha e o do código —
+// o backend confere a senha de novo ao validar o código.
+var loginPendenteSite = null;
+
+function mostrarPassoDispositivo(email, senha, tipo){
+  loginPendenteSite = { email: email, senha: senha, tipo: tipo };
+  document.getElementById('acesso-dono').style.display = 'none';
+  document.getElementById('acesso-func').style.display = 'none';
+  document.getElementById('acesso-owner').style.display = 'none';
+  document.getElementById('acesso-dispositivo').style.display = 'block';
+  document.getElementById('ac-disp-email').textContent = email;
+  document.getElementById('ac-disp-codigo').value = '';
+  document.getElementById('acesso-erro').style.display = 'none';
+  var btn = document.getElementById('acesso-btn-entrar');
+  if(btn) btn.textContent = 'Confirmar e entrar →';
+}
+
+function confirmarDispositivoSite(){
+  var erro = document.getElementById('acesso-erro');
+  erro.style.display = 'none';
+  var codigo = (document.getElementById('ac-disp-codigo').value || '').trim();
+
+  if(!/^\d{6}$/.test(codigo)){
+    erro.textContent = 'O código tem 6 dígitos.';
+    erro.style.display = 'block';
+    return;
+  }
+
+  var btn = document.getElementById('acesso-btn-entrar');
+  if(btn){ btn.textContent = 'Confirmando...'; btn.disabled = true; }
+
+  fetch(API_BASE + '/login/confirmar-dispositivo', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      email: loginPendenteSite.email,
+      senha: loginPendenteSite.senha,
+      codigo: codigo,
+      deviceId: obterDeviceIdSite(),
+      descricao: descreverDispositivoSite()
+    })
+  })
+  .then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }); })
+  .then(function(res){
+    if(btn){ btn.textContent = 'Confirmar e entrar →'; btn.disabled = false; }
+    if(res.status !== 200 || !res.data.token){
+      erro.textContent = res.data.error || 'Não foi possível confirmar o aparelho.';
+      erro.style.display = 'block';
+      return;
+    }
+    localStorage.setItem('worka_token', res.data.token);
+    loginPendenteSite = null;
+    fecharAcesso();
+    window.location.href = 'worka-app.html';
+  })
+  .catch(function(){
+    if(btn){ btn.textContent = 'Confirmar e entrar →'; btn.disabled = false; }
+    erro.textContent = 'Erro de conexão. Tente novamente.';
+    erro.style.display = 'block';
+  });
 }
 function entrarNoApp(){
   var erroGeral = document.getElementById('acesso-erro');
   erroGeral.style.display = 'none';
+
+  // ── 2º passo: confirmar aparelho novo ─────────────────────
+  // O mesmo botão vira "Confirmar e entrar" quando o backend pede
+  // código, para não precisar de um segundo botão na tela.
+  if(loginPendenteSite){
+    confirmarDispositivoSite();
+    return;
+  }
+
+  // ── Login de OWNER da Worka ───────────────────────────────
+  if(acessoTipo === 'owner'){
+    var emailO = ((document.getElementById('ac-owner-email')||{}).value||'').trim().toLowerCase();
+    var senhaO = ((document.getElementById('ac-owner-senha')||{}).value||'');
+    if(!emailO || !senhaO){
+      erroGeral.textContent = 'Preencha e-mail e senha.';
+      erroGeral.style.display = 'block';
+      return;
+    }
+
+    var btnO = document.getElementById('acesso-btn-entrar');
+    if(btnO){ btnO.textContent='Entrando...'; btnO.disabled=true; }
+
+    fetch(API_BASE + '/login/owner', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email: emailO, senha: senhaO, deviceId: obterDeviceIdSite() })
+    })
+    .then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }); })
+    .then(function(res){
+      if(btnO){ btnO.textContent='Entrar no Worka →'; btnO.disabled=false; }
+      if(res.status === 200 && res.data.requer_codigo){
+        mostrarPassoDispositivo(res.data.email || emailO, senhaO, 'owner');
+        return;
+      }
+      if(res.status !== 200 || !res.data.token){
+        erroGeral.textContent = res.data.error || 'Email ou senha incorretos.';
+        erroGeral.style.display = 'block';
+        return;
+      }
+      localStorage.setItem('worka_token', res.data.token);
+      fecharAcesso();
+      window.location.href = 'worka-app.html';
+    })
+    .catch(function(){
+      if(btnO){ btnO.textContent='Entrar no Worka →'; btnO.disabled=false; }
+      erroGeral.textContent = 'Erro de conexão. Tente novamente.';
+      erroGeral.style.display = 'block';
+    });
+    return;
+  }
 
   // ── Login de FUNCIONÁRIO ──────────────────────────────────
   // Antes esta função ignorava a aba selecionada e sempre lia os
@@ -1740,10 +1915,16 @@ function entrarNoApp(){
     fetch(API_BASE + '/login/empresa', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ email: email, senha: senha })
+      body: JSON.stringify({ email: email, senha: senha, deviceId: obterDeviceIdSite() })
     })
     .then(function(r){ return r.json().then(function(data){ return { status:r.status, data:data }; }); })
     .then(function(res){
+      // Aparelho novo: senha certa, falta o código enviado por e-mail.
+      if(res.status === 200 && res.data.requer_codigo){
+        if(btnEntrar){ btnEntrar.textContent='Entrar no Worka →'; btnEntrar.disabled=false; }
+        mostrarPassoDispositivo(res.data.email || email, senha, 'dono');
+        return;
+      }
       if(res.status !== 200 || !res.data.token){
         var erro=document.getElementById('acesso-erro');
         if(res.data.nao_cadastrado){
