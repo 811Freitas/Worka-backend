@@ -303,9 +303,112 @@ tr:hover td{background:var(--g50)}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
 @media(max-width:768px){.grid-2,.grid-3{grid-template-columns:1fr}}
+
+/* ── ÍCONES SVG ──────────────────────────────────────────
+   Substituem os emojis usados como ícone. Herdam a cor do
+   texto (currentColor), então acompanham o tema white label
+   de cada empresa — coisa que emoji e PNG não fazem. */
+.ico{width:1em;height:1em;display:inline-block;vertical-align:-0.125em;flex-shrink:0;stroke-width:2}
+.ico-lg{width:1.35em;height:1.35em}
+.ico-xl{width:2.2em;height:2.2em;stroke-width:1.6}
+.ico-hero{width:2.6em;height:2.6em;stroke-width:1.5}
+.nav-item .ico,.login-tab .ico{width:1.05em;height:1.05em}
+.stat-card-icon .ico{width:1.25em;height:1.25em}
+.empty-state .icon .ico{width:1em;height:1em}
+/* Bolinhas de status coloridas que antes eram emoji (<span class=dot style=background:var(--g400,#25b251)></span><span class=dot style=background:#f59e0b></span><span class=dot style=background:#ef4444></span>...) */
+.dot{display:inline-block;width:.6em;height:.6em;border-radius:50%;vertical-align:middle;margin-right:.35em;flex-shrink:0}
 </style>
 </head>
 <body>
+<!-- ══════════════════════════════════════════════════════════
+     SISTEMA DE ÍCONES — SVG sprite
+     ══════════════════════════════════════════════════════════
+     Substitui os emojis que antes eram usados como ícones. Motivos:
+     - Emoji muda de desenho conforme o sistema (iOS ≠ Android ≠
+       Windows), então a interface nunca ficava igual para todo mundo.
+     - Emoji não aceita cor por CSS. Como o Worka é white label e cada
+       empresa escolhe suas cores, os ícones precisavam acompanhar o
+       tema — aqui usam stroke="currentColor" e herdam a cor do texto.
+     - Vetor não borra em tela de retina, em nenhum tamanho.
+
+     Uso:  <svg class="ico"><use href="#i-nome"></use></svg>
+     Tamanho: .ico (padrão 1em), .ico-lg, .ico-xl — ver CSS.
+══════════════════════════════════════════════════════════ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+<defs>
+<g id="__ico_base" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></g>
+</defs>
+
+<symbol id="i-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+<symbol id="i-tasks" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></symbol>
+<symbol id="i-money" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></symbol>
+<symbol id="i-absent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></symbol>
+<symbol id="i-report" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+<symbol id="i-megaphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-6v14L3 13z"/><path d="M3 11v2a2 2 0 0 0 2 2h1v4h3v-4"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+<symbol id="i-palette" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16c3.3 0 6-2.7 6-6 0-4.9-4.5-8.6-10-8.6z"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
+<symbol id="i-crown" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7l4.5 4L12 4l5.5 7L22 7l-2 12H4z"/></symbol>
+<symbol id="i-ticket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><line x1="13" y1="6" x2="13" y2="18" stroke-dasharray="2 3"/></symbol>
+<symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-coffee" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/></symbol>
+<symbol id="i-return" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 10 4 15 9 20"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/></symbol>
+<symbol id="i-stop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
+<symbol id="i-check-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+<symbol id="i-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
+<symbol id="i-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></symbol>
+<symbol id="i-arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></symbol>
+<symbol id="i-arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></symbol>
+<symbol id="i-zap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></symbol>
+<symbol id="i-camera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></symbol>
+<symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22 7 12 14 2 7"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2"/><path d="M17 6l3 3"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
+<symbol id="i-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></symbol>
+<symbol id="i-building" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="9" y1="7" x2="9" y2="7.01"/><line x1="15" y1="7" x2="15" y2="7.01"/><line x1="9" y1="12" x2="9" y2="12.01"/><line x1="15" y1="12" x2="15" y2="12.01"/><path d="M10 22v-4h4v4"/></symbol>
+<symbol id="i-package" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></symbol>
+<symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></symbol>
+<symbol id="i-inbox" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+<symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></symbol>
+<symbol id="i-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+<symbol id="i-support" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></symbol>
+<symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+<symbol id="i-database" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></symbol>
+<symbol id="i-tool" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
+<symbol id="i-plug" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6M15 2v6"/><path d="M6 8h12v3a6 6 0 0 1-12 0z"/><path d="M12 17v5"/></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></symbol>
+<symbol id="i-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></symbol>
+<symbol id="i-message" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+<symbol id="i-gift" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="5" rx="1"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M20 12v10H4V12"/><path d="M7.5 7a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7s1-5 4.5-5a2.5 2.5 0 0 1 0 5"/></symbol>
+<symbol id="i-rocket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13c-1.5 1.5-2 5-2 5s3.5-.5 5-2c.8-.8.8-2.2 0-3s-2.2-.8-3 0z"/><path d="M12 15l-3-3a12 12 0 0 1 7-8 8 8 0 0 1 4 4 12 12 0 0 1-8 7z"/><circle cx="15" cy="9" r="1.5"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 11 11 13 15 9"/></symbol>
+<symbol id="i-hourglass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12M6 22h12"/><path d="M6 2v4a6 6 0 0 0 6 6 6 6 0 0 0 6-6V2"/><path d="M6 22v-4a6 6 0 0 1 6-6 6 6 0 0 1 6 6v4"/></symbol>
+<symbol id="i-clipboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></symbol>
+<symbol id="i-scissors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></symbol>
+<symbol id="i-bag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></symbol>
+<symbol id="i-utensils" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7a3 3 0 0 0 3 3 3 3 0 0 0 3-3V2"/><line x1="6" y1="12" x2="6" y2="22"/><path d="M17 2c-1.7 0-3 2.5-3 6 0 2.5.8 4 2 4v10"/></symbol>
+<symbol id="i-hospital" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="12" y1="9" x2="12" y2="15"/><line x1="9" y1="12" x2="15" y2="12"/></symbol>
+<symbol id="i-wrench" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
+<symbol id="i-droplet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.7l5.3 5.3a7.5 7.5 0 1 1-10.6 0z"/></symbol>
+<symbol id="i-pill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="8" width="20" height="8" rx="4" transform="rotate(-45 12 12)"/><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"/></symbol>
+<symbol id="i-infinity" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.18 8.03a4 4 0 0 0-5.66 0L12 8.55l-.52-.52a4 4 0 1 0 0 5.66l.52-.52.52.52a4 4 0 1 0 5.66-5.66z"/></symbol>
+<symbol id="i-hand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v7M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2a8 8 0 0 1-8-8v-1a2 2 0 1 1 4 0"/></symbol>
+</svg>
+
 
 <!-- ═══════════════════════════════════════════
      TELA DE LOGIN
@@ -361,7 +464,7 @@ tr:hover td{background:var(--g50)}
     <!-- Passo 2: código + nova senha -->
     <div id="rec-passo-codigo" style="display:none">
       <div style="background:var(--g50);border-radius:var(--r);padding:12px 14px;font-size:.8rem;color:var(--g600);margin-bottom:16px">
-        📧 Se existir uma conta com esse e-mail, enviamos um código de 6 dígitos. Confira também a caixa de spam.
+        <svg class=ico aria-hidden=true><use href=#i-mail></use></svg> Se existir uma conta com esse e-mail, enviamos um código de 6 dígitos. Confira também a caixa de spam.
       </div>
       <div class="field"><label>Código recebido</label><input id="rec-codigo" type="text" inputmode="numeric" maxlength="6" placeholder="000000" style="text-align:center;letter-spacing:8px;font-weight:700;font-size:1.2rem"></div>
       <div class="field"><label>Nova senha</label><input id="rec-senha" type="password" placeholder="Mínimo 8 caracteres" autocomplete="new-password"></div>
@@ -371,7 +474,7 @@ tr:hover td{background:var(--g50)}
     </div>
 
     <div style="text-align:center;margin-top:16px">
-      <a href="#" onclick="voltarParaLogin();return false;" style="color:var(--gray500);font-size:0.78rem;text-decoration:underline">← Voltar para o login</a>
+      <a href="#" onclick="voltarParaLogin();return false;" style="color:var(--gray500);font-size:0.78rem;text-decoration:underline"><svg class=ico aria-hidden=true><use href=#i-arrow-left></use></svg> Voltar para o login</a>
     </div>
   </div>
 
@@ -381,7 +484,7 @@ tr:hover td{background:var(--g50)}
     <div class="login-sub">Confirme este aparelho</div>
 
     <div style="background:var(--g50);border-radius:var(--r);padding:14px;font-size:.82rem;color:var(--g600);margin-bottom:18px;line-height:1.5">
-      🔐 Este aparelho é novo por aqui. Enviamos um código de 6 dígitos para <strong id="disp-email-txt"></strong> para confirmar que é você.
+      <svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Este aparelho é novo por aqui. Enviamos um código de 6 dígitos para <strong id="disp-email-txt"></strong> para confirmar que é você.
     </div>
 
     <div class="field">
@@ -395,7 +498,7 @@ tr:hover td{background:var(--g50)}
       Depois de confirmado, este aparelho não pedirá código de novo por 30 dias.
     </div>
     <div style="text-align:center;margin-top:14px">
-      <a href="#" onclick="voltarParaLogin();return false;" style="color:var(--gray500);font-size:0.78rem;text-decoration:underline">← Voltar para o login</a>
+      <a href="#" onclick="voltarParaLogin();return false;" style="color:var(--gray500);font-size:0.78rem;text-decoration:underline"><svg class=ico aria-hidden=true><use href=#i-arrow-left></use></svg> Voltar para o login</a>
     </div>
   </div>
 </div>
@@ -422,7 +525,7 @@ tr:hover td{background:var(--g50)}
           <img id="foto-perfil-img" src="" style="width:100%;height:100%;object-fit:cover;display:none">
           <span id="foto-perfil-letra">A</span>
         </div>
-        <div style="position:absolute;bottom:-2px;right:-2px;width:14px;height:14px;background:var(--g400);border-radius:50%;border:2px solid var(--brand-bg);display:flex;align-items:center;justify-content:center;font-size:.5rem">📷</div>
+        <div style="position:absolute;bottom:-2px;right:-2px;width:14px;height:14px;background:var(--g400);border-radius:50%;border:2px solid var(--brand-bg);display:flex;align-items:center;justify-content:center;font-size:.5rem"><svg class=ico aria-hidden=true><use href=#i-camera></use></svg></div>
       </div>
         <div>
           <div class="user-name" id="user-name-display">Alexandre</div>
@@ -437,12 +540,12 @@ tr:hover td{background:var(--g50)}
   <div class="main-content">
     <div class="topbar">
       <div style="display:flex;align-items:center;gap:12px">
-        <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+        <button class="menu-toggle" onclick="toggleSidebar()"><svg class=ico aria-hidden=true><use href=#i-menu></use></svg></button>
         <div class="topbar-title" id="topbar-title">Dashboard</div>
       </div>
       <div class="topbar-actions">
-        <div class="search-bar"><span>🔍</span><input placeholder="Buscar..."></div>
-        <div class="notif-btn" onclick="abrirPagina('notificacoes')">🔔<div class="notif-badge" id="notif-count">3</div></div>
+        <div class="search-bar"><span><svg class=ico aria-hidden=true><use href=#i-search></use></svg></span><input placeholder="Buscar..."></div>
+        <div class="notif-btn" onclick="abrirPagina('notificacoes')"><svg class=ico aria-hidden=true><use href=#i-bell></use></svg><div class="notif-badge" id="notif-count">3</div></div>
       </div>
     </div>
 
@@ -452,25 +555,25 @@ tr:hover td{background:var(--g50)}
     <div class="page active" id="pg-dashboard">
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-card-icon" style="background:#edfaf2">👥</div>
+          <div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-users></use></svg></div>
           <div class="stat-card-num" id="stat-funcionarios">—</div>
           <div class="stat-card-lbl">Funcionários</div>
           <div class="stat-card-sub sub-green" id="stat-funcionarios-sub">&nbsp;</div>
         </div>
         <div class="stat-card">
-          <div class="stat-card-icon" style="background:#eff6ff">⏱</div>
+          <div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg></div>
           <div class="stat-card-num" id="stat-online">—</div>
           <div class="stat-card-lbl">Online agora</div>
           <div class="stat-card-sub sub-green" id="stat-online-sub">&nbsp;</div>
         </div>
         <div class="stat-card">
-          <div class="stat-card-icon" style="background:#fffbeb">📋</div>
+          <div class="stat-card-icon" style="background:#fffbeb"><svg class=ico aria-hidden=true><use href=#i-tasks></use></svg></div>
           <div class="stat-card-num" id="stat-tarefas-hoje">—</div>
           <div class="stat-card-lbl">Tarefas hoje</div>
           <div class="stat-card-sub sub-yellow" id="stat-tarefas-hoje-sub">&nbsp;</div>
         </div>
         <div class="stat-card">
-          <div class="stat-card-icon" style="background:#fef2f2">⚠️</div>
+          <div class="stat-card-icon" style="background:#fef2f2"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg></div>
           <div class="stat-card-num" id="stat-alertas">—</div>
           <div class="stat-card-lbl">Alertas validade</div>
           <div class="stat-card-sub sub-red" id="stat-alertas-sub">&nbsp;</div>
@@ -513,7 +616,7 @@ tr:hover td{background:var(--g50)}
 
       <div class="card">
         <div class="card-header">
-          <div class="card-title">⚠️ Alertas de validade urgentes</div>
+          <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Alertas de validade urgentes</div>
           <button class="btn btn-sm btn-secondary" onclick="abrirPagina('validade')">Gerenciar</button>
         </div>
         <div class="card-body" style="padding:12px 0" id="dashboard-alertas-validade">
@@ -526,13 +629,13 @@ tr:hover td{background:var(--g50)}
     <!-- FUNCIONÁRIOS -->
     <div class="page" id="pg-funcionarios">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-        <div class="search-bar" style="max-width:100%"><span>🔍</span><input placeholder="Buscar funcionário..."></div>
+        <div class="search-bar" style="max-width:100%"><span><svg class=ico aria-hidden=true><use href=#i-search></use></svg></span><input placeholder="Buscar funcionário..."></div>
         <button class="btn btn-primary" onclick="abrirModal('modal-add-func')">+ Adicionar</button>
       </div>
 
       <!-- Aprovações pendentes -->
       <div class="card" id="card-aprovacoes" style="display:none">
-        <div class="card-header"><div class="card-title">🕐 Aguardando aprovação</div></div>
+        <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg> Aguardando aprovação</div></div>
         <div class="card-body" style="padding:0">
           <table><thead><tr><th>Nome</th><th>E-mail</th><th>Solicitado em</th><th>Ação</th></tr></thead>
           <tbody id="lista-aprovacoes"></tbody></table>
@@ -561,10 +664,10 @@ tr:hover td{background:var(--g50)}
         <div class="ponto-time" id="relogio">00:00:00</div>
         <div style="font-size:.85rem;color:rgba(255,255,255,.7)" id="ponto-data"></div>
         <div class="ponto-btns">
-          <button class="ponto-btn ponto-btn-entrada" id="btn-entrada" onclick="baterPonto('entrada')">▶ Entrada</button>
-          <button class="ponto-btn ponto-btn-intervalo" id="btn-intervalo" onclick="baterPonto('intervalo')" disabled>☕ Intervalo</button>
-          <button class="ponto-btn ponto-btn-retorno" id="btn-retorno" onclick="baterPonto('retorno')" disabled>↩ Retorno</button>
-          <button class="ponto-btn ponto-btn-saida" id="btn-saida" onclick="baterPonto('saida')" disabled>■ Saída</button>
+          <button class="ponto-btn ponto-btn-entrada" id="btn-entrada" onclick="baterPonto('entrada')"><svg class=ico aria-hidden=true><use href=#i-play></use></svg> Entrada</button>
+          <button class="ponto-btn ponto-btn-intervalo" id="btn-intervalo" onclick="baterPonto('intervalo')" disabled><svg class=ico aria-hidden=true><use href=#i-coffee></use></svg> Intervalo</button>
+          <button class="ponto-btn ponto-btn-retorno" id="btn-retorno" onclick="baterPonto('retorno')" disabled><svg class=ico aria-hidden=true><use href=#i-return></use></svg> Retorno</button>
+          <button class="ponto-btn ponto-btn-saida" id="btn-saida" onclick="baterPonto('saida')" disabled><svg class=ico aria-hidden=true><use href=#i-stop></use></svg> Saída</button>
         </div>
         <div id="ponto-status" style="margin-top:14px;font-size:.8rem;color:rgba(255,255,255,.7)"></div>
       </div>
@@ -583,11 +686,11 @@ tr:hover td{background:var(--g50)}
         </div>
 
         <div class="card">
-          <div class="card-header"><div class="card-title">📍 Localização da última batida</div></div>
+          <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Localização da última batida</div></div>
           <div class="card-body">
             <div class="mapa-container">
               <div class="mapa-placeholder" id="mapa-ponto">
-                <span style="font-size:2rem">📍</span>
+                <span style="font-size:2rem"><svg class=ico aria-hidden=true><use href=#i-pin></use></svg></span>
                 <span>Bata o ponto para ver a localização</span>
               </div>
               <iframe id="mapa-iframe" src="" style="width:100%;height:200px;border:none;display:none" allowfullscreen></iframe>
@@ -610,7 +713,7 @@ tr:hover td{background:var(--g50)}
              Removido o dado fixo enganoso em vez de deixá-lo parado
              mostrando sempre as mesmas datas passadas. -->
         <div class="card-body empty-state">
-          <div class="icon">📅</div>
+          <div class="icon"><svg class=ico aria-hidden=true><use href=#i-calendar></use></svg></div>
           <p>Histórico mensal detalhado ainda não está disponível — em desenvolvimento.<br>O registro de hoje aparece na tabela acima.</p>
         </div>
       </div>
@@ -639,14 +742,14 @@ tr:hover td{background:var(--g50)}
     <div class="page" id="pg-validade">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
         <div style="display:flex;gap:8px">
-          <button class="btn btn-sm btn-danger" onclick="filtrarValidade('urgente')">⚠️ Urgente</button>
+          <button class="btn btn-sm btn-danger" onclick="filtrarValidade('urgente')"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Urgente</button>
           <button class="btn btn-sm btn-secondary" onclick="filtrarValidade('todos')">Todos</button>
         </div>
         <button class="btn btn-primary" onclick="abrirModal('modal-add-produto')">+ Cadastrar produto</button>
       </div>
 
       <div class="card" style="margin-bottom:16px" id="card-validade-urgentes">
-        <div class="card-header"><div class="card-title">⚠️ Vencimento próximo</div></div>
+        <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Vencimento próximo</div></div>
         <div class="card-body" style="padding:12px" id="lista-validade-urgentes">
           <div class="skel-row"><div class="skel" style="width:44px;height:44px;border-radius:12px;flex-shrink:0"></div><div style="flex:1"><div class="skel skel-text" style="width:55%"></div><div class="skel skel-text" style="width:30%"></div></div></div>
         </div>
@@ -673,7 +776,7 @@ tr:hover td{background:var(--g50)}
       <div class="grid-2">
         <div>
           <div class="card" style="margin-bottom:14px">
-            <div class="card-header"><div class="card-title">👑 Dono</div><span class="badge badge-purple">Nível máximo</span></div>
+            <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-crown></use></svg> Dono</div><span class="badge badge-purple">Nível máximo</span></div>
             <div class="card-body">
               <p style="font-size:.82rem;color:var(--gray500);margin-bottom:12px">Acesso total e irrestrito. Não pode ser modificado.</p>
               <div class="perm-row"><span class="perm-label">Ver faturamento</span><button class="toggle-sw on"><div class="toggle-dot"></div></button></div>
@@ -685,7 +788,7 @@ tr:hover td{background:var(--g50)}
           </div>
 
           <div class="card">
-            <div class="card-header"><div class="card-title">🔵 Gerente</div><button class="btn btn-sm btn-secondary">Editar</button></div>
+            <div class="card-header"><div class="card-title"><span class=dot style=background:#3b82f6></span> Gerente</div><button class="btn btn-sm btn-secondary">Editar</button></div>
             <div class="card-body">
               <div class="perm-row"><span class="perm-label">Ver faturamento</span><button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
               <div class="perm-row"><span class="perm-label">Aprovar funcionários</span><button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
@@ -698,7 +801,7 @@ tr:hover td{background:var(--g50)}
 
         <div>
           <div class="card" style="margin-bottom:14px">
-            <div class="card-header"><div class="card-title">🟡 Atendente</div><button class="btn btn-sm btn-secondary">Editar</button></div>
+            <div class="card-header"><div class="card-title"><span class=dot style=background:#f59e0b></span> Atendente</div><button class="btn btn-sm btn-secondary">Editar</button></div>
             <div class="card-body">
               <div class="perm-row"><span class="perm-label">Ver faturamento</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
               <div class="perm-row"><span class="perm-label">Aprovar funcionários</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
@@ -709,7 +812,7 @@ tr:hover td{background:var(--g50)}
           </div>
 
           <div class="card">
-            <div class="card-header"><div class="card-title">🟢 Estoquista</div><button class="btn btn-sm btn-secondary">Editar</button></div>
+            <div class="card-header"><div class="card-title"><span class=dot style=background:var(--g400,#25b251)></span> Estoquista</div><button class="btn btn-sm btn-secondary">Editar</button></div>
             <div class="card-body">
               <div class="perm-row"><span class="perm-label">Ver faturamento</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
               <div class="perm-row"><span class="perm-label">Aprovar funcionários</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
@@ -743,10 +846,10 @@ tr:hover td{background:var(--g50)}
               <div class="field"><label>Cor dos botões</label><div style="display:flex;gap:8px;align-items:center"><input type="color" id="wl-btn" value="#1e8a40" oninput="atualizarPreview()" style="width:40px;height:40px;border:none;border-radius:8px;cursor:pointer"><input id="wl-btn-hex" value="#1e8a40" style="flex:1;padding:8px 12px;border:1.5px solid var(--gray100);border-radius:8px;font-family:var(--font)"></div></div>
               <div class="field"><label>Cor de destaque</label><div style="display:flex;gap:8px;align-items:center"><input type="color" id="wl-accent" value="#3dd669" oninput="atualizarPreview()" style="width:40px;height:40px;border:none;border-radius:8px;cursor:pointer"><input id="wl-accent-hex" value="#3dd669" style="flex:1;padding:8px 12px;border:1.5px solid var(--gray100);border-radius:8px;font-family:var(--font)"></div></div>
               <div style="display:flex;gap:8px;margin-top:4px">
-                <button class="btn btn-secondary btn-sm" onclick="aplicarTema('#1e3a5f','#2563eb','#60a5fa')">🔵 Azul</button>
-                <button class="btn btn-secondary btn-sm" onclick="aplicarTema('#3b0764','#7c3aed','#a78bfa')">🟣 Roxo</button>
-                <button class="btn btn-secondary btn-sm" onclick="aplicarTema('#7f1d1d','#dc2626','#f87171')">🔴 Vermelho</button>
-                <button class="btn btn-secondary btn-sm" onclick="aplicarTema('#713f12','#d97706','#fbbf24')">🟠 Laranja</button>
+                <button class="btn btn-secondary btn-sm" onclick="aplicarTema('#1e3a5f','#2563eb','#60a5fa')"><span class=dot style=background:#3b82f6></span> Azul</button>
+                <button class="btn btn-secondary btn-sm" onclick="aplicarTema('#3b0764','#7c3aed','#a78bfa')"><span class=dot style=background:#8b5cf6></span> Roxo</button>
+                <button class="btn btn-secondary btn-sm" onclick="aplicarTema('#7f1d1d','#dc2626','#f87171')"><span class=dot style=background:#ef4444></span> Vermelho</button>
+                <button class="btn btn-secondary btn-sm" onclick="aplicarTema('#713f12','#d97706','#fbbf24')"><span class=dot style=background:#f97316></span> Laranja</button>
               </div>
               <button class="btn btn-primary" style="margin-top:14px;width:100%" onclick="salvarVisual()">Salvar identidade visual</button>
             </div>
@@ -768,11 +871,11 @@ tr:hover td{background:var(--g50)}
                 <div style="background:#f7f8f7;padding:16px">
                   <div style="background:white;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
                     <div style="font-size:.7rem;font-weight:700;color:var(--gray500);margin-bottom:8px">BOM DIA, FUNCIONÁRIO</div>
-                    <div id="wl-btn-preview" style="background:#1e8a40;color:white;border-radius:8px;padding:10px;text-align:center;font-size:.82rem;font-weight:700;cursor:pointer">▶ Registrar entrada</div>
+                    <div id="wl-btn-preview" style="background:#1e8a40;color:white;border-radius:8px;padding:10px;text-align:center;font-size:.82rem;font-weight:700;cursor:pointer"><svg class=ico aria-hidden=true><use href=#i-play></use></svg> Registrar entrada</div>
                   </div>
                   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
                     <div style="background:white;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.06)"><div style="font-size:1.3rem;font-weight:800;color:#1a1c1a">3</div><div style="font-size:.7rem;color:var(--gray500)">Tarefas hoje</div></div>
-                    <div style="background:white;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.06)"><div id="wl-accent-preview" style="font-size:1.3rem;font-weight:800;color:#3dd669">●</div><div style="font-size:.7rem;color:var(--gray500)">Online</div></div>
+                    <div style="background:white;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.06)"><div id="wl-accent-preview" style="font-size:1.3rem;font-weight:800;color:#3dd669"><span class=dot style=background:currentColor></span></div><div style="font-size:.7rem;color:var(--gray500)">Online</div></div>
                   </div>
                 </div>
               </div>
@@ -796,7 +899,7 @@ tr:hover td{background:var(--g50)}
       <div class="card">
         <div class="card-header"><div class="card-title">Central de notificações</div></div>
         <div class="card-body empty-state">
-          <div class="icon">🔔</div>
+          <div class="icon"><svg class=ico aria-hidden=true><use href=#i-bell></use></svg></div>
           <div style="font-weight:700;color:var(--gray700);margin-bottom:6px">Central de notificações ainda não está disponível</div>
           <p>Alertas de validade e tarefas atrasadas já chegam por push notification (quando ativado no navegador). O histórico consultável aqui está em desenvolvimento.</p>
         </div>
@@ -808,7 +911,7 @@ tr:hover td{background:var(--g50)}
     <div class="page" id="pg-comunicados">
       <div class="grid-2">
         <div class="card">
-          <div class="card-header"><div class="card-title">📣 Novo comunicado</div></div>
+          <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg> Novo comunicado</div></div>
           <div class="card-body">
             <div class="field">
               <label>Enviar para</label>
@@ -834,7 +937,7 @@ tr:hover td{background:var(--g50)}
             </div>
 
             <div style="background:var(--yellow-bg);border:1px solid #fde68a;border-radius:var(--r);padding:12px 14px;font-size:.8rem;color:#92400e;margin-bottom:14px">
-              ⚠️ O envio é imediato e não pode ser desfeito. As empresas recebem por e-mail e por notificação no app.
+              <svg class=ico aria-hidden=true><use href=#i-alert></use></svg> O envio é imediato e não pode ser desfeito. As empresas recebem por e-mail e por notificação no app.
             </div>
 
             <div id="com-erro" style="display:none;background:var(--red-bg);border:1px solid #fca5a5;border-radius:var(--rs);padding:10px 14px;font-size:.82rem;color:#dc2626;margin-bottom:12px"></div>
@@ -860,7 +963,7 @@ tr:hover td{background:var(--g50)}
       </div>
 
       <div id="cupons-aviso-tabela" style="display:none;background:var(--yellow-bg);border:1px solid #fde68a;border-radius:var(--r);padding:14px 16px;font-size:.85rem;color:#92400e;margin-bottom:16px">
-        ⚠️ A tabela <strong>cupons</strong> ainda não existe no banco de dados. Rode o arquivo <code>migrations/001_cupons.sql</code> no SQL Editor do Supabase para ativar os cupons.
+        <svg class=ico aria-hidden=true><use href=#i-alert></use></svg> A tabela <strong>cupons</strong> ainda não existe no banco de dados. Rode o arquivo <code>migrations/001_cupons.sql</code> no SQL Editor do Supabase para ativar os cupons.
       </div>
 
       <div class="card">
@@ -890,7 +993,7 @@ tr:hover td{background:var(--g50)}
     <div class="page" id="pg-escala">
       <div class="card">
         <div class="card-body empty-state">
-          <div class="icon">📅</div>
+          <div class="icon"><svg class=ico aria-hidden=true><use href=#i-calendar></use></svg></div>
           <div style="font-weight:700;color:var(--gray700);margin-bottom:6px">Escala de Trabalho ainda não está disponível</div>
           <p>Esta funcionalidade está em desenvolvimento e será liberada em uma próxima atualização.</p>
         </div>
@@ -900,7 +1003,7 @@ tr:hover td{background:var(--g50)}
     <div class="page" id="pg-mural">
       <div class="card">
         <div class="card-body empty-state">
-          <div class="icon">📢</div>
+          <div class="icon"><svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg></div>
           <div style="font-weight:700;color:var(--gray700);margin-bottom:6px">Mural / Comunicados ainda não está disponível</div>
           <p>Esta funcionalidade está em desenvolvimento e será liberada em uma próxima atualização.</p>
         </div>
@@ -910,7 +1013,7 @@ tr:hover td{background:var(--g50)}
     <div class="page" id="pg-relatorios">
       <div class="card">
         <div class="card-body empty-state">
-          <div class="icon">📈</div>
+          <div class="icon"><svg class=ico aria-hidden=true><use href=#i-report></use></svg></div>
           <div style="font-weight:700;color:var(--gray700);margin-bottom:6px">Relatórios ainda não estão disponíveis</div>
           <p>Enquanto isso, os números reais de Dashboard, Salários e Ausências já refletem os dados da sua equipe.</p>
         </div>
@@ -923,37 +1026,37 @@ tr:hover td{background:var(--g50)}
       <!-- MÉTRICAS GERAIS -->
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-card-icon" style="background:#edfaf2">🏢</div>
+          <div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-building></use></svg></div>
           <div class="stat-card-num">47</div>
           <div class="stat-card-lbl">Empresas ativas</div>
-          <div class="stat-card-sub sub-green">↑ 3 este mês</div>
+          <div class="stat-card-sub sub-green"><svg class=ico aria-hidden=true><use href=#i-arrow-up></use></svg> 3 este mês</div>
         </div>
         <div class="stat-card">
-          <div class="stat-card-icon" style="background:#eff6ff">💰</div>
+          <div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-money></use></svg></div>
           <div class="stat-card-num">R$ 1.170</div>
           <div class="stat-card-lbl">MRR</div>
-          <div class="stat-card-sub sub-green">↑ 6,7% este mês</div>
+          <div class="stat-card-sub sub-green"><svg class=ico aria-hidden=true><use href=#i-arrow-up></use></svg> 6,7% este mês</div>
         </div>
         <div class="stat-card">
-          <div class="stat-card-icon" style="background:#fffbeb">👥</div>
+          <div class="stat-card-icon" style="background:#fffbeb"><svg class=ico aria-hidden=true><use href=#i-users></use></svg></div>
           <div class="stat-card-num">312</div>
           <div class="stat-card-lbl">Usuários na plataforma</div>
           <div class="stat-card-sub sub-green">Funcionários ativos</div>
         </div>
         <div class="stat-card">
-          <div class="stat-card-icon" style="background:#f5f3ff">📈</div>
+          <div class="stat-card-icon" style="background:#f5f3ff"><svg class=ico aria-hidden=true><use href=#i-report></use></svg></div>
           <div class="stat-card-num">94%</div>
           <div class="stat-card-lbl">Taxa de retenção</div>
           <div class="stat-card-sub sub-green">Últimos 30 dias</div>
         </div>
         <div class="stat-card">
-          <div class="stat-card-icon" style="background:#fef2f2">🔄</div>
+          <div class="stat-card-icon" style="background:#fef2f2"><svg class=ico aria-hidden=true><use href=#i-refresh></use></svg></div>
           <div class="stat-card-num">3</div>
           <div class="stat-card-lbl">Cancelamentos</div>
           <div class="stat-card-sub sub-red">Este mês</div>
         </div>
         <div class="stat-card">
-          <div class="stat-card-icon" style="background:#edfaf2">⚡</div>
+          <div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></div>
           <div class="stat-card-num">99,8%</div>
           <div class="stat-card-lbl">Uptime plataforma</div>
           <div class="stat-card-sub sub-green">Últimos 30 dias</div>
@@ -962,14 +1065,14 @@ tr:hover td{background:var(--g50)}
 
       <!-- ABAS DO PAINEL OWNER -->
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
-        <button class="btn btn-primary btn-sm owner-tab active" onclick="ownerTab('assinantes')">🏢 Assinantes</button>
-        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('financeiro')">💰 Financeiro</button>
-        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('plataforma')">⚙️ Plataforma</button>
-        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('suporte')">🎧 Suporte</button>
-        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('marketing')">📣 Marketing</button>
-        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('logs')">📋 Logs</button>
-        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('api')">🔌 API</button>
-        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('configuracoes')">🛠️ Configurações</button>
+        <button class="btn btn-primary btn-sm owner-tab active" onclick="ownerTab('assinantes')"><svg class=ico aria-hidden=true><use href=#i-building></use></svg> Assinantes</button>
+        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('financeiro')"><svg class=ico aria-hidden=true><use href=#i-money></use></svg> Financeiro</button>
+        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('plataforma')"><svg class=ico aria-hidden=true><use href=#i-settings></use></svg> Plataforma</button>
+        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('suporte')"><svg class=ico aria-hidden=true><use href=#i-support></use></svg> Suporte</button>
+        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('marketing')"><svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg> Marketing</button>
+        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('logs')"><svg class=ico aria-hidden=true><use href=#i-tasks></use></svg> Logs</button>
+        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('api')"><svg class=ico aria-hidden=true><use href=#i-plug></use></svg> API</button>
+        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('configuracoes')"><svg class=ico aria-hidden=true><use href=#i-tool></use></svg> Configurações</button>
       </div>
 
       <!-- ABA: ASSINANTES -->
@@ -1042,10 +1145,10 @@ tr:hover td{background:var(--g50)}
       <!-- ABA: FINANCEIRO -->
       <div id="owner-financeiro" style="display:none">
         <div class="stats-grid">
-          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2">💰</div><div class="stat-card-num">R$ 1.170</div><div class="stat-card-lbl">MRR atual</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff">📈</div><div class="stat-card-num">R$ 14.040</div><div class="stat-card-lbl">ARR projetado</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb">⚠️</div><div class="stat-card-num">R$ 99,60</div><div class="stat-card-lbl">Inadimplência</div><div class="stat-card-sub sub-red">4 empresas</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2">🔄</div><div class="stat-card-num">R$ 74,70</div><div class="stat-card-lbl">Churn MRR</div><div class="stat-card-sub sub-red">Este mês</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-money></use></svg></div><div class="stat-card-num">R$ 1.170</div><div class="stat-card-lbl">MRR atual</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-report></use></svg></div><div class="stat-card-num">R$ 14.040</div><div class="stat-card-lbl">ARR projetado</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg></div><div class="stat-card-num">R$ 99,60</div><div class="stat-card-lbl">Inadimplência</div><div class="stat-card-sub sub-red">4 empresas</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2"><svg class=ico aria-hidden=true><use href=#i-refresh></use></svg></div><div class="stat-card-num">R$ 74,70</div><div class="stat-card-lbl">Churn MRR</div><div class="stat-card-sub sub-red">Este mês</div></div>
         </div>
         <div class="card" style="margin-bottom:16px">
           <div class="card-header"><div class="card-title">Histórico de receita mensal</div><button class="btn btn-sm btn-secondary">Exportar CSV</button></div>
@@ -1066,8 +1169,8 @@ tr:hover td{background:var(--g50)}
             <table>
               <thead><tr><th>Empresa</th><th>Vencimento</th><th>Dias em atraso</th><th>Ação</th></tr></thead>
               <tbody>
-                <tr><td>Clínica Estética Luz</td><td>01/06/2026</td><td style="color:var(--red);font-weight:700">27 dias</td><td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-secondary" onclick="ownerAcaoEmpresa('notificar')">📧 Notificar</button><button class="btn btn-sm btn-danger" onclick="ownerAcaoEmpresa('suspender')">Suspender</button></div></td></tr>
-                <tr><td>Loja de Roupas Moda</td><td>05/06/2026</td><td style="color:var(--red);font-weight:700">23 dias</td><td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-secondary" onclick="ownerAcaoEmpresa('notificar')">📧 Notificar</button><button class="btn btn-sm btn-danger" onclick="ownerAcaoEmpresa('suspender')">Suspender</button></div></td></tr>
+                <tr><td>Clínica Estética Luz</td><td>01/06/2026</td><td style="color:var(--red);font-weight:700">27 dias</td><td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-secondary" onclick="ownerAcaoEmpresa('notificar')"><svg class=ico aria-hidden=true><use href=#i-mail></use></svg> Notificar</button><button class="btn btn-sm btn-danger" onclick="ownerAcaoEmpresa('suspender')">Suspender</button></div></td></tr>
+                <tr><td>Loja de Roupas Moda</td><td>05/06/2026</td><td style="color:var(--red);font-weight:700">23 dias</td><td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-secondary" onclick="ownerAcaoEmpresa('notificar')"><svg class=ico aria-hidden=true><use href=#i-mail></use></svg> Notificar</button><button class="btn btn-sm btn-danger" onclick="ownerAcaoEmpresa('suspender')">Suspender</button></div></td></tr>
               </tbody>
             </table>
           </div>
@@ -1077,20 +1180,20 @@ tr:hover td{background:var(--g50)}
       <!-- ABA: PLATAFORMA -->
       <div id="owner-plataforma" style="display:none">
         <div class="stats-grid">
-          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2">⚡</div><div class="stat-card-num">99,8%</div><div class="stat-card-lbl">Uptime</div><div class="stat-card-sub sub-green">Últimos 30 dias</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff">🚀</div><div class="stat-card-num">142ms</div><div class="stat-card-lbl">Latência média</div><div class="stat-card-sub sub-green">API resposta</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb">📊</div><div class="stat-card-num">18.4k</div><div class="stat-card-lbl">Requisições/dia</div><div class="stat-card-sub sub-green">Hoje</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2">🗄️</div><div class="stat-card-num">2.3GB</div><div class="stat-card-lbl">Uso de storage</div><div class="stat-card-sub sub-green">de 10GB livres</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></div><div class="stat-card-num">99,8%</div><div class="stat-card-lbl">Uptime</div><div class="stat-card-sub sub-green">Últimos 30 dias</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-rocket></use></svg></div><div class="stat-card-num">142ms</div><div class="stat-card-lbl">Latência média</div><div class="stat-card-sub sub-green">API resposta</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb"><svg class=ico aria-hidden=true><use href=#i-dashboard></use></svg></div><div class="stat-card-num">18.4k</div><div class="stat-card-lbl">Requisições/dia</div><div class="stat-card-sub sub-green">Hoje</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2"><svg class=ico aria-hidden=true><use href=#i-database></use></svg></div><div class="stat-card-num">2.3GB</div><div class="stat-card-lbl">Uso de storage</div><div class="stat-card-sub sub-green">de 10GB livres</div></div>
         </div>
         <div class="grid-2">
           <div class="card">
             <div class="card-header"><div class="card-title">Status dos serviços</div></div>
             <div class="card-body">
-              <div class="perm-row"><span class="perm-label">🟢 API Backend (Render)</span><span class="badge badge-green">Online</span></div>
-              <div class="perm-row"><span class="perm-label">🟢 Site institucional (GitHub Pages)</span><span class="badge badge-green">Online</span></div>
-              <div class="perm-row"><span class="perm-label">🟢 Gateway PIX (Duttyfy)</span><span class="badge badge-green">Online</span></div>
-              <div class="perm-row"><span class="perm-label">🟢 E-mail (Gmail SMTP)</span><span class="badge badge-green">Online</span></div>
-              <div class="perm-row"><span class="perm-label">🟡 Banco de dados</span><span class="badge badge-yellow">Pendente config</span></div>
+              <div class="perm-row"><span class="perm-label"><span class=dot style=background:var(--g400,#25b251)></span> API Backend (Render)</span><span class="badge badge-green">Online</span></div>
+              <div class="perm-row"><span class="perm-label"><span class=dot style=background:var(--g400,#25b251)></span> Site institucional (GitHub Pages)</span><span class="badge badge-green">Online</span></div>
+              <div class="perm-row"><span class="perm-label"><span class=dot style=background:var(--g400,#25b251)></span> Gateway PIX (Duttyfy)</span><span class="badge badge-green">Online</span></div>
+              <div class="perm-row"><span class="perm-label"><span class=dot style=background:var(--g400,#25b251)></span> E-mail (Gmail SMTP)</span><span class="badge badge-green">Online</span></div>
+              <div class="perm-row"><span class="perm-label"><span class=dot style=background:#f59e0b></span> Banco de dados</span><span class="badge badge-yellow">Pendente config</span></div>
             </div>
           </div>
           <div class="card">
@@ -1115,10 +1218,10 @@ tr:hover td{background:var(--g50)}
       <!-- ABA: SUPORTE -->
       <div id="owner-suporte" style="display:none">
         <div class="stats-grid">
-          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2">🎧</div><div class="stat-card-num">4</div><div class="stat-card-lbl">Tickets abertos</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff">✅</div><div class="stat-card-num">28</div><div class="stat-card-lbl">Resolvidos este mês</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb">⏱</div><div class="stat-card-num">2h 14m</div><div class="stat-card-lbl">Tempo médio resposta</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2">⭐</div><div class="stat-card-num">4,8</div><div class="stat-card-lbl">Satisfação média</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-support></use></svg></div><div class="stat-card-num">4</div><div class="stat-card-lbl">Tickets abertos</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg></div><div class="stat-card-num">28</div><div class="stat-card-lbl">Resolvidos este mês</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg></div><div class="stat-card-num">2h 14m</div><div class="stat-card-lbl">Tempo médio resposta</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-star></use></svg></div><div class="stat-card-num">4,8</div><div class="stat-card-lbl">Satisfação média</div></div>
         </div>
         <div class="card">
           <div class="card-header"><div class="card-title">Tickets em aberto</div><button class="btn btn-sm btn-primary">+ Novo ticket</button></div>
@@ -1135,12 +1238,12 @@ tr:hover td{background:var(--g50)}
           </div>
         </div>
         <div class="card">
-          <div class="card-header"><div class="card-title">📢 Enviar comunicado para todas as empresas</div></div>
+          <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg> Enviar comunicado para todas as empresas</div></div>
           <div class="card-body">
             <div class="field"><label>Assunto</label><input placeholder="Ex: Nova funcionalidade disponível!"></div>
             <div class="field"><label>Mensagem</label><textarea placeholder="Escreva o comunicado..." style="width:100%;padding:10px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-family:var(--font);font-size:.9rem;resize:vertical;min-height:100px;outline:none"></textarea></div>
             <div class="field"><label>Destinatários</label><select><option>Todas as empresas (47)</option><option>Apenas ativas (44)</option><option>Apenas trial (3)</option><option>Inadimplentes (4)</option></select></div>
-            <button class="btn btn-primary" onclick="ownerAcao('enviar-comunicado')">📧 Enviar comunicado</button>
+            <button class="btn btn-primary" onclick="ownerAcao('enviar-comunicado')"><svg class=ico aria-hidden=true><use href=#i-mail></use></svg> Enviar comunicado</button>
           </div>
         </div>
       </div>
@@ -1148,10 +1251,10 @@ tr:hover td{background:var(--g50)}
       <!-- ABA: MARKETING -->
       <div id="owner-marketing" style="display:none">
         <div class="stats-grid">
-          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2">🔗</div><div class="stat-card-num">1.240</div><div class="stat-card-lbl">Visitas no site</div><div class="stat-card-sub sub-green">Este mês</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff">🎯</div><div class="stat-card-num">3,8%</div><div class="stat-card-lbl">Taxa de conversão</div><div class="stat-card-sub sub-green">Visita → Trial</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb">💸</div><div class="stat-card-num">R$ 6,55</div><div class="stat-card-lbl">CAC médio</div><div class="stat-card-sub sub-green">Custo aquisição</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#f5f3ff">♾️</div><div class="stat-card-num">R$ 298</div><div class="stat-card-lbl">LTV médio</div><div class="stat-card-sub sub-green">12 meses</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-link></use></svg></div><div class="stat-card-num">1.240</div><div class="stat-card-lbl">Visitas no site</div><div class="stat-card-sub sub-green">Este mês</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-target></use></svg></div><div class="stat-card-num">3,8%</div><div class="stat-card-lbl">Taxa de conversão</div><div class="stat-card-sub sub-green">Visita <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg> Trial</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb"><svg class=ico aria-hidden=true><use href=#i-money></use></svg></div><div class="stat-card-num">R$ 6,55</div><div class="stat-card-lbl">CAC médio</div><div class="stat-card-sub sub-green">Custo aquisição</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#f5f3ff"><svg class=ico aria-hidden=true><use href=#i-infinity></use></svg></div><div class="stat-card-num">R$ 298</div><div class="stat-card-lbl">LTV médio</div><div class="stat-card-sub sub-green">12 meses</div></div>
         </div>
         <div class="grid-2">
           <div class="card">
@@ -1188,7 +1291,7 @@ tr:hover td{background:var(--g50)}
             <div style="background:var(--gray50);border-radius:var(--r);padding:12px;font-size:.82rem;color:var(--gray700);font-family:monospace;word-break:break-all" id="utm-resultado">
               https://811freitas.github.io/Worka-backend/worka.html?utm_source=instagram&utm_medium=cpc&utm_campaign=lancamento
             </div>
-            <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="copiarUTM()">📋 Copiar link</button>
+            <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="copiarUTM()"><svg class=ico aria-hidden=true><use href=#i-tasks></use></svg> Copiar link</button>
           </div>
         </div>
       </div>
@@ -1215,7 +1318,7 @@ tr:hover td{background:var(--g50)}
         <div class="card">
           <div class="card-header"><div class="card-title">Erros recentes</div></div>
           <div class="card-body">
-            <div style="background:var(--gray50);border-radius:var(--r);padding:16px;text-align:center;color:var(--gray500);font-size:.85rem">✅ Nenhum erro crítico nas últimas 24 horas.</div>
+            <div style="background:var(--gray50);border-radius:var(--r);padding:16px;text-align:center;color:var(--gray500);font-size:.85rem"><svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> Nenhum erro crítico nas últimas 24 horas.</div>
           </div>
         </div>
       </div>
@@ -1223,10 +1326,10 @@ tr:hover td{background:var(--g50)}
       <!-- ABA: API -->
       <div id="owner-api" style="display:none">
         <div class="stats-grid">
-          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2">🔌</div><div class="stat-card-num">18.4k</div><div class="stat-card-lbl">Chamadas hoje</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff">⚡</div><div class="stat-card-num">142ms</div><div class="stat-card-lbl">Latência média</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2">✅</div><div class="stat-card-num">99,2%</div><div class="stat-card-lbl">Taxa de sucesso</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2">❌</div><div class="stat-card-num">147</div><div class="stat-card-lbl">Erros hoje</div><div class="stat-card-sub sub-red">0,8% das chamadas</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-plug></use></svg></div><div class="stat-card-num">18.4k</div><div class="stat-card-lbl">Chamadas hoje</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></div><div class="stat-card-num">142ms</div><div class="stat-card-lbl">Latência média</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg></div><div class="stat-card-num">99,2%</div><div class="stat-card-lbl">Taxa de sucesso</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2"><svg class=ico aria-hidden=true><use href=#i-absent></use></svg></div><div class="stat-card-num">147</div><div class="stat-card-lbl">Erros hoje</div><div class="stat-card-sub sub-red">0,8% das chamadas</div></div>
         </div>
         <div class="card" style="margin-bottom:16px">
           <div class="card-header"><div class="card-title">Endpoints mais usados</div></div>
@@ -1261,7 +1364,7 @@ tr:hover td{background:var(--g50)}
       <div id="owner-configuracoes" style="display:none">
         <div class="grid-2">
           <div class="card">
-            <div class="card-header"><div class="card-title">⚙️ Configurações gerais</div></div>
+            <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-settings></use></svg> Configurações gerais</div></div>
             <div class="card-body">
               <div class="field"><label>Nome da plataforma</label><input value="Worka"></div>
               <div class="field"><label>E-mail de suporte</label><input value="suporte@worka.app"></div>
@@ -1275,7 +1378,7 @@ tr:hover td{background:var(--g50)}
             </div>
           </div>
           <div class="card">
-            <div class="card-header"><div class="card-title">🔐 Segurança</div></div>
+            <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Segurança</div></div>
             <div class="card-body">
               <div class="field"><label>Senha atual do Owner</label><input type="password" placeholder="••••••••"></div>
               <div class="field"><label>Nova senha</label><input type="password" placeholder="••••••••"></div>
@@ -1288,14 +1391,14 @@ tr:hover td{background:var(--g50)}
           </div>
         </div>
         <div class="card">
-          <div class="card-header"><div class="card-title">📧 Configurações de e-mail</div></div>
+          <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-mail></use></svg> Configurações de e-mail</div></div>
           <div class="card-body">
             <div class="form-grid">
               <div class="field"><label>Gmail SMTP</label><input value="workappoficial@gmail.com"></div>
               <div class="field"><label>Senha de app</label><input type="password" value="••••••••••••••••"></div>
               <div class="field form-full"><label>E-mail remetente exibido</label><input value="Worka &lt;noreply@worka.app&gt;"></div>
             </div>
-            <button class="btn btn-secondary" onclick="ownerAcao('testar-email')">📧 Enviar e-mail de teste</button>
+            <button class="btn btn-secondary" onclick="ownerAcao('testar-email')"><svg class=ico aria-hidden=true><use href=#i-mail></use></svg> Enviar e-mail de teste</button>
           </div>
         </div>
       </div>
@@ -1310,10 +1413,10 @@ tr:hover td{background:var(--g50)}
         <div style="font-size:1rem;color:rgba(255,255,255,.8);margin:4px 0" id="func-data"></div>
         <div class="ponto-time" id="func-relogio">00:00:00</div>
         <div class="ponto-btns">
-          <button class="ponto-btn ponto-btn-entrada" onclick="baterPonto('entrada')">▶ Entrada</button>
-          <button class="ponto-btn ponto-btn-intervalo" onclick="baterPonto('intervalo')">☕ Intervalo</button>
-          <button class="ponto-btn ponto-btn-retorno" onclick="baterPonto('retorno')">↩ Retorno</button>
-          <button class="ponto-btn ponto-btn-saida" onclick="baterPonto('saida')">■ Saída</button>
+          <button class="ponto-btn ponto-btn-entrada" onclick="baterPonto('entrada')"><svg class=ico aria-hidden=true><use href=#i-play></use></svg> Entrada</button>
+          <button class="ponto-btn ponto-btn-intervalo" onclick="baterPonto('intervalo')"><svg class=ico aria-hidden=true><use href=#i-coffee></use></svg> Intervalo</button>
+          <button class="ponto-btn ponto-btn-retorno" onclick="baterPonto('retorno')"><svg class=ico aria-hidden=true><use href=#i-return></use></svg> Retorno</button>
+          <button class="ponto-btn ponto-btn-saida" onclick="baterPonto('saida')"><svg class=ico aria-hidden=true><use href=#i-stop></use></svg> Saída</button>
         </div>
       </div>
 
@@ -1326,7 +1429,7 @@ tr:hover td{background:var(--g50)}
       </div>
 
       <div class="card">
-        <div class="card-header"><div class="card-title">📢 Comunicados da empresa</div></div>
+        <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg> Comunicados da empresa</div></div>
         <div class="card-body">
           <div style="padding:12px;background:var(--g50);border-radius:var(--r);border-left:3px solid var(--g400);margin-bottom:10px">
             <div style="font-size:.82rem;font-weight:600;color:var(--g600)">Reunião de equipe</div>
@@ -1351,10 +1454,10 @@ tr:hover td{background:var(--g50)}
       </div>
 
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2">💰</div><div class="stat-card-num" id="stat-folha-total">—</div><div class="stat-card-lbl">Folha total/mês</div></div>
-        <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff">👥</div><div class="stat-card-num" id="stat-folha-func">—</div><div class="stat-card-lbl">Funcionários com salário definido</div></div>
-        <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2">📉</div><div class="stat-card-num" id="stat-folha-faltas">—</div><div class="stat-card-lbl">Faltas este mês</div><div class="stat-card-sub sub-red" id="stat-folha-desconto">&nbsp;</div></div>
-        <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff">📈</div><div class="stat-card-num" id="stat-folha-aumentos">—</div><div class="stat-card-lbl">Aumentos este mês</div></div>
+        <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-money></use></svg></div><div class="stat-card-num" id="stat-folha-total">—</div><div class="stat-card-lbl">Folha total/mês</div></div>
+        <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-users></use></svg></div><div class="stat-card-num" id="stat-folha-func">—</div><div class="stat-card-lbl">Funcionários com salário definido</div></div>
+        <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2"><svg class=ico aria-hidden=true><use href=#i-down></use></svg></div><div class="stat-card-num" id="stat-folha-faltas">—</div><div class="stat-card-lbl">Faltas este mês</div><div class="stat-card-sub sub-red" id="stat-folha-desconto">&nbsp;</div></div>
+        <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-report></use></svg></div><div class="stat-card-num" id="stat-folha-aumentos">—</div><div class="stat-card-lbl">Aumentos este mês</div></div>
       </div>
 
       <div class="card">
@@ -1376,9 +1479,9 @@ tr:hover td{background:var(--g50)}
     <div class="page" id="pg-ausencias">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
         <div class="stats-grid" style="flex:1;margin-bottom:0;margin-right:16px">
-          <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2">❌</div><div class="stat-card-num">2</div><div class="stat-card-lbl">Faltas este mês</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb">📝</div><div class="stat-card-num">1</div><div class="stat-card-lbl">Justificadas</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2">⚠️</div><div class="stat-card-num">1</div><div class="stat-card-lbl">Sem justificativa</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2"><svg class=ico aria-hidden=true><use href=#i-absent></use></svg></div><div class="stat-card-num">2</div><div class="stat-card-lbl">Faltas este mês</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb"><svg class=ico aria-hidden=true><use href=#i-edit></use></svg></div><div class="stat-card-num">1</div><div class="stat-card-lbl">Justificadas</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg></div><div class="stat-card-num">1</div><div class="stat-card-lbl">Sem justificativa</div></div>
         </div>
         <button class="btn btn-primary" onclick="abrirModalAusencia()">+ Registrar ausência</button>
       </div>
@@ -1397,7 +1500,7 @@ tr:hover td{background:var(--g50)}
       </div>
 
       <div class="card">
-        <div class="card-header"><div class="card-title">⚙️ Configurar valor por falta</div></div>
+        <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-settings></use></svg> Configurar valor por falta</div></div>
         <div class="card-body">
           <div class="form-grid">
             <div class="field"><label>Tipo de desconto por falta</label>
@@ -1431,7 +1534,7 @@ tr:hover td{background:var(--g50)}
           <div id="preview-letra" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2.5rem;font-weight:800;color:var(--g600)">A</div>
         </div>
         <input type="file" id="input-foto" accept="image/*" style="display:none" onchange="previewFoto(this)">
-        <button class="btn btn-secondary" style="width:100%;margin-bottom:8px" onclick="document.getElementById('input-foto').click()">📷 Escolher foto</button>
+        <button class="btn btn-secondary" style="width:100%;margin-bottom:8px" onclick="document.getElementById('input-foto').click()"><svg class=ico aria-hidden=true><use href=#i-camera></use></svg> Escolher foto</button>
         <button class="btn btn-primary" style="width:100%" onclick="salvarFotoPerfil()">Salvar foto</button>
         <button class="btn btn-secondary btn-sm" style="width:100%;margin-top:8px" onclick="fecharModal('modal-foto-perfil')">Cancelar</button>
       </div>
@@ -1440,7 +1543,7 @@ tr:hover td{background:var(--g50)}
     <!-- ── MODAL AUMENTO ── -->
     <div class="modal-overlay" id="modal-aumento">
       <div class="modal" style="max-width:400px">
-        <div class="modal-title">💰 Definir novo salário</div>
+        <div class="modal-title"><svg class=ico aria-hidden=true><use href=#i-money></use></svg> Definir novo salário</div>
         <div id="aumento-nome" style="font-size:.85rem;color:var(--gray500);margin-bottom:16px"></div>
         <div class="field"><label>Salário atual</label><input type="number" id="salario-atual" readonly style="background:var(--gray50)"></div>
         <div class="field"><label>Novo salário (R$)</label><input type="number" id="salario-novo" placeholder="0,00"></div>
@@ -1483,7 +1586,7 @@ tr:hover td{background:var(--g50)}
          mas não há coluna nenhuma no banco pra guardar isso — o botão
          Salvar só fechava o modal sem persistir nada. Removidos até
          existir suporte real; o campo restante usa a mesma rota
-         POST /salarios/ajuste já usada por "↑ Aumentar" na tabela. -->
+         POST /salarios/ajuste já usada por "<svg class=ico aria-hidden=true><use href=#i-arrow-up></use></svg> Aumentar" na tabela. -->
     <div class="modal-overlay" id="modal-add-salario">
       <div class="modal">
         <div class="modal-title">Definir salário</div>
@@ -1575,7 +1678,7 @@ tr:hover td{background:var(--g50)}
 <!-- Modal criar cupom -->
 <div class="modal-overlay" id="modal-add-cupom">
   <div class="modal" style="max-width:460px">
-    <div class="modal-title">🎟️ Criar cupom de desconto</div>
+    <div class="modal-title"><svg class=ico aria-hidden=true><use href=#i-ticket></use></svg> Criar cupom de desconto</div>
     <div class="field">
       <label>Código do cupom</label>
       <input id="cp-codigo" placeholder="Ex: LANCAMENTO20" style="text-transform:uppercase" maxlength="40">
@@ -1625,7 +1728,7 @@ tr:hover td{background:var(--g50)}
     <div class="perm-row"><span class="perm-label">Gerenciar validade de produtos</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
     <div class="perm-row"><span class="perm-label">Ver relatórios e histórico</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
     <div id="cargo-aviso" style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;font-size:.82rem;color:#92400e;margin-top:8px">
-      ⚠️ Criação de cargos customizados ainda não é suportada pelo backend (a tabela existe, mas nenhuma rota grava ou lê cargos ainda). O sistema de permissões continua usando os papéis fixos Dono / Gerente / Funcionário.
+      <svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Criação de cargos customizados ainda não é suportada pelo backend (a tabela existe, mas nenhuma rota grava ou lê cargos ainda). O sistema de permissões continua usando os papéis fixos Dono / Gerente / Funcionário.
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="fecharModal('modal-add-cargo')">Fechar</button>
@@ -1643,7 +1746,7 @@ tr:hover td{background:var(--g50)}
     <div id="modal-mapa-info" style="font-size:.82rem;color:var(--gray500)"></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="fecharModal('modal-mapa')">Fechar</button>
-      <a id="modal-mapa-link" href="#" target="_blank" class="btn btn-primary">Abrir no Google Maps ↗</a>
+      <a id="modal-mapa-link" href="#" target="_blank" class="btn btn-primary">Abrir no Google Maps <svg class=ico aria-hidden=true><use href=#i-arrow-up></use></svg></a>
     </div>
   </div>
 </div>
@@ -1659,30 +1762,30 @@ var tipoLogin = 'dono';
 var menus = {
   dono: [
     {sec:'Principal'},
-    {id:'dashboard',icon:'📊',label:'Dashboard'},
-    {id:'funcionarios',icon:'👥',label:'Funcionários'},
-    {id:'ponto',icon:'⏱',label:'Controle de Ponto'},
-    {id:'tarefas',icon:'📋',label:'Tarefas'},
+    {id:'dashboard',icon:'<svg class=ico aria-hidden=true><use href=#i-dashboard></use></svg>',label:'Dashboard'},
+    {id:'funcionarios',icon:'<svg class=ico aria-hidden=true><use href=#i-users></use></svg>',label:'Funcionários'},
+    {id:'ponto',icon:'<svg class=ico aria-hidden=true><use href=#i-clock></use></svg>',label:'Controle de Ponto'},
+    {id:'tarefas',icon:'<svg class=ico aria-hidden=true><use href=#i-tasks></use></svg>',label:'Tarefas'},
     {sec:'Gestão'},
-    {id:'salarios',icon:'💰',label:'Salários e Pagamentos'},
-    {id:'ausencias',icon:'❌',label:'Ausências e Faltas'},
-    {id:'escala',icon:'📅',label:'Escala de Trabalho'},
-    {id:'relatorios',icon:'📈',label:'Relatórios'},
+    {id:'salarios',icon:'<svg class=ico aria-hidden=true><use href=#i-money></use></svg>',label:'Salários e Pagamentos'},
+    {id:'ausencias',icon:'<svg class=ico aria-hidden=true><use href=#i-absent></use></svg>',label:'Ausências e Faltas'},
+    {id:'escala',icon:'<svg class=ico aria-hidden=true><use href=#i-calendar></use></svg>',label:'Escala de Trabalho'},
+    {id:'relatorios',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Relatórios'},
     {sec:'Recursos'},
-    {id:'validade',icon:'⚠️',label:'Validade de Produtos'},
-    {id:'mural',icon:'📢',label:'Mural / Comunicados'},
-    {id:'cargos',icon:'🔐',label:'Cargos e Permissões'},
+    {id:'validade',icon:'<svg class=ico aria-hidden=true><use href=#i-alert></use></svg>',label:'Validade de Produtos'},
+    {id:'mural',icon:'<svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg>',label:'Mural / Comunicados'},
+    {id:'cargos',icon:'<svg class=ico aria-hidden=true><use href=#i-lock></use></svg>',label:'Cargos e Permissões'},
     {sec:'Configurações'},
-    {id:'visual',icon:'🎨',label:'Identidade Visual'},
-    {id:'notificacoes',icon:'🔔',label:'Notificações'},
+    {id:'visual',icon:'<svg class=ico aria-hidden=true><use href=#i-palette></use></svg>',label:'Identidade Visual'},
+    {id:'notificacoes',icon:'<svg class=ico aria-hidden=true><use href=#i-bell></use></svg>',label:'Notificações'},
   ],
   funcionario: [
     {sec:'Meu espaço'},
-    {id:'meu-painel',icon:'🏠',label:'Início'},
-    {id:'ponto',icon:'⏱',label:'Meu Ponto'},
-    {id:'tarefas',icon:'📋',label:'Minhas Tarefas'},
-    {id:'mural',icon:'📢',label:'Comunicados'},
-    {id:'notificacoes',icon:'🔔',label:'Notificações'},
+    {id:'meu-painel',icon:'<svg class=ico aria-hidden=true><use href=#i-home></use></svg>',label:'Início'},
+    {id:'ponto',icon:'<svg class=ico aria-hidden=true><use href=#i-clock></use></svg>',label:'Meu Ponto'},
+    {id:'tarefas',icon:'<svg class=ico aria-hidden=true><use href=#i-tasks></use></svg>',label:'Minhas Tarefas'},
+    {id:'mural',icon:'<svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg>',label:'Comunicados'},
+    {id:'notificacoes',icon:'<svg class=ico aria-hidden=true><use href=#i-bell></use></svg>',label:'Notificações'},
   ],
   // O owner da Worka vê o produto inteiro (mesmos itens do dono) mais
   // a seção administrativa da plataforma. Os dados das telas de dono
@@ -1690,26 +1793,26 @@ var menus = {
   // então ele navega por tudo sem acessar a conta de nenhum cliente.
   owner: [
     {sec:'Worka Admin'},
-    {id:'owner',icon:'👑',label:'Painel Owner'},
-    {id:'comunicados',icon:'📣',label:'Enviar Comunicado'},
-    {id:'cupons',icon:'🎟️',label:'Cupons de Desconto'},
+    {id:'owner',icon:'<svg class=ico aria-hidden=true><use href=#i-crown></use></svg>',label:'Painel Owner'},
+    {id:'comunicados',icon:'<svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg>',label:'Enviar Comunicado'},
+    {id:'cupons',icon:'<svg class=ico aria-hidden=true><use href=#i-ticket></use></svg>',label:'Cupons de Desconto'},
     {sec:'Principal'},
-    {id:'dashboard',icon:'📊',label:'Dashboard'},
-    {id:'funcionarios',icon:'👥',label:'Funcionários'},
-    {id:'ponto',icon:'⏱',label:'Controle de Ponto'},
-    {id:'tarefas',icon:'📋',label:'Tarefas'},
+    {id:'dashboard',icon:'<svg class=ico aria-hidden=true><use href=#i-dashboard></use></svg>',label:'Dashboard'},
+    {id:'funcionarios',icon:'<svg class=ico aria-hidden=true><use href=#i-users></use></svg>',label:'Funcionários'},
+    {id:'ponto',icon:'<svg class=ico aria-hidden=true><use href=#i-clock></use></svg>',label:'Controle de Ponto'},
+    {id:'tarefas',icon:'<svg class=ico aria-hidden=true><use href=#i-tasks></use></svg>',label:'Tarefas'},
     {sec:'Gestão'},
-    {id:'salarios',icon:'💰',label:'Salários e Pagamentos'},
-    {id:'ausencias',icon:'❌',label:'Ausências e Faltas'},
-    {id:'escala',icon:'📅',label:'Escala de Trabalho'},
-    {id:'relatorios',icon:'📈',label:'Relatórios'},
+    {id:'salarios',icon:'<svg class=ico aria-hidden=true><use href=#i-money></use></svg>',label:'Salários e Pagamentos'},
+    {id:'ausencias',icon:'<svg class=ico aria-hidden=true><use href=#i-absent></use></svg>',label:'Ausências e Faltas'},
+    {id:'escala',icon:'<svg class=ico aria-hidden=true><use href=#i-calendar></use></svg>',label:'Escala de Trabalho'},
+    {id:'relatorios',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Relatórios'},
     {sec:'Recursos'},
-    {id:'validade',icon:'⚠️',label:'Validade de Produtos'},
-    {id:'mural',icon:'📢',label:'Mural / Comunicados'},
-    {id:'cargos',icon:'🔐',label:'Cargos e Permissões'},
+    {id:'validade',icon:'<svg class=ico aria-hidden=true><use href=#i-alert></use></svg>',label:'Validade de Produtos'},
+    {id:'mural',icon:'<svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg>',label:'Mural / Comunicados'},
+    {id:'cargos',icon:'<svg class=ico aria-hidden=true><use href=#i-lock></use></svg>',label:'Cargos e Permissões'},
     {sec:'Configurações'},
-    {id:'visual',icon:'🎨',label:'Identidade Visual'},
-    {id:'notificacoes',icon:'🔔',label:'Notificações'},
+    {id:'visual',icon:'<svg class=ico aria-hidden=true><use href=#i-palette></use></svg>',label:'Identidade Visual'},
+    {id:'notificacoes',icon:'<svg class=ico aria-hidden=true><use href=#i-bell></use></svg>',label:'Notificações'},
   ]
 };
 
@@ -1889,7 +1992,7 @@ function carregarMeuPainelReal(){
     if(badge) badge.textContent = pendentes.length + (pendentes.length===1?' pendente':' pendentes');
 
     if(lista.length === 0){
-      container.innerHTML = '<div style="text-align:center;color:var(--gray500);padding:20px;font-size:.85rem">Nenhuma tarefa para você hoje. ✅</div>';
+      container.innerHTML = '<div style="text-align:center;color:var(--gray500);padding:20px;font-size:.85rem">Nenhuma tarefa para você hoje. <svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg></div>';
       return;
     }
 
@@ -1903,11 +2006,11 @@ function carregarMeuPainelReal(){
     container.innerHTML = lista.map(function(t){
       var prazoTxt = t.prazo ? new Date(t.prazo).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : 'Sem prazo';
       var acoes = t.status !== 'concluida'
-        ? '<div style="margin-top:10px"><button class="btn btn-sm btn-primary" onclick="concluirTarefa(this)">'+(t.requer_foto ? 'Marcar como concluída 📷' : 'Marcar como concluída')+'</button></div>'
+        ? '<div style="margin-top:10px"><button class="btn btn-sm btn-primary" onclick="concluirTarefa(this)">'+(t.requer_foto ? 'Marcar como concluída <svg class=ico aria-hidden=true><use href=#i-camera></use></svg>' : 'Marcar como concluída')+'</button></div>'
         : '';
       return '<div class="tarefa-card" data-id="'+t.id+'"' + (t.status==='concluida' ? ' style="opacity:.6"' : '') + '>' +
         '<div class="tarefa-header"><div class="tarefa-title">'+t.titulo+'</div>'+(badgePorStatus[t.status]||badgePorStatus.pendente)+'</div>' +
-        '<div class="tarefa-meta"><span>📅 '+prazoTxt+'</span>' + (t.requer_foto ? '<span>📷 Requer foto</span>' : '') + '</div>' +
+        '<div class="tarefa-meta"><span><svg class=ico aria-hidden=true><use href=#i-calendar></use></svg> '+prazoTxt+'</span>' + (t.requer_foto ? '<span><svg class=ico aria-hidden=true><use href=#i-camera></use></svg> Requer foto</span>' : '') + '</div>' +
         acoes +
       '</div>';
     }).join('');
@@ -2133,7 +2236,7 @@ function renderizarValidade(lista){
     urgente:  '<span class="badge badge-red">Urgente</span>',
     vencido:  '<span class="badge badge-red">Vencido</span>'
   };
-  var iconePorCategoria = { Alimentos:'🥛', Medicamentos:'💊', Cosméticos:'🧴', Limpeza:'🧽', Outros:'📦' };
+  var iconePorCategoria = { Alimentos:'<svg class=ico aria-hidden=true><use href=#i-droplet></use></svg>', Medicamentos:'<svg class=ico aria-hidden=true><use href=#i-pill></use></svg>', Cosméticos:'<svg class=ico aria-hidden=true><use href=#i-droplet></use></svg>', Limpeza:'<svg class=ico aria-hidden=true><use href=#i-droplet></use></svg>', Outros:'<svg class=ico aria-hidden=true><use href=#i-package></use></svg>' };
 
   // Tabela completa
   var tbody = document.getElementById('tabela-validade-todos');
@@ -2153,7 +2256,7 @@ function renderizarValidade(lista){
   var container = document.getElementById('lista-validade-urgentes');
   if(container){
     if(urgentes.length === 0){
-      container.innerHTML = '<div style="text-align:center;color:var(--gray500);padding:16px;font-size:.85rem">Nenhum produto com vencimento urgente. ✅</div>';
+      container.innerHTML = '<div style="text-align:center;color:var(--gray500);padding:16px;font-size:.85rem">Nenhum produto com vencimento urgente. <svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg></div>';
     } else {
       container.innerHTML = urgentes.map(function(p){
         var hoje = new Date(); hoje.setHours(0,0,0,0);
@@ -2161,7 +2264,7 @@ function renderizarValidade(lista){
         var dias = Math.ceil((venc - hoje) / (1000*60*60*24));
         var diasTxt = dias < 0 ? 'Vencido há '+Math.abs(dias)+' dia(s)' : dias === 0 ? 'Vence hoje' : dias+' dia(s)';
         var cor = p.status === 'vencido' ? 'var(--red)' : 'var(--red)';
-        var icone = iconePorCategoria[p.categoria] || '📦';
+        var icone = iconePorCategoria[p.categoria] || '<svg class=ico aria-hidden=true><use href=#i-package></use></svg>';
         return '<div class="validade-card" style="border-left:3px solid var(--red)">' +
           '<div class="validade-icon" style="background:#fef2f2">'+icone+'</div>' +
           '<div class="validade-info"><div class="validade-nome">'+p.nome+(p.lote?' — Lote '+p.lote:'')+'</div><div class="validade-data">Vence: '+venc.toLocaleDateString('pt-BR')+' · Qtd: '+p.quantidade+' '+(p.unidade||'un')+'</div></div>' +
@@ -2177,7 +2280,7 @@ function filtrarValidade(tipo){
     renderizarValidade(validadeCache.filter(function(p){ return p.status === 'urgente' || p.status === 'vencido'; }));
     var tbody = document.getElementById('tabela-validade-todos');
     if(tbody && validadeCache.filter(function(p){return p.status==='urgente'||p.status==='vencido';}).length === 0){
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gray500);padding:20px">Nenhum produto urgente no momento. ✅</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gray500);padding:20px">Nenhum produto urgente no momento. <svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg></td></tr>';
     }
   } else {
     renderizarValidade(validadeCache);
@@ -2341,7 +2444,7 @@ function carregarFuncionariosReais(){
     tbody.innerHTML = lista.map(function(f){
       var inicial = (f.nome||'?').charAt(0).toUpperCase();
       var statusBadge = f.status === 'ativo'
-        ? '<span class="badge badge-green">● Ativo</span>'
+        ? '<span class="badge badge-green"><span class=dot style=background:currentColor></span> Ativo</span>'
         : f.status === 'pendente'
           ? '<span class="badge badge-yellow">Pendente de aprovação</span>'
           : '<span class="badge badge-red">Inativo</span>';
@@ -2353,7 +2456,7 @@ function carregarFuncionariosReais(){
         '<td>—</td>' + // cargo: ainda não gravado pelo backend (cargo_id sem tabela de resolução ligada)
         '<td>'+statusBadge+'</td>' +
         '<td>—</td>' + // ponto hoje: rota de listagem não faz join com registros_ponto ainda
-        '<td><div style="display:flex;gap:6px"><button class="btn btn-sm btn-secondary" onclick="verFuncionario(\''+f.nome.replace(/'/g,"\\'")+'\')">Ver</button><button class="btn btn-sm btn-danger" onclick="excluirFuncionarioReal(\''+f.id+'\')">🗑</button></div></td>' +
+        '<td><div style="display:flex;gap:6px"><button class="btn btn-sm btn-secondary" onclick="verFuncionario(\''+f.nome.replace(/'/g,"\\'")+'\')">Ver</button><button class="btn btn-sm btn-danger" onclick="excluirFuncionarioReal(\''+f.id+'\')"><svg class=ico aria-hidden=true><use href=#i-trash></use></svg></button></div></td>' +
         '</tr>';
     }).join('');
 
@@ -2373,8 +2476,8 @@ function carregarFuncionariosReais(){
           return '<tr>' +
             '<td>'+f.nome+'</td><td>'+f.email+'</td><td>'+dataSolicitada+'</td>' +
             '<td><div style="display:flex;gap:6px">' +
-            '<button class="btn btn-sm btn-primary" onclick="aprovarFuncionarioReal(\''+f.id+'\')">✓ Aprovar</button>' +
-            '<button class="btn btn-sm btn-danger" onclick="recusarFuncionarioReal(\''+f.id+'\')">✗ Recusar</button>' +
+            '<button class="btn btn-sm btn-primary" onclick="aprovarFuncionarioReal(\''+f.id+'\')"><svg class=ico aria-hidden=true><use href=#i-check></use></svg> Aprovar</button>' +
+            '<button class="btn btn-sm btn-danger" onclick="recusarFuncionarioReal(\''+f.id+'\')"><svg class=ico aria-hidden=true><use href=#i-x></use></svg> Recusar</button>' +
             '</div></td></tr>';
         }).join('');
       }
@@ -2465,7 +2568,7 @@ function carregarPontoReal(){
     tbody.innerHTML = lista.map(function(r){
       var h = new Date(r.horario).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
       var linkMapa = (r.latitude!=null && r.longitude!=null)
-        ? '<a href="#" onclick="verMapa('+r.latitude+','+r.longitude+',\''+(labelsPonto[r.tipo]||r.tipo)+'\')" style="color:var(--g500);font-size:.8rem">📍 Ver no mapa</a>'
+        ? '<a href="#" onclick="verMapa('+r.latitude+','+r.longitude+',\''+(labelsPonto[r.tipo]||r.tipo)+'\')" style="color:var(--g500);font-size:.8rem"><svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Ver no mapa</a>'
         : '<span style="color:var(--gray500);font-size:.8rem">Sem localização</span>';
       return '<tr><td>'+(labelsPonto[r.tipo]||r.tipo)+'</td><td>'+h+'</td><td>'+linkMapa+'</td></tr>';
     }).join('');
@@ -2483,7 +2586,7 @@ function carregarPontoReal(){
  * Preenche o Dashboard com dados reais. Antes, os 4 cartões de
  * estatística e as tabelas "Ponto de hoje" / "Tarefas recentes" /
  * "Alertas de validade" ficavam permanentemente com dados de
- * demonstração fixos no HTML (Maria S., João P., "↑ 2 este mês"
+ * demonstração fixos no HTML (Maria S., João P., "<svg class=ico aria-hidden=true><use href=#i-arrow-up></use></svg> 2 este mês"
  * etc.) mesmo depois de login real — a rota GET /dashboard-data já
  * existia no backend especificamente para isso, mas nada no
  * frontend chamava. Chamado depois que funcionariosCache está
@@ -2511,7 +2614,7 @@ function carregarDashboardReal(){
     var contAlertas = document.getElementById('dashboard-alertas-validade');
     if(contAlertas){
       if(!d.alertas.produtos || d.alertas.produtos.length === 0){
-        contAlertas.innerHTML = '<div style="text-align:center;color:var(--gray500);padding:16px;font-size:.85rem">Nenhum produto com vencimento próximo. ✅</div>';
+        contAlertas.innerHTML = '<div style="text-align:center;color:var(--gray500);padding:16px;font-size:.85rem">Nenhum produto com vencimento próximo. <svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg></div>';
       } else {
         contAlertas.innerHTML = d.alertas.produtos.map(function(p){
           var venc = new Date(p.vencimento+'T00:00:00');
@@ -2519,7 +2622,7 @@ function carregarDashboardReal(){
           var dias = Math.ceil((venc - hoje) / (1000*60*60*24));
           var diasTxt = dias < 0 ? 'Vencido há '+Math.abs(dias)+' dia(s)' : dias === 0 ? 'Vence hoje' : dias+' dia(s)';
           return '<div class="validade-card" style="border-left:3px solid var(--red);margin:0 16px 8px">' +
-            '<div class="validade-icon" style="background:#fef2f2">⚠️</div>' +
+            '<div class="validade-icon" style="background:#fef2f2"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg></div>' +
             '<div class="validade-info"><div class="validade-nome">'+p.nome+'</div><div class="validade-data">Vence em '+venc.toLocaleDateString('pt-BR')+'</div></div>' +
             '<div class="validade-dias" style="color:var(--red)">'+diasTxt+'</div>' +
           '</div>';
@@ -2560,7 +2663,7 @@ function carregarDashboardReal(){
       var inicial = nome.charAt(0).toUpperCase();
       var h = new Date(r.horario).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
       var linkMapa = (r.latitude!=null && r.longitude!=null)
-        ? '<a href="#" onclick="verMapa('+r.latitude+','+r.longitude+',\''+nome.replace(/'/g,"\\'")+'\')" style="color:var(--g500);font-size:.8rem">📍 Ver</a>'
+        ? '<a href="#" onclick="verMapa('+r.latitude+','+r.longitude+',\''+nome.replace(/'/g,"\\'")+'\')" style="color:var(--g500);font-size:.8rem"><svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Ver</a>'
         : '—';
       return '<tr><td><div style="display:flex;align-items:center;gap:8px"><div style="width:28px;height:28px;border-radius:50%;background:var(--g50);display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:var(--g600)">'+inicial+'</div>'+nome+'</div></td><td>'+h+'</td><td><span class="badge '+(badgePorTipo[r.tipo]||'badge-blue')+'">'+(labelsPonto[r.tipo]||r.tipo)+'</span></td><td>'+linkMapa+'</td></tr>';
     }).join('');
@@ -2583,7 +2686,7 @@ function carregarDashboardReal(){
     var badgePorStatus = {
       pendente:      '<span class="badge badge-yellow">Pendente</span>',
       em_andamento:  '<span class="badge badge-blue">Em andamento</span>',
-      concluida:     '<span class="badge badge-green">Concluída ✓</span>',
+      concluida:     '<span class="badge badge-green">Concluída <svg class=ico aria-hidden=true><use href=#i-check></use></svg></span>',
       atrasada:      '<span class="badge badge-red">Atrasada</span>'
     };
     tbody.innerHTML = lista.slice(0,4).map(function(t){
@@ -2684,24 +2787,24 @@ function ownerTab(tab) {
 
 function ownerAcaoEmpresa(acao) {
   var msgs = {
-    'suspender': '⚠️ Empresa suspensa. Acesso bloqueado até regularização.',
-    'cancelar': '❌ Assinatura cancelada. Empresa removida da plataforma.',
-    'ativar': '✅ Empresa ativada com sucesso!',
-    'notificar': '📧 E-mail de cobrança enviado para a empresa.'
+    'suspender': '<svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Empresa suspensa. Acesso bloqueado até regularização.',
+    'cancelar': '<svg class=ico aria-hidden=true><use href=#i-absent></use></svg> Assinatura cancelada. Empresa removida da plataforma.',
+    'ativar': '<svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> Empresa ativada com sucesso!',
+    'notificar': '<svg class=ico aria-hidden=true><use href=#i-mail></use></svg> E-mail de cobrança enviado para a empresa.'
   };
   alert(msgs[acao] || 'Ação realizada!');
 }
 
 function ownerAcao(acao) {
   var msgs = {
-    'salvar-config': '✅ Configurações salvas com sucesso!',
-    'alterar-senha': '✅ Senha alterada com sucesso!',
-    'testar-email': '📧 E-mail de teste enviado para workappoficial@gmail.com',
-    'enviar-comunicado': '📣 Comunicado enviado para todas as empresas!',
-    'gerar-utm': '🔗 Link UTM gerado!',
-    'agendar-manutencao': '🛠️ Manutenção agendada!',
-    'responder-ticket': '💬 Abrindo resposta ao ticket...',
-    'gerar-chave': '🔑 Nova chave de API gerada!'
+    'salvar-config': '<svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> Configurações salvas com sucesso!',
+    'alterar-senha': '<svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> Senha alterada com sucesso!',
+    'testar-email': '<svg class=ico aria-hidden=true><use href=#i-mail></use></svg> E-mail de teste enviado para workappoficial@gmail.com',
+    'enviar-comunicado': '<svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg> Comunicado enviado para todas as empresas!',
+    'gerar-utm': '<svg class=ico aria-hidden=true><use href=#i-link></use></svg> Link UTM gerado!',
+    'agendar-manutencao': '<svg class=ico aria-hidden=true><use href=#i-tool></use></svg> Manutenção agendada!',
+    'responder-ticket': '<svg class=ico aria-hidden=true><use href=#i-message></use></svg> Abrindo resposta ao ticket...',
+    'gerar-chave': '<svg class=ico aria-hidden=true><use href=#i-key></use></svg> Nova chave de API gerada!'
   };
   alert(msgs[acao] || 'Ação realizada!');
 }
@@ -2709,7 +2812,7 @@ function ownerAcao(acao) {
 function copiarUTM() {
   var txt = document.getElementById('utm-resultado').textContent.trim();
   navigator.clipboard.writeText(txt).then(function(){
-    alert('✅ Link copiado!');
+    alert('<svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> Link copiado!');
   });
 }
 
@@ -2754,13 +2857,13 @@ async function baterPonto(tipo, btnEl) {
   var statusEl = document.getElementById('ponto-status');
 
   if(!navigator.geolocation){
-    if(statusEl) statusEl.textContent = '⚠️ Este navegador não suporta localização — ponto será registrado sem GPS.';
+    if(statusEl) statusEl.textContent = '<svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Este navegador não suporta localização — ponto será registrado sem GPS.';
     await registrarPonto(tipo, null, null, btn);
     return;
   }
 
-  if(btn){ btn.textContent = '📍 Capturando...'; btn.disabled = true; }
-  if(statusEl) statusEl.textContent = '📍 Obtendo sua localização...';
+  if(btn){ btn.textContent = '<svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Capturando...'; btn.disabled = true; }
+  if(statusEl) statusEl.textContent = '<svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Obtendo sua localização...';
 
   // Antes a chamada era getCurrentPosition(sucesso, erro) sem opções:
   // o timeout padrão é infinito, então em celular com GPS lento o
@@ -2775,21 +2878,21 @@ async function baterPonto(tipo, btnEl) {
   };
 
   navigator.geolocation.getCurrentPosition(function(pos){
-    if(statusEl) statusEl.textContent = '📍 Localização obtida, registrando...';
+    if(statusEl) statusEl.textContent = '<svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Localização obtida, registrando...';
     registrarPonto(tipo, pos.coords.latitude, pos.coords.longitude, btn);
   }, function(err){
     // Agora cada motivo de falha tem uma mensagem própria, para a
     // pessoa saber o que fazer em vez de achar que o app está quebrado.
     var aviso;
     if(err && err.code === 1){        // PERMISSION_DENIED
-      aviso = '⚠️ Permissão de localização negada. O ponto foi registrado sem GPS. ' +
-              'Para ativar: Ajustes do navegador → Site workap.com.br → Localização → Permitir.';
+      aviso = '<svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Permissão de localização negada. O ponto foi registrado sem GPS. ' +
+              'Para ativar: Ajustes do navegador <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg> Site workap.com.br <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg> Localização <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg> Permitir.';
     } else if(err && err.code === 2){ // POSITION_UNAVAILABLE
-      aviso = '⚠️ Não foi possível obter o sinal de GPS agora. Ponto registrado sem localização.';
+      aviso = '<svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Não foi possível obter o sinal de GPS agora. Ponto registrado sem localização.';
     } else if(err && err.code === 3){ // TIMEOUT
-      aviso = '⚠️ O GPS demorou demais para responder. Ponto registrado sem localização.';
+      aviso = '<svg class=ico aria-hidden=true><use href=#i-alert></use></svg> O GPS demorou demais para responder. Ponto registrado sem localização.';
     } else {
-      aviso = '⚠️ Não foi possível obter a localização. Ponto registrado sem GPS.';
+      aviso = '<svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Não foi possível obter a localização. Ponto registrado sem GPS.';
     }
     if(statusEl){
       statusEl.textContent = aviso;
@@ -2813,7 +2916,7 @@ async function registrarPonto(tipo, lat, lng, btn){
     });
     var data = await res.json();
 
-    if(btn){ btn.disabled = false; btn.textContent = {entrada:'▶ Entrada',intervalo:'☕ Intervalo',retorno:'↩ Retorno',saida:'■ Saída'}[tipo]; }
+    if(btn){ btn.disabled = false; btn.textContent = {entrada:'<svg class=ico aria-hidden=true><use href=#i-play></use></svg> Entrada',intervalo:'<svg class=ico aria-hidden=true><use href=#i-coffee></use></svg> Intervalo',retorno:'<svg class=ico aria-hidden=true><use href=#i-return></use></svg> Retorno',saida:'<svg class=ico aria-hidden=true><use href=#i-stop></use></svg> Saída'}[tipo]; }
 
     if(!res.ok){
       alert(data.error || 'Não foi possível registrar o ponto.');
@@ -2829,7 +2932,7 @@ async function registrarPonto(tipo, lat, lng, btn){
       if(vazio) tbody.innerHTML = '';
       var tr = document.createElement('tr');
       var linkMapa = (lat!=null && lng!=null)
-        ? '<a href="#" onclick="verMapa('+lat+','+lng+',\''+labelsPonto[tipo]+'\')" style="color:var(--g500);font-size:.8rem">📍 Ver no mapa</a>'
+        ? '<a href="#" onclick="verMapa('+lat+','+lng+',\''+labelsPonto[tipo]+'\')" style="color:var(--g500);font-size:.8rem"><svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Ver no mapa</a>'
         : '<span style="color:var(--gray500);font-size:.8rem">Sem localização</span>';
       tr.innerHTML = '<td>'+labelsPonto[tipo]+'</td><td>'+h+'</td><td>'+linkMapa+'</td>';
       tbody.appendChild(tr);
@@ -2844,26 +2947,26 @@ async function registrarPonto(tipo, lat, lng, btn){
         placeholder.style.display = 'none';
       }
       var info = document.getElementById('mapa-info');
-      if(info) info.textContent = '📍 '+labelsPonto[tipo]+' registrada às '+h+' · Lat: '+lat.toFixed(4)+', Lng: '+lng.toFixed(4);
+      if(info) info.textContent = '<svg class=ico aria-hidden=true><use href=#i-pin></use></svg> '+labelsPonto[tipo]+' registrada às '+h+' · Lat: '+lat.toFixed(4)+', Lng: '+lng.toFixed(4);
     }
 
     var status = document.getElementById('ponto-status');
     if(status){
       if(lat != null && lng != null){
-        status.textContent = '✅ '+labelsPonto[tipo]+' registrada às '+h+' com localização';
+        status.textContent = '<svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> '+labelsPonto[tipo]+' registrada às '+h+' com localização';
         status.style.color = ''; // volta ao padrão após um aviso amarelo anterior
       } else {
         // Mantém o aviso de GPS que baterPonto() já escreveu (e a cor
-        // amarela): sobrescrever aqui com um "✅" apagaria a explicação
+        // amarela): sobrescrever aqui com um "<svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg>" apagaria a explicação
         // de por que a localização não foi capturada.
-        status.textContent = '✅ '+labelsPonto[tipo]+' registrada às '+h+' — sem localização. ' + (status.textContent.indexOf('⚠️') === 0 ? status.textContent.replace('⚠️ ','') : '');
+        status.textContent = '<svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> '+labelsPonto[tipo]+' registrada às '+h+' — sem localização. ' + (status.textContent.indexOf('<svg class=ico aria-hidden=true><use href=#i-alert></use></svg>') === 0 ? status.textContent.replace('<svg class=ico aria-hidden=true><use href=#i-alert></use></svg> ','') : '');
         status.style.color = '#fbbf24';
       }
     }
 
     atualizarBotoesPonto(tipo);
   } catch(e) {
-    if(btn){ btn.disabled = false; btn.textContent = {entrada:'▶ Entrada',intervalo:'☕ Intervalo',retorno:'↩ Retorno',saida:'■ Saída'}[tipo]; }
+    if(btn){ btn.disabled = false; btn.textContent = {entrada:'<svg class=ico aria-hidden=true><use href=#i-play></use></svg> Entrada',intervalo:'<svg class=ico aria-hidden=true><use href=#i-coffee></use></svg> Intervalo',retorno:'<svg class=ico aria-hidden=true><use href=#i-return></use></svg> Retorno',saida:'<svg class=ico aria-hidden=true><use href=#i-stop></use></svg> Saída'}[tipo]; }
     alert('Erro de conexão. Tente novamente.');
   }
 }
@@ -2885,7 +2988,7 @@ function atualizarBotoesPonto(ultimoTipo){
 
 function verMapa(lat,lng,nome){
   event && event.preventDefault && event.preventDefault();
-  document.getElementById('modal-mapa-title').textContent='📍 Localização — '+nome;
+  document.getElementById('modal-mapa-title').textContent='<svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Localização — '+nome;
   document.getElementById('modal-mapa-frame').src='https://maps.google.com/maps?q='+lat+','+lng+'&z=16&output=embed';
   document.getElementById('modal-mapa-info').textContent='Coordenadas: '+lat.toFixed(5)+', '+lng.toFixed(5);
   document.getElementById('modal-mapa-link').href='https://www.google.com/maps?q='+lat+','+lng;
@@ -2977,7 +3080,7 @@ function carregarTarefasReais(){
       concluida:     '<span class="badge badge-green">Concluída</span>',
       atrasada:      '<span class="badge badge-red">Atrasada</span>'
     };
-    var iconePorPrioridade = { normal: '📋', alta: '⚠️', urgente: '🚨' };
+    var iconePorPrioridade = { normal: '<svg class=ico aria-hidden=true><use href=#i-tasks></use></svg>', alta: '<svg class=ico aria-hidden=true><use href=#i-alert></use></svg>', urgente: '<svg class=ico aria-hidden=true><use href=#i-alert></use></svg>' };
 
     // Nomes de responsável resolvidos a partir do cache de
     // funcionários já buscado (a rota de tarefas retorna só o id).
@@ -2987,19 +3090,19 @@ function carregarTarefasReais(){
     container.innerHTML = lista.map(function(t){
       var prazoTxt = t.prazo ? new Date(t.prazo).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : 'Sem prazo';
       var responsavelTxt = t.responsavel_id ? (nomesPorId[t.responsavel_id] || 'Funcionário') : 'Geral (sem responsável)';
-      var icone = iconePorPrioridade[t.prioridade] || '📋';
+      var icone = iconePorPrioridade[t.prioridade] || '<svg class=ico aria-hidden=true><use href=#i-tasks></use></svg>';
       var badge = badgePorStatus[t.status] || badgePorStatus.pendente;
 
       var acoes = '';
       if(t.status !== 'concluida'){
-        acoes = '<div style="margin-top:10px"><button class="btn btn-sm btn-primary" onclick="concluirTarefa(this)">✓ Concluir</button></div>';
+        acoes = '<div style="margin-top:10px"><button class="btn btn-sm btn-primary" onclick="concluirTarefa(this)"><svg class=ico aria-hidden=true><use href=#i-check></use></svg> Concluir</button></div>';
       } else {
-        acoes = '<div style="margin-top:10px"><button class="btn btn-sm btn-secondary" onclick="rejeitarTarefa(this)">↩ Pedir refação</button></div>';
+        acoes = '<div style="margin-top:10px"><button class="btn btn-sm btn-secondary" onclick="rejeitarTarefa(this)"><svg class=ico aria-hidden=true><use href=#i-return></use></svg> Pedir refação</button></div>';
       }
 
       return '<div class="tarefa-card" data-status="'+t.status+'" data-id="'+t.id+'"' + (t.status==='atrasada' ? ' style="border-left:3px solid var(--red)"' : '') + '>' +
         '<div class="tarefa-header"><div class="tarefa-title">'+icone+' '+t.titulo+'</div>'+badge+'</div>' +
-        '<div class="tarefa-meta"><span>👤 '+responsavelTxt+'</span><span>📅 '+prazoTxt+'</span>' + (t.requer_foto ? '<span>📷 Requer foto</span>' : '') + '</div>' +
+        '<div class="tarefa-meta"><span><svg class=ico aria-hidden=true><use href=#i-user></use></svg> '+responsavelTxt+'</span><span><svg class=ico aria-hidden=true><use href=#i-calendar></use></svg> '+prazoTxt+'</span>' + (t.requer_foto ? '<span><svg class=ico aria-hidden=true><use href=#i-camera></use></svg> Requer foto</span>' : '') + '</div>' +
         acoes +
       '</div>';
     }).join('');
@@ -3044,7 +3147,7 @@ function criarTarefaValidade(produto){
   .then(function(r){ return r.json().then(function(data){ return { status:r.status, data:data }; }); })
   .then(function(res){
     if(res.status === 201){
-      alert('✅ Tarefa criada: "Retirar '+produto+' do estoque — vencimento próximo"');
+      alert('<svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> Tarefa criada: "Retirar '+produto+' do estoque — vencimento próximo"');
       if(typeof carregarTarefasReais === 'function') carregarTarefasReais();
     } else {
       alert(res.data.error || 'Não foi possível criar a tarefa.');
@@ -3098,7 +3201,7 @@ function salvarVisual(){
     localStorage.setItem('worka_visual', JSON.stringify({ bg: bg, btn: btn, accent: accent, name: name }));
   } catch(e) {}
 
-  alert('✅ Identidade visual salva neste dispositivo!');
+  alert('<svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> Identidade visual salva neste dispositivo!');
 }
 
 function carregarVisualSalvo(){
@@ -3127,7 +3230,7 @@ function carregarVisualSalvo(){
 function saudacao(nome) {
   var h = new Date().getHours();
   var s = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
-  return s + ', ' + nome + '! 👋';
+  return s + ', ' + nome + '! <svg class=ico aria-hidden=true><use href=#i-hand></use></svg>';
 }
 
 // ═══════════════════════════════════
@@ -3198,10 +3301,10 @@ function darAumento(id, nome, salario) {
     var el = document.getElementById('aumento-tipo');
     if(!novo) { el.textContent=''; return; }
     if(novo > salario) {
-      el.textContent = '↑ Aumento de R$ ' + (novo-salario).toFixed(2) + ' (' + (((novo-salario)/salario)*100).toFixed(1) + '%)';
+      el.textContent = '<svg class=ico aria-hidden=true><use href=#i-arrow-up></use></svg> Aumento de R$ ' + (novo-salario).toFixed(2) + ' (' + (((novo-salario)/salario)*100).toFixed(1) + '%)';
       el.style.color = 'var(--g600)';
     } else if(novo < salario) {
-      el.textContent = '↓ Redução de R$ ' + (salario-novo).toFixed(2);
+      el.textContent = '<svg class=ico aria-hidden=true><use href=#i-arrow-down></use></svg> Redução de R$ ' + (salario-novo).toFixed(2);
       el.style.color = 'var(--red)';
     } else {
       el.textContent = 'Sem alteração';
@@ -3248,12 +3351,12 @@ function mostrarMensagemAumento(nome, novoSalario) {
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(10,46,26,0.9);display:flex;align-items:center;justify-content:center;padding:20px;';
   overlay.innerHTML = "<div style=\"background:white;border-radius:20px;padding:40px 32px;max-width:400px;width:100%;text-align:center;animation:fadeInUp .4s ease\">" +
-    "<div style=\"font-size:3rem;margin-bottom:16px\">🎉</div>" +
+    "<div style=\"font-size:3rem;margin-bottom:16px\"><svg class=ico aria-hidden=true><use href=#i-gift></use></svg></div>" +
     "<div style=\"font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;color:#16622f;margin-bottom:8px\">Parabéns, " + nome + "!</div>" +
     "<p style=\"font-size:.95rem;color:#3a3d39;margin-bottom:20px;line-height:1.6\">Você recebeu um <strong>aumento de salário</strong>!<br>Seu novo salário é</p>" +
     "<div style=\"font-family:'Syne',sans-serif;font-size:2.5rem;font-weight:800;color:#1e8a40;margin-bottom:24px\">R$ " + novoSalario.toFixed(2) + "</div>" +
-    "<p style=\"font-size:.82rem;color:#6b7068;margin-bottom:20px\">Continue com o ótimo trabalho! 💪</p>" +
-    "<button onclick=\"this.closest('div[style*=fixed]').remove()\" style=\"background:#1e8a40;color:white;border:none;padding:12px 28px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif\">Fechar 🎊</button>" +
+    "<p style=\"font-size:.82rem;color:#6b7068;margin-bottom:20px\">Continue com o ótimo trabalho! <svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg></p>" +
+    "<button onclick=\"this.closest('div[style*=fixed]').remove()\" style=\"background:#1e8a40;color:white;border:none;padding:12px 28px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif\">Fechar <svg class=ico aria-hidden=true><use href=#i-gift></use></svg></button>" +
     "</div>";
   document.body.appendChild(overlay);
   overlay.onclick = function(e) { if(e.target===this) this.remove(); };
@@ -3501,7 +3604,7 @@ function carregarComunicadosReal(){
       if(!box) return;
       var lista = (d && d.comunicados) || [];
       if(lista.length === 0){
-        box.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>Nenhum comunicado enviado ainda.</p></div>';
+        box.innerHTML = '<div class="empty-state"><div class="icon"><svg class=ico aria-hidden=true><use href=#i-inbox></use></svg></div><p>Nenhum comunicado enviado ainda.</p></div>';
         return;
       }
       var rotuloDestino = { todas:'Todas', ativa:'Ativas', trial:'Em teste', inadimplente:'Inadimplentes' };
@@ -3529,8 +3632,8 @@ function atualizarAlcanceComunicado(){
   var n = alcanceComunicado[sel.value];
   if(n === undefined) n = 0;
   box.textContent = n === 0
-    ? '⚠️ Nenhuma empresa se encaixa nesse destino — nada será enviado.'
-    : '📬 Este comunicado será enviado para ' + n + (n === 1 ? ' empresa.' : ' empresas.');
+    ? '<svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Nenhuma empresa se encaixa nesse destino — nada será enviado.'
+    : '<svg class=ico aria-hidden=true><use href=#i-inbox></use></svg> Este comunicado será enviado para ' + n + (n === 1 ? ' empresa.' : ' empresas.');
   box.style.color = n === 0 ? '#92400e' : 'var(--g600)';
 }
 
@@ -3578,7 +3681,7 @@ function enviarComunicado(){
       erroEl.style.display = 'block';
       return;
     }
-    var msg = '✅ Comunicado enviado para ' + res.data.enviados + ' empresa(s).';
+    var msg = '<svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> Comunicado enviado para ' + res.data.enviados + ' empresa(s).';
     if(res.data.falhas > 0) msg += ' ' + res.data.falhas + ' envio(s) falharam.';
     okEl.textContent = msg;
     okEl.style.display = 'block';
@@ -3740,7 +3843,7 @@ function carregarCuponsReal(){
         '<td>'+statusBadge+'</td>' +
         '<td><div style="display:flex;gap:6px">' +
           '<button class="btn btn-sm btn-secondary" onclick="alternarCupom(\''+c.id+'\','+(!c.ativo)+')">'+(c.ativo?'Desativar':'Ativar')+'</button>' +
-          '<button class="btn btn-sm btn-danger" onclick="removerCupom(\''+c.id+'\',\''+c.codigo+'\')">🗑</button>' +
+          '<button class="btn btn-sm btn-danger" onclick="removerCupom(\''+c.id+'\',\''+c.codigo+'\')"><svg class=ico aria-hidden=true><use href=#i-trash></use></svg></button>' +
         '</div></td>' +
       '</tr>';
     }).join('');
@@ -3874,7 +3977,7 @@ function carregarSalariosReal(){
         '<td>'+faltas+'</td>' +
         '<td style="color:'+(desconto>0?'var(--red)':'var(--g600)')+'">R$ '+desconto.toFixed(2)+'</td>' +
         '<td style="font-weight:700;color:var(--g600)">R$ '+liquido.toFixed(2)+'</td>' +
-        '<td><button class="btn btn-sm btn-primary" onclick="darAumento(\''+f.id+'\',\''+f.nome.replace(/'/g,"\\'")+'\','+base+')">↑ Ajustar</button></td>' +
+        '<td><button class="btn btn-sm btn-primary" onclick="darAumento(\''+f.id+'\',\''+f.nome.replace(/'/g,"\\'")+'\','+base+')"><svg class=ico aria-hidden=true><use href=#i-arrow-up></use></svg> Ajustar</button></td>' +
       '</tr>';
     }).join('');
   });
@@ -4010,7 +4113,7 @@ function salvarConfigFalta() {
   localStorage.setItem('worka_config_falta', JSON.stringify({ tipo: tipo, valor: valor }));
   if(typeof carregarSalariosReal === 'function') carregarSalariosReal();
   if(typeof carregarAusenciasReal === 'function') carregarAusenciasReal();
-  alert('✅ Configuração salva! Desconto por falta: ' + (tipo==='fixo' ? 'R$ '+valor : tipo === 'diaria' ? 'diário (salário ÷ 22)' : 'sem desconto automático'));
+  alert('<svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> Configuração salva! Desconto por falta: ' + (tipo==='fixo' ? 'R$ '+valor : tipo === 'diaria' ? 'diário (salário ÷ 22)' : 'sem desconto automático'));
 }
 
 // ═══════════════════════════════════
@@ -4053,7 +4156,7 @@ function verificarTrial() {
 function mostrarAvisoTrial(dias) {
   var aviso = document.createElement('div');
   aviso.style.cssText = 'position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:9000;background:#fffbeb;border:1.5px solid #f59e0b;border-radius:10px;padding:10px 16px;font-size:.78rem;color:#92400e;display:flex;align-items:center;gap:8px;max-width:360px;width:90%;box-shadow:0 4px 12px rgba(0,0,0,.1)';
-  aviso.innerHTML = '⏰ <span>Seu trial expira em <strong>' + dias + ' dia' + (dias > 1 ? 's' : '') + '</strong>. <a href="' + (window.location.href.replace('worka-app.html','index.html')) + '" style="color:#1e8a40;font-weight:700">Assinar agora →</a></span><button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:#92400e;margin-left:auto">✕</button>';
+  aviso.innerHTML = '<svg class=ico aria-hidden=true><use href=#i-clock></use></svg> <span>Seu trial expira em <strong>' + dias + ' dia' + (dias > 1 ? 's' : '') + '</strong>. <a href="' + (window.location.href.replace('worka-app.html','index.html')) + '" style="color:#1e8a40;font-weight:700">Assinar agora <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></a></span><button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:#92400e;margin-left:auto"><svg class=ico aria-hidden=true><use href=#i-x></use></svg></button>';
   document.body.appendChild(aviso);
   setTimeout(() => { if(aviso.parentElement) aviso.remove(); }, 8000);
 }
@@ -4062,10 +4165,10 @@ function mostrarModalTrialExpirado(nome) {
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(10,46,26,.85);display:flex;align-items:center;justify-content:center;padding:20px';
   overlay.innerHTML = '<div style="background:white;border-radius:20px;padding:36px 28px;max-width:380px;width:100%;text-align:center">' +
-    '<div style="font-size:2.5rem;margin-bottom:12px">⏰</div>' +
+    '<div style="font-size:2.5rem;margin-bottom:12px"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg></div>' +
     '<div style="font-family:Syne,sans-serif;font-size:1.2rem;font-weight:800;color:#0a2e1a;margin-bottom:8px">Trial expirado, ' + (nome ? nome.split(' ')[0] : '') + '!</div>' +
     '<p style="font-size:.85rem;color:#6b7068;line-height:1.6;margin-bottom:20px">Seu período gratuito de 7 dias terminou.<br>Assine por apenas <strong>R$ 49,99/mês</strong> para continuar usando o Worka.</p>' +
-    '<a href="index.html" style="display:block;width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;text-decoration:none;text-align:center;margin-bottom:10px">💳 Renovar agora — R$ 49,99/mês</a>' +
+    '<a href="index.html" style="display:block;width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;text-decoration:none;text-align:center;margin-bottom:10px"><svg class=ico aria-hidden=true><use href=#i-card></use></svg> Renovar agora — R$ 49,99/mês</a>' +
     '<button onclick="fazerLogout();this.closest(\'div[style*=fixed]\').remove()" style="width:100%;background:none;border:1.5px solid #eff0ef;color:#6b7068;padding:11px;border-radius:10px;font-size:.82rem;font-weight:600;cursor:pointer;font-family:Inter,sans-serif">Sair</button>' +
   '</div>';
   document.body.appendChild(overlay);
@@ -4159,20 +4262,20 @@ window.addEventListener('DOMContentLoaded', function(){
 
 
 <div id="pwa-install" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;background:#0a2e1a;color:white;border-radius:14px;padding:14px 20px;box-shadow:0 8px 30px rgba(0,0,0,.3);display:flex;align-items:center;gap:12px;max-width:320px;width:90%">
-  <span style="font-size:1.5rem">📱</span>
+  <span style="font-size:1.5rem"><svg class=ico aria-hidden=true><use href=#i-phone></use></svg></span>
   <div style="flex:1">
     <div style="font-size:.82rem;font-weight:700">Instalar Worka</div>
     <div style="font-size:.7rem;color:rgba(255,255,255,.6)">Adicione à tela inicial do iPhone</div>
   </div>
   <button id="pwa-install-btn" style="background:#3dd669;color:#0a2e1a;border:none;border-radius:8px;padding:7px 14px;font-size:.75rem;font-weight:700;cursor:pointer;font-family:var(--font)">Instalar</button>
-  <button onclick="document.getElementById('pwa-install').style.display='none'" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:1.1rem;cursor:pointer">✕</button>
+  <button onclick="document.getElementById('pwa-install').style.display='none'" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:1.1rem;cursor:pointer"><svg class=ico aria-hidden=true><use href=#i-x></use></svg></button>
 </div>
 
 <div id="ios-install" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;background:#0a2e1a;color:white;border-radius:14px;padding:16px 20px;box-shadow:0 8px 30px rgba(0,0,0,.35);max-width:320px;width:90%;text-align:center">
-  <div style="font-size:1.5rem;margin-bottom:8px">📱</div>
+  <div style="font-size:1.5rem;margin-bottom:8px"><svg class=ico aria-hidden=true><use href=#i-phone></use></svg></div>
   <div style="font-size:.85rem;font-weight:700;margin-bottom:6px">Instalar Worka no iPhone</div>
   <div style="font-size:.75rem;color:rgba(255,255,255,.7);line-height:1.6;margin-bottom:12px">
-    1. Toque em <b>Compartilhar</b> <span style="font-size:1rem">⎙</span><br>
+    1. Toque em <b>Compartilhar</b> <span style="font-size:1rem"><svg class=ico aria-hidden=true><use href=#i-share></use></svg></span><br>
     2. Role e toque em <b>"Adicionar à Tela de Início"</b><br>
     3. Toque em <b>Adicionar</b>
   </div>

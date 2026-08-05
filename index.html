@@ -164,7 +164,13 @@
       font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
       margin-bottom: 24px;
     }
-    .hero-badge::before { content: '●'; font-size: 0.5rem; animation: pulse 2s infinite; }
+    /* Bolinha pulsante do badge. Era content:'●' (caractere); virou uma
+       forma desenhada em CSS — pseudo-elemento não aceita HTML, então
+       markup aqui apareceria como texto literal na tela. */
+    .hero-badge::before {
+      content: ''; width: .45em; height: .45em; border-radius: 50%;
+      background: currentColor; flex-shrink: 0; animation: pulse 2s infinite;
+    }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
     .hero h1 {
@@ -466,9 +472,16 @@
       display: flex; align-items: flex-start; gap: 10px;
       font-size: 0.9rem; color: var(--gray-700);
     }
+    /* Antes era content:'✓' (caractere de fonte). Trocado por máscara
+       SVG: mesmo traço dos demais ícones do sistema, nitidez de vetor
+       em qualquer tela e cor controlada por background — pseudo-elemento
+       não aceita <svg> inline. */
     .price-features li::before {
-      content: '✓'; font-weight: 800; color: var(--green-500);
-      flex-shrink: 0; margin-top: 1px;
+      content: ''; flex-shrink: 0; margin-top: 3px;
+      width: 1.05em; height: 1.05em;
+      background: var(--green-500);
+      -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E") center/contain no-repeat;
+      mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E") center/contain no-repeat;
     }
     .btn-block {
       display: block; width: 100%;
@@ -515,9 +528,112 @@
       section { padding: 56px 5vw; }
       nav { padding: 14px 5vw; }
     }
-  </style>
+  
+/* ── ÍCONES SVG ──────────────────────────────────────────
+   Substituem os emojis usados como ícone. Herdam a cor do
+   texto (currentColor), então acompanham o tema white label
+   de cada empresa — coisa que emoji e PNG não fazem. */
+.ico{width:1em;height:1em;display:inline-block;vertical-align:-0.125em;flex-shrink:0;stroke-width:2}
+.ico-lg{width:1.35em;height:1.35em}
+.ico-xl{width:2.2em;height:2.2em;stroke-width:1.6}
+.ico-hero{width:2.6em;height:2.6em;stroke-width:1.5}
+.nav-item .ico,.login-tab .ico{width:1.05em;height:1.05em}
+.stat-card-icon .ico{width:1.25em;height:1.25em}
+.empty-state .icon .ico{width:1em;height:1em}
+/* Bolinhas de status coloridas que antes eram emoji (<span class=dot style=background:var(--g400,#25b251)></span><span class=dot style=background:#f59e0b></span><span class=dot style=background:#ef4444></span>...) */
+.dot{display:inline-block;width:.6em;height:.6em;border-radius:50%;vertical-align:middle;margin-right:.35em;flex-shrink:0}
+</style>
 </head>
 <body>
+<!-- ══════════════════════════════════════════════════════════
+     SISTEMA DE ÍCONES — SVG sprite
+     ══════════════════════════════════════════════════════════
+     Substitui os emojis que antes eram usados como ícones. Motivos:
+     - Emoji muda de desenho conforme o sistema (iOS ≠ Android ≠
+       Windows), então a interface nunca ficava igual para todo mundo.
+     - Emoji não aceita cor por CSS. Como o Worka é white label e cada
+       empresa escolhe suas cores, os ícones precisavam acompanhar o
+       tema — aqui usam stroke="currentColor" e herdam a cor do texto.
+     - Vetor não borra em tela de retina, em nenhum tamanho.
+
+     Uso:  <svg class="ico"><use href="#i-nome"></use></svg>
+     Tamanho: .ico (padrão 1em), .ico-lg, .ico-xl — ver CSS.
+══════════════════════════════════════════════════════════ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+<defs>
+<g id="__ico_base" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></g>
+</defs>
+
+<symbol id="i-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+<symbol id="i-tasks" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></symbol>
+<symbol id="i-money" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></symbol>
+<symbol id="i-absent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></symbol>
+<symbol id="i-report" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+<symbol id="i-megaphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-6v14L3 13z"/><path d="M3 11v2a2 2 0 0 0 2 2h1v4h3v-4"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+<symbol id="i-palette" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16c3.3 0 6-2.7 6-6 0-4.9-4.5-8.6-10-8.6z"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
+<symbol id="i-crown" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7l4.5 4L12 4l5.5 7L22 7l-2 12H4z"/></symbol>
+<symbol id="i-ticket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><line x1="13" y1="6" x2="13" y2="18" stroke-dasharray="2 3"/></symbol>
+<symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-coffee" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/></symbol>
+<symbol id="i-return" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 10 4 15 9 20"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/></symbol>
+<symbol id="i-stop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
+<symbol id="i-check-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+<symbol id="i-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
+<symbol id="i-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></symbol>
+<symbol id="i-arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></symbol>
+<symbol id="i-arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></symbol>
+<symbol id="i-zap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></symbol>
+<symbol id="i-camera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></symbol>
+<symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22 7 12 14 2 7"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2"/><path d="M17 6l3 3"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
+<symbol id="i-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></symbol>
+<symbol id="i-building" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="9" y1="7" x2="9" y2="7.01"/><line x1="15" y1="7" x2="15" y2="7.01"/><line x1="9" y1="12" x2="9" y2="12.01"/><line x1="15" y1="12" x2="15" y2="12.01"/><path d="M10 22v-4h4v4"/></symbol>
+<symbol id="i-package" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></symbol>
+<symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></symbol>
+<symbol id="i-inbox" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+<symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></symbol>
+<symbol id="i-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+<symbol id="i-support" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></symbol>
+<symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+<symbol id="i-database" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></symbol>
+<symbol id="i-tool" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
+<symbol id="i-plug" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6M15 2v6"/><path d="M6 8h12v3a6 6 0 0 1-12 0z"/><path d="M12 17v5"/></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></symbol>
+<symbol id="i-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></symbol>
+<symbol id="i-message" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+<symbol id="i-gift" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="5" rx="1"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M20 12v10H4V12"/><path d="M7.5 7a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7s1-5 4.5-5a2.5 2.5 0 0 1 0 5"/></symbol>
+<symbol id="i-rocket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13c-1.5 1.5-2 5-2 5s3.5-.5 5-2c.8-.8.8-2.2 0-3s-2.2-.8-3 0z"/><path d="M12 15l-3-3a12 12 0 0 1 7-8 8 8 0 0 1 4 4 12 12 0 0 1-8 7z"/><circle cx="15" cy="9" r="1.5"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 11 11 13 15 9"/></symbol>
+<symbol id="i-hourglass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12M6 22h12"/><path d="M6 2v4a6 6 0 0 0 6 6 6 6 0 0 0 6-6V2"/><path d="M6 22v-4a6 6 0 0 1 6-6 6 6 0 0 1 6 6v4"/></symbol>
+<symbol id="i-clipboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></symbol>
+<symbol id="i-scissors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></symbol>
+<symbol id="i-bag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></symbol>
+<symbol id="i-utensils" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7a3 3 0 0 0 3 3 3 3 0 0 0 3-3V2"/><line x1="6" y1="12" x2="6" y2="22"/><path d="M17 2c-1.7 0-3 2.5-3 6 0 2.5.8 4 2 4v10"/></symbol>
+<symbol id="i-hospital" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="12" y1="9" x2="12" y2="15"/><line x1="9" y1="12" x2="15" y2="12"/></symbol>
+<symbol id="i-wrench" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
+<symbol id="i-droplet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.7l5.3 5.3a7.5 7.5 0 1 1-10.6 0z"/></symbol>
+<symbol id="i-pill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="8" width="20" height="8" rx="4" transform="rotate(-45 12 12)"/><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"/></symbol>
+<symbol id="i-infinity" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.18 8.03a4 4 0 0 0-5.66 0L12 8.55l-.52-.52a4 4 0 1 0 0 5.66l.52-.52.52.52a4 4 0 1 0 5.66-5.66z"/></symbol>
+<symbol id="i-hand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v7M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2a8 8 0 0 1-8-8v-1a2 2 0 1 1 4 0"/></symbol>
+</svg>
+
 <noscript><style>.reveal{opacity:1!important;transform:none!important}</style></noscript>
 
 <!-- NAV -->
@@ -554,7 +670,7 @@
       <div class="dashboard-card">
         <div class="dash-header">
           <div class="dash-logo">Worka</div>
-          <div class="dash-status">● 7 online agora</div>
+          <div class="dash-status"><span class=dot style=background:currentColor></span> 7 online agora</div>
         </div>
         <div class="dash-stats">
           <div class="dash-stat">
@@ -637,31 +753,31 @@
     </div>
     <div class="features-grid reveal-stagger reveal">
       <div class="feature-card">
-        <div class="feature-icon">⏱️</div>
+        <div class="feature-icon"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg></div>
         <h3>Controle de Ponto Digital</h3>
         <p>Entrada, intervalo, retorno e saída registrados pelo celular. Os dados chegam em tempo real no painel do gestor, sem planilha, sem papel, sem erro.</p>
         <span class="feature-tag">Tempo real</span>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">📋</div>
+        <div class="feature-icon"><svg class=ico aria-hidden=true><use href=#i-tasks></use></svg></div>
         <h3>Tarefas com Comprovação Visual</h3>
         <p>Crie tarefas, delegue por nome ou cargo e defina prazo. Ative "exigir foto ou vídeo" para que o funcionário só consiga fechar a tarefa enviando uma mídia como comprovante.</p>
         <span class="feature-tag">Com evidência</span>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">🔔</div>
+        <div class="feature-icon"><svg class=ico aria-hidden=true><use href=#i-bell></use></svg></div>
         <h3>Alerta de Validade de Produtos</h3>
         <p>Cadastre lotes com data de vencimento e defina com quantos dias quer ser avisado. O sistema envia notificação e cria automaticamente uma tarefa de alta prioridade para a equipe.</p>
         <span class="feature-tag">Automático</span>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">🎨</div>
+        <div class="feature-icon"><svg class=ico aria-hidden=true><use href=#i-palette></use></svg></div>
         <h3>White Label Total</h3>
         <p>Nome do app, logotipo, foto de banner e todas as cores do sistema são suas. Seus colaboradores vivem dentro de uma plataforma com a cara da sua empresa.</p>
         <span class="feature-tag">Sua marca</span>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">📍</div>
+        <div class="feature-icon"><svg class=ico aria-hidden=true><use href=#i-pin></use></svg></div>
         <h3>Localização no Ponto</h3>
         <p>Cada batida de ponto captura automaticamente a localização do funcionário. O gestor vê exatamente onde cada entrada, intervalo e saída foi registrada — direto no Google Maps, em tempo real.</p>
         <span class="feature-tag">Geolocalização</span>
@@ -680,21 +796,21 @@
         <p class="section-sub">Chame de Gerente, Supervisor, Atendente — o nome e as permissões são seus. Defina exatamente o que cada cargo pode ver e fazer no sistema.</p>
         <div class="perms-list">
           <div class="perm-item">
-            <div class="perm-bullet">✓</div>
+            <div class="perm-bullet"><svg class=ico aria-hidden=true><use href=#i-check></use></svg></div>
             <div>
               <h4>Entrada segura por ID</h4>
               <p>Cada empresa ganha um código único. O funcionário só entra na equipe após ser aprovado pelo gestor.</p>
             </div>
           </div>
           <div class="perm-item">
-            <div class="perm-bullet">✓</div>
+            <div class="perm-bullet"><svg class=ico aria-hidden=true><use href=#i-check></use></svg></div>
             <div>
               <h4>Permissões por checkbox</h4>
               <p>Faturamento, aprovação de ponto, edição visual e muito mais — você liga ou desliga para cada cargo.</p>
             </div>
           </div>
           <div class="perm-item">
-            <div class="perm-bullet">✓</div>
+            <div class="perm-bullet"><svg class=ico aria-hidden=true><use href=#i-check></use></svg></div>
             <div>
               <h4>Aprovação de novos membros</h4>
               <p>Nenhum colaborador acessa a equipe sem autorização. Controle total desde o primeiro acesso.</p>
@@ -760,15 +876,15 @@
           <div class="wl-circles"><div class="wl-circle"></div><div class="wl-circle"></div></div>
         </div>
         <div class="wl-body">
-          <div class="wl-btn" style="background:#16622f">Registrar ponto ▶</div>
+          <div class="wl-btn" style="background:#16622f">Registrar ponto <svg class=ico aria-hidden=true><use href=#i-play></use></svg></div>
           <div class="wl-row">
             <div class="wl-btn" style="background:#1e8a40">Minhas tarefas</div>
             <div class="wl-btn" style="background:#25b251">Comunicados</div>
           </div>
           <div style="background:white;border-radius:8px;padding:12px">
             <div style="font-size:.7rem;font-weight:700;color:#16622f;margin-bottom:8px">PRÓXIMAS TAREFAS</div>
-            <div style="font-size:.75rem;color:#3a3d39;padding:6px 0;border-bottom:1px solid #f0f0f0">✅ Limpeza da vitrine</div>
-            <div style="font-size:.75rem;color:#3a3d39;padding:6px 0">⏳ Conferir estoque</div>
+            <div style="font-size:.75rem;color:#3a3d39;padding:6px 0;border-bottom:1px solid #f0f0f0"><svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> Limpeza da vitrine</div>
+            <div style="font-size:.75rem;color:#3a3d39;padding:6px 0"><svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg> Conferir estoque</div>
           </div>
         </div>
       </div>
@@ -816,7 +932,7 @@
         <div style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:#fff;">Worka</div>
         <div style="font-size:0.75rem;color:rgba(255,255,255,0.65);margin-top:2px;">Plano Completo · R$ 49,99/mês</div>
       </div>
-      <button onclick="fecharCheckout()" style="background:rgba(255,255,255,0.15);border:none;color:white;width:36px;height:36px;border-radius:50%;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      <button onclick="fecharCheckout()" style="background:rgba(255,255,255,0.15);border:none;color:white;width:36px;height:36px;border-radius:50%;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;"><svg class=ico aria-hidden=true><use href=#i-x></use></svg></button>
     </div>
 
     <!-- PASSO 1: Formulário -->
@@ -854,7 +970,7 @@
 
       <!-- Cupom de desconto -->
       <div style="margin-top:20px;border:1.5px dashed #c7e3d0;border-radius:10px;padding:14px 16px;background:#fbfdfb;">
-        <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:6px;">🎟️ Tem um cupom de desconto?</label>
+        <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:6px;"><svg class=ico aria-hidden=true><use href=#i-ticket></use></svg> Tem um cupom de desconto?</label>
         <div style="display:flex;gap:8px;">
           <input id="f-cupom" type="text" placeholder="Digite o código" maxlength="40"
             style="flex:1;padding:10px 12px;border:1.5px solid #eff0ef;border-radius:8px;font-size:0.85rem;font-family:'Inter',sans-serif;outline:none;text-transform:uppercase;"
@@ -878,30 +994,30 @@
       </div>
 
       <button onclick="escolherPlano()" id="btn-gerar" style="width:100%;margin-top:16px;background:#1e8a40;color:white;border:none;padding:15px;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:background .2s;display:flex;align-items:center;justify-content:center;gap:8px;">
-        <span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>
+        <span>Gerar PIX</span> <span style="font-size:1.1rem;"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></span>
       </button>
-      <div style="font-size:0.75rem;color:#6b7068;text-align:center;margin-top:10px;">🔒 Pagamento 100% seguro via PIX</div>
+      <div style="font-size:0.75rem;color:#6b7068;text-align:center;margin-top:10px;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Pagamento 100% seguro via PIX</div>
     </div>
 
     <!-- TRIAL: Escolher plano -->
     <div id="step-trial" style="display:none;padding:28px">
       <div style="text-align:center;margin-bottom:20px">
-        <div style="font-size:2.8rem;margin-bottom:8px;animation:werPulse 1.6s ease-in-out infinite">🎉</div>
+        <div style="font-size:2.8rem;margin-bottom:8px;animation:werPulse 1.6s ease-in-out infinite"><svg class=ico aria-hidden=true><use href=#i-gift></use></svg></div>
         <div style="font-family:'Syne',sans-serif;font-size:1.25rem;font-weight:800;color:#0a2e1a;line-height:1.3">Parabéns, <span id="trial-nome-dest">!</span></div>
-        <div style="font-size:.95rem;font-weight:700;color:#1e8a40;margin-top:4px">Você foi selecionado para 7 dias grátis 🚀</div>
+        <div style="font-size:.95rem;font-weight:700;color:#1e8a40;margin-top:4px">Você foi selecionado para 7 dias grátis <svg class=ico aria-hidden=true><use href=#i-rocket></use></svg></div>
         <div style="font-size:.82rem;color:#6b7068;margin-top:6px">Acesso completo, sem cartão, sem compromisso.</div>
       </div>
 
       <div style="background:linear-gradient(135deg,#0a2e1a,#1e8a40);border-radius:16px;padding:22px;margin-bottom:14px;box-shadow:0 8px 24px rgba(30,138,64,.25);animation:werGlow 2s ease-in-out infinite">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
           <div style="font-family:'Syne',sans-serif;font-size:1.05rem;font-weight:800;color:#3dd669">🆓 7 dias grátis liberados</div>
-          <span style="background:#3dd669;color:#0a2e1a;border-radius:8px;padding:5px 10px;font-size:.7rem;font-weight:800">✓ VOCÊ GANHOU</span>
+          <span style="background:#3dd669;color:#0a2e1a;border-radius:8px;padding:5px 10px;font-size:.7rem;font-weight:800"><svg class=ico aria-hidden=true><use href=#i-check></use></svg> VOCÊ GANHOU</span>
         </div>
         <div style="font-size:.8rem;color:rgba(255,255,255,.75);line-height:1.5">Ponto digital, tarefas, validade de produtos e gestão de salários — tudo liberado agora, sem pedir cartão.</div>
       </div>
 
       <button id="btn-trial" onclick="ativarTrialGratis()" style="width:100%;background:linear-gradient(135deg,#1e8a40,#25b251);color:white;border:none;padding:16px;border-radius:12px;font-size:1rem;font-weight:800;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:14px;box-shadow:0 4px 14px rgba(30,138,64,.35)">
-        🚀 Ativar meus 7 dias grátis agora
+        <svg class=ico aria-hidden=true><use href=#i-rocket></use></svg> Ativar meus 7 dias grátis agora
       </button>
 
       <div style="text-align:center">
@@ -916,7 +1032,7 @@
 
     <!-- TRIAL: Verificar email -->
     <div id="step-trial-verify" style="display:none;padding:28px;text-align:center">
-      <div style="font-size:3rem;margin-bottom:12px">📧</div>
+      <div style="font-size:3rem;margin-bottom:12px"><svg class=ico aria-hidden=true><use href=#i-mail></use></svg></div>
       <div style="font-size:.85rem;font-weight:700;color:#0a2e1a;margin-bottom:8px">Confirme seu e-mail</div>
       <p style="font-size:.82rem;color:#6b7068;margin-bottom:20px">Enviamos um código para <strong id="trial-email-txt"></strong></p>
       <input id="trial-codigo" type="number" placeholder="000000" maxlength="6"
@@ -931,31 +1047,31 @@
       </div>
       <div id="trial-verify-erro" style="display:none;background:#fef2f2;border-radius:8px;padding:10px;font-size:.8rem;color:#dc2626;margin-bottom:12px"></div>
       <button id="btn-trial-confirmar" onclick="confirmarTrialCodigo()" style="width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif">
-        Confirmar e ativar trial ✓
+        Confirmar e ativar trial <svg class=ico aria-hidden=true><use href=#i-check></use></svg>
       </button>
     </div>
 
     <!-- TRIAL: Ativado com sucesso -->
     <div id="step-trial-ok" style="display:none;padding:32px;text-align:center">
-      <div style="font-size:3rem;margin-bottom:12px">🎊</div>
+      <div style="font-size:3rem;margin-bottom:12px"><svg class=ico aria-hidden=true><use href=#i-gift></use></svg></div>
       <div style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:#0a2e1a;margin-bottom:8px">Trial ativado!</div>
       <div style="font-size:.85rem;color:#6b7068;line-height:1.6;margin-bottom:20px">
         Seu período de <strong>7 dias grátis</strong> começou agora.<br>
         Quando expirar, você será avisado para renovar por R$ 49,99/mês.
       </div>
       <div style="background:#edfaf2;border-radius:12px;padding:16px;margin-bottom:20px">
-        <div style="font-size:.78rem;color:#16622f;font-weight:600">⏰ Trial expira em:</div>
+        <div style="font-size:.78rem;color:#16622f;font-weight:600"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg> Trial expira em:</div>
         <div style="font-family:'Syne',sans-serif;font-size:1.8rem;font-weight:800;color:#1e8a40">7 dias</div>
       </div>
       <a href="worka-app.html" style="display:block;width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;text-decoration:none;text-align:center">
-        Acessar o Worka →
+        Acessar o Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>
       </a>
     </div>
 
     <!-- PASSO 1.5: Verificação de e-mail -->
     <div id="step-verify" style="display:none;padding:28px;">
       <div style="text-align:center;margin-bottom:24px;">
-        <div style="font-size:3rem;margin-bottom:12px;">📧</div>
+        <div style="font-size:3rem;margin-bottom:12px;"><svg class=ico aria-hidden=true><use href=#i-mail></use></svg></div>
         <div style="font-size:0.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1e8a40;margin-bottom:8px;">Verificação de segurança</div>
         <p style="font-size:0.9rem;color:#3a3d39;margin-bottom:4px;">Enviamos um código de 6 dígitos para</p>
         <p id="verify-email-txt" style="font-size:0.9rem;font-weight:700;color:#16622f;"></p>
@@ -971,7 +1087,7 @@
       <div id="verify-erro" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;font-size:0.82rem;color:#dc2626;margin-bottom:14px;"></div>
 
       <button onclick="confirmarCodigo()" id="btn-confirmar" style="width:100%;background:#1e8a40;color:white;border:none;padding:15px;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:12px;">
-        Confirmar código ✓
+        Confirmar código <svg class=ico aria-hidden=true><use href=#i-check></use></svg>
       </button>
 
       <div style="text-align:center;">
@@ -982,7 +1098,7 @@
       </div>
 
       <div style="font-size:0.75rem;color:#6b7068;text-align:center;margin-top:16px;">
-        ⏱ O código expira em 10 minutos
+        <svg class=ico aria-hidden=true><use href=#i-clock></use></svg> O código expira em 10 minutos
       </div>
     </div>
     <!-- PASSO 2: QR Code PIX -->
@@ -997,7 +1113,7 @@
 
       <!-- Status -->
       <div id="pix-status" style="background:#fff3dc;border-radius:8px;padding:10px 14px;font-size:0.82rem;color:#b07d00;margin-bottom:16px;display:flex;align-items:center;gap:6px;justify-content:center;">
-        <span id="status-spinner" style="display:inline-block;animation:spin 1s linear infinite;">⏳</span>
+        <span id="status-spinner" style="display:inline-block;animation:spin 1s linear infinite;"><svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg></span>
         <span id="status-txt">Aguardando pagamento...</span>
       </div>
 
@@ -1010,15 +1126,15 @@
         </div>
       </div>
 
-      <div style="font-size:0.75rem;color:#6b7068;">⏱ O código expira em 15 minutos</div>
+      <div style="font-size:0.75rem;color:#6b7068;"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg> O código expira em 15 minutos</div>
     </div>
 
     <!-- PASSO 3: Confirmação -->
     <div id="step-ok" style="display:none;padding:40px 28px;text-align:center;">
-      <div style="width:72px;height:72px;background:#edfaf2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:2rem;">✅</div>
+      <div style="width:72px;height:72px;background:#edfaf2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:2rem;"><svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg></div>
       <div style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:#16622f;margin-bottom:8px;">Pagamento confirmado!</div>
       <p style="font-size:0.9rem;color:#6b7068;margin-bottom:24px;">Seu acesso ao Worka foi liberado. Verifique seu e-mail para as próximas etapas.</p>
-      <button onclick="fecharCheckout()" style="background:#1e8a40;color:white;border:none;padding:14px 32px;border-radius:10px;font-size:0.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Acessar o Worka →</button>
+      <button onclick="fecharCheckout()" style="background:#1e8a40;color:white;border:none;padding:14px 32px;border-radius:10px;font-size:0.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Acessar o Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></button>
     </div>
 
   </div>
@@ -1031,7 +1147,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" onerror="console.warn('QRCode CDN falhou')"></script>
 <script>
-// ⚠️ Após o deploy, substitua pela URL real da sua Edge Function
+// <svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Após o deploy, substitua pela URL real da sua Edge Function
 // Formato: https://worka-backend-awng.onrender.com/pix
 var API_BASE = "https://worka-backend-awng.onrender.com";
 var BACKEND_URL = API_BASE + "/pix"; // mantido por compatibilidade com o restante do arquivo que já usa BACKEND_URL para a rota de PIX
@@ -1058,7 +1174,7 @@ function resetModal() {
   document.getElementById('f-tel').value   = '';
   document.getElementById('qrcode').innerHTML = '';
   document.getElementById('btn-gerar').disabled = false;
-  document.getElementById('btn-gerar').innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
+  document.getElementById('btn-gerar').innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></span>';
   limparCupom();
 }
 
@@ -1109,7 +1225,7 @@ function aplicarCupom(){
     btn.disabled = false; btn.textContent = txtOriginal;
     if(res.status !== 200 || !res.data.ok){
       cupomAplicado = null;
-      fb.textContent = '✕ ' + (res.data.error || 'Cupom inválido.');
+      fb.textContent = '<svg class=ico aria-hidden=true><use href=#i-x></use></svg> ' + (res.data.error || 'Cupom inválido.');
       fb.style.color = '#dc2626';
       fb.style.display = 'block';
       // Volta o resumo ao preço cheio, caso um cupom válido tenha
@@ -1121,7 +1237,7 @@ function aplicarCupom(){
     }
 
     cupomAplicado = res.data.codigo;
-    fb.textContent = '✓ Cupom aplicado — você economiza R$ ' + res.data.desconto_reais;
+    fb.textContent = '<svg class=ico aria-hidden=true><use href=#i-check></use></svg> Cupom aplicado — você economiza R$ ' + res.data.desconto_reais;
     fb.style.color = '#16622f';
     fb.style.display = 'block';
 
@@ -1197,7 +1313,7 @@ async function gerarPix() {
   erro.style.display = 'none';
   var btn = document.getElementById('btn-gerar');
   btn.disabled = true;
-  btn.innerHTML = '<span style="animation:spin 1s linear infinite;display:inline-block;">⏳</span> Enviando código...';
+  btn.innerHTML = '<span style="animation:spin 1s linear infinite;display:inline-block;"><svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg></span> Enviando código...';
 
   // Salvar dados
   dadosFormulario = { name: nome, document: doc, email: email, phone: tel, utm: window.location.search.replace(/^\?/,'') };
@@ -1213,7 +1329,7 @@ async function gerarPix() {
     if (!res.ok) {
       mostrarErro('Erro ao enviar código: ' + (data.error || res.status));
       btn.disabled = false;
-      btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
+      btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></span>';
       return;
     }
     // Mostrar tela de verificação
@@ -1222,12 +1338,12 @@ async function gerarPix() {
     document.getElementById('verify-erro').style.display = 'none';
     mostrarStep('verify');
     btn.disabled = false;
-    btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
+    btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></span>';
     iniciarTimerReenvio();
   } catch(e) {
     mostrarErro('Erro de conexão: ' + e.message);
     btn.disabled = false;
-    btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;">⚡</span>';
+    btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></span>';
   }
 }
 
@@ -1242,7 +1358,7 @@ async function confirmarCodigo() {
   erroEl.style.display = 'none';
   var btn = document.getElementById('btn-confirmar');
   btn.disabled = true;
-  btn.textContent = '⏳ Verificando...';
+  btn.textContent = '<svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg> Verificando...';
 
   try {
     var res = await fetch(API_BASE + '/verificar-codigo', {
@@ -1255,17 +1371,17 @@ async function confirmarCodigo() {
       erroEl.textContent = data.error || 'Código inválido.';
       erroEl.style.display = 'block';
       btn.disabled = false;
-      btn.textContent = 'Confirmar código ✓';
+      btn.textContent = 'Confirmar código <svg class=ico aria-hidden=true><use href=#i-check></use></svg>';
       return;
     }
     // Código válido — gerar PIX
-    btn.textContent = '✓ Verificado! Gerando PIX...';
+    btn.textContent = '<svg class=ico aria-hidden=true><use href=#i-check></use></svg> Verificado! Gerando PIX...';
     await gerarPixReal();
   } catch(e) {
     erroEl.textContent = 'Erro de conexão: ' + e.message;
     erroEl.style.display = 'block';
     btn.disabled = false;
-    btn.textContent = 'Confirmar código ✓';
+    btn.textContent = 'Confirmar código <svg class=ico aria-hidden=true><use href=#i-check></use></svg>';
   }
 }
 
@@ -1335,7 +1451,7 @@ async function gerarPixReal() {
         // de novo com o mesmo body, mostra o erro e para.
         var err = await res.json().catch(() => ({}));
         mostrarErro('Erro ao gerar PIX: ' + (err.error || res.status));
-        if (btn) { btn.disabled = false; btn.textContent = 'Confirmar código ✓'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Confirmar código <svg class=ico aria-hidden=true><use href=#i-check></use></svg>'; }
         return;
       }
 
@@ -1350,7 +1466,7 @@ async function gerarPixReal() {
 
   if (!resposta || !resposta.pixCode) {
     mostrarErro('Não foi possível gerar o PIX. ' + (ultimoErro || 'Tente novamente.'));
-    if (btn) { btn.disabled = false; btn.textContent = 'Confirmar código ✓'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Confirmar código <svg class=ico aria-hidden=true><use href=#i-check></use></svg>'; }
     return;
   }
 
@@ -1394,7 +1510,7 @@ function iniciarPolling(transactionId) {
     document.getElementById('status-txt').textContent = 'PIX expirado. Feche e tente novamente.';
     document.getElementById('pix-status').style.background = '#fef2f2';
     document.getElementById('pix-status').style.color = '#dc2626';
-    document.getElementById('status-spinner').textContent = '❌';
+    document.getElementById('status-spinner').textContent = '<svg class=ico aria-hidden=true><use href=#i-absent></use></svg>';
     document.getElementById('status-spinner').style.animation = 'none';
   }, 15 * 60 * 1000);
 }
@@ -1413,7 +1529,7 @@ function copiarPix() {
   var code = document.getElementById('pix-code-txt').textContent;
   navigator.clipboard.writeText(code).then(() => {
     var btn = event.target;
-    btn.textContent = 'Copiado! ✓';
+    btn.textContent = 'Copiado! <svg class=ico aria-hidden=true><use href=#i-check></use></svg>';
     btn.style.background = '#16622f';
     setTimeout(() => { btn.textContent = 'Copiar'; btn.style.background = '#1e8a40'; }, 2000);
   });
@@ -1444,7 +1560,7 @@ function escolherAssinarAgora(){
   if (emailEl) emailEl.textContent = email;
 
   var btn = document.getElementById('btn-trial');
-  if (btn) { btn.textContent = '⏳ Enviando código...'; btn.disabled = true; }
+  if (btn) { btn.textContent = '<svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg> Enviando código...'; btn.disabled = true; }
 
   fetch(API_BASE + '/enviar-codigo', {
     method: 'POST',
@@ -1453,16 +1569,16 @@ function escolherAssinarAgora(){
   })
   .then(function(r){ return r.json(); })
   .then(function(data){
-    if (btn) { btn.textContent = '🚀 Começar 7 dias grátis'; btn.disabled = false; }
+    if (btn) { btn.textContent = '<svg class=ico aria-hidden=true><use href=#i-rocket></use></svg> Começar 7 dias grátis'; btn.disabled = false; }
     if (!data.ok) { mostrarErro(data.error || 'Erro ao enviar código.'); return; }
     var camposPag = document.getElementById('trial-verify-pagamento-campos');
     if (camposPag) camposPag.style.display = 'block';
     var btnConf = document.getElementById('btn-trial-confirmar');
-    if (btnConf) btnConf.textContent = 'Confirmar e continuar para pagamento →';
+    if (btnConf) btnConf.textContent = 'Confirmar e continuar para pagamento <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>';
     mostrarStep('trial-verify');
   })
   .catch(function(){
-    if (btn) { btn.textContent = '🚀 Começar 7 dias grátis'; btn.disabled = false; }
+    if (btn) { btn.textContent = '<svg class=ico aria-hidden=true><use href=#i-rocket></use></svg> Começar 7 dias grátis'; btn.disabled = false; }
     mostrarErro('Erro de conexão. Tente novamente.');
   });
 }
@@ -1473,7 +1589,7 @@ async function ativarTrialGratis() {
   var email = ((document.getElementById('f-email') || {}).value || '').trim();
   
   var btn = document.getElementById('btn-trial');
-  if (btn) { btn.textContent = '⏳ Ativando...'; btn.disabled = true; }
+  if (btn) { btn.textContent = '<svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg> Ativando...'; btn.disabled = true; }
   
   // Enviar email de verificação. O trial em si (data de início/fim)
   // é decidido e gravado só pelo backend, em empresas.trial_fim,
@@ -1488,7 +1604,7 @@ async function ativarTrialGratis() {
     var data = await r.json();
     if (!data.ok) throw new Error(data.error || 'Erro');
   } catch(e) {
-    if (btn) { btn.textContent = '🚀 Começar 7 dias grátis'; btn.disabled = false; }
+    if (btn) { btn.textContent = '<svg class=ico aria-hidden=true><use href=#i-rocket></use></svg> Começar 7 dias grátis'; btn.disabled = false; }
     var errEl = document.getElementById('trial-verify-erro');
     if (errEl) { errEl.style.display='block'; errEl.textContent = 'Erro: ' + e.message; }
     else alert('Erro: ' + e.message);
@@ -1521,7 +1637,7 @@ async function confirmarTrialCodigo() {
   }
 
   var btn = document.getElementById('btn-trial-confirmar');
-  if (btn) { btn.textContent = '⏳ Verificando...'; btn.disabled = true; }
+  if (btn) { btn.textContent = '<svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg> Verificando...'; btn.disabled = true; }
 
   try {
     var r = await fetch(API_BASE + '/verificar-codigo', {
@@ -1537,7 +1653,7 @@ async function confirmarTrialCodigo() {
     // a pessoa saía sem conseguir logar depois. Agora mostramos a
     // mensagem certa com um caminho de saída (ir para o login).
     if (r.status === 409 && data.ja_cadastrado) {
-      if (btn) { btn.textContent = intencaoAssinarDireto ? 'Confirmar e continuar' : 'Confirmar e ativar trial ✓'; btn.disabled = false; }
+      if (btn) { btn.textContent = intencaoAssinarDireto ? 'Confirmar e continuar' : 'Confirmar e ativar trial <svg class=ico aria-hidden=true><use href=#i-check></use></svg>'; btn.disabled = false; }
       var erroDup = document.getElementById('trial-verify-erro');
       if (erroDup) {
         erroDup.innerHTML = 'Este e-mail já tem uma conta Worka. ' +
@@ -1550,12 +1666,12 @@ async function confirmarTrialCodigo() {
     if (!r.ok || !data.ok) throw new Error(data.error || 'Código inválido');
 
     // O backend retorna token quando cria a empresa (nome+senha
-    // enviados) — sem isso, "Acessar o Worka →" levaria a pessoa
+    // enviados) — sem isso, "Acessar o Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>" levaria a pessoa
     // pra tela de login pedindo credenciais que ela já acabou de
     // digitar aqui. Salva para o app já abrir logado.
     if (data.token) localStorage.setItem('worka_token', data.token);
   } catch(e) {
-    if (btn) { btn.textContent = intencaoAssinarDireto ? 'Confirmar e continuar' : 'Confirmar e ativar trial ✓'; btn.disabled = false; }
+    if (btn) { btn.textContent = intencaoAssinarDireto ? 'Confirmar e continuar' : 'Confirmar e ativar trial <svg class=ico aria-hidden=true><use href=#i-check></use></svg>'; btn.disabled = false; }
     var erroEl = document.getElementById('trial-verify-erro');
     if (erroEl) { erroEl.textContent = e.message; erroEl.style.display = 'block'; }
     else mostrarErro(e.message);
@@ -1587,7 +1703,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 <!-- MODAL DE ACESSO AO PAINEL -->
 <div id="acesso-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(10,46,26,0.85);backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:20px;">
   <div id="acesso-card" style="background:white;border-radius:20px;padding:40px 32px;width:100%;max-width:400px;box-shadow:0 32px 80px rgba(0,0,0,0.4);position:relative;">
-    <button onclick="fecharAcesso()" style="position:absolute;top:16px;right:16px;background:var(--gray100);border:none;width:32px;height:32px;border-radius:50%;font-size:1rem;cursor:pointer;">✕</button>
+    <button onclick="fecharAcesso()" style="position:absolute;top:16px;right:16px;background:var(--gray100);border:none;width:32px;height:32px;border-radius:50%;font-size:1rem;cursor:pointer;"><svg class=ico aria-hidden=true><use href=#i-x></use></svg></button>
     <div style="font-family:'Syne',sans-serif;font-size:1.8rem;font-weight:800;color:#16622f;text-align:center;margin-bottom:4px;">Work<span style="color:#25b251">a</span></div>
     <div style="text-align:center;font-size:0.85rem;color:#6b7068;margin-bottom:24px;">Acesse sua conta ou crie uma nova</div>
 
@@ -1645,7 +1761,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
     <!-- Confirmação de aparelho novo (2º passo do login) -->
     <div id="acesso-dispositivo" style="display:none;">
       <div style="background:#edfaf2;border-radius:10px;padding:14px;font-size:0.82rem;color:#16622f;margin-bottom:16px;line-height:1.5;">
-        🔐 Este aparelho é novo por aqui. Enviamos um código de 6 dígitos para <strong id="ac-disp-email"></strong>.
+        <svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Este aparelho é novo por aqui. Enviamos um código de 6 dígitos para <strong id="ac-disp-email"></strong>.
       </div>
       <div style="margin-bottom:12px;">
         <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">Código recebido</label>
@@ -1656,7 +1772,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
     <div id="acesso-erro" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px;font-size:0.8rem;color:#dc2626;margin-bottom:12px;"></div>
 
-    <button id="acesso-btn-entrar" onclick="entrarNoApp()" style="width:100%;background:#1e8a40;color:white;border:none;padding:13px;border-radius:10px;font-size:0.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:12px;">Entrar no Worka →</button>
+    <button id="acesso-btn-entrar" onclick="entrarNoApp()" style="width:100%;background:#1e8a40;color:white;border:none;padding:13px;border-radius:10px;font-size:0.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:12px;">Entrar no Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></button>
     <div style="text-align:center;margin-bottom:10px;">
       <!-- ?recuperar=1 abre o app já na tela de redefinição, em vez de
            só na tela de login pedindo pra clicar de novo. -->
@@ -1683,7 +1799,7 @@ function setAcessoTipo(tipo){
   document.getElementById('acesso-dispositivo').style.display='none';
   document.getElementById('acesso-erro').style.display='none';
   var btnEntrar = document.getElementById('acesso-btn-entrar');
-  if(btnEntrar) btnEntrar.textContent = 'Entrar no Worka →';
+  if(btnEntrar) btnEntrar.textContent = 'Entrar no Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>';
 
   document.getElementById('acesso-dono').style.display=tipo==='dono'?'block':'none';
   document.getElementById('acesso-func').style.display=tipo==='funcionario'?'block':'none';
@@ -1738,7 +1854,7 @@ function mostrarPassoDispositivo(email, senha, tipo){
   document.getElementById('ac-disp-codigo').value = '';
   document.getElementById('acesso-erro').style.display = 'none';
   var btn = document.getElementById('acesso-btn-entrar');
-  if(btn) btn.textContent = 'Confirmar e entrar →';
+  if(btn) btn.textContent = 'Confirmar e entrar <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>';
 }
 
 function confirmarDispositivoSite(){
@@ -1768,7 +1884,7 @@ function confirmarDispositivoSite(){
   })
   .then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }); })
   .then(function(res){
-    if(btn){ btn.textContent = 'Confirmar e entrar →'; btn.disabled = false; }
+    if(btn){ btn.textContent = 'Confirmar e entrar <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'; btn.disabled = false; }
     if(res.status !== 200 || !res.data.token){
       erro.textContent = res.data.error || 'Não foi possível confirmar o aparelho.';
       erro.style.display = 'block';
@@ -1780,7 +1896,7 @@ function confirmarDispositivoSite(){
     window.location.href = 'worka-app.html';
   })
   .catch(function(){
-    if(btn){ btn.textContent = 'Confirmar e entrar →'; btn.disabled = false; }
+    if(btn){ btn.textContent = 'Confirmar e entrar <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'; btn.disabled = false; }
     erro.textContent = 'Erro de conexão. Tente novamente.';
     erro.style.display = 'block';
   });
@@ -1817,7 +1933,7 @@ function entrarNoApp(){
     })
     .then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }); })
     .then(function(res){
-      if(btnO){ btnO.textContent='Entrar no Worka →'; btnO.disabled=false; }
+      if(btnO){ btnO.textContent='Entrar no Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'; btnO.disabled=false; }
       if(res.status === 200 && res.data.requer_codigo){
         mostrarPassoDispositivo(res.data.email || emailO, senhaO, 'owner');
         return;
@@ -1832,7 +1948,7 @@ function entrarNoApp(){
       window.location.href = 'worka-app.html';
     })
     .catch(function(){
-      if(btnO){ btnO.textContent='Entrar no Worka →'; btnO.disabled=false; }
+      if(btnO){ btnO.textContent='Entrar no Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'; btnO.disabled=false; }
       erroGeral.textContent = 'Erro de conexão. Tente novamente.';
       erroGeral.style.display = 'block';
     });
@@ -1877,7 +1993,7 @@ function entrarNoApp(){
     })
     .then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }); })
     .then(function(res){
-      if(btnF){ btnF.textContent='Entrar no Worka →'; btnF.disabled=false; }
+      if(btnF){ btnF.textContent='Entrar no Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'; btnF.disabled=false; }
       if(res.status !== 200 || !res.data.token){
         erroGeral.textContent = res.data.error || 'Não foi possível entrar. Confira o ID da equipe, e-mail e senha.';
         erroGeral.style.display = 'block';
@@ -1888,7 +2004,7 @@ function entrarNoApp(){
       window.location.href = 'worka-app.html';
     })
     .catch(function(){
-      if(btnF){ btnF.textContent='Entrar no Worka →'; btnF.disabled=false; }
+      if(btnF){ btnF.textContent='Entrar no Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'; btnF.disabled=false; }
       erroGeral.textContent = 'Erro de conexão. Tente novamente.';
       erroGeral.style.display = 'block';
     });
@@ -1921,7 +2037,7 @@ function entrarNoApp(){
     .then(function(res){
       // Aparelho novo: senha certa, falta o código enviado por e-mail.
       if(res.status === 200 && res.data.requer_codigo){
-        if(btnEntrar){ btnEntrar.textContent='Entrar no Worka →'; btnEntrar.disabled=false; }
+        if(btnEntrar){ btnEntrar.textContent='Entrar no Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'; btnEntrar.disabled=false; }
         mostrarPassoDispositivo(res.data.email || email, senha, 'dono');
         return;
       }
@@ -1936,7 +2052,7 @@ function entrarNoApp(){
           erro.textContent = res.data.error || 'Email ou senha incorretos.';
         }
         erro.style.display='block';
-        if(btnEntrar){ btnEntrar.textContent='Entrar no Worka →'; btnEntrar.disabled=false; }
+        if(btnEntrar){ btnEntrar.textContent='Entrar no Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'; btnEntrar.disabled=false; }
         return;
       }
       localStorage.setItem('worka_token', res.data.token);
@@ -1963,7 +2079,7 @@ document.getElementById('acesso-overlay').addEventListener('click',function(e){i
   <div style="position:sticky;top:0;z-index:10;background:#0a2e1a;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.1);">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
       <div style="font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:#fff;">Work<span style="color:#3dd669">a</span></div>
-      <button onclick="fecharFunil()" style="background:rgba(255,255,255,0.1);border:none;color:white;width:32px;height:32px;border-radius:50%;font-size:1rem;cursor:pointer;">✕</button>
+      <button onclick="fecharFunil()" style="background:rgba(255,255,255,0.1);border:none;color:white;width:32px;height:32px;border-radius:50%;font-size:1rem;cursor:pointer;"><svg class=ico aria-hidden=true><use href=#i-x></use></svg></button>
     </div>
     <div style="background:rgba(255,255,255,0.15);border-radius:100px;height:4px;">
       <div id="funil-progress" style="height:4px;border-radius:100px;background:linear-gradient(90deg,#25b251,#3dd669);transition:width .4s;width:0%"></div>
@@ -1973,72 +2089,72 @@ document.getElementById('acesso-overlay').addEventListener('click',function(e){i
   <div style="max-width:480px;margin:0 auto;padding:32px 20px 60px;">
 
     <div id="funil-1" class="funil-step">
-      <div style="font-size:2rem;margin-bottom:12px;">👋</div>
+      <div style="font-size:2rem;margin-bottom:12px;"><svg class=ico aria-hidden=true><use href=#i-hand></use></svg></div>
       <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:12px;">Qual é o seu tipo de negócio?</h2>
       <p style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-bottom:28px;">Vamos personalizar a experiência do Worka para o seu segmento.</p>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div class="seg-card" onclick="escolherSegmento('Alimentação')">🍔 Alimentação</div>
-        <div class="seg-card" onclick="escolherSegmento('Estética')">💅 Estética</div>
-        <div class="seg-card" onclick="escolherSegmento('Varejo')">🛍️ Varejo</div>
-        <div class="seg-card" onclick="escolherSegmento('Oficina')">🔧 Oficina</div>
-        <div class="seg-card" onclick="escolherSegmento('Clínica')">🏥 Clínica</div>
-        <div class="seg-card" onclick="escolherSegmento('Outro')">🏢 Outro</div>
+        <div class="seg-card" onclick="escolherSegmento('Alimentação')"><svg class=ico aria-hidden=true><use href=#i-utensils></use></svg> Alimentação</div>
+        <div class="seg-card" onclick="escolherSegmento('Estética')"><svg class=ico aria-hidden=true><use href=#i-scissors></use></svg> Estética</div>
+        <div class="seg-card" onclick="escolherSegmento('Varejo')"><svg class=ico aria-hidden=true><use href=#i-bag></use></svg> Varejo</div>
+        <div class="seg-card" onclick="escolherSegmento('Oficina')"><svg class=ico aria-hidden=true><use href=#i-wrench></use></svg> Oficina</div>
+        <div class="seg-card" onclick="escolherSegmento('Clínica')"><svg class=ico aria-hidden=true><use href=#i-hospital></use></svg> Clínica</div>
+        <div class="seg-card" onclick="escolherSegmento('Outro')"><svg class=ico aria-hidden=true><use href=#i-building></use></svg> Outro</div>
       </div>
     </div>
 
     <div id="funil-2" class="funil-step" style="display:none;">
-      <div style="font-size:2rem;margin-bottom:12px;">😩</div>
+      <div style="font-size:2rem;margin-bottom:12px;"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg></div>
       <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:12px;">Você ainda perde tempo com isso?</h2>
       <p style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-bottom:24px;">A maioria dos donos de <span id="seg-nome" style="color:#3dd669;font-weight:700"></span> sofre com isso todo dia:</p>
       <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:32px;">
-        <div class="dor-card">😤 Funcionário falta e você fica sabendo depois</div>
-        <div class="dor-card">📋 Tarefa delegada que ninguém comprova ter feito</div>
-        <div class="dor-card">🧾 Produto vencido descoberto na hora errada</div>
-        <div class="dor-card">📊 Sem ideia de como o faturamento se relaciona com a equipe</div>
-        <div class="dor-card">🔑 Sem controle de quem pode ver o quê no sistema</div>
-        <div class="dor-card">📍 Funcionário bate ponto de casa e você não sabe</div>
+        <div class="dor-card"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Funcionário falta e você fica sabendo depois</div>
+        <div class="dor-card"><svg class=ico aria-hidden=true><use href=#i-tasks></use></svg> Tarefa delegada que ninguém comprova ter feito</div>
+        <div class="dor-card"><svg class=ico aria-hidden=true><use href=#i-card></use></svg> Produto vencido descoberto na hora errada</div>
+        <div class="dor-card"><svg class=ico aria-hidden=true><use href=#i-dashboard></use></svg> Sem ideia de como o faturamento se relaciona com a equipe</div>
+        <div class="dor-card"><svg class=ico aria-hidden=true><use href=#i-key></use></svg> Sem controle de quem pode ver o quê no sistema</div>
+        <div class="dor-card"><svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Funcionário bate ponto de casa e você não sabe</div>
       </div>
-      <button onclick="irParaPasso(3)" class="funil-btn">Isso acontece comigo →</button>
+      <button onclick="irParaPasso(3)" class="funil-btn">Isso acontece comigo <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></button>
     </div>
 
     <div id="funil-3" class="funil-step" style="display:none;">
-      <div style="font-size:2rem;margin-bottom:12px;">✅</div>
+      <div style="font-size:2rem;margin-bottom:12px;"><svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg></div>
       <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:12px;">O Worka resolve tudo isso por você</h2>
       <p style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-bottom:24px;">Plataforma completa de gestão de equipe, feita para quem tem negócio pra tocar.</p>
       <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:32px;">
-        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;">⏱</span><div><strong>Ponto digital em tempo real</strong><p>Funcionário bate o ponto pelo celular. Você vê na hora.</p></div></div>
-        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;">📸</span><div><strong>Tarefas com foto de comprovação</strong><p>Ninguém fecha tarefa sem enviar evidência.</p></div></div>
-        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;">🔔</span><div><strong>Alerta automático de validade</strong><p>O sistema avisa antes do produto vencer.</p></div></div>
-        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;">🎨</span><div><strong>Sua marca, suas cores</strong><p>O app fica com o nome e visual da sua empresa.</p></div></div>
-        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;">📍</span><div><strong>Localização na batida de ponto</strong><p>Veja no Google Maps exatamente onde cada funcionário bateu o ponto.</p></div></div>
+        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg></span><div><strong>Ponto digital em tempo real</strong><p>Funcionário bate o ponto pelo celular. Você vê na hora.</p></div></div>
+        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;"><svg class=ico aria-hidden=true><use href=#i-camera></use></svg></span><div><strong>Tarefas com foto de comprovação</strong><p>Ninguém fecha tarefa sem enviar evidência.</p></div></div>
+        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;"><svg class=ico aria-hidden=true><use href=#i-bell></use></svg></span><div><strong>Alerta automático de validade</strong><p>O sistema avisa antes do produto vencer.</p></div></div>
+        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;"><svg class=ico aria-hidden=true><use href=#i-palette></use></svg></span><div><strong>Sua marca, suas cores</strong><p>O app fica com o nome e visual da sua empresa.</p></div></div>
+        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;"><svg class=ico aria-hidden=true><use href=#i-pin></use></svg></span><div><strong>Localização na batida de ponto</strong><p>Veja no Google Maps exatamente onde cada funcionário bateu o ponto.</p></div></div>
       </div>
-      <button onclick="irParaPasso(4)" class="funil-btn">Quero saber mais →</button>
+      <button onclick="irParaPasso(4)" class="funil-btn">Quero saber mais <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></button>
     </div>
 
     <div id="funil-4" class="funil-step" style="display:none;">
-      <div style="font-size:2rem;margin-bottom:12px;">🚀</div>
+      <div style="font-size:2rem;margin-bottom:12px;"><svg class=ico aria-hidden=true><use href=#i-rocket></use></svg></div>
       <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:20px;">Diferenciais que você não encontra em outro lugar</h2>
       <div style="display:flex;flex-direction:column;gap:16px;margin-bottom:32px;">
         
-        <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:20px;"><div style="font-size:1.3rem;margin-bottom:8px;">🔐</div><div style="font-weight:700;color:#fff;margin-bottom:4px;">Hierarquia e permissões customizáveis</div><div style="font-size:0.82rem;color:rgba(255,255,255,0.6);">Crie os cargos que seu negócio precisa com permissões por checkbox.</div></div>
-        <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:20px;"><div style="font-size:1.3rem;margin-bottom:8px;">📱</div><div style="font-weight:700;color:#fff;margin-bottom:4px;">Entrada segura por ID único</div><div style="font-size:0.82rem;color:rgba(255,255,255,0.6);">Nenhum funcionário entra sem sua aprovação.</div></div>
+        <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:20px;"><div style="font-size:1.3rem;margin-bottom:8px;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg></div><div style="font-weight:700;color:#fff;margin-bottom:4px;">Hierarquia e permissões customizáveis</div><div style="font-size:0.82rem;color:rgba(255,255,255,0.6);">Crie os cargos que seu negócio precisa com permissões por checkbox.</div></div>
+        <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:20px;"><div style="font-size:1.3rem;margin-bottom:8px;"><svg class=ico aria-hidden=true><use href=#i-phone></use></svg></div><div style="font-weight:700;color:#fff;margin-bottom:4px;">Entrada segura por ID único</div><div style="font-size:0.82rem;color:rgba(255,255,255,0.6);">Nenhum funcionário entra sem sua aprovação.</div></div>
       </div>
-      <button onclick="irParaPasso(5)" class="funil-btn">Ver depoimentos →</button>
+      <button onclick="irParaPasso(5)" class="funil-btn">Ver depoimentos <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></button>
     </div>
 
     <div id="funil-5" class="funil-step" style="display:none;">
-      <div style="font-size:2rem;margin-bottom:12px;">💬</div>
+      <div style="font-size:2rem;margin-bottom:12px;"><svg class=ico aria-hidden=true><use href=#i-message></use></svg></div>
       <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:20px;">Quem já usa, não volta atrás</h2>
       <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:28px;">
         <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:18px;"><div style="font-size:0.85rem;color:rgba(255,255,255,0.85);margin-bottom:10px;">"Antes perdia horas tentando saber quem estava trabalhando. Hoje abro o Worka e vejo tudo."</div><div style="font-size:0.75rem;color:#3dd669;font-weight:600;">— Carla M. · Salão de Beleza</div></div>
         <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:18px;"><div style="font-size:0.85rem;color:rgba(255,255,255,0.85);margin-bottom:10px;">"Meu estoque nunca mais venceu desde que ativei o alerta automático. Vale cada centavo."</div><div style="font-size:0.75rem;color:#3dd669;font-weight:600;">— Roberto S. · Restaurante</div></div>
         <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:18px;"><div style="font-size:0.85rem;color:rgba(255,255,255,0.85);margin-bottom:10px;">"Customizei com as cores da minha empresa. Meus funcionários acham que mandei fazer um app!"</div><div style="font-size:0.75rem;color:#3dd669;font-weight:600;">— Ana P. · Clínica Estética</div></div>
       </div>
-      <button onclick="irParaPasso(6)" class="funil-btn">Ver o preço →</button>
+      <button onclick="irParaPasso(6)" class="funil-btn">Ver o preço <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></button>
     </div>
 
     <div id="funil-6" class="funil-step" style="display:none;">
-      <div style="font-size:2rem;margin-bottom:12px;">🎯</div>
+      <div style="font-size:2rem;margin-bottom:12px;"><svg class=ico aria-hidden=true><use href=#i-target></use></svg></div>
       <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:8px;">Tudo isso por menos de R$ 1 por dia</h2>
       <p style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-bottom:24px;">Um plano único. Sem cobranças extras. Sem surpresas.</p>
       <div style="background:white;border-radius:20px;padding:28px;margin-bottom:16px;text-align:center;">
@@ -2046,20 +2162,20 @@ document.getElementById('acesso-overlay').addEventListener('click',function(e){i
         <div style="font-family:'Syne',sans-serif;font-size:3rem;font-weight:800;color:#16622f;letter-spacing:-2px;">R$ 49,99</div>
         <div style="font-size:0.85rem;color:#6b7068;margin-bottom:20px;">/mês · cancele quando quiser</div>
         <div style="text-align:left;display:flex;flex-direction:column;gap:8px;margin-bottom:24px;">
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Ponto digital em tempo real</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Tarefas com foto/vídeo de comprovação</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Alerta automático de validade</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> White Label completo</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Hierarquia e permissões customizáveis</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Integração via API</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> Localização no ponto via Google Maps</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;">✓</span> 7 dias grátis para testar</div>
+          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;"><svg class=ico aria-hidden=true><use href=#i-check></use></svg></span> Ponto digital em tempo real</div>
+          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;"><svg class=ico aria-hidden=true><use href=#i-check></use></svg></span> Tarefas com foto/vídeo de comprovação</div>
+          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;"><svg class=ico aria-hidden=true><use href=#i-check></use></svg></span> Alerta automático de validade</div>
+          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;"><svg class=ico aria-hidden=true><use href=#i-check></use></svg></span> White Label completo</div>
+          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;"><svg class=ico aria-hidden=true><use href=#i-check></use></svg></span> Hierarquia e permissões customizáveis</div>
+          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;"><svg class=ico aria-hidden=true><use href=#i-check></use></svg></span> Integração via API</div>
+          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;"><svg class=ico aria-hidden=true><use href=#i-check></use></svg></span> Localização no ponto via Google Maps</div>
+          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;"><svg class=ico aria-hidden=true><use href=#i-check></use></svg></span> 7 dias grátis para testar</div>
         </div>
-        <button onclick="fecharFunil();setTimeout(abrirCheckout,300);" style="width:100%;background:#1e8a40;color:white;border:none;padding:16px;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Assinar agora — R$ 49,99/mês ⚡</button>
-        <div style="font-size:0.75rem;color:#6b7068;margin-top:10px;">🔒 Pagamento 100% seguro via PIX</div>
+        <button onclick="fecharFunil();setTimeout(abrirCheckout,300);" style="width:100%;background:#1e8a40;color:white;border:none;padding:16px;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Assinar agora — R$ 49,99/mês <svg class=ico aria-hidden=true><use href=#i-zap></use></svg></button>
+        <div style="font-size:0.75rem;color:#6b7068;margin-top:10px;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Pagamento 100% seguro via PIX</div>
       </div>
       <div style="background:rgba(255,200,0,0.1);border:1px solid rgba(255,200,0,0.3);border-radius:12px;padding:14px;text-align:center;">
-        <div style="font-size:0.82rem;color:#ffd966;font-weight:600;">⏰ Oferta especial de lançamento</div>
+        <div style="font-size:0.82rem;color:#ffd966;font-weight:600;"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg> Oferta especial de lançamento</div>
         <div style="font-size:0.75rem;color:rgba(255,255,255,0.6);margin-top:4px;">Garanta o preço de R$ 49,99 antes do reajuste</div>
       </div>
     </div>
