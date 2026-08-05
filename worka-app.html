@@ -804,6 +804,55 @@ tr:hover td{background:var(--g50)}
     </div>
 
     <!-- ── CUPONS DE DESCONTO (somente owner da Worka) ── -->
+    <!-- ── COMUNICADOS DA PLATAFORMA (somente owner) ── -->
+    <div class="page" id="pg-comunicados">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><div class="card-title">📣 Novo comunicado</div></div>
+          <div class="card-body">
+            <div class="field">
+              <label>Enviar para</label>
+              <select id="com-destino" onchange="atualizarAlcanceComunicado()">
+                <option value="todas">Todas as empresas</option>
+                <option value="ativa">Somente assinantes ativas</option>
+                <option value="trial">Somente em período de teste</option>
+                <option value="inadimplente">Somente inadimplentes</option>
+              </select>
+            </div>
+
+            <div id="com-alcance" style="background:var(--g50);border-radius:var(--r);padding:12px 14px;font-size:.85rem;color:var(--g600);font-weight:600;margin-bottom:14px">
+              Calculando quantas empresas vão receber...
+            </div>
+
+            <div class="field">
+              <label>Título</label>
+              <input id="com-titulo" maxlength="150" placeholder="Ex: Nova funcionalidade disponível">
+            </div>
+            <div class="field">
+              <label>Mensagem</label>
+              <textarea id="com-mensagem" maxlength="4000" placeholder="Escreva o comunicado que as empresas vão receber por e-mail..." style="width:100%;padding:11px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-family:var(--font);font-size:.9rem;resize:vertical;min-height:150px;outline:none;background:var(--gray50)"></textarea>
+            </div>
+
+            <div style="background:var(--yellow-bg);border:1px solid #fde68a;border-radius:var(--r);padding:12px 14px;font-size:.8rem;color:#92400e;margin-bottom:14px">
+              ⚠️ O envio é imediato e não pode ser desfeito. As empresas recebem por e-mail e por notificação no app.
+            </div>
+
+            <div id="com-erro" style="display:none;background:var(--red-bg);border:1px solid #fca5a5;border-radius:var(--rs);padding:10px 14px;font-size:.82rem;color:#dc2626;margin-bottom:12px"></div>
+            <div id="com-sucesso" style="display:none;background:var(--g50);border:1px solid var(--g200);border-radius:var(--rs);padding:10px 14px;font-size:.82rem;color:var(--g600);margin-bottom:12px"></div>
+
+            <button class="btn btn-primary" id="com-btn-enviar" style="width:100%" onclick="enviarComunicado()">Enviar comunicado</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><div class="card-title">Histórico de envios</div></div>
+          <div class="card-body" style="padding:0" id="com-historico">
+            <div class="skel-row"><div style="flex:1"><div class="skel skel-text" style="width:55%"></div><div class="skel skel-text" style="width:35%"></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="page" id="pg-cupons">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;gap:12px;flex-wrap:wrap">
         <div style="font-size:.85rem;color:var(--gray500)">Cupons aplicáveis na assinatura da plataforma (R$ <span id="cupom-preco-plano">49,99</span>/mês).</div>
@@ -1642,6 +1691,7 @@ var menus = {
   owner: [
     {sec:'Worka Admin'},
     {id:'owner',icon:'👑',label:'Painel Owner'},
+    {id:'comunicados',icon:'📣',label:'Enviar Comunicado'},
     {id:'cupons',icon:'🎟️',label:'Cupons de Desconto'},
     {sec:'Principal'},
     {id:'dashboard',icon:'📊',label:'Dashboard'},
@@ -2571,7 +2621,7 @@ function abrirPagina(id) {
     'owner':'Painel Owner Worka','meu-painel':'Meu Painel',
     'salarios':'Salários e Pagamentos','ausencias':'Ausências e Faltas',
     'escala':'Escala de Trabalho','relatorios':'Relatórios','mural':'Mural / Comunicados',
-    'cupons':'Cupons de Desconto'
+    'cupons':'Cupons de Desconto','comunicados':'Enviar Comunicado'
   };
   document.getElementById('topbar-title').textContent = labels[id]||id;
 
@@ -2594,6 +2644,7 @@ function abrirPagina(id) {
   if(id==='salarios' && typeof carregarSalariosReal === 'function') carregarSalariosReal();
   if(id==='meu-painel' && typeof carregarMeuPainelReal === 'function') carregarMeuPainelReal();
   if(id==='cupons' && typeof carregarCuponsReal === 'function') carregarCuponsReal();
+  if(id==='comunicados' && typeof carregarComunicadosReal === 'function') carregarComunicadosReal();
   if(id==='ausencias'){
     if(typeof carregarAusenciasReal === 'function') carregarAusenciasReal();
     if(typeof aplicarConfigFaltaNaTela === 'function') aplicarConfigFaltaNaTela();
@@ -3418,6 +3469,122 @@ function redefinirSenha(){
     // que a pessoa acabou de criar.
     voltarParaLogin();
     entrarComoDono(res.data.token, res.data.empresa, res.data.trial);
+  })
+  .catch(function(){
+    btn.disabled = false; btn.textContent = txt;
+    erroEl.textContent = 'Erro de conexão. Tente novamente.';
+    erroEl.style.display = 'block';
+  });
+}
+
+// ═══════════════════════════════════
+// COMUNICADOS DA PLATAFORMA (painel Owner)
+// ═══════════════════════════════════
+// Alcance por destino, buscado uma vez ao abrir a tela. Serve para o
+// owner ver quantas empresas vão receber ANTES de disparar — envio de
+// e-mail em massa não pode ser surpresa.
+var alcanceComunicado = null;
+
+function carregarComunicadosReal(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+  var headers = { 'Authorization': 'Bearer ' + sessaoWorka.token };
+
+  fetch('https://worka-backend-awng.onrender.com/owner/comunicados/alcance', { headers: headers })
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){ alcanceComunicado = d; atualizarAlcanceComunicado(); })
+    .catch(function(){});
+
+  fetch('https://worka-backend-awng.onrender.com/owner/comunicados', { headers: headers })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var box = document.getElementById('com-historico');
+      if(!box) return;
+      var lista = (d && d.comunicados) || [];
+      if(lista.length === 0){
+        box.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>Nenhum comunicado enviado ainda.</p></div>';
+        return;
+      }
+      var rotuloDestino = { todas:'Todas', ativa:'Ativas', trial:'Em teste', inadimplente:'Inadimplentes' };
+      box.innerHTML = lista.map(function(c){
+        var quando = c.created_at ? new Date(c.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+        var falhou = (c.total_falhou || 0) > 0
+          ? ' <span class="badge badge-red">'+c.total_falhou+' falhou</span>' : '';
+        return '<div style="padding:14px 20px;border-bottom:1px solid var(--gray50)">' +
+          '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">' +
+            '<div style="font-weight:600;font-size:.88rem;color:var(--gray900)">'+c.titulo+'</div>' +
+            '<span class="badge badge-gray" style="flex-shrink:0">'+(rotuloDestino[c.destino]||c.destino)+'</span>' +
+          '</div>' +
+          '<div style="font-size:.78rem;color:var(--gray500);margin-top:4px">'+quando+' · '+(c.total_enviado||0)+' enviado(s)'+falhou+'</div>' +
+        '</div>';
+      }).join('');
+    })
+    .catch(function(){});
+}
+
+function atualizarAlcanceComunicado(){
+  var box = document.getElementById('com-alcance');
+  var sel = document.getElementById('com-destino');
+  if(!box || !sel) return;
+  if(!alcanceComunicado){ box.textContent = 'Calculando quantas empresas vão receber...'; return; }
+  var n = alcanceComunicado[sel.value];
+  if(n === undefined) n = 0;
+  box.textContent = n === 0
+    ? '⚠️ Nenhuma empresa se encaixa nesse destino — nada será enviado.'
+    : '📬 Este comunicado será enviado para ' + n + (n === 1 ? ' empresa.' : ' empresas.');
+  box.style.color = n === 0 ? '#92400e' : 'var(--g600)';
+}
+
+function enviarComunicado(){
+  var erroEl = document.getElementById('com-erro');
+  var okEl = document.getElementById('com-sucesso');
+  erroEl.style.display = 'none';
+  okEl.style.display = 'none';
+
+  if(!sessaoWorka || !sessaoWorka.token){
+    erroEl.textContent = 'Faça login novamente.';
+    erroEl.style.display = 'block';
+    return;
+  }
+
+  var titulo = (document.getElementById('com-titulo').value || '').trim();
+  var mensagem = (document.getElementById('com-mensagem').value || '').trim();
+  var destino = document.getElementById('com-destino').value;
+
+  if(!titulo){ erroEl.textContent = 'Informe o título do comunicado.'; erroEl.style.display='block'; return; }
+  if(!mensagem){ erroEl.textContent = 'Escreva a mensagem do comunicado.'; erroEl.style.display='block'; return; }
+
+  // Confirmação explícita com o número real de destinatários: o envio
+  // é imediato e irreversível.
+  var quantas = alcanceComunicado ? (alcanceComunicado[destino] || 0) : null;
+  var aviso = quantas !== null
+    ? 'Enviar este comunicado para ' + quantas + (quantas === 1 ? ' empresa' : ' empresas') + '?\n\nEles receberão por e-mail imediatamente. Não dá para desfazer.'
+    : 'Enviar este comunicado agora? Não dá para desfazer.';
+  if(!confirm(aviso)) return;
+
+  var btn = document.getElementById('com-btn-enviar');
+  var txt = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Enviando...';
+
+  fetch('https://worka-backend-awng.onrender.com/owner/comunicados', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
+    body: JSON.stringify({ titulo: titulo, mensagem: mensagem, destino: destino })
+  })
+  .then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }); })
+  .then(function(res){
+    btn.disabled = false; btn.textContent = txt;
+    if(res.status !== 201){
+      erroEl.textContent = res.data.error || 'Não foi possível enviar o comunicado.';
+      erroEl.style.display = 'block';
+      return;
+    }
+    var msg = '✅ Comunicado enviado para ' + res.data.enviados + ' empresa(s).';
+    if(res.data.falhas > 0) msg += ' ' + res.data.falhas + ' envio(s) falharam.';
+    okEl.textContent = msg;
+    okEl.style.display = 'block';
+    document.getElementById('com-titulo').value = '';
+    document.getElementById('com-mensagem').value = '';
+    carregarComunicadosReal();
   })
   .catch(function(){
     btn.disabled = false; btn.textContent = txt;
