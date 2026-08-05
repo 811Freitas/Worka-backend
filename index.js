@@ -1070,6 +1070,19 @@ var server = http.createServer(async (req, res) => {
       });
     }
 
+    // ── CHAVE PÚBLICA VAPID (rota pública) ───────────
+    // O navegador precisa dessa chave para criar a inscrição de push.
+    // É pública por definição do protocolo Web Push — o par privado
+    // (VAPID_PRIVATE_KEY) é que assina os envios e nunca sai do
+    // servidor. Sem esta rota, o frontend não tinha como se inscrever,
+    // e era por isso que nenhum push chegava a lugar nenhum.
+    if (method === "GET" && path === "/push/vapid-key") {
+      if (!CONFIG.VAPID_PUBLIC) {
+        return jsonErr(res, "Push não configurado neste servidor", 503);
+      }
+      return jsonOk(res, { publicKey: CONFIG.VAPID_PUBLIC });
+    }
+
     // ── CADASTRO DE EMPRESA ──────────────────────────
     if (method === "POST" && path === "/empresas") {
       var raw = await getBody(req);
