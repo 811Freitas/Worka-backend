@@ -1607,18 +1607,23 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
       </div>
     </div>
 
+    <!-- Estes 3 campos não tinham id nenhum, e entrarNoApp() lia sempre
+         os campos da aba Empresa — o "ID da Equipe" digitado aqui nunca
+         era lido nem enviado, e o login de funcionário pelo site
+         simplesmente não funcionava. -->
     <div id="acesso-func" style="display:none;">
       <div style="margin-bottom:12px;">
         <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">ID da Equipe</label>
-        <input type="text" placeholder="#WK-0000" style="width:100%;padding:11px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;">
+        <input id="ac-teamid" type="text" placeholder="#WK-0000" maxlength="8" style="width:100%;padding:11px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;text-transform:uppercase;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
+        <div style="font-size:0.72rem;color:#6b7068;margin-top:4px;">Peça esse código ao dono da empresa.</div>
       </div>
       <div style="margin-bottom:12px;">
         <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">E-mail</label>
-        <input type="email" placeholder="seu@email.com" style="width:100%;padding:11px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;">
+        <input id="ac-func-email" type="email" placeholder="seu@email.com" style="width:100%;padding:11px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
       </div>
       <div style="margin-bottom:16px;">
         <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">Senha</label>
-        <input type="password" placeholder="••••••••" style="width:100%;padding:11px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;">
+        <input id="ac-func-senha" type="password" placeholder="••••••••" style="width:100%;padding:11px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
       </div>
     </div>
 
@@ -1656,6 +1661,65 @@ function setAcessoTipo(tipo){
   document.getElementById('tab-func').style.boxShadow=tipo==='funcionario'?'0 1px 4px rgba(0,0,0,0.1)':'none';
 }
 function entrarNoApp(){
+  var erroGeral = document.getElementById('acesso-erro');
+  erroGeral.style.display = 'none';
+
+  // ── Login de FUNCIONÁRIO ──────────────────────────────────
+  // Antes esta função ignorava a aba selecionada e sempre lia os
+  // campos da aba Empresa. Quem escolhia "Funcionário" preenchia ID
+  // da Equipe/e-mail/senha e recebia "Preencha e-mail e senha" —
+  // o login de funcionário pelo site nunca funcionou.
+  if(acessoTipo === 'funcionario'){
+    var teamId = ((document.getElementById('ac-teamid')||{}).value||'').trim().toUpperCase();
+    var emailF = ((document.getElementById('ac-func-email')||{}).value||'').trim().toLowerCase();
+    var senhaF = ((document.getElementById('ac-func-senha')||{}).value||'');
+
+    if(!teamId || !emailF || !senhaF){
+      erroGeral.textContent = 'Preencha o ID da Equipe, e-mail e senha.';
+      erroGeral.style.display = 'block';
+      return;
+    }
+    // O backend valida o formato #WK-0000; normalizamos aqui para a
+    // pessoa poder digitar "wk-1234" ou "1234" sem errar por isso.
+    if(!/^#WK-\d{4}$/.test(teamId)){
+      var somenteDigitos = teamId.replace(/\D/g,'');
+      if(somenteDigitos.length === 4){
+        teamId = '#WK-' + somenteDigitos;
+      } else {
+        erroGeral.textContent = 'ID da Equipe inválido. Use o formato #WK-0000.';
+        erroGeral.style.display = 'block';
+        return;
+      }
+    }
+
+    var btnF = document.getElementById('acesso-btn-entrar');
+    if(btnF){ btnF.textContent='Entrando...'; btnF.disabled=true; }
+
+    fetch(API_BASE + '/login/funcionario', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ teamId: teamId, email: emailF, senha: senhaF })
+    })
+    .then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }); })
+    .then(function(res){
+      if(btnF){ btnF.textContent='Entrar no Worka →'; btnF.disabled=false; }
+      if(res.status !== 200 || !res.data.token){
+        erroGeral.textContent = res.data.error || 'Não foi possível entrar. Confira o ID da equipe, e-mail e senha.';
+        erroGeral.style.display = 'block';
+        return;
+      }
+      localStorage.setItem('worka_token', res.data.token);
+      fecharAcesso();
+      window.location.href = 'worka-app.html';
+    })
+    .catch(function(){
+      if(btnF){ btnF.textContent='Entrar no Worka →'; btnF.disabled=false; }
+      erroGeral.textContent = 'Erro de conexão. Tente novamente.';
+      erroGeral.style.display = 'block';
+    });
+    return;
+  }
+
   var email = document.getElementById('ac-email') ? document.getElementById('ac-email').value.trim().toLowerCase() : '';
   var senha = document.getElementById('ac-senha') ? document.getElementById('ac-senha').value : '';
   // Login de owner (conta administrativa da Worka) não é feito por

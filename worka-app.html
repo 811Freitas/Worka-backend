@@ -2666,21 +2666,52 @@ async function baterPonto(tipo, btnEl) {
     return;
   }
 
+  var statusEl = document.getElementById('ponto-status');
+
   if(!navigator.geolocation){
+    if(statusEl) statusEl.textContent = '⚠️ Este navegador não suporta localização — ponto será registrado sem GPS.';
     await registrarPonto(tipo, null, null, btn);
     return;
   }
 
   if(btn){ btn.textContent = '📍 Capturando...'; btn.disabled = true; }
+  if(statusEl) statusEl.textContent = '📍 Obtendo sua localização...';
+
+  // Antes a chamada era getCurrentPosition(sucesso, erro) sem opções:
+  // o timeout padrão é infinito, então em celular com GPS lento o
+  // botão podia ficar preso em "Capturando..." para sempre, sem nunca
+  // registrar o ponto. E qualquer falha caía num catch mudo, que
+  // gravava sem coordenadas sem avisar nada — por isso "não puxava a
+  // localização" e ninguém entendia o motivo.
+  var opcoes = {
+    enableHighAccuracy: true, // usa GPS real, não só torre/Wi-Fi
+    timeout: 12000,           // desiste em 12s em vez de travar
+    maximumAge: 60000         // aceita posição de até 1min atrás
+  };
 
   navigator.geolocation.getCurrentPosition(function(pos){
+    if(statusEl) statusEl.textContent = '📍 Localização obtida, registrando...';
     registrarPonto(tipo, pos.coords.latitude, pos.coords.longitude, btn);
-  }, function(){
-    // Geolocalização negada/indisponível — registra sem coordenadas
-    // (null) em vez de gravar uma localização falsa fixa como se
-    // fosse real, que é o que o código fazia antes.
+  }, function(err){
+    // Agora cada motivo de falha tem uma mensagem própria, para a
+    // pessoa saber o que fazer em vez de achar que o app está quebrado.
+    var aviso;
+    if(err && err.code === 1){        // PERMISSION_DENIED
+      aviso = '⚠️ Permissão de localização negada. O ponto foi registrado sem GPS. ' +
+              'Para ativar: Ajustes do navegador → Site workap.com.br → Localização → Permitir.';
+    } else if(err && err.code === 2){ // POSITION_UNAVAILABLE
+      aviso = '⚠️ Não foi possível obter o sinal de GPS agora. Ponto registrado sem localização.';
+    } else if(err && err.code === 3){ // TIMEOUT
+      aviso = '⚠️ O GPS demorou demais para responder. Ponto registrado sem localização.';
+    } else {
+      aviso = '⚠️ Não foi possível obter a localização. Ponto registrado sem GPS.';
+    }
+    if(statusEl){
+      statusEl.textContent = aviso;
+      statusEl.style.color = '#fbbf24';
+    }
     registrarPonto(tipo, null, null, btn);
-  });
+  }, opcoes);
 }
 
 async function registrarPonto(tipo, lat, lng, btn){
@@ -2732,7 +2763,18 @@ async function registrarPonto(tipo, lat, lng, btn){
     }
 
     var status = document.getElementById('ponto-status');
-    if(status) status.textContent = '✅ '+labelsPonto[tipo]+' registrada às '+h;
+    if(status){
+      if(lat != null && lng != null){
+        status.textContent = '✅ '+labelsPonto[tipo]+' registrada às '+h+' com localização';
+        status.style.color = ''; // volta ao padrão após um aviso amarelo anterior
+      } else {
+        // Mantém o aviso de GPS que baterPonto() já escreveu (e a cor
+        // amarela): sobrescrever aqui com um "✅" apagaria a explicação
+        // de por que a localização não foi capturada.
+        status.textContent = '✅ '+labelsPonto[tipo]+' registrada às '+h+' — sem localização. ' + (status.textContent.indexOf('⚠️') === 0 ? status.textContent.replace('⚠️ ','') : '');
+        status.style.color = '#fbbf24';
+      }
+    }
 
     atualizarBotoesPonto(tipo);
   } catch(e) {
