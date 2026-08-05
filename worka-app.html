@@ -374,6 +374,30 @@ tr:hover td{background:var(--g50)}
       <a href="#" onclick="voltarParaLogin();return false;" style="color:var(--gray500);font-size:0.78rem;text-decoration:underline">← Voltar para o login</a>
     </div>
   </div>
+
+  <!-- ── CONFIRMAÇÃO DE APARELHO NOVO ── -->
+  <div class="login-card" id="card-dispositivo" style="display:none">
+    <div class="login-logo">Work<span>a</span></div>
+    <div class="login-sub">Confirme este aparelho</div>
+
+    <div style="background:var(--g50);border-radius:var(--r);padding:14px;font-size:.82rem;color:var(--g600);margin-bottom:18px;line-height:1.5">
+      🔐 Este aparelho é novo por aqui. Enviamos um código de 6 dígitos para <strong id="disp-email-txt"></strong> para confirmar que é você.
+    </div>
+
+    <div class="field">
+      <label>Código recebido</label>
+      <input id="disp-codigo" type="text" inputmode="numeric" maxlength="6" placeholder="000000" style="text-align:center;letter-spacing:8px;font-weight:700;font-size:1.2rem">
+    </div>
+    <div class="login-erro" id="disp-erro">Código inválido.</div>
+    <button class="btn-full" id="disp-btn-confirmar" onclick="confirmarDispositivo()">Confirmar e entrar</button>
+
+    <div style="text-align:center;margin-top:14px;font-size:.75rem;color:var(--gray500)">
+      Depois de confirmado, este aparelho não pedirá código de novo por 30 dias.
+    </div>
+    <div style="text-align:center;margin-top:14px">
+      <a href="#" onclick="voltarParaLogin();return false;" style="color:var(--gray500);font-size:0.78rem;text-decoration:underline">← Voltar para o login</a>
+    </div>
+  </div>
 </div>
 
 <!-- ═══════════════════════════════════════════
@@ -1863,10 +1887,15 @@ function fazerLogin() {
     fetch('https://worka-backend-awng.onrender.com/login/owner', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ email: emailVal, senha: senhaVal })
+      body: JSON.stringify({ email: emailVal, senha: senhaVal, deviceId: obterDeviceId() })
     })
     .then(function(r){ return r.json().then(function(data){ return { status:r.status, data:data }; }); })
     .then(function(res){
+      // Aparelho novo: senha certa, mas ainda falta o código do e-mail.
+      if(res.status === 200 && res.data.requer_codigo){
+        pedirCodigoDispositivo(res.data.email || emailVal, senhaVal, 'owner');
+        return;
+      }
       if(res.status !== 200 || !res.data.token){
         var erroO2 = document.getElementById('login-erro');
         if(erroO2){ erroO2.textContent = res.data.error || 'Email ou senha incorretos.'; erroO2.style.display = 'block'; }
@@ -1893,10 +1922,15 @@ function fazerLogin() {
     fetch('https://worka-backend-awng.onrender.com/login/empresa', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ email: emailDono, senha: senhaDono })
+      body: JSON.stringify({ email: emailDono, senha: senhaDono, deviceId: obterDeviceId() })
     })
     .then(function(r){ return r.json().then(function(data){ return { status:r.status, data:data }; }); })
     .then(function(res){
+      // Aparelho novo: senha certa, mas ainda falta o código do e-mail.
+      if(res.status === 200 && res.data.requer_codigo){
+        pedirCodigoDispositivo(res.data.email || emailDono, senhaDono, 'dono');
+        return;
+      }
       if(res.status !== 200 || !res.data.token){
         alert(res.data.error || 'Email ou senha incorretos.');
         return;
@@ -3175,6 +3209,115 @@ function mostrarMensagemAumento(nome, novoSalario) {
 }
 
 // ═══════════════════════════════════
+// IDENTIDADE DO APARELHO
+// ═══════════════════════════════════
+// Número aleatório guardado no localStorage. Não identifica a pessoa
+// nem o aparelho — serve só para o servidor lembrar "deste navegador
+// já entrou alguém com a senha certa e confirmou o código".
+// Limpar os dados do navegador zera isso, e o próximo login pede
+// código de novo (comportamento esperado).
+function obterDeviceId(){
+  try {
+    var id = localStorage.getItem('worka_device_id');
+    if(!id){
+      id = (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID().replace(/-/g,'')
+        : String(Date.now()) + Math.random().toString(36).slice(2).padEnd(16,'0');
+      localStorage.setItem('worka_device_id', id);
+    }
+    return id;
+  } catch(e) {
+    // Safari em navegação privada bloqueia localStorage: sem id, o
+    // login segue funcionando, só vai pedir código toda vez.
+    return null;
+  }
+}
+
+// Rótulo legível só para uma futura tela de "aparelhos conectados".
+function descreverDispositivo(){
+  var ua = navigator.userAgent || '';
+  var so = /iPhone|iPad/i.test(ua) ? 'iPhone/iPad'
+         : /Android/i.test(ua) ? 'Android'
+         : /Mac/i.test(ua) ? 'Mac'
+         : /Windows/i.test(ua) ? 'Windows' : 'Outro';
+  var nav = /CriOS|Chrome/i.test(ua) ? 'Chrome'
+          : /Firefox/i.test(ua) ? 'Firefox'
+          : /Safari/i.test(ua) ? 'Safari' : 'Navegador';
+  return so + ' · ' + nav;
+}
+
+// ═══════════════════════════════════
+// CONFIRMAÇÃO DE APARELHO NOVO
+// ═══════════════════════════════════
+// Guardadas só em memória (nunca no localStorage) entre o passo da
+// senha e o passo do código: o backend confere a senha de novo ao
+// confirmar o código, então precisamos reenviá-la.
+var loginPendente = null;
+
+function pedirCodigoDispositivo(email, senha, tipo){
+  loginPendente = { email: email, senha: senha, tipo: tipo };
+  document.getElementById('card-login').style.display = 'none';
+  document.getElementById('card-recuperar').style.display = 'none';
+  document.getElementById('card-dispositivo').style.display = 'block';
+  document.getElementById('disp-email-txt').textContent = email;
+  document.getElementById('disp-codigo').value = '';
+  document.getElementById('disp-erro').style.display = 'none';
+}
+
+function confirmarDispositivo(){
+  var erroEl = document.getElementById('disp-erro');
+  erroEl.style.display = 'none';
+  if(!loginPendente){ voltarParaLogin(); return; }
+
+  var codigo = (document.getElementById('disp-codigo').value || '').trim();
+  if(!/^\d{6}$/.test(codigo)){
+    erroEl.textContent = 'O código tem 6 dígitos.';
+    erroEl.style.display = 'block';
+    return;
+  }
+
+  var btn = document.getElementById('disp-btn-confirmar');
+  var txt = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Confirmando...';
+
+  fetch('https://worka-backend-awng.onrender.com/login/confirmar-dispositivo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: loginPendente.email,
+      senha: loginPendente.senha,
+      codigo: codigo,
+      deviceId: obterDeviceId(),
+      descricao: descreverDispositivo()
+    })
+  })
+  .then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }); })
+  .then(function(res){
+    btn.disabled = false; btn.textContent = txt;
+    if(res.status !== 200 || !res.data.token){
+      erroEl.textContent = res.data.error || 'Não foi possível confirmar o aparelho.';
+      erroEl.style.display = 'block';
+      return;
+    }
+    var tipo = loginPendente.tipo;
+    var emailOk = loginPendente.email;
+    loginPendente = null; // não deixa a senha viva em memória além do necessário
+    document.getElementById('card-dispositivo').style.display = 'none';
+    document.getElementById('card-login').style.display = 'block';
+    if(tipo === 'owner'){
+      entrarComoOwner(res.data.token, emailOk);
+    } else {
+      entrarComoDono(res.data.token, res.data.empresa, res.data.trial);
+    }
+  })
+  .catch(function(){
+    btn.disabled = false; btn.textContent = txt;
+    erroEl.textContent = 'Erro de conexão. Tente novamente.';
+    erroEl.style.display = 'block';
+  });
+}
+
+// ═══════════════════════════════════
 // RECUPERAÇÃO DE SENHA
 // ═══════════════════════════════════
 // Vale só para conta de empresa (dono). Funcionário não tem e-mail
@@ -3195,6 +3338,9 @@ function abrirRecuperarSenha(){
 
 function voltarParaLogin(){
   document.getElementById('card-recuperar').style.display = 'none';
+  var cardDisp = document.getElementById('card-dispositivo');
+  if(cardDisp) cardDisp.style.display = 'none';
+  loginPendente = null; // descarta a senha guardada em memória
   document.getElementById('card-login').style.display = 'block';
 }
 

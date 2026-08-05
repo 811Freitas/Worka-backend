@@ -116,6 +116,7 @@ var RATE_LIMITS = {
   "/recuperar-senha": { max: 3,  window: 15 * 60 * 1000 }, // 3/15min — anti spam de email
   "/redefinir-senha": { max: 5,  window: 15 * 60 * 1000 }, // 5/15min — anti brute force do código
   "/cupom/validar":  { max: 20,  window: 10 * 60 * 1000 }, // 20/10min — anti varredura de cupons
+  "/login/confirmar-dispositivo": { max: 8, window: 15 * 60 * 1000 }, // 8/15min — anti brute force do código
   "default":         { max: 100, window: 60 * 1000 }       // 100/min geral
 };
 
@@ -346,7 +347,8 @@ function supabase(method, table, options = {}) {
     "empresas", "funcionarios", "registros_ponto", "tarefas",
     "produtos_validade", "ausencias", "escalas",
     "historico_salarios", "logs_sistema", "codigos_verificacao",
-    "lancamentos_financeiros", "push_subscriptions", "cupons"
+    "lancamentos_financeiros", "push_subscriptions", "cupons",
+    "dispositivos_confiaveis"
   ];
   if (!ALLOWED_TABLES.includes(table)) {
     return Promise.reject(new Error(`Tabela não permitida: ${table}`));
@@ -483,6 +485,100 @@ function gerarCodigo() {
 
 function gerarTeamId() {
   return "#WK-" + crypto.randomInt(1000, 9999).toString();
+}
+
+// ════════════════════════════════════════
+// DISPOSITIVOS CONFIÁVEIS
+// ════════════════════════════════════════
+// Senha correta em aparelho desconhecido não basta: o sistema manda um
+// código por e-mail antes de liberar o acesso. Aparelho já reconhecido
+// (e usado nos últimos DIAS_CONFIANCA dias) entra direto, para não
+// transformar o login do dia a dia num incômodo.
+var DIAS_CONFIANCA = 30;
+
+// O device_id é gerado pelo navegador (crypto.randomUUID) e guardado no
+// localStorage. Aceitamos só o formato esperado para ninguém conseguir
+// injetar texto arbitrário na consulta.
+function sanitizarDeviceId(v) {
+  if (typeof v !== "string") return null;
+  var limpo = v.trim();
+  return /^[A-Za-z0-9_-]{16,64}$/.test(limpo) ? limpo : null;
+}
+
+/**
+ * Diz se este aparelho já é confiável para esta conta.
+ *
+ * Falha "aberta" de propósito: se a tabela ainda não existe (migration
+ * 002 não rodada) ou o banco está indisponível, devolve true — ou seja,
+ * não exige código. Bloquear o login de todo mundo por causa de uma
+ * tabela ausente seria pior que rodar sem a camada extra; a senha
+ * continua sendo exigida normalmente nesse caso.
+ */
+async function dispositivoConfiavel(email, deviceId) {
+  if (!deviceId) return false; // sem id de aparelho, trata como novo
+
+  var res = await supabase("GET", "dispositivos_confiaveis", {
+    query: `email=eq.${encodeURIComponent(email)}&device_id=eq.${encodeURIComponent(deviceId)}&select=id,ultimo_acesso&limit=1`
+  }).catch(e => {
+    secLog("dispositivos_indisponivel", { message: e.message });
+    return { body: null, indisponivel: true };
+  });
+
+  if (res.indisponivel) return true;
+
+  var registro = res.body && res.body[0];
+  if (!registro) return false;
+
+  // "Login frequente": aparelho parado há muito tempo volta a pedir
+  // código, porque pode ter sido vendido, perdido ou emprestado.
+  var diasParado = (Date.now() - new Date(registro.ultimo_acesso).getTime()) / (1000 * 60 * 60 * 24);
+  if (diasParado > DIAS_CONFIANCA) return false;
+
+  // Renova o carimbo de uso — quem entra sempre nunca vai ver o código.
+  supabase("PATCH", "dispositivos_confiaveis", {
+    query: `id=eq.${registro.id}`,
+    body: { ultimo_acesso: new Date().toISOString() }
+  }).catch(() => {});
+
+  return true;
+}
+
+/** Marca o aparelho como confiável depois que o código foi conferido. */
+async function registrarDispositivo(email, deviceId, empresaId, descricao) {
+  if (!deviceId) return;
+  var existente = await supabase("GET", "dispositivos_confiaveis", {
+    query: `email=eq.${encodeURIComponent(email)}&device_id=eq.${encodeURIComponent(deviceId)}&select=id&limit=1`
+  }).catch(() => ({ body: [] }));
+
+  var agora = new Date().toISOString();
+  if (existente.body && existente.body[0]) {
+    await supabase("PATCH", "dispositivos_confiaveis", {
+      query: `id=eq.${existente.body[0].id}`,
+      body: { ultimo_acesso: agora }
+    }).catch(() => {});
+  } else {
+    await supabase("POST", "dispositivos_confiaveis", {
+      body: {
+        email: email,
+        empresa_id: empresaId || null,
+        device_id: deviceId,
+        descricao: SANITIZE.string(descricao || "", 80) || null,
+        ultimo_acesso: agora
+      }
+    }).catch(e => secLog("dispositivo_registro_falhou", { message: e.message }));
+  }
+}
+
+/**
+ * Dispara o código de verificação de aparelho novo. Reaproveita a
+ * mesma infra de OTP do cadastro (hash do código, expiração, limite de
+ * tentativas) em vez de criar um segundo mecanismo.
+ */
+async function exigirCodigoDispositivo(email, nome) {
+  var codigo = gerarCodigo();
+  await salvarOTP(email, codigo);
+  enviarEmail(email, "🔐 Confirme seu acesso — Worka", EMAIL_TEMPLATES.novoDispositivo(nome || "", codigo))
+    .catch(e => secLog("email_error", { type: "novo_dispositivo", message: e.message }));
 }
 
 // ════════════════════════════════════════
@@ -759,6 +855,17 @@ var EMAIL_TEMPLATES = {
   trialExpirado: (nome) => emailBase(`
     <h2 style="text-align:center;margin:0 0 8px;color:#0a2e1a;font-weight:800">Seu trial expirou 😢</h2>
     <p style="color:#5a6b5a;text-align:center">Olá, <strong>${SANITIZE.string(nome)}</strong>! Seus dados estão salvos. Reative por R$ 49,99/mês.</p>`),
+
+  novoDispositivo: (nome, codigo) => emailBase(`
+    <h2 style="margin:0 0 8px;color:#0a2e1a;font-size:22px;font-weight:800">Confirme seu acesso 🔐</h2>
+    <p style="color:#5a6b5a;font-size:15px;margin:0 0 28px;line-height:1.6">Olá${nome ? ", <strong>" + SANITIZE.string(nome) + "</strong>" : ""}! Detectamos um acesso à sua conta Worka a partir de um <strong>aparelho novo</strong>. Use o código abaixo para confirmar que é você:</p>
+    <div style="background:linear-gradient(135deg,#0a2e1a,#16622f);border-radius:16px;padding:28px;text-align:center;margin:0 0 28px">
+      <div style="font-size:44px;font-weight:900;color:#3dd669;letter-spacing:14px;font-family:'Courier New',monospace">${codigo}</div>
+      <div style="font-size:13px;color:rgba(255,255,255,.6);margin-top:10px">⏰ Expira em <strong style="color:#fff">10 minutos</strong></div>
+    </div>
+    <div style="background:#fff5f5;border-radius:12px;padding:16px;border-left:4px solid #ef4444">
+      <p style="margin:0;font-size:13px;color:#991b1b">🚨 <strong>Não foi você?</strong> Alguém pode saber sua senha. Troque sua senha imediatamente usando "Esqueci minha senha" na tela de login.</p>
+    </div>`),
 
   recuperarSenha: (nome, codigo) => emailBase(`
     <h2 style="margin:0 0 8px;color:#0a2e1a;font-size:22px;font-weight:800">Redefinir sua senha 🔑</h2>
@@ -1046,6 +1153,19 @@ var server = http.createServer(async (req, res) => {
         return jsonErr(res, "Senha incorreta. Tente novamente ou use \"Esqueci minha senha\".", 401);
       }
 
+      // Senha certa, mas aparelho desconhecido (ou parado há mais de
+      // 30 dias): manda código por e-mail e NÃO devolve token ainda.
+      var deviceIdEmp = sanitizarDeviceId(body.deviceId);
+      if (!(await dispositivoConfiavel(empresa.email, deviceIdEmp))) {
+        await exigirCodigoDispositivo(empresa.email, empresa.nome);
+        secLog("login_novo_dispositivo", { empresa_id: empresa.id });
+        return jsonOk(res, {
+          requer_codigo: true,
+          email: empresa.email,
+          message: "Enviamos um código para o seu e-mail para confirmar este aparelho."
+        });
+      }
+
       var token = jwtSign({ empresa_id: empresa.id, email: empresa.email, role: "dono" });
       var trialInfo = null;
       if (empresa.status === "trial") {
@@ -1140,9 +1260,93 @@ var server = http.createServer(async (req, res) => {
         return jsonErr(res, "Email ou senha incorretos", 401);
       }
 
+      // A conta de owner administra a plataforma inteira — é a que mais
+      // precisa da verificação de aparelho novo.
+      var deviceIdOwner = sanitizarDeviceId(body.deviceId);
+      if (!(await dispositivoConfiavel(CONFIG.OWNER_EMAIL, deviceIdOwner))) {
+        await exigirCodigoDispositivo(CONFIG.OWNER_EMAIL, "Owner Worka");
+        secLog("login_owner_novo_dispositivo", { ip });
+        return jsonOk(res, {
+          requer_codigo: true,
+          email: CONFIG.OWNER_EMAIL,
+          message: "Enviamos um código para o seu e-mail para confirmar este aparelho."
+        });
+      }
+
       var token = jwtSign({ email: v.data.email, role: "owner_saas" });
       secLog("login_owner_ok", {});
       return jsonOk(res, { token, owner: { nome: "Owner Worka", email: v.data.email } });
+    }
+
+    // ── CONFIRMAR APARELHO NOVO (rota pública) ───────
+    // Segundo passo do login quando o aparelho não é reconhecido.
+    // A senha é conferida DE NOVO aqui de propósito: sem isso,
+    // qualquer pessoa que soubesse o e-mail poderia tentar adivinhar
+    // só o código de 6 dígitos e entrar sem nunca saber a senha.
+    if (method === "POST" && path === "/login/confirmar-dispositivo") {
+      var raw = await getBody(req);
+      var body = parseBody(raw);
+      if (!body) return jsonErr(res, "Dados inválidos");
+
+      var emailConf = SANITIZE.email(body.email);
+      var codigoConf = SANITIZE.string(body.codigo || "", 6);
+      var senhaConf = typeof body.senha === "string" ? body.senha : "";
+      var deviceIdConf = sanitizarDeviceId(body.deviceId);
+
+      if (!emailConf || !/^\d{6}$/.test(codigoConf) || !senhaConf) {
+        return jsonErr(res, "Dados inválidos");
+      }
+      if (!deviceIdConf) return jsonErr(res, "Identificação do aparelho inválida.");
+
+      var ehOwner = CONFIG.OWNER_EMAIL && emailConf === CONFIG.OWNER_EMAIL;
+      var empresaConf = null;
+
+      if (ehOwner) {
+        if (!CONFIG.OWNER_PASSWORD_HASH || !(await verificarSenha(senhaConf, CONFIG.OWNER_PASSWORD_HASH))) {
+          secLog("confirmar_dispositivo_senha_errada", { ip });
+          return jsonErr(res, "Email ou senha incorretos", 401);
+        }
+      } else {
+        var buscaConf = await DB.select("empresas", `email=eq.${encodeURIComponent(emailConf)}&select=*`);
+        empresaConf = buscaConf.body && buscaConf.body[0];
+        if (!empresaConf || !(await verificarSenha(senhaConf, empresaConf.senha_hash))) {
+          secLog("confirmar_dispositivo_senha_errada", { ip });
+          return jsonErr(res, "Email ou senha incorretos", 401);
+        }
+      }
+
+      // Só depois da senha conferida é que o código é validado — assim
+      // o limite de 5 tentativas do OTP não é gasto por quem nem tem a senha.
+      var otpConf = await verificarOTP(emailConf, codigoConf);
+      if (!otpConf.ok) return jsonErr(res, otpConf.erro);
+
+      await registrarDispositivo(
+        emailConf,
+        deviceIdConf,
+        empresaConf ? empresaConf.id : null,
+        body.descricao
+      );
+
+      if (ehOwner) {
+        secLog("login_owner_ok", { via: "novo_dispositivo" });
+        return jsonOk(res, {
+          token: jwtSign({ email: emailConf, role: "owner_saas" }),
+          owner: { nome: "Owner Worka", email: emailConf }
+        });
+      }
+
+      var trialConf = null;
+      if (empresaConf.status === "trial") {
+        var diasConf = Math.ceil((new Date(empresaConf.trial_fim) - Date.now()) / (1000*60*60*24));
+        trialConf = { dias_restantes: diasConf, expirado: diasConf <= 0 };
+      }
+      secLog("login_ok", { empresa_id: empresaConf.id, via: "novo_dispositivo" });
+      delete empresaConf.senha_hash;
+      return jsonOk(res, {
+        token: jwtSign({ empresa_id: empresaConf.id, email: empresaConf.email, role: "dono" }),
+        empresa: empresaConf,
+        trial: trialConf
+      });
     }
 
     // ── ENVIAR CÓDIGO OTP ───────────────────────────
