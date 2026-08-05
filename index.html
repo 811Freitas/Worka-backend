@@ -5,6 +5,21 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://worka-backend-awng.onrender.com https://fonts.googleapis.com https://fonts.gstatic.com https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://worka-backend-awng.onrender.com;">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Worka — Gestão de Equipe para Pequenas Empresas</title>
+
+  <!-- Ícone da aba e do atalho. O favicon usa só o símbolo (W + seta):
+       a palavra "WORKA" da arte completa vira um borrão a 16px. -->
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+  <meta name="theme-color" content="#0a2e1a" />
+
+  <!-- Aparência do link ao ser compartilhado (WhatsApp, Instagram) -->
+  <meta property="og:title" content="Worka — Gestão de Equipe para Pequenas Empresas" />
+  <meta property="og:description" content="Ponto digital, tarefas com foto e controle de validade. Tudo em um app só." />
+  <meta property="og:image" content="https://workap.com.br/assets/logo-worka.png" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://workap.com.br" />
+
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -109,7 +124,11 @@
       transition: box-shadow var(--dur) var(--ease), padding var(--dur) var(--ease);
     }
     nav.scrolled { box-shadow: var(--shadow-sm); padding: 12px 6vw; }
+    /* Marca + palavra. A arte da logo já traz "WORKA" escrita dentro,
+       mas a 34px essa palavra fica ilegível — então na barra usamos só
+       o símbolo, com o nome ao lado na tipografia do site. */
     .nav-logo {
+      display: flex; align-items: center; gap: 10px;
       font-family: var(--font-display);
       font-size: 1.5rem;
       font-weight: 800;
@@ -117,6 +136,12 @@
       letter-spacing: -0.5px;
     }
     .nav-logo span { color: var(--green-400); }
+    .logo-marca {
+      width: 36px; height: 36px; display: block;
+      border-radius: 9px;
+      flex-shrink: 0;
+    }
+    nav.scrolled .logo-marca { width: 32px; height: 32px; }
     .nav-links { display: flex; gap: 32px; list-style: none; }
     .nav-links a {
       font-size: 0.875rem; font-weight: 500;
@@ -505,6 +530,7 @@
       display: flex; align-items: center; justify-content: space-between; flex-wrap: gap;
     }
     .footer-logo {
+      display: flex; align-items: center; gap: 10px;
       font-family: var(--font-display); font-size: 1.3rem; font-weight: 800; color: white;
     }
     .footer-logo span { color: var(--green-400); }
@@ -527,6 +553,11 @@
       .price-amount { font-size: 2.6rem; }
       section { padding: 56px 5vw; }
       nav { padding: 14px 5vw; }
+      /* No celular, a barra tem os dois botões de ação e não sobra
+         espaço para a palavra escrita — ela encostava no botão
+         "Entrar". Fica só o símbolo, que já é a marca. */
+      .nav-logo .nav-logo-txt { display: none; }
+      .nav-cta { padding: 9px 13px; font-size: 0.78rem; }
     }
   
 /* ── ÍCONES SVG ──────────────────────────────────────────
@@ -638,7 +669,10 @@
 
 <!-- NAV -->
 <nav>
-  <div class="nav-logo">Work<span>a</span></div>
+  <div class="nav-logo">
+    <img class="logo-marca" src="assets/logo-marca-96.png" alt="Worka" width="36" height="36" />
+    <span class="nav-logo-txt" style="color:inherit">Work<span>a</span></span>
+  </div>
   <ul class="nav-links">
     <li><a href="#como-funciona">Como funciona</a></li>
     <li><a href="#funcionalidades">Funcionalidades</a></li>
@@ -1745,7 +1779,9 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 <div id="acesso-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(10,46,26,0.85);backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:20px;">
   <div id="acesso-card" style="background:white;border-radius:20px;padding:40px 32px;width:100%;max-width:400px;box-shadow:0 32px 80px rgba(0,0,0,0.4);position:relative;">
     <button onclick="fecharAcesso()" style="position:absolute;top:16px;right:16px;background:var(--gray100);border:none;width:32px;height:32px;border-radius:50%;font-size:1rem;cursor:pointer;"><svg class=ico aria-hidden=true><use href=#i-x></use></svg></button>
-    <div style="font-family:'Syne',sans-serif;font-size:1.8rem;font-weight:800;color:#16622f;text-align:center;margin-bottom:4px;">Work<span style="color:#25b251">a</span></div>
+    <!-- Aqui cabe a arte inteira (símbolo + palavra), porque há espaço
+         vertical e ela é o primeiro contato de quem vai entrar. -->
+    <img src="assets/logo-worka-192.png" alt="Worka" width="72" height="72" style="display:block;margin:0 auto 10px;width:72px;height:72px;border-radius:16px;" />
     <div style="text-align:center;font-size:0.85rem;color:#6b7068;margin-bottom:24px;">Acesse sua conta ou crie uma nova</div>
 
     <div style="display:flex;background:#f7f8f7;border-radius:10px;padding:4px;margin-bottom:20px;gap:4px;">
@@ -2064,7 +2100,10 @@ document.getElementById('acesso-overlay').addEventListener('click',function(e){i
 <div id="funil-overlay" style="display:none;position:fixed;inset:0;z-index:998;background:#0a2e1a;overflow-y:auto;">
   <div style="position:sticky;top:0;z-index:10;background:#0a2e1a;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.1);">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-      <div style="font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:#fff;">Work<span style="color:#3dd669">a</span></div>
+      <div style="display:flex;align-items:center;gap:8px;font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:#fff;">
+        <img src="assets/logo-marca-96.png" alt="" width="26" height="26" style="width:26px;height:26px;border-radius:7px;display:block" />
+        <span>Work<span style="color:#3dd669">a</span></span>
+      </div>
       <button onclick="fecharFunil()" style="background:rgba(255,255,255,0.1);border:none;color:white;width:32px;height:32px;border-radius:50%;font-size:1rem;cursor:pointer;"><svg class=ico aria-hidden=true><use href=#i-x></use></svg></button>
     </div>
     <div style="background:rgba(255,255,255,0.15);border-radius:100px;height:4px;">
@@ -2211,7 +2250,10 @@ document.addEventListener("DOMContentLoaded",function(){
 <!-- FOOTER -->
 <footer>
   <div class="footer-inner">
-    <div class="footer-logo">Work<span>a</span></div>
+    <div class="footer-logo">
+      <img class="logo-marca" src="assets/logo-marca-96.png" alt="" width="32" height="32" style="width:32px;height:32px" />
+      <span style="color:inherit">Work<span>a</span></span>
+    </div>
     <div style="font-size:.85rem;color:var(--gray-500)">Gestão de equipe para quem tem negócio pra tocar.</div>
   </div>
   <div class="footer-copy">© 2025 Worka · Todos os direitos reservados</div>

@@ -8,17 +8,16 @@
 // o sistema não tem. Login biométrico continua sendo uma feature em
 // aberto (exige WebAuthn + tabela de credenciais no banco).
 
-// Cache bumped para v3: os caminhos abaixo mudaram de
-// "/Worka-backend/..." para relativos. Sem trocar o nome do cache, os
-// navegadores que já instalaram o SW antigo continuariam servindo as
-// URLs velhas (404) do cache para sempre.
-var CACHE = 'worka-v3';
-// Ícone usado em notificações push — mesmo SVG inline do manifest.json.
-// Não referenciamos um arquivo /icon-192.png porque ele nunca existiu
-// neste repositório (o app sempre usou apenas ícones SVG inline no
-// manifest); a referência antiga aqui sempre resultava em 404 e a
-// notificação caía sem ícone.
-var NOTIFICATION_ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' fill='%230a2e1a' rx='40'/%3E%3Ctext x='50%25' y='58%25' font-family='Georgia,serif' font-size='90' font-weight='900' fill='%233dd669' text-anchor='middle' dominant-baseline='middle'%3EW%3C/text%3E%3C/svg%3E";
+// Cache bumped para v4: entraram os arquivos de assets/ (a logo de
+// verdade). Sem trocar o nome do cache, quem já tem o SW instalado
+// continuaria servindo do cache a versão sem logo — inclusive o
+// ícone SVG improvisado das notificações.
+var CACHE = 'worka-v4';
+// Ícone das notificações push. Era um SVG inline com a letra "W" em
+// Georgia, improviso de quando não havia arte nenhuma no repositório.
+// Agora existe a logo real.
+var NOTIFICATION_ICON = 'assets/icon-192.png';
+var NOTIFICATION_BADGE = 'assets/favicon-32.png';
 // Caminhos RELATIVOS de propósito: o site agora é servido na raiz do
 // domínio próprio (workap.com.br), onde "/Worka-backend/..." não
 // existe e dava 404 em tudo — quebrando cache offline e PWA. Relativo
@@ -29,6 +28,10 @@ var ASSETS = [
   'worka-app.html',
   'index.html',
   'manifest.json',
+  'assets/logo-worka-192.png',
+  'assets/logo-marca-96.png',
+  'assets/icon-192.png',
+  'assets/favicon-32.png',
   'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Syne:wght@700;800&display=swap'
 ];
 
@@ -102,7 +105,7 @@ self.addEventListener('push', function(e) {
   var options = {
     body: data.body || 'Nova notificação',
     icon: NOTIFICATION_ICON,
-    badge: NOTIFICATION_ICON,
+    badge: NOTIFICATION_BADGE,
     vibrate: [200, 100, 200],
     data: { url: data.url || 'worka-app.html' },
     actions: [
