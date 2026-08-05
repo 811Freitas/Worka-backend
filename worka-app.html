@@ -418,26 +418,27 @@ tr:hover td{background:var(--g50)}
     <div class="login-logo">Work<span>a</span></div>
     <div class="login-sub">Gestão de equipe simplificada</div>
 
+    <!-- Sem aba "Owner": a conta administrativa da Worka entra por
+         "Empresa", com e-mail e senha como qualquer cliente. Quem
+         separa os dois é o servidor, comparando o e-mail com
+         OWNER_EMAIL — este arquivo não sabe qual é esse e-mail. -->
     <div class="login-tabs">
       <div class="login-tab active" onclick="setLoginTipo('dono')">Empresa</div>
       <div class="login-tab" onclick="setLoginTipo('funcionario')">Funcionário</div>
-      <div class="login-tab" onclick="setLoginTipo('owner')">Owner</div>
     </div>
 
     <div id="login-dono">
-      <div class="field"><label>E-mail</label><input id="l-email" type="email" placeholder="seu@email.com" value="alexandrevascode@gmail.com"></div>
-      <div class="field"><label>Senha</label><input id="l-senha" type="password" placeholder="••••••••" value=""></div>
+      <!-- O campo vinha com um e-mail pessoal preenchido de fábrica,
+           sobra do desenvolvimento: todo visitante abria a tela de
+           login com o endereço de outra pessoa escrito nela. -->
+      <div class="field"><label>E-mail</label><input id="l-email" type="email" placeholder="seu@email.com" autocomplete="username"></div>
+      <div class="field"><label>Senha</label><input id="l-senha" type="password" placeholder="••••••••" autocomplete="current-password"></div>
     </div>
 
     <div id="login-funcionario" style="display:none">
       <div class="field"><label>ID da Equipe</label><input id="lf-teamid" type="text" placeholder="#WK-0000"></div>
-      <div class="field"><label>E-mail</label><input id="lf-email" type="email" placeholder="seu@email.com"></div>
-      <div class="field"><label>Senha</label><input id="lf-senha" type="password" placeholder="••••••••"></div>
-    </div>
-
-    <div id="login-owner" style="display:none">
-      <div class="field"><label>E-mail</label><input id="lo-email" type="email" placeholder="admin@worka.com.br"></div>
-      <div class="field"><label>Senha</label><input id="lo-senha" type="password" placeholder="••••••••"></div>
+      <div class="field"><label>E-mail</label><input id="lf-email" type="email" placeholder="seu@email.com" autocomplete="username"></div>
+      <div class="field"><label>Senha</label><input id="lf-senha" type="password" placeholder="••••••••" autocomplete="current-password"></div>
     </div>
 
 
@@ -1792,9 +1793,66 @@ tr:hover td{background:var(--g50)}
 // ═══════════════════════════════════
 // DADOS E ESTADO
 // ═══════════════════════════════════
+
+// Endereço do backend. Estava escrito por extenso em 38 lugares deste
+// arquivo: trocar de servidor exigia acertar os 38 sem esquecer nenhum,
+// e qualquer esquecido continuaria apontando para o endereço antigo —
+// falhando só na tela que ninguém testou naquele dia.
+var API_BASE = 'https://worka-backend-awng.onrender.com';
+
 var usuarioAtual = null;
 var sessaoWorka = null; // { token, teamId, empresaId } — preenchido após login real via /login/empresa
 var tipoLogin = 'dono';
+
+// Último motivo de falha do GPS, para a confirmação do ponto repetir a
+// explicação sem precisar ler de volta o que já foi escrito na tela.
+var avisoGpsAtual = '';
+
+/**
+ * Escreve num elemento um conteúdo que mistura ícones SVG e texto.
+ *
+ * Existe por causa de um defeito real: a troca dos emojis por ícones
+ * SVG deixou dezenas de linhas na forma
+ * `el.textContent = '<svg ...> Salvando...'`. textContent NÃO
+ * interpreta HTML, então o que aparecia na tela era o código do ícone
+ * escrito por extenso — em botões do checkout, do ponto e do login.
+ *
+ * Trocar tudo por innerHTML consertaria o desenho e abriria um buraco:
+ * boa parte dessas linhas concatena texto vindo do banco (nome de
+ * funcionário) ou do servidor (mensagem de erro), e aí qualquer HTML
+ * gravado nesses campos passaria a ser executado.
+ *
+ * Aqui só o formato exato do nosso ícone vira markup; todo o resto
+ * entra como texto puro, escapado pelo navegador. Um `<script>` vindo
+ * do banco aparece escrito na tela, que é o comportamento certo.
+ */
+var PADRAO_ICONE = /<svg class=ico aria-hidden=true><use href=#(i-[a-z0-9-]+)><\/use><\/svg>/g;
+
+function escreverComIcones(el, conteudo){
+  if(!el) return;
+  var texto = conteudo == null ? '' : String(conteudo);
+  el.textContent = '';
+
+  var pos = 0;
+  PADRAO_ICONE.lastIndex = 0;
+  var achado;
+  while((achado = PADRAO_ICONE.exec(texto)) !== null){
+    if(achado.index > pos){
+      el.appendChild(document.createTextNode(texto.slice(pos, achado.index)));
+    }
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'ico');
+    svg.setAttribute('aria-hidden', 'true');
+    var uso = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    uso.setAttribute('href', '#' + achado[1]);
+    svg.appendChild(uso);
+    el.appendChild(svg);
+    pos = achado.index + achado[0].length;
+  }
+  if(pos < texto.length){
+    el.appendChild(document.createTextNode(texto.slice(pos)));
+  }
+}
 
 var menus = {
   dono: [
@@ -1860,7 +1918,7 @@ function setLoginTipo(tipo) {
   tipoLogin = tipo;
   document.querySelectorAll('.login-tab').forEach(function(t,i){t.classList.remove('active')});
   event.target.classList.add('active');
-  ['dono','funcionario','owner'].forEach(function(t){
+  ['dono','funcionario'].forEach(function(t){
     document.getElementById('login-'+t).style.display = t===tipo?'block':'none';
   });
 }
@@ -2016,7 +2074,7 @@ function entrarComoFuncionario(token, funcionario, empresa){
  */
 function carregarMeuPainelReal(){
   if(!sessaoWorka || !sessaoWorka.token) return;
-  fetch('https://worka-backend-awng.onrender.com/tarefas', {
+  fetch(API_BASE + '/tarefas', {
     headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
   })
   .then(function(r){ return r.json(); })
@@ -2068,13 +2126,20 @@ function fazerLogin() {
     if(senhaEl) senhaVal = senhaEl.value;
   }
 
-  if(tipoLogin === 'owner') {
+  // Empresa E owner passam por aqui, na mesma rota. Quem separa os
+  // dois é o servidor: ele compara o e-mail com OWNER_EMAIL e devolve
+  // `is_owner` quando é a conta da plataforma. Esta página não guarda
+  // nem descobre qual é esse e-mail.
+  if(tipoLogin === 'dono'){
+    var erroLogin = document.getElementById('login-erro');
+    if(erroLogin) erroLogin.style.display = 'none';
+
     if(!emailVal || !senhaVal){
-      var erroO = document.getElementById('login-erro');
-      if(erroO) erroO.style.display = 'block';
+      if(erroLogin){ erroLogin.textContent = 'Preencha e-mail e senha.'; erroLogin.style.display = 'block'; }
       return;
     }
-    fetch('https://worka-backend-awng.onrender.com/login/owner', {
+
+    fetch(API_BASE + '/login/empresa', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ email: emailVal, senha: senhaVal, deviceId: obterDeviceId() })
@@ -2083,52 +2148,27 @@ function fazerLogin() {
     .then(function(res){
       // Aparelho novo: senha certa, mas ainda falta o código do e-mail.
       if(res.status === 200 && res.data.requer_codigo){
-        pedirCodigoDispositivo(res.data.email || emailVal, senhaVal, 'owner');
+        pedirCodigoDispositivo(res.data.email || emailVal, senhaVal, res.data.is_owner ? 'owner' : 'dono');
         return;
       }
       if(res.status !== 200 || !res.data.token){
-        var erroO2 = document.getElementById('login-erro');
-        if(erroO2){ erroO2.textContent = res.data.error || 'Email ou senha incorretos.'; erroO2.style.display = 'block'; }
+        if(erroLogin){
+          erroLogin.textContent = res.data.error || 'Email ou senha incorretos.';
+          erroLogin.style.display = 'block';
+        }
         return;
       }
-      entrarComoOwner(res.data.token, emailVal);
+      if(res.data.is_owner){
+        entrarComoOwner(res.data.token, emailVal);
+      } else {
+        entrarComoDono(res.data.token, res.data.empresa, res.data.trial);
+      }
     })
     .catch(function(){
-      alert('Erro de conexão com o servidor. Tente novamente.');
-    });
-    return;
-  }
-
-  if(tipoLogin === 'dono'){
-    var emailDono = '';
-    var senhaDono = '';
-    var painelDono = document.getElementById('login-dono');
-    if(painelDono){
-      var eEl = painelDono.querySelector('input[type=email]');
-      var sEl = painelDono.querySelector('input[type=password]');
-      if(eEl) emailDono = eEl.value.trim().toLowerCase();
-      if(sEl) senhaDono = sEl.value;
-    }
-    fetch('https://worka-backend-awng.onrender.com/login/empresa', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ email: emailDono, senha: senhaDono, deviceId: obterDeviceId() })
-    })
-    .then(function(r){ return r.json().then(function(data){ return { status:r.status, data:data }; }); })
-    .then(function(res){
-      // Aparelho novo: senha certa, mas ainda falta o código do e-mail.
-      if(res.status === 200 && res.data.requer_codigo){
-        pedirCodigoDispositivo(res.data.email || emailDono, senhaDono, 'dono');
-        return;
+      if(erroLogin){
+        erroLogin.textContent = 'Erro de conexão com o servidor. Tente novamente.';
+        erroLogin.style.display = 'block';
       }
-      if(res.status !== 200 || !res.data.token){
-        alert(res.data.error || 'Email ou senha incorretos.');
-        return;
-      }
-      entrarComoDono(res.data.token, res.data.empresa, res.data.trial);
-    })
-    .catch(function(){
-      alert('Erro de conexão com o servidor. Tente novamente.');
     });
     return;
   }
@@ -2144,7 +2184,7 @@ function fazerLogin() {
       return;
     }
 
-    fetch('https://worka-backend-awng.onrender.com/login/funcionario', {
+    fetch(API_BASE + '/login/funcionario', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ teamId: teamIdFunc, email: emailFunc, senha: senhaFunc })
@@ -2211,7 +2251,7 @@ function salvarNovoProduto(){
   btn.textContent = 'Cadastrando...';
   btn.disabled = true;
 
-  fetch('https://worka-backend-awng.onrender.com/validade', {
+  fetch(API_BASE + '/validade', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
     body: JSON.stringify(payload)
@@ -2252,7 +2292,7 @@ var validadeCache = []; // última lista real buscada, reaproveitada pelo filtro
 function carregarValidadeReal(){
   if(!sessaoWorka || !sessaoWorka.token) return;
 
-  fetch('https://worka-backend-awng.onrender.com/validade', {
+  fetch(API_BASE + '/validade', {
     headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
   })
   .then(function(r){ return r.json(); })
@@ -2359,7 +2399,7 @@ function salvarNovaTarefa(){
   btn.textContent = 'Criando...';
   btn.disabled = true;
 
-  fetch('https://worka-backend-awng.onrender.com/tarefas', {
+  fetch(API_BASE + '/tarefas', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
     body: JSON.stringify(payload)
@@ -2422,7 +2462,7 @@ function salvarNovoFuncionario(){
   btn.textContent = 'Adicionando...';
   btn.disabled = true;
 
-  fetch('https://worka-backend-awng.onrender.com/funcionarios', {
+  fetch(API_BASE + '/funcionarios', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -2460,7 +2500,7 @@ var funcionariosCache = []; // última lista real buscada — reaproveitada para
 function carregarFuncionariosReais(){
   if(!sessaoWorka || !sessaoWorka.token) return Promise.resolve();
 
-  return fetch('https://worka-backend-awng.onrender.com/funcionarios', {
+  return fetch(API_BASE + '/funcionarios', {
     headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
   })
   .then(function(r){ return r.json(); })
@@ -2538,7 +2578,7 @@ function carregarFuncionariosReais(){
  */
 function aprovarFuncionarioReal(id){
   if(!sessaoWorka || !sessaoWorka.token) return;
-  fetch('https://worka-backend-awng.onrender.com/funcionarios/'+encodeURIComponent(id)+'/status', {
+  fetch(API_BASE + '/funcionarios/'+encodeURIComponent(id)+'/status', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
     body: JSON.stringify({ status: 'ativo' })
@@ -2554,7 +2594,7 @@ function aprovarFuncionarioReal(id){
 function recusarFuncionarioReal(id){
   if(!sessaoWorka || !sessaoWorka.token) return;
   if(!confirm('Recusar e remover esta solicitação?')) return;
-  fetch('https://worka-backend-awng.onrender.com/funcionarios/'+encodeURIComponent(id), {
+  fetch(API_BASE + '/funcionarios/'+encodeURIComponent(id), {
     method: 'DELETE',
     headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
   })
@@ -2570,7 +2610,7 @@ function excluirFuncionarioReal(id){
   if(!sessaoWorka || !sessaoWorka.token) return;
   if(!confirm('Remover este funcionário da equipe?')) return;
 
-  fetch('https://worka-backend-awng.onrender.com/funcionarios/'+encodeURIComponent(id), {
+  fetch(API_BASE + '/funcionarios/'+encodeURIComponent(id), {
     method: 'DELETE',
     headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
   })
@@ -2587,7 +2627,7 @@ function excluirFuncionarioReal(id){
 function carregarPontoReal(){
   if(!sessaoWorka || !sessaoWorka.token) return;
 
-  fetch('https://worka-backend-awng.onrender.com/ponto', {
+  fetch(API_BASE + '/ponto', {
     headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
   })
   .then(function(r){ return r.json(); })
@@ -2634,7 +2674,7 @@ function carregarDashboardReal(){
   if(!sessaoWorka || !sessaoWorka.token) return;
   var headers = { 'Authorization': 'Bearer ' + sessaoWorka.token };
 
-  fetch('https://worka-backend-awng.onrender.com/dashboard-data', { headers: headers })
+  fetch(API_BASE + '/dashboard-data', { headers: headers })
   .then(function(r){ return r.json(); })
   .then(function(d){
     if(!d || !d.funcionarios) return;
@@ -2672,7 +2712,7 @@ function carregarDashboardReal(){
   // "Ponto de hoje" (resumo) — mesma rota GET /ponto da página de
   // Controle de Ponto, mas mostrando só o registro mais recente de
   // cada pessoa (a lista completa fica na página dedicada).
-  fetch('https://worka-backend-awng.onrender.com/ponto', { headers: headers })
+  fetch(API_BASE + '/ponto', { headers: headers })
   .then(function(r){ return r.json(); })
   .then(function(lista){
     var tbody = document.getElementById('tabela-ponto-hoje');
@@ -2709,7 +2749,7 @@ function carregarDashboardReal(){
 
   // "Tarefas recentes" (resumo) — 4 mais recentes da mesma lista
   // completa usada na página de Tarefas.
-  fetch('https://worka-backend-awng.onrender.com/tarefas', { headers: headers })
+  fetch(API_BASE + '/tarefas', { headers: headers })
   .then(function(r){ return r.json(); })
   .then(function(lista){
     var tbody = document.getElementById('tabela-tarefas-recentes');
@@ -2894,13 +2934,13 @@ async function baterPonto(tipo, btnEl) {
   var statusEl = document.getElementById('ponto-status');
 
   if(!navigator.geolocation){
-    if(statusEl) statusEl.textContent = '<svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Este navegador não suporta localização — ponto será registrado sem GPS.';
+    if(statusEl) escreverComIcones(statusEl, '<svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Este navegador não suporta localização — ponto será registrado sem GPS.');
     await registrarPonto(tipo, null, null, btn);
     return;
   }
 
-  if(btn){ btn.textContent = '<svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Capturando...'; btn.disabled = true; }
-  if(statusEl) statusEl.textContent = '<svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Obtendo sua localização...';
+  if(btn){ escreverComIcones(btn, '<svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Capturando...'); btn.disabled = true; }
+  if(statusEl) escreverComIcones(statusEl, '<svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Obtendo sua localização...');
 
   // Antes a chamada era getCurrentPosition(sucesso, erro) sem opções:
   // o timeout padrão é infinito, então em celular com GPS lento o
@@ -2915,7 +2955,7 @@ async function baterPonto(tipo, btnEl) {
   };
 
   navigator.geolocation.getCurrentPosition(function(pos){
-    if(statusEl) statusEl.textContent = '<svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Localização obtida, registrando...';
+    if(statusEl) escreverComIcones(statusEl, '<svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Localização obtida, registrando...');
     registrarPonto(tipo, pos.coords.latitude, pos.coords.longitude, btn);
   }, function(err){
     // Agora cada motivo de falha tem uma mensagem própria, para a
@@ -2931,8 +2971,14 @@ async function baterPonto(tipo, btnEl) {
     } else {
       aviso = '<svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Não foi possível obter a localização. Ponto registrado sem GPS.';
     }
+    // Guardado numa variável para registrarPonto() poder repetir a
+    // explicação junto da confirmação. Antes ele lia o texto de volta
+    // do próprio elemento e recortava o pedaço do ícone com indexOf —
+    // ler a tela para descobrir o que o código acabou de escrever
+    // quebra sozinho na primeira mudança de texto ou de ícone.
+    avisoGpsAtual = aviso;
     if(statusEl){
-      statusEl.textContent = aviso;
+      escreverComIcones(statusEl, aviso);
       statusEl.style.color = '#fbbf24';
     }
     registrarPonto(tipo, null, null, btn);
@@ -2943,7 +2989,7 @@ async function registrarPonto(tipo, lat, lng, btn){
   var labelsPonto = {entrada:'Entrada',intervalo:'Intervalo',retorno:'Retorno',saida:'Saída'};
 
   try {
-    var res = await fetch('https://worka-backend-awng.onrender.com/ponto', {
+    var res = await fetch(API_BASE + '/ponto', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -2953,7 +2999,7 @@ async function registrarPonto(tipo, lat, lng, btn){
     });
     var data = await res.json();
 
-    if(btn){ btn.disabled = false; btn.textContent = {entrada:'<svg class=ico aria-hidden=true><use href=#i-play></use></svg> Entrada',intervalo:'<svg class=ico aria-hidden=true><use href=#i-coffee></use></svg> Intervalo',retorno:'<svg class=ico aria-hidden=true><use href=#i-return></use></svg> Retorno',saida:'<svg class=ico aria-hidden=true><use href=#i-stop></use></svg> Saída'}[tipo]; }
+    if(btn){ btn.disabled = false; escreverComIcones(btn, {entrada:'<svg class=ico aria-hidden=true><use href=#i-play></use></svg> Entrada',intervalo:'<svg class=ico aria-hidden=true><use href=#i-coffee></use></svg> Intervalo',retorno:'<svg class=ico aria-hidden=true><use href=#i-return></use></svg> Retorno',saida:'<svg class=ico aria-hidden=true><use href=#i-stop></use></svg> Saída'}[tipo]); }
 
     if(!res.ok){
       alert(data.error || 'Não foi possível registrar o ponto.');
@@ -2984,26 +3030,30 @@ async function registrarPonto(tipo, lat, lng, btn){
         placeholder.style.display = 'none';
       }
       var info = document.getElementById('mapa-info');
-      if(info) info.textContent = '<svg class=ico aria-hidden=true><use href=#i-pin></use></svg> '+labelsPonto[tipo]+' registrada às '+h+' · Lat: '+lat.toFixed(4)+', Lng: '+lng.toFixed(4);
+      if(info) escreverComIcones(info, '<svg class=ico aria-hidden=true><use href=#i-pin></use></svg> '+labelsPonto[tipo]+' registrada às '+h+' · Lat: '+lat.toFixed(4)+', Lng: '+lng.toFixed(4));
     }
 
     var status = document.getElementById('ponto-status');
     if(status){
       if(lat != null && lng != null){
-        status.textContent = '<svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> '+labelsPonto[tipo]+' registrada às '+h+' com localização';
+        escreverComIcones(status, '<svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> '+labelsPonto[tipo]+' registrada às '+h+' com localização');
         status.style.color = ''; // volta ao padrão após um aviso amarelo anterior
+        avisoGpsAtual = '';
       } else {
-        // Mantém o aviso de GPS que baterPonto() já escreveu (e a cor
-        // amarela): sobrescrever aqui com um "<svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg>" apagaria a explicação
-        // de por que a localização não foi capturada.
-        status.textContent = '<svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> '+labelsPonto[tipo]+' registrada às '+h+' — sem localização. ' + (status.textContent.indexOf('<svg class=ico aria-hidden=true><use href=#i-alert></use></svg>') === 0 ? status.textContent.replace('<svg class=ico aria-hidden=true><use href=#i-alert></use></svg> ','') : '');
+        // Repete o motivo da falha de GPS junto da confirmação: sem
+        // isso a pessoa só lê "sem localização" e não descobre que
+        // precisa liberar a permissão no navegador.
+        var explicacao = avisoGpsAtual
+          ? ' ' + avisoGpsAtual.replace(/^<svg[^>]*>(<use[^>]*><\/use>)?<\/svg>\s*/, '')
+          : '';
+        escreverComIcones(status, '<svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> '+labelsPonto[tipo]+' registrada às '+h+' — sem localização.' + explicacao);
         status.style.color = '#fbbf24';
       }
     }
 
     atualizarBotoesPonto(tipo);
   } catch(e) {
-    if(btn){ btn.disabled = false; btn.textContent = {entrada:'<svg class=ico aria-hidden=true><use href=#i-play></use></svg> Entrada',intervalo:'<svg class=ico aria-hidden=true><use href=#i-coffee></use></svg> Intervalo',retorno:'<svg class=ico aria-hidden=true><use href=#i-return></use></svg> Retorno',saida:'<svg class=ico aria-hidden=true><use href=#i-stop></use></svg> Saída'}[tipo]; }
+    if(btn){ btn.disabled = false; escreverComIcones(btn, {entrada:'<svg class=ico aria-hidden=true><use href=#i-play></use></svg> Entrada',intervalo:'<svg class=ico aria-hidden=true><use href=#i-coffee></use></svg> Intervalo',retorno:'<svg class=ico aria-hidden=true><use href=#i-return></use></svg> Retorno',saida:'<svg class=ico aria-hidden=true><use href=#i-stop></use></svg> Saída'}[tipo]); }
     alert('Erro de conexão. Tente novamente.');
   }
 }
@@ -3025,7 +3075,7 @@ function atualizarBotoesPonto(ultimoTipo){
 
 function verMapa(lat,lng,nome){
   event && event.preventDefault && event.preventDefault();
-  document.getElementById('modal-mapa-title').textContent='<svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Localização — '+nome;
+  escreverComIcones(document.getElementById('modal-mapa-title'), '<svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Localização — '+nome);
   document.getElementById('modal-mapa-frame').src='https://maps.google.com/maps?q='+lat+','+lng+'&z=16&output=embed';
   document.getElementById('modal-mapa-info').textContent='Coordenadas: '+lat.toFixed(5)+', '+lng.toFixed(5);
   document.getElementById('modal-mapa-link').href='https://www.google.com/maps?q='+lat+','+lng;
@@ -3055,7 +3105,7 @@ function atualizarStatusTarefaReal(id, novoStatus, btn){
   var textoOriginal = btn ? btn.textContent : '';
   if(btn){ btn.disabled = true; btn.textContent = '...'; }
 
-  fetch('https://worka-backend-awng.onrender.com/tarefas/'+encodeURIComponent(id), {
+  fetch(API_BASE + '/tarefas/'+encodeURIComponent(id), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
     body: JSON.stringify({ status: novoStatus })
@@ -3098,7 +3148,7 @@ function rejeitarTarefa(btn){
 function carregarTarefasReais(){
   if(!sessaoWorka || !sessaoWorka.token) return;
 
-  fetch('https://worka-backend-awng.onrender.com/tarefas', {
+  fetch(API_BASE + '/tarefas', {
     headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
   })
   .then(function(r){ return r.json(); })
@@ -3173,7 +3223,7 @@ function criarTarefaValidade(produto){
     alert('Faça login para criar tarefas.');
     return;
   }
-  fetch('https://worka-backend-awng.onrender.com/tarefas', {
+  fetch(API_BASE + '/tarefas', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
     body: JSON.stringify({
@@ -3338,10 +3388,10 @@ function darAumento(id, nome, salario) {
     var el = document.getElementById('aumento-tipo');
     if(!novo) { el.textContent=''; return; }
     if(novo > salario) {
-      el.textContent = '<svg class=ico aria-hidden=true><use href=#i-arrow-up></use></svg> Aumento de R$ ' + (novo-salario).toFixed(2) + ' (' + (((novo-salario)/salario)*100).toFixed(1) + '%)';
+      escreverComIcones(el, '<svg class=ico aria-hidden=true><use href=#i-arrow-up></use></svg> Aumento de R$ ' + (novo-salario).toFixed(2) + ' (' + (((novo-salario)/salario)*100).toFixed(1) + '%)');
       el.style.color = 'var(--g600)';
     } else if(novo < salario) {
-      el.textContent = '<svg class=ico aria-hidden=true><use href=#i-arrow-down></use></svg> Redução de R$ ' + (salario-novo).toFixed(2);
+      escreverComIcones(el, '<svg class=ico aria-hidden=true><use href=#i-arrow-down></use></svg> Redução de R$ ' + (salario-novo).toFixed(2));
       el.style.color = 'var(--red)';
     } else {
       el.textContent = 'Sem alteração';
@@ -3360,7 +3410,7 @@ function confirmarAumento() {
   var textoOriginal = btn ? btn.textContent : '';
   if(btn){ btn.disabled = true; btn.textContent = 'Salvando...'; }
 
-  fetch('https://worka-backend-awng.onrender.com/salarios/ajuste', {
+  fetch(API_BASE + '/salarios/ajuste', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
     body: JSON.stringify({ funcionario_id: funcIdAumento, salario_novo: novo, salario_anterior: funcSalarioAtual })
@@ -3471,7 +3521,7 @@ function confirmarDispositivo(){
   var txt = btn.textContent;
   btn.disabled = true; btn.textContent = 'Confirmando...';
 
-  fetch('https://worka-backend-awng.onrender.com/login/confirmar-dispositivo', {
+  fetch(API_BASE + '/login/confirmar-dispositivo', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -3490,12 +3540,13 @@ function confirmarDispositivo(){
       erroEl.style.display = 'block';
       return;
     }
-    var tipo = loginPendente.tipo;
     var emailOk = loginPendente.email;
     loginPendente = null; // não deixa a senha viva em memória além do necessário
     document.getElementById('card-dispositivo').style.display = 'none';
     document.getElementById('card-login').style.display = 'block';
-    if(tipo === 'owner'){
+    // Quem diz se é o painel da plataforma é a resposta do servidor,
+    // não o que este navegador anotou no passo anterior.
+    if(res.data.is_owner){
       entrarComoOwner(res.data.token, emailOk);
     } else {
       entrarComoDono(res.data.token, res.data.empresa, res.data.trial);
@@ -3550,7 +3601,7 @@ function enviarCodigoRecuperacao(){
   var txt = btn.textContent;
   btn.disabled = true; btn.textContent = 'Enviando...';
 
-  fetch('https://worka-backend-awng.onrender.com/recuperar-senha', {
+  fetch(API_BASE + '/recuperar-senha', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: email })
@@ -3592,7 +3643,7 @@ function redefinirSenha(){
   var txt = btn.textContent;
   btn.disabled = true; btn.textContent = 'Redefinindo...';
 
-  fetch('https://worka-backend-awng.onrender.com/redefinir-senha', {
+  fetch(API_BASE + '/redefinir-senha', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: email, codigo: codigo, senha: senha })
@@ -3734,7 +3785,7 @@ function inscreverPush(silencioso){
 
   navigator.serviceWorker.ready
     .then(function(reg){
-      return fetch('https://worka-backend-awng.onrender.com/push/vapid-key')
+      return fetch(API_BASE + '/push/vapid-key')
         .then(function(r){
           if(!r.ok) throw new Error('vapid');
           return r.json();
@@ -3747,7 +3798,7 @@ function inscreverPush(silencioso){
         });
     })
     .then(function(sub){
-      return fetch('https://worka-backend-awng.onrender.com/push/subscribe', {
+      return fetch(API_BASE + '/push/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
         body: JSON.stringify({ subscription: sub.toJSON() })
@@ -3783,12 +3834,12 @@ function carregarComunicadosReal(){
   if(!sessaoWorka || !sessaoWorka.token) return;
   var headers = { 'Authorization': 'Bearer ' + sessaoWorka.token };
 
-  fetch('https://worka-backend-awng.onrender.com/owner/comunicados/alcance', { headers: headers })
+  fetch(API_BASE + '/owner/comunicados/alcance', { headers: headers })
     .then(function(r){ return r.ok ? r.json() : null; })
     .then(function(d){ alcanceComunicado = d; atualizarAlcanceComunicado(); })
     .catch(function(){});
 
-  fetch('https://worka-backend-awng.onrender.com/owner/comunicados', { headers: headers })
+  fetch(API_BASE + '/owner/comunicados', { headers: headers })
     .then(function(r){ return r.json(); })
     .then(function(d){
       var box = document.getElementById('com-historico');
@@ -3822,9 +3873,9 @@ function atualizarAlcanceComunicado(){
   if(!alcanceComunicado){ box.textContent = 'Calculando quantas empresas vão receber...'; return; }
   var n = alcanceComunicado[sel.value];
   if(n === undefined) n = 0;
-  box.textContent = n === 0
+  escreverComIcones(box, n === 0
     ? '<svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Nenhuma empresa se encaixa nesse destino — nada será enviado.'
-    : '<svg class=ico aria-hidden=true><use href=#i-inbox></use></svg> Este comunicado será enviado para ' + n + (n === 1 ? ' empresa.' : ' empresas.');
+    : '<svg class=ico aria-hidden=true><use href=#i-inbox></use></svg> Este comunicado será enviado para ' + n + (n === 1 ? ' empresa.' : ' empresas.'));
   box.style.color = n === 0 ? '#92400e' : 'var(--g600)';
 }
 
@@ -3859,7 +3910,7 @@ function enviarComunicado(){
   var txt = btn.textContent;
   btn.disabled = true; btn.textContent = 'Enviando...';
 
-  fetch('https://worka-backend-awng.onrender.com/owner/comunicados', {
+  fetch(API_BASE + '/owner/comunicados', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
     body: JSON.stringify({ titulo: titulo, mensagem: mensagem, destino: destino })
@@ -3956,7 +4007,7 @@ function salvarCupom(){
   var txt = btn.textContent;
   btn.disabled = true; btn.textContent = 'Criando...';
 
-  fetch('https://worka-backend-awng.onrender.com/cupons', {
+  fetch(API_BASE + '/cupons', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
     body: JSON.stringify(payload)
@@ -3984,7 +4035,7 @@ function carregarCuponsReal(){
   var precoEl = document.getElementById('cupom-preco-plano');
   if(precoEl) precoEl.textContent = formatarReais(PLANO_CENTAVOS_UI);
 
-  fetch('https://worka-backend-awng.onrender.com/cupons', {
+  fetch(API_BASE + '/cupons', {
     headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
   })
   .then(function(r){ return r.json(); })
@@ -4044,7 +4095,7 @@ function carregarCuponsReal(){
 
 function alternarCupom(id, ativar){
   if(!sessaoWorka || !sessaoWorka.token) return;
-  fetch('https://worka-backend-awng.onrender.com/cupons/'+encodeURIComponent(id), {
+  fetch(API_BASE + '/cupons/'+encodeURIComponent(id), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
     body: JSON.stringify({ ativo: ativar })
@@ -4056,7 +4107,7 @@ function alternarCupom(id, ativar){
 function removerCupom(id, codigo){
   if(!confirm('Remover o cupom "'+codigo+'"?\n\nO histórico de usos dele será perdido. Se quiser apenas parar de aceitá-lo, use "Desativar".')) return;
   if(!sessaoWorka || !sessaoWorka.token) return;
-  fetch('https://worka-backend-awng.onrender.com/cupons/'+encodeURIComponent(id), {
+  fetch(API_BASE + '/cupons/'+encodeURIComponent(id), {
     method: 'DELETE',
     headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
   })
@@ -4091,7 +4142,7 @@ function salvarSalarioInicial(){
   var textoOriginal = btn.textContent;
   btn.disabled = true; btn.textContent = 'Salvando...';
 
-  fetch('https://worka-backend-awng.onrender.com/salarios/ajuste', {
+  fetch(API_BASE + '/salarios/ajuste', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
     body: JSON.stringify({ funcionario_id: funcId, salario_novo: salario, salario_anterior: 0 })
@@ -4128,8 +4179,8 @@ function carregarSalariosReal(){
   var cfg = configDescontoFalta();
 
   Promise.all([
-    fetch('https://worka-backend-awng.onrender.com/ausencias', { headers: headers }).then(function(r){ return r.ok ? r.json() : []; }).catch(function(){ return []; }),
-    fetch('https://worka-backend-awng.onrender.com/historico_salarios', { headers: headers }).then(function(r){ return r.ok ? r.json() : []; }).catch(function(){ return []; })
+    fetch(API_BASE + '/ausencias', { headers: headers }).then(function(r){ return r.ok ? r.json() : []; }).catch(function(){ return []; }),
+    fetch(API_BASE + '/historico_salarios', { headers: headers }).then(function(r){ return r.ok ? r.json() : []; }).catch(function(){ return []; })
   ]).then(function(results){
     var ausencias = Array.isArray(results[0]) ? results[0] : [];
     var historico = Array.isArray(results[1]) ? results[1] : [];
@@ -4206,7 +4257,7 @@ function registrarAusencia() {
   var textoOriginal = btn.textContent;
   btn.disabled = true; btn.textContent = 'Registrando...';
 
-  fetch('https://worka-backend-awng.onrender.com/ausencias', {
+  fetch(API_BASE + '/ausencias', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
     body: JSON.stringify({ funcionario_id: funcId, data: data, tipo: tipo, motivo: motivo })
@@ -4226,7 +4277,7 @@ function registrarAusencia() {
     var criarTarefaChk = document.getElementById('criar-tarefa-falta');
     if(tipo === 'falta_injustificada' && criarTarefaChk && criarTarefaChk.checked){
       var nomeFunc = (funcionariosCache.filter(function(f){return f.id===funcId;})[0]||{}).nome || 'funcionário';
-      fetch('https://worka-backend-awng.onrender.com/tarefas', {
+      fetch(API_BASE + '/tarefas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
         body: JSON.stringify({ titulo: 'Falta sem justificativa — '+nomeFunc, prioridade: 'alta', responsavel_id: funcId })
@@ -4258,7 +4309,7 @@ function carregarAusenciasReal(){
     suspensao:             '<span class="badge badge-red">Suspensão</span>'
   };
 
-  fetch('https://worka-backend-awng.onrender.com/ausencias', {
+  fetch(API_BASE + '/ausencias', {
     headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
   })
   .then(function(r){ return r.json(); })
@@ -4384,7 +4435,6 @@ document.addEventListener('click',function(e){
 // Auto-login via URL params (vindo do site)
 window.addEventListener('DOMContentLoaded', function(){
   var params = new URLSearchParams(window.location.search);
-  var role = params.get('role');
   var email = params.get('email');
 
   // Vindo do "Esqueci minha senha" do site: abre direto a tela de
@@ -4398,28 +4448,12 @@ window.addEventListener('DOMContentLoaded', function(){
     return;
   }
 
-  if(role === 'owner'){
-    // Antes, este bloco preenchia e submetia automaticamente uma
-    // senha fixa embutida no código — visível para qualquer um via
-    // "Ver código-fonte" da página pública, e que já nem funcionava
-    // (procurava um painel #login-owner que não existia, então a
-    // senha nunca era realmente lida). Agora só troca para a aba
-    // "Owner" e deixa a pessoa digitar a senha real, que é validada
-    // no servidor via POST /login/owner — a senha nunca aparece em
-    // lugar nenhum do código-fonte.
-    tipoLogin = 'owner';
-    document.querySelectorAll('.login-tab').forEach(function(t){ t.classList.remove('active'); });
-    var tabs = document.querySelectorAll('.login-tab');
-    if(tabs[2]) tabs[2].classList.add('active');
-    document.getElementById('login-dono').style.display = 'none';
-    document.getElementById('login-funcionario').style.display = 'none';
-    document.getElementById('login-owner').style.display = 'block';
-    if(email){
-      var emailEl = document.querySelector('#login-owner input[type=email]');
-      if(emailEl) emailEl.value = email;
-    }
-    return;
-  }
+  // Não há mais tratamento especial para ?role=owner: o owner entra
+  // pelo mesmo formulário das empresas, e quem reconhece a conta é o
+  // servidor. O bloco que existia aqui preenchia e submetia uma senha
+  // fixa embutida no código — visível para qualquer um em "Ver
+  // código-fonte" da página pública — e depois passou a só trocar de
+  // aba, aba que também deixou de existir.
 
   // Restaurar sessão de dono a partir do token salvo (pelo site, no
   // cadastro/login, ou por uma sessão anterior deste mesmo app).
@@ -4428,14 +4462,23 @@ window.addEventListener('DOMContentLoaded', function(){
   // aproveitado em lugar nenhum.
   var tokenSalvo = localStorage.getItem('worka_token');
   if(tokenSalvo){
-    fetch('https://worka-backend-awng.onrender.com/me', {
+    fetch(API_BASE + '/me', {
       headers: { 'Authorization': 'Bearer ' + tokenSalvo }
     })
     .then(function(r){ return r.ok ? r.json() : null; })
     .then(function(data){
+      // A sessão de owner não tem empresa vinculada — GET /me devolve
+      // { owner, empresa: null }. A checagem antiga era só por
+      // `data.empresa`, então o owner era deslogado a cada F5 e tinha
+      // de digitar a senha de novo, enquanto a empresa continuava
+      // logada normalmente.
+      if(data && data.owner){
+        entrarComoOwner(tokenSalvo, data.owner.email);
+        return;
+      }
       if(!data || !data.empresa){
         // Token inválido/expirado, ou token válido de funcionário
-        // (GET /me só suporta role=dono por enquanto) — limpa e
+        // (GET /me só suporta dono e owner por enquanto) — limpa e
         // deixa a tela de login normal aparecer.
         localStorage.removeItem('worka_token');
         return;

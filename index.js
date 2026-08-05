@@ -552,7 +552,16 @@ function sanitizarDeviceId(v) {
  * continua sendo exigida normalmente nesse caso.
  */
 async function dispositivoConfiavel(email, deviceId) {
-  if (!deviceId) return false; // sem id de aparelho, trata como novo
+  // Sem id de aparelho não há verificação possível: o segundo passo
+  // (POST /login/confirmar-dispositivo) exige um deviceId válido para
+  // registrar o aparelho, então pedir código aqui criaria um login que
+  // NUNCA conclui. É o caso de quem navega em janela privada do Safari,
+  // onde o localStorage não persiste. A senha continua sendo exigida —
+  // o que se perde é só a camada extra, para quem já não podia tê-la.
+  if (!deviceId) {
+    secLog("dispositivo_sem_id", {});
+    return true;
+  }
 
   var res = await supabase("GET", "dispositivos_confiaveis", {
     query: `email=eq.${encodeURIComponent(email)}&device_id=eq.${encodeURIComponent(deviceId)}&select=id,ultimo_acesso&limit=1`
@@ -616,6 +625,57 @@ async function exigirCodigoDispositivo(email, nome) {
   await salvarOTP(email, codigo);
   enviarEmail(email, "🔐 Confirme seu acesso — Worka", EMAIL_TEMPLATES.novoDispositivo(nome || "", codigo))
     .catch(e => secLog("email_error", { type: "novo_dispositivo", message: e.message }));
+}
+
+// Hash bcrypt válido de uma senha que ninguém conhece. Serve para
+// gastar o mesmo tempo de CPU quando a conta não existe: sem isso, uma
+// resposta rápida denuncia "esse e-mail não está cadastrado" antes
+// mesmo de olhar a mensagem devolvida.
+var SENHA_DUMMY = "$2b$12$abcdefghijklmnopqrstuvuxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
+
+/**
+ * Confere a senha do owner da Worka e responde o login.
+ *
+ * Existe como função porque o owner entra por dois caminhos: o
+ * formulário comum (POST /login/empresa, que reconhece o e-mail) e a
+ * rota dedicada antiga (POST /login/owner, mantida para navegadores
+ * com HTML em cache). Se cada rota tivesse sua própria checagem, uma
+ * delas ficaria para trás na primeira mudança de regra — e a que
+ * ficasse para trás seria uma porta aberta para o painel que enxerga
+ * todos os assinantes.
+ */
+async function responderLoginOwner(res, senha, deviceIdBruto, ip) {
+  if (!CONFIG.OWNER_EMAIL || !CONFIG.OWNER_PASSWORD_HASH) {
+    return jsonErr(res, "Login de owner não configurado", 503);
+  }
+
+  if (!(await verificarSenha(senha, CONFIG.OWNER_PASSWORD_HASH))) {
+    secLog("login_owner_falhou", { ip });
+    return jsonErr(res, "Senha incorreta. Tente novamente ou use \"Esqueci minha senha\".", 401);
+  }
+
+  // A conta de owner administra a plataforma inteira — é a que mais
+  // precisa da verificação de aparelho novo.
+  var deviceIdOwner = sanitizarDeviceId(deviceIdBruto);
+  if (!(await dispositivoConfiavel(CONFIG.OWNER_EMAIL, deviceIdOwner))) {
+    await exigirCodigoDispositivo(CONFIG.OWNER_EMAIL, "Owner Worka");
+    secLog("login_owner_novo_dispositivo", { ip });
+    return jsonOk(res, {
+      requer_codigo: true,
+      email: CONFIG.OWNER_EMAIL,
+      message: "Enviamos um código para o seu e-mail para confirmar este aparelho."
+    });
+  }
+
+  secLog("login_owner_ok", {});
+  return jsonOk(res, {
+    token: jwtSign({ email: CONFIG.OWNER_EMAIL, role: "owner_saas" }),
+    owner: { nome: "Owner Worka", email: CONFIG.OWNER_EMAIL },
+    // O frontend usa isto para mandar direto ao painel da plataforma
+    // em vez do painel de empresa, já que a resposta chega pela mesma
+    // rota de login das empresas.
+    is_owner: true
+  });
 }
 
 // ════════════════════════════════════════
@@ -1207,6 +1267,16 @@ var server = http.createServer(async (req, res) => {
       });
       if (!v.ok) return jsonErr(res, "Email ou senha inválidos", 401);
 
+      // A conta de owner da Worka entra pelo MESMO formulário das
+      // empresas — sem aba separada, sem URL escondida: e-mail e senha
+      // como qualquer cliente. Ela é reconhecida aqui, antes da busca
+      // no banco, porque não existe na tabela `empresas` (vive em
+      // variável de ambiente, para não haver linha de administrador
+      // dentro dos dados dos clientes).
+      if (CONFIG.OWNER_EMAIL && v.data.email === CONFIG.OWNER_EMAIL) {
+        return await responderLoginOwner(res, v.data.senha, body.deviceId, ip);
+      }
+
       var result = await DB.select("empresas", `email=eq.${encodeURIComponent(v.data.email)}&select=*`);
       var empresa = result.body && result.body[0];
 
@@ -1216,7 +1286,7 @@ var server = http.createServer(async (req, res) => {
         senhaOk = await verificarSenha(v.data.senha, empresa.senha_hash);
       } else {
         // Hash dummy para manter timing constante
-        await bcrypt.compare(v.data.senha, "$2b$12$abcdefghijklmnopqrstuvuxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+        await bcrypt.compare(v.data.senha, SENHA_DUMMY);
       }
 
       // Mensagem distinta para "não existe conta" vs "senha errada", a
@@ -1290,7 +1360,7 @@ var server = http.createServer(async (req, res) => {
       if (funcionario) {
         senhaOk = await verificarSenha(v.data.senha, funcionario.senha_hash);
       } else {
-        await bcrypt.compare(v.data.senha, "$2b$12$abcdefghijklmnopqrstuvuxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+        await bcrypt.compare(v.data.senha, SENHA_DUMMY);
       }
 
       if (!empresa || !funcionario || !senhaOk) {
@@ -1323,10 +1393,12 @@ var server = http.createServer(async (req, res) => {
     // senha real. Agora a senha nunca sai do servidor: só o hash
     // bcrypt fica configurado (via OWNER_PASSWORD_HASH), a mesma
     // disciplina de todo o resto deste arquivo.
+    // Mantida no ar mesmo depois de o login de owner passar a funcionar
+    // pelo formulário comum: navegadores guardam HTML antigo em cache e
+    // PWAs instalados podem demorar dias para atualizar. Ela e o login
+    // comum chamam a MESMA função, então não há como uma checagem ficar
+    // mais frouxa que a outra com o tempo.
     if (method === "POST" && path === "/login/owner") {
-      if (!CONFIG.OWNER_EMAIL || !CONFIG.OWNER_PASSWORD_HASH) {
-        return jsonErr(res, "Login de owner não configurado", 503);
-      }
       var raw = await getBody(req);
       var body = parseBody(raw);
       if (!body) return jsonErr(res, "Dados inválidos");
@@ -1337,32 +1409,16 @@ var server = http.createServer(async (req, res) => {
       });
       if (!v.ok) return jsonErr(res, "Email ou senha inválidos", 401);
 
-      // bcrypt.compare roda sempre, mesmo com email errado, para não
-      // vazar por timing se o email configurado bate ou não.
-      var senhaOk = await verificarSenha(v.data.senha, CONFIG.OWNER_PASSWORD_HASH);
-      var emailOk = v.data.email === CONFIG.OWNER_EMAIL;
-
-      if (!emailOk || !senhaOk) {
+      // O e-mail errado cai no mesmo "incorretos" da senha errada: esta
+      // rota é a porta da conta que administra a plataforma toda, então
+      // aqui não se confirma nem qual é o e-mail do owner.
+      if (!CONFIG.OWNER_EMAIL || v.data.email !== CONFIG.OWNER_EMAIL) {
+        await verificarSenha(v.data.senha, CONFIG.OWNER_PASSWORD_HASH || SENHA_DUMMY);
         secLog("login_owner_falhou", { ip });
         return jsonErr(res, "Email ou senha incorretos", 401);
       }
 
-      // A conta de owner administra a plataforma inteira — é a que mais
-      // precisa da verificação de aparelho novo.
-      var deviceIdOwner = sanitizarDeviceId(body.deviceId);
-      if (!(await dispositivoConfiavel(CONFIG.OWNER_EMAIL, deviceIdOwner))) {
-        await exigirCodigoDispositivo(CONFIG.OWNER_EMAIL, "Owner Worka");
-        secLog("login_owner_novo_dispositivo", { ip });
-        return jsonOk(res, {
-          requer_codigo: true,
-          email: CONFIG.OWNER_EMAIL,
-          message: "Enviamos um código para o seu e-mail para confirmar este aparelho."
-        });
-      }
-
-      var token = jwtSign({ email: v.data.email, role: "owner_saas" });
-      secLog("login_owner_ok", {});
-      return jsonOk(res, { token, owner: { nome: "Owner Worka", email: v.data.email } });
+      return await responderLoginOwner(res, v.data.senha, body.deviceId, ip);
     }
 
     // ── CONFIRMAR APARELHO NOVO (rota pública) ───────
@@ -1418,7 +1474,11 @@ var server = http.createServer(async (req, res) => {
         secLog("login_owner_ok", { via: "novo_dispositivo" });
         return jsonOk(res, {
           token: jwtSign({ email: emailConf, role: "owner_saas" }),
-          owner: { nome: "Owner Worka", email: emailConf }
+          owner: { nome: "Owner Worka", email: emailConf },
+          // Mesmo sinal do login comum: quem decide qual painel abrir é
+          // o servidor, não uma lembrança guardada no navegador entre
+          // os dois passos do login.
+          is_owner: true
         });
       }
 

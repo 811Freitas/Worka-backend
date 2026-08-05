@@ -1147,12 +1147,53 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" onerror="console.warn('QRCode CDN falhou')"></script>
 <script>
-// <svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Após o deploy, substitua pela URL real da sua Edge Function
-// Formato: https://worka-backend-awng.onrender.com/pix
 var API_BASE = "https://worka-backend-awng.onrender.com";
 var BACKEND_URL = API_BASE + "/pix"; // mantido por compatibilidade com o restante do arquivo que já usa BACKEND_URL para a rota de PIX
 var pollingInterval = null;
 var pollingTimeout  = null;
+
+/**
+ * Escreve num elemento um conteúdo que mistura ícones SVG e texto.
+ *
+ * Existe por causa de um defeito real: a troca dos emojis por ícones
+ * SVG deixou dezenas de linhas na forma
+ * `el.textContent = '<svg ...> Verificando...'`. textContent NÃO
+ * interpreta HTML, então o que aparecia na tela era o código do ícone
+ * escrito por extenso — inclusive nos botões do checkout, no meio do
+ * pagamento.
+ *
+ * Trocar tudo por innerHTML consertaria o desenho e abriria um buraco:
+ * várias dessas linhas concatenam mensagens vindas do servidor. Aqui só
+ * o formato exato do nosso ícone vira markup; todo o resto entra como
+ * texto puro, escapado pelo navegador.
+ */
+var PADRAO_ICONE = /<svg class=ico aria-hidden=true><use href=#(i-[a-z0-9-]+)><\/use><\/svg>/g;
+
+function escreverComIcones(el, conteudo){
+  if(!el) return;
+  var texto = conteudo == null ? '' : String(conteudo);
+  el.textContent = '';
+
+  var pos = 0;
+  PADRAO_ICONE.lastIndex = 0;
+  var achado;
+  while((achado = PADRAO_ICONE.exec(texto)) !== null){
+    if(achado.index > pos){
+      el.appendChild(document.createTextNode(texto.slice(pos, achado.index)));
+    }
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'ico');
+    svg.setAttribute('aria-hidden', 'true');
+    var uso = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    uso.setAttribute('href', '#' + achado[1]);
+    svg.appendChild(uso);
+    el.appendChild(svg);
+    pos = achado.index + achado[0].length;
+  }
+  if(pos < texto.length){
+    el.appendChild(document.createTextNode(texto.slice(pos)));
+  }
+}
 
 // ── Abrir / fechar modal ──────────────────────────────────────
 function abrirCheckout() {
@@ -1225,7 +1266,7 @@ function aplicarCupom(){
     btn.disabled = false; btn.textContent = txtOriginal;
     if(res.status !== 200 || !res.data.ok){
       cupomAplicado = null;
-      fb.textContent = '<svg class=ico aria-hidden=true><use href=#i-x></use></svg> ' + (res.data.error || 'Cupom inválido.');
+      escreverComIcones(fb, '<svg class=ico aria-hidden=true><use href=#i-x></use></svg> ' + (res.data.error || 'Cupom inválido.'));
       fb.style.color = '#dc2626';
       fb.style.display = 'block';
       // Volta o resumo ao preço cheio, caso um cupom válido tenha
@@ -1237,7 +1278,7 @@ function aplicarCupom(){
     }
 
     cupomAplicado = res.data.codigo;
-    fb.textContent = '<svg class=ico aria-hidden=true><use href=#i-check></use></svg> Cupom aplicado — você economiza R$ ' + res.data.desconto_reais;
+    escreverComIcones(fb, '<svg class=ico aria-hidden=true><use href=#i-check></use></svg> Cupom aplicado — você economiza R$ ' + res.data.desconto_reais);
     fb.style.color = '#16622f';
     fb.style.display = 'block';
 
@@ -1358,7 +1399,7 @@ async function confirmarCodigo() {
   erroEl.style.display = 'none';
   var btn = document.getElementById('btn-confirmar');
   btn.disabled = true;
-  btn.textContent = '<svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg> Verificando...';
+  escreverComIcones(btn, '<svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg> Verificando...');
 
   try {
     var res = await fetch(API_BASE + '/verificar-codigo', {
@@ -1371,17 +1412,17 @@ async function confirmarCodigo() {
       erroEl.textContent = data.error || 'Código inválido.';
       erroEl.style.display = 'block';
       btn.disabled = false;
-      btn.textContent = 'Confirmar código <svg class=ico aria-hidden=true><use href=#i-check></use></svg>';
+      escreverComIcones(btn, 'Confirmar código <svg class=ico aria-hidden=true><use href=#i-check></use></svg>');
       return;
     }
     // Código válido — gerar PIX
-    btn.textContent = '<svg class=ico aria-hidden=true><use href=#i-check></use></svg> Verificado! Gerando PIX...';
+    escreverComIcones(btn, '<svg class=ico aria-hidden=true><use href=#i-check></use></svg> Verificado! Gerando PIX...');
     await gerarPixReal();
   } catch(e) {
     erroEl.textContent = 'Erro de conexão: ' + e.message;
     erroEl.style.display = 'block';
     btn.disabled = false;
-    btn.textContent = 'Confirmar código <svg class=ico aria-hidden=true><use href=#i-check></use></svg>';
+    escreverComIcones(btn, 'Confirmar código <svg class=ico aria-hidden=true><use href=#i-check></use></svg>');
   }
 }
 
@@ -1451,7 +1492,7 @@ async function gerarPixReal() {
         // de novo com o mesmo body, mostra o erro e para.
         var err = await res.json().catch(() => ({}));
         mostrarErro('Erro ao gerar PIX: ' + (err.error || res.status));
-        if (btn) { btn.disabled = false; btn.textContent = 'Confirmar código <svg class=ico aria-hidden=true><use href=#i-check></use></svg>'; }
+        if (btn) { btn.disabled = false; escreverComIcones(btn, 'Confirmar código <svg class=ico aria-hidden=true><use href=#i-check></use></svg>'); }
         return;
       }
 
@@ -1466,7 +1507,7 @@ async function gerarPixReal() {
 
   if (!resposta || !resposta.pixCode) {
     mostrarErro('Não foi possível gerar o PIX. ' + (ultimoErro || 'Tente novamente.'));
-    if (btn) { btn.disabled = false; btn.textContent = 'Confirmar código <svg class=ico aria-hidden=true><use href=#i-check></use></svg>'; }
+    if (btn) { btn.disabled = false; escreverComIcones(btn, 'Confirmar código <svg class=ico aria-hidden=true><use href=#i-check></use></svg>'); }
     return;
   }
 
@@ -1510,7 +1551,7 @@ function iniciarPolling(transactionId) {
     document.getElementById('status-txt').textContent = 'PIX expirado. Feche e tente novamente.';
     document.getElementById('pix-status').style.background = '#fef2f2';
     document.getElementById('pix-status').style.color = '#dc2626';
-    document.getElementById('status-spinner').textContent = '<svg class=ico aria-hidden=true><use href=#i-absent></use></svg>';
+    escreverComIcones(document.getElementById('status-spinner'), '<svg class=ico aria-hidden=true><use href=#i-absent></use></svg>');
     document.getElementById('status-spinner').style.animation = 'none';
   }, 15 * 60 * 1000);
 }
@@ -1529,7 +1570,7 @@ function copiarPix() {
   var code = document.getElementById('pix-code-txt').textContent;
   navigator.clipboard.writeText(code).then(() => {
     var btn = event.target;
-    btn.textContent = 'Copiado! <svg class=ico aria-hidden=true><use href=#i-check></use></svg>';
+    escreverComIcones(btn, 'Copiado! <svg class=ico aria-hidden=true><use href=#i-check></use></svg>');
     btn.style.background = '#16622f';
     setTimeout(() => { btn.textContent = 'Copiar'; btn.style.background = '#1e8a40'; }, 2000);
   });
@@ -1560,7 +1601,7 @@ function escolherAssinarAgora(){
   if (emailEl) emailEl.textContent = email;
 
   var btn = document.getElementById('btn-trial');
-  if (btn) { btn.textContent = '<svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg> Enviando código...'; btn.disabled = true; }
+  if (btn) { escreverComIcones(btn, '<svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg> Enviando código...'); btn.disabled = true; }
 
   fetch(API_BASE + '/enviar-codigo', {
     method: 'POST',
@@ -1569,16 +1610,16 @@ function escolherAssinarAgora(){
   })
   .then(function(r){ return r.json(); })
   .then(function(data){
-    if (btn) { btn.textContent = '<svg class=ico aria-hidden=true><use href=#i-rocket></use></svg> Começar 7 dias grátis'; btn.disabled = false; }
+    if (btn) { escreverComIcones(btn, '<svg class=ico aria-hidden=true><use href=#i-rocket></use></svg> Começar 7 dias grátis'); btn.disabled = false; }
     if (!data.ok) { mostrarErro(data.error || 'Erro ao enviar código.'); return; }
     var camposPag = document.getElementById('trial-verify-pagamento-campos');
     if (camposPag) camposPag.style.display = 'block';
     var btnConf = document.getElementById('btn-trial-confirmar');
-    if (btnConf) btnConf.textContent = 'Confirmar e continuar para pagamento <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>';
+    if (btnConf) escreverComIcones(btnConf, 'Confirmar e continuar para pagamento <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>');
     mostrarStep('trial-verify');
   })
   .catch(function(){
-    if (btn) { btn.textContent = '<svg class=ico aria-hidden=true><use href=#i-rocket></use></svg> Começar 7 dias grátis'; btn.disabled = false; }
+    if (btn) { escreverComIcones(btn, '<svg class=ico aria-hidden=true><use href=#i-rocket></use></svg> Começar 7 dias grátis'); btn.disabled = false; }
     mostrarErro('Erro de conexão. Tente novamente.');
   });
 }
@@ -1589,7 +1630,7 @@ async function ativarTrialGratis() {
   var email = ((document.getElementById('f-email') || {}).value || '').trim();
   
   var btn = document.getElementById('btn-trial');
-  if (btn) { btn.textContent = '<svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg> Ativando...'; btn.disabled = true; }
+  if (btn) { escreverComIcones(btn, '<svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg> Ativando...'); btn.disabled = true; }
   
   // Enviar email de verificação. O trial em si (data de início/fim)
   // é decidido e gravado só pelo backend, em empresas.trial_fim,
@@ -1604,7 +1645,7 @@ async function ativarTrialGratis() {
     var data = await r.json();
     if (!data.ok) throw new Error(data.error || 'Erro');
   } catch(e) {
-    if (btn) { btn.textContent = '<svg class=ico aria-hidden=true><use href=#i-rocket></use></svg> Começar 7 dias grátis'; btn.disabled = false; }
+    if (btn) { escreverComIcones(btn, '<svg class=ico aria-hidden=true><use href=#i-rocket></use></svg> Começar 7 dias grátis'); btn.disabled = false; }
     var errEl = document.getElementById('trial-verify-erro');
     if (errEl) { errEl.style.display='block'; errEl.textContent = 'Erro: ' + e.message; }
     else alert('Erro: ' + e.message);
@@ -1637,7 +1678,7 @@ async function confirmarTrialCodigo() {
   }
 
   var btn = document.getElementById('btn-trial-confirmar');
-  if (btn) { btn.textContent = '<svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg> Verificando...'; btn.disabled = true; }
+  if (btn) { escreverComIcones(btn, '<svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg> Verificando...'); btn.disabled = true; }
 
   try {
     var r = await fetch(API_BASE + '/verificar-codigo', {
@@ -1653,7 +1694,7 @@ async function confirmarTrialCodigo() {
     // a pessoa saía sem conseguir logar depois. Agora mostramos a
     // mensagem certa com um caminho de saída (ir para o login).
     if (r.status === 409 && data.ja_cadastrado) {
-      if (btn) { btn.textContent = intencaoAssinarDireto ? 'Confirmar e continuar' : 'Confirmar e ativar trial <svg class=ico aria-hidden=true><use href=#i-check></use></svg>'; btn.disabled = false; }
+      if (btn) { escreverComIcones(btn, intencaoAssinarDireto ? 'Confirmar e continuar' : 'Confirmar e ativar trial <svg class=ico aria-hidden=true><use href=#i-check></use></svg>'); btn.disabled = false; }
       var erroDup = document.getElementById('trial-verify-erro');
       if (erroDup) {
         erroDup.innerHTML = 'Este e-mail já tem uma conta Worka. ' +
@@ -1671,7 +1712,7 @@ async function confirmarTrialCodigo() {
     // digitar aqui. Salva para o app já abrir logado.
     if (data.token) localStorage.setItem('worka_token', data.token);
   } catch(e) {
-    if (btn) { btn.textContent = intencaoAssinarDireto ? 'Confirmar e continuar' : 'Confirmar e ativar trial <svg class=ico aria-hidden=true><use href=#i-check></use></svg>'; btn.disabled = false; }
+    if (btn) { escreverComIcones(btn, intencaoAssinarDireto ? 'Confirmar e continuar' : 'Confirmar e ativar trial <svg class=ico aria-hidden=true><use href=#i-check></use></svg>'); btn.disabled = false; }
     var erroEl = document.getElementById('trial-verify-erro');
     if (erroEl) { erroEl.textContent = e.message; erroEl.style.display = 'block'; }
     else mostrarErro(e.message);
@@ -1708,9 +1749,13 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
     <div style="text-align:center;font-size:0.85rem;color:#6b7068;margin-bottom:24px;">Acesse sua conta ou crie uma nova</div>
 
     <div style="display:flex;background:#f7f8f7;border-radius:10px;padding:4px;margin-bottom:20px;gap:4px;">
+      <!-- Sem aba "Owner": a conta administrativa da Worka entra por
+           "Empresa", com e-mail e senha como qualquer cliente. O
+           servidor reconhece o e-mail e devolve o painel certo. Uma aba
+           visível só anunciava a existência da conta de administrador
+           para quem abrisse o site. -->
       <div id="tab-empresa" onclick="setAcessoTipo('dono')" style="flex:1;padding:8px;text-align:center;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;background:white;color:#16622f;box-shadow:0 1px 4px rgba(0,0,0,0.1);">Empresa</div>
       <div id="tab-func" onclick="setAcessoTipo('funcionario')" style="flex:1;padding:8px;text-align:center;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;color:#6b7068;">Funcionário</div>
-      <div id="tab-owner" onclick="setAcessoTipo('owner')" style="flex:1;padding:8px;text-align:center;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;color:#6b7068;">Owner</div>
     </div>
 
     <div id="acesso-dono">
@@ -1741,20 +1786,6 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
       <div style="margin-bottom:16px;">
         <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">Senha</label>
         <input id="ac-func-senha" type="password" placeholder="••••••••" style="width:100%;padding:11px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
-      </div>
-    </div>
-
-    <!-- Owner da Worka: conta administrativa da plataforma, não de
-         cliente. Antes só era possível entrar indo direto na URL do
-         app (worka-app.html), porque este modal não tinha a aba. -->
-    <div id="acesso-owner" style="display:none;">
-      <div style="margin-bottom:12px;">
-        <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">E-mail do owner</label>
-        <input id="ac-owner-email" type="email" placeholder="admin@workap.com.br" style="width:100%;padding:11px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
-      </div>
-      <div style="margin-bottom:16px;">
-        <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">Senha</label>
-        <input id="ac-owner-senha" type="password" placeholder="••••••••" style="width:100%;padding:11px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
       </div>
     </div>
 
@@ -1799,13 +1830,12 @@ function setAcessoTipo(tipo){
   document.getElementById('acesso-dispositivo').style.display='none';
   document.getElementById('acesso-erro').style.display='none';
   var btnEntrar = document.getElementById('acesso-btn-entrar');
-  if(btnEntrar) btnEntrar.textContent = 'Entrar no Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>';
+  if(btnEntrar) escreverComIcones(btnEntrar, 'Entrar no Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>');
 
   document.getElementById('acesso-dono').style.display=tipo==='dono'?'block':'none';
   document.getElementById('acesso-func').style.display=tipo==='funcionario'?'block':'none';
-  document.getElementById('acesso-owner').style.display=tipo==='owner'?'block':'none';
 
-  [['tab-empresa','dono'],['tab-func','funcionario'],['tab-owner','owner']].forEach(function(par){
+  [['tab-empresa','dono'],['tab-func','funcionario']].forEach(function(par){
     var el = document.getElementById(par[0]);
     if(!el) return;
     var ativo = tipo === par[1];
@@ -1848,13 +1878,12 @@ function mostrarPassoDispositivo(email, senha, tipo){
   loginPendenteSite = { email: email, senha: senha, tipo: tipo };
   document.getElementById('acesso-dono').style.display = 'none';
   document.getElementById('acesso-func').style.display = 'none';
-  document.getElementById('acesso-owner').style.display = 'none';
   document.getElementById('acesso-dispositivo').style.display = 'block';
   document.getElementById('ac-disp-email').textContent = email;
   document.getElementById('ac-disp-codigo').value = '';
   document.getElementById('acesso-erro').style.display = 'none';
   var btn = document.getElementById('acesso-btn-entrar');
-  if(btn) btn.textContent = 'Confirmar e entrar <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>';
+  if(btn) escreverComIcones(btn, 'Confirmar e entrar <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>');
 }
 
 function confirmarDispositivoSite(){
@@ -1884,7 +1913,7 @@ function confirmarDispositivoSite(){
   })
   .then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }); })
   .then(function(res){
-    if(btn){ btn.textContent = 'Confirmar e entrar <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'; btn.disabled = false; }
+    if(btn){ escreverComIcones(btn, 'Confirmar e entrar <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'); btn.disabled = false; }
     if(res.status !== 200 || !res.data.token){
       erro.textContent = res.data.error || 'Não foi possível confirmar o aparelho.';
       erro.style.display = 'block';
@@ -1896,7 +1925,7 @@ function confirmarDispositivoSite(){
     window.location.href = 'worka-app.html';
   })
   .catch(function(){
-    if(btn){ btn.textContent = 'Confirmar e entrar <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'; btn.disabled = false; }
+    if(btn){ escreverComIcones(btn, 'Confirmar e entrar <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'); btn.disabled = false; }
     erro.textContent = 'Erro de conexão. Tente novamente.';
     erro.style.display = 'block';
   });
@@ -1910,48 +1939,6 @@ function entrarNoApp(){
   // código, para não precisar de um segundo botão na tela.
   if(loginPendenteSite){
     confirmarDispositivoSite();
-    return;
-  }
-
-  // ── Login de OWNER da Worka ───────────────────────────────
-  if(acessoTipo === 'owner'){
-    var emailO = ((document.getElementById('ac-owner-email')||{}).value||'').trim().toLowerCase();
-    var senhaO = ((document.getElementById('ac-owner-senha')||{}).value||'');
-    if(!emailO || !senhaO){
-      erroGeral.textContent = 'Preencha e-mail e senha.';
-      erroGeral.style.display = 'block';
-      return;
-    }
-
-    var btnO = document.getElementById('acesso-btn-entrar');
-    if(btnO){ btnO.textContent='Entrando...'; btnO.disabled=true; }
-
-    fetch(API_BASE + '/login/owner', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ email: emailO, senha: senhaO, deviceId: obterDeviceIdSite() })
-    })
-    .then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }); })
-    .then(function(res){
-      if(btnO){ btnO.textContent='Entrar no Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'; btnO.disabled=false; }
-      if(res.status === 200 && res.data.requer_codigo){
-        mostrarPassoDispositivo(res.data.email || emailO, senhaO, 'owner');
-        return;
-      }
-      if(res.status !== 200 || !res.data.token){
-        erroGeral.textContent = res.data.error || 'Email ou senha incorretos.';
-        erroGeral.style.display = 'block';
-        return;
-      }
-      localStorage.setItem('worka_token', res.data.token);
-      fecharAcesso();
-      window.location.href = 'worka-app.html';
-    })
-    .catch(function(){
-      if(btnO){ btnO.textContent='Entrar no Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'; btnO.disabled=false; }
-      erroGeral.textContent = 'Erro de conexão. Tente novamente.';
-      erroGeral.style.display = 'block';
-    });
     return;
   }
 
@@ -1993,7 +1980,7 @@ function entrarNoApp(){
     })
     .then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }); })
     .then(function(res){
-      if(btnF){ btnF.textContent='Entrar no Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'; btnF.disabled=false; }
+      if(btnF){ escreverComIcones(btnF, 'Entrar no Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'); btnF.disabled=false; }
       if(res.status !== 200 || !res.data.token){
         erroGeral.textContent = res.data.error || 'Não foi possível entrar. Confira o ID da equipe, e-mail e senha.';
         erroGeral.style.display = 'block';
@@ -2004,7 +1991,7 @@ function entrarNoApp(){
       window.location.href = 'worka-app.html';
     })
     .catch(function(){
-      if(btnF){ btnF.textContent='Entrar no Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'; btnF.disabled=false; }
+      if(btnF){ escreverComIcones(btnF, 'Entrar no Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'); btnF.disabled=false; }
       erroGeral.textContent = 'Erro de conexão. Tente novamente.';
       erroGeral.style.display = 'block';
     });
@@ -2013,18 +2000,12 @@ function entrarNoApp(){
 
   var email = document.getElementById('ac-email') ? document.getElementById('ac-email').value.trim().toLowerCase() : '';
   var senha = document.getElementById('ac-senha') ? document.getElementById('ac-senha').value : '';
-  // Login de owner (conta administrativa da Worka) não é feito por
-  // este modal — ele existe na aba "Empresa" só para empresas
-  // clientes. Antes havia aqui uma comparação de email/senha em
-  // texto plano no JavaScript público (visível via "Ver
-  // código-fonte") que redirecionava para worka-app.html fingindo
-  // login; removida. O login de owner de verdade, autenticado no
-  // servidor via POST /login/owner, fica na aba "Owner" dentro do
-  // próprio worka-app.html.
-  // Login do dono — chama o backend de verdade (antes era "demo":
-  // aceitava qualquer email+senha preenchidos sem checar nada).
-  // Zero empresas cadastradas no banco até agora, então essa falha
-  // nunca teve dado real exposto, mas corrigido antes do 1º cliente.
+  // Este é o login de TODA conta humana da Worka: empresas clientes e
+  // também o owner da plataforma. Quem decide qual é qual é o servidor,
+  // comparando o e-mail com OWNER_EMAIL — nada nesta página sabe qual é
+  // o e-mail do owner. Antes havia aqui uma comparação de e-mail e
+  // senha em texto plano no JavaScript público (visível em "Ver
+  // código-fonte"), que redirecionava fingindo login; removida.
   if(email&&senha){
     var btnEntrar = document.getElementById('acesso-btn-entrar');
     if(btnEntrar){ btnEntrar.textContent='Entrando...'; btnEntrar.disabled=true; }
@@ -2037,7 +2018,7 @@ function entrarNoApp(){
     .then(function(res){
       // Aparelho novo: senha certa, falta o código enviado por e-mail.
       if(res.status === 200 && res.data.requer_codigo){
-        if(btnEntrar){ btnEntrar.textContent='Entrar no Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'; btnEntrar.disabled=false; }
+        if(btnEntrar){ escreverComIcones(btnEntrar, 'Entrar no Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'); btnEntrar.disabled=false; }
         mostrarPassoDispositivo(res.data.email || email, senha, 'dono');
         return;
       }
@@ -2052,12 +2033,17 @@ function entrarNoApp(){
           erro.textContent = res.data.error || 'Email ou senha incorretos.';
         }
         erro.style.display='block';
-        if(btnEntrar){ btnEntrar.textContent='Entrar no Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'; btnEntrar.disabled=false; }
+        if(btnEntrar){ escreverComIcones(btnEntrar, 'Entrar no Worka <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'); btnEntrar.disabled=false; }
         return;
       }
       localStorage.setItem('worka_token', res.data.token);
       fecharAcesso();
-      window.location.href='worka-app.html?role=dono&email='+encodeURIComponent(email);
+      // O servidor avisa se este login é o do owner da plataforma. O
+      // app abre no painel certo a partir do próprio token, então basta
+      // não mandar o ?role=dono da empresa nesse caso.
+      window.location.href = res.data.is_owner
+        ? 'worka-app.html'
+        : 'worka-app.html?role=dono&email='+encodeURIComponent(email);
     })
     .catch(function(){
       var erro=document.getElementById('acesso-erro');
