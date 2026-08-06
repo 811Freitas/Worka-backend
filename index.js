@@ -44,7 +44,11 @@ function env(nome) {
 const CONFIG = {
   PORT:          process.env.PORT || 3000,
   JWT_SECRET:    env("JWT_SECRET"),                // OBRIGATÓRIO
-  SUPABASE_URL:  "https://vtkmqykwyilcdnigaxsr.supabase.co", // Worka1 — projeto ativo (Workap original pausado)
+  // Worka1 — projeto ativo (o projeto original está pausado). Era uma
+  // constante fixa: a única configuração do sistema que não vinha do
+  // ambiente, o que impedia apontar o backend para outro banco (um de
+  // teste, por exemplo) sem editar o código e fazer deploy.
+  SUPABASE_URL:  env("SUPABASE_URL") || "https://vtkmqykwyilcdnigaxsr.supabase.co",
   SUPABASE_KEY:  env("SUPABASE_SERVICE_KEY"),
   RESEND_KEY:    env("RESEND_KEY"),
   PIX_URL:       env("DUTTYFY_PIX_URL_ENCRYPTED"),
@@ -366,7 +370,8 @@ function supabase(method, table, options = {}) {
     "produtos_validade", "ausencias", "escalas",
     "historico_salarios", "logs_sistema", "codigos_verificacao",
     "lancamentos_financeiros", "push_subscriptions", "cupons",
-    "dispositivos_confiaveis", "comunicados_plataforma"
+    "dispositivos_confiaveis", "comunicados_plataforma",
+    "owners_plataforma"
   ];
   if (!ALLOWED_TABLES.includes(table)) {
     return Promise.reject(new Error(`Tabela não permitida: ${table}`));
@@ -384,8 +389,14 @@ function supabase(method, table, options = {}) {
     };
     if (bodyStr) headers["Content-Length"] = Buffer.byteLength(bodyStr);
 
+    // A porta vem da própria URL. Sem isso, https.request assume 443 e
+    // qualquer endereço com porta explícita — um banco de teste, um
+    // túnel local — é chamado na porta errada, com um "connection
+    // refused" que não diz em momento algum que a porta foi ignorada.
+    var alvo = new URL(CONFIG.SUPABASE_URL);
     var req = https.request({
-      hostname: new URL(CONFIG.SUPABASE_URL).hostname,
+      hostname: alvo.hostname,
+      port: alvo.port || 443,
       path, method, headers
     }, (res) => {
       var raw = "";
@@ -644,38 +655,101 @@ var SENHA_DUMMY = "$2b$12$abcdefghijklmnopqrstuvuxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
  * ficasse para trás seria uma porta aberta para o painel que enxerga
  * todos os assinantes.
  */
-async function responderLoginOwner(res, senha, deviceIdBruto, ip) {
-  if (!CONFIG.OWNER_EMAIL || !CONFIG.OWNER_PASSWORD_HASH) {
-    return jsonErr(res, "Login de owner não configurado", 503);
+/**
+ * Procura uma conta de owner da plataforma pelo e-mail.
+ *
+ * Fonte principal: tabela owners_plataforma (migration 003). Antes
+ * disso a conta vivia só em variável de ambiente, o que funcionava mas
+ * transformava "trocar a senha do admin" numa ida ao painel do Render
+ * e um reinício do serviço.
+ *
+ * As variáveis de ambiente continuam valendo como reserva, para o caso
+ * de a migration ainda não ter rodado ou o banco estar fora do ar —
+ * sem isso, um deploy na ordem errada trancaria o acesso ao painel da
+ * plataforma. Nenhum dos dois caminhos dispensa a senha: o que muda é
+ * apenas de onde vem o hash usado na comparação.
+ *
+ * Devolve null quando o e-mail não é de owner — e aí o login segue o
+ * fluxo normal de empresa.
+ */
+async function buscarOwner(email) {
+  if (!email) return null;
+
+  var achado = await supabase("GET", "owners_plataforma", {
+    query: `email=eq.${encodeURIComponent(email)}&ativo=is.true&select=id,email,nome,senha_hash&limit=1`
+  }).catch(e => {
+    secLog("owners_indisponivel", { message: e.message });
+    return null;
+  });
+
+  var linha = achado && achado.body && achado.body[0];
+  if (linha && linha.senha_hash) {
+    return {
+      id:         linha.id,
+      email:      linha.email,
+      nome:       linha.nome || "Owner Workap",
+      senha_hash: linha.senha_hash,
+      origem:     "banco"
+    };
   }
 
-  if (!(await verificarSenha(senha, CONFIG.OWNER_PASSWORD_HASH))) {
-    secLog("login_owner_falhou", { ip });
+  if (CONFIG.OWNER_EMAIL && CONFIG.OWNER_PASSWORD_HASH && email === CONFIG.OWNER_EMAIL) {
+    return {
+      id:         null,
+      email:      CONFIG.OWNER_EMAIL,
+      nome:       "Owner Workap",
+      senha_hash: CONFIG.OWNER_PASSWORD_HASH,
+      origem:     "env"
+    };
+  }
+
+  return null;
+}
+
+async function responderLoginOwner(res, owner, senha, deviceIdBruto, ip) {
+  if (!owner) return jsonErr(res, "Login de owner não configurado", 503);
+
+  if (!(await verificarSenha(senha, owner.senha_hash))) {
+    secLog("login_owner_falhou", { ip, origem: owner.origem });
     return jsonErr(res, "Senha incorreta. Tente novamente ou use \"Esqueci minha senha\".", 401);
   }
 
   // A conta de owner administra a plataforma inteira — é a que mais
   // precisa da verificação de aparelho novo.
   var deviceIdOwner = sanitizarDeviceId(deviceIdBruto);
-  if (!(await dispositivoConfiavel(CONFIG.OWNER_EMAIL, deviceIdOwner))) {
-    await exigirCodigoDispositivo(CONFIG.OWNER_EMAIL, "Owner Workap");
+  if (!(await dispositivoConfiavel(owner.email, deviceIdOwner))) {
+    await exigirCodigoDispositivo(owner.email, owner.nome);
     secLog("login_owner_novo_dispositivo", { ip });
     return jsonOk(res, {
       requer_codigo: true,
-      email: CONFIG.OWNER_EMAIL,
+      email: owner.email,
       message: "Enviamos um código para o seu e-mail para confirmar este aparelho."
     });
   }
 
-  secLog("login_owner_ok", {});
+  registrarLoginOwner(owner);
+  secLog("login_owner_ok", { origem: owner.origem });
   return jsonOk(res, {
-    token: jwtSign({ email: CONFIG.OWNER_EMAIL, role: "owner_saas" }),
-    owner: { nome: "Owner Workap", email: CONFIG.OWNER_EMAIL },
+    token: jwtSign({ email: owner.email, role: "owner_saas" }),
+    owner: { nome: owner.nome, email: owner.email },
     // O frontend usa isto para mandar direto ao painel da plataforma
     // em vez do painel de empresa, já que a resposta chega pela mesma
     // rota de login das empresas.
     is_owner: true
   });
+}
+
+/**
+ * Carimba a data do último login do owner. Fire-and-forget de
+ * propósito: é informação de auditoria, não pode segurar nem derrubar
+ * um login que já foi aprovado.
+ */
+function registrarLoginOwner(owner) {
+  if (!owner || !owner.id) return;
+  supabase("PATCH", "owners_plataforma", {
+    query: `id=eq.${owner.id}`,
+    body: { ultimo_login: new Date().toISOString() }
+  }).catch(e => secLog("owner_ultimo_login_falhou", { message: e.message }));
 }
 
 // ════════════════════════════════════════
@@ -1273,8 +1347,9 @@ var server = http.createServer(async (req, res) => {
       // no banco, porque não existe na tabela `empresas` (vive em
       // variável de ambiente, para não haver linha de administrador
       // dentro dos dados dos clientes).
-      if (CONFIG.OWNER_EMAIL && v.data.email === CONFIG.OWNER_EMAIL) {
-        return await responderLoginOwner(res, v.data.senha, body.deviceId, ip);
+      var ownerEmp = await buscarOwner(v.data.email);
+      if (ownerEmp) {
+        return await responderLoginOwner(res, ownerEmp, v.data.senha, body.deviceId, ip);
       }
 
       var result = await DB.select("empresas", `email=eq.${encodeURIComponent(v.data.email)}&select=*`);
@@ -1412,13 +1487,14 @@ var server = http.createServer(async (req, res) => {
       // O e-mail errado cai no mesmo "incorretos" da senha errada: esta
       // rota é a porta da conta que administra a plataforma toda, então
       // aqui não se confirma nem qual é o e-mail do owner.
-      if (!CONFIG.OWNER_EMAIL || v.data.email !== CONFIG.OWNER_EMAIL) {
-        await verificarSenha(v.data.senha, CONFIG.OWNER_PASSWORD_HASH || SENHA_DUMMY);
+      var ownerRota = await buscarOwner(v.data.email);
+      if (!ownerRota) {
+        await verificarSenha(v.data.senha, SENHA_DUMMY);
         secLog("login_owner_falhou", { ip });
         return jsonErr(res, "Email ou senha incorretos", 401);
       }
 
-      return await responderLoginOwner(res, v.data.senha, body.deviceId, ip);
+      return await responderLoginOwner(res, ownerRota, v.data.senha, body.deviceId, ip);
     }
 
     // ── CONFIRMAR APARELHO NOVO (rota pública) ───────
@@ -1441,11 +1517,12 @@ var server = http.createServer(async (req, res) => {
       }
       if (!deviceIdConf) return jsonErr(res, "Identificação do aparelho inválida.");
 
-      var ehOwner = CONFIG.OWNER_EMAIL && emailConf === CONFIG.OWNER_EMAIL;
+      var ownerConf = await buscarOwner(emailConf);
+      var ehOwner = !!ownerConf;
       var empresaConf = null;
 
       if (ehOwner) {
-        if (!CONFIG.OWNER_PASSWORD_HASH || !(await verificarSenha(senhaConf, CONFIG.OWNER_PASSWORD_HASH))) {
+        if (!(await verificarSenha(senhaConf, ownerConf.senha_hash))) {
           secLog("confirmar_dispositivo_senha_errada", { ip });
           return jsonErr(res, "Email ou senha incorretos", 401);
         }
@@ -1471,10 +1548,11 @@ var server = http.createServer(async (req, res) => {
       );
 
       if (ehOwner) {
+        registrarLoginOwner(ownerConf);
         secLog("login_owner_ok", { via: "novo_dispositivo" });
         return jsonOk(res, {
           token: jwtSign({ email: emailConf, role: "owner_saas" }),
-          owner: { nome: "Owner Workap", email: emailConf },
+          owner: { nome: ownerConf.nome, email: emailConf },
           // Mesmo sinal do login comum: quem decide qual painel abrir é
           // o servidor, não uma lembrança guardada no navegador entre
           // os dois passos do login.
@@ -1553,6 +1631,19 @@ var server = http.createServer(async (req, res) => {
         // sem ter criado conta nenhuma e sem devolver token. A pessoa
         // saía achando que tinha conta, e não conseguia logar depois.
         // Agora a existência é checada ANTES, com resposta explícita.
+        // Um e-mail de owner não pode virar empresa. Se virasse, o login
+        // acharia o owner primeiro e sempre abriria o painel da
+        // plataforma — a conta de empresa existiria no banco sem
+        // nenhuma forma de entrar nela.
+        if (await buscarOwner(email)) {
+          secLog("cadastro_email_de_owner", { ip });
+          res.writeHead(409);
+          return res.end(JSON.stringify({
+            error: "Este e-mail já tem uma conta Workap. Faça login para continuar.",
+            ja_cadastrado: true
+          }));
+        }
+
         var jaExiste = await DB.select("empresas", `email=eq.${encodeURIComponent(email)}&select=id`);
         if (jaExiste.body && jaExiste.body.length > 0) {
           secLog("cadastro_duplicado_trial", { email_hash: crypto.createHash("sha256").update(email).digest("hex").substring(0, 8) });
