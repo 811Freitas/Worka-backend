@@ -1,4 +1,4 @@
-// Worka PWA — Service Worker
+// Workap PWA — Service Worker
 // Cache offline + push notifications
 //
 // NOTA: este cabeçalho dizia "Face ID support", mas nunca houve
@@ -8,14 +8,12 @@
 // o sistema não tem. Login biométrico continua sendo uma feature em
 // aberto (exige WebAuthn + tabela de credenciais no banco).
 
-// Cache bumped para v4: entraram os arquivos de assets/ (a logo de
-// verdade). Sem trocar o nome do cache, quem já tem o SW instalado
-// continuaria servindo do cache a versão sem logo — inclusive o
-// ícone SVG improvisado das notificações.
-var CACHE = 'worka-v4';
-// Ícone das notificações push. Era um SVG inline com a letra "W" em
-// Georgia, improviso de quando não havia arte nenhuma no repositório.
-// Agora existe a logo real.
+// Cache bumped para v5: a marca virou "Workap". Sem trocar o nome do
+// cache, quem já usa o app continuaria vendo o nome antigo em todas as
+// telas, servidas do cache, por tempo indeterminado.
+var CACHE = 'workap-v5';
+// Ícone das notificações push: só o símbolo. A arte original tem a
+// palavra "WORKA" desenhada dentro e mostraria o nome antigo.
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
 // Caminhos RELATIVOS de propósito: o site agora é servido na raiz do
@@ -28,7 +26,7 @@ var ASSETS = [
   'worka-app.html',
   'index.html',
   'manifest.json',
-  'assets/logo-worka-192.png',
+  'assets/logo-marca-192.png',
   'assets/logo-marca-96.png',
   'assets/icon-192.png',
   'assets/favicon-32.png',
@@ -90,7 +88,7 @@ self.addEventListener('fetch', function(e) {
         if (cached) return cached;
         // Página offline padrão
         return new Response(
-          '<html><body style="font-family:sans-serif;text-align:center;padding:40px;background:#0a2e1a;color:white"><h2>Worka</h2><p>Sem conexão com a internet.</p><p>Algumas funções podem estar indisponíveis.</p></body></html>',
+          '<html><body style="font-family:sans-serif;text-align:center;padding:40px;background:#0a2e1a;color:white"><h2>Workap</h2><p>Sem conexão com a internet.</p><p>Algumas funções podem estar indisponíveis.</p></body></html>',
           { headers: { 'Content-Type': 'text/html' } }
         );
       });
@@ -101,7 +99,7 @@ self.addEventListener('fetch', function(e) {
 // Push notifications
 self.addEventListener('push', function(e) {
   var data = e.data ? e.data.json() : {};
-  var title = data.title || 'Worka';
+  var title = data.title || 'Workap';
   var options = {
     body: data.body || 'Nova notificação',
     icon: NOTIFICATION_ICON,
