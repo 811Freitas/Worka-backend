@@ -1266,29 +1266,28 @@ tr:hover td{background:var(--g50)}
           </div>
         </div>
 
+        <!-- Estes dois quadros ficaram para trás na primeira passada:
+             a distribuição trazia 14 empresas de Alimentação, 9 de
+             Estética e por aí, com as barras desenhadas na medida certa
+             para esses números; e "Novos assinantes" listava Delivery
+             Rápido, Mercado Central, Salão Glow e Clínica Vet Pet, que
+             nunca existiram. Os dois agora são calculados a partir da
+             MESMA lista que alimenta a tabela acima — sem chamada nova
+             ao servidor. -->
         <div class="grid-2">
           <div class="card">
             <div class="card-header"><div class="card-title">Distribuição por ramo</div></div>
-            <div class="card-body">
-              <div style="display:flex;flex-direction:column;gap:10px">
-                <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Alimentação</span><span style="font-weight:600">14 empresas · 30%</span></div><div class="progress-bar"><div class="progress-fill" style="width:30%"></div></div></div>
-                <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Estética</span><span style="font-weight:600">9 empresas · 19%</span></div><div class="progress-bar"><div class="progress-fill" style="width:19%"></div></div></div>
-                <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Varejo</span><span style="font-weight:600">8 empresas · 17%</span></div><div class="progress-bar"><div class="progress-fill" style="width:17%"></div></div></div>
-                <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Saúde</span><span style="font-weight:600">7 empresas · 15%</span></div><div class="progress-bar"><div class="progress-fill" style="width:15%"></div></div></div>
-                <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Outros</span><span style="font-weight:600">9 empresas · 19%</span></div><div class="progress-bar"><div class="progress-fill" style="width:19%"></div></div></div>
-              </div>
+            <div class="card-body" id="ow-ramos">
+              <div class="skel skel-text" style="width:60%"></div>
             </div>
           </div>
           <div class="card">
-            <div class="card-header"><div class="card-title">Novos assinantes — Junho</div></div>
+            <div class="card-header"><div class="card-title">Últimos cadastros</div></div>
             <div class="card-body" style="padding:0">
               <table>
-                <thead><tr><th>Empresa</th><th>Data</th><th>Ramo</th></tr></thead>
-                <tbody>
-                  <tr><td>Delivery Rápido</td><td>27/06</td><td><span class="tag">Delivery</span></td></tr>
-                  <tr><td>Mercado Central</td><td>26/06</td><td><span class="tag">Varejo</span></td></tr>
-                  <tr><td>Salão Glow</td><td>25/06</td><td><span class="tag">Estética</span></td></tr>
-                  <tr><td>Clínica Vet Pet</td><td>24/06</td><td><span class="tag">Saúde</span></td></tr>
+                <thead><tr><th>Empresa</th><th>Cadastro</th><th>Ramo</th></tr></thead>
+                <tbody id="ow-novos">
+                  <tr><td colspan="3" style="padding:14px"><div class="skel skel-text" style="width:50%"></div></td></tr>
                 </tbody>
               </table>
             </div>
@@ -4486,9 +4485,116 @@ async function carregarPainelOwner(){
       .then(function(r){ return r.ok ? r.json() : []; });
     renderizarAssinantes(lista || []);
     preencherFinanceiroOwner(metricas, lista || []);
-  } catch(e) { renderizarAssinantes([]); preencherFinanceiroOwner(metricas, []); }
+    preencherRamosENovos(lista || []);
+  } catch(e) {
+    renderizarAssinantes([]);
+    preencherFinanceiroOwner(metricas, []);
+    preencherRamosENovos([]);
+  }
 
   carregarLogsOwner();
+}
+
+/**
+ * Distribuição por ramo e últimos cadastros.
+ *
+ * Sai da mesma lista que preenche a tabela de assinantes — nenhuma
+ * chamada nova ao servidor. Antes eram cinco ramos com contagem e
+ * porcentagem escritas no HTML, e as barras desenhadas na medida
+ * exata desses números inventados.
+ */
+function preencherRamosENovos(assinantes){
+  var lista = assinantes || [];
+
+  // ── Distribuição por ramo ──
+  var caixa = document.getElementById('ow-ramos');
+  if(caixa){
+    caixa.innerHTML = '';
+
+    if(!lista.length){
+      var vazio = document.createElement('div');
+      vazio.style.cssText = 'padding:16px;text-align:center;color:var(--gray500);font-size:.85rem';
+      vazio.textContent = 'Nenhuma empresa cadastrada ainda.';
+      caixa.appendChild(vazio);
+    } else {
+      var contagem = {};
+      lista.forEach(function(e){
+        var ramo = (e.ramo && String(e.ramo).trim()) || 'Não informado';
+        contagem[ramo] = (contagem[ramo] || 0) + 1;
+      });
+
+      var ordenados = Object.keys(contagem).sort(function(a,b){ return contagem[b] - contagem[a]; });
+      var envolucro = document.createElement('div');
+      envolucro.style.cssText = 'display:flex;flex-direction:column;gap:10px';
+
+      ordenados.forEach(function(ramo){
+        var qtd = contagem[ramo];
+        var pct = Math.round((qtd / lista.length) * 100);
+
+        var linha = document.createElement('div');
+        var topo = document.createElement('div');
+        topo.style.cssText = 'display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px';
+
+        var nome = document.createElement('span');
+        nome.textContent = ramo;                 // vem do cadastro: texto puro
+        var valor = document.createElement('span');
+        valor.style.fontWeight = '600';
+        valor.textContent = qtd + (qtd === 1 ? ' empresa' : ' empresas') + ' · ' + pct + '%';
+
+        topo.appendChild(nome); topo.appendChild(valor);
+
+        var barra = document.createElement('div');
+        barra.className = 'progress-bar';
+        var preenchida = document.createElement('div');
+        preenchida.className = 'progress-fill';
+        preenchida.style.width = pct + '%';
+        barra.appendChild(preenchida);
+
+        linha.appendChild(topo); linha.appendChild(barra);
+        envolucro.appendChild(linha);
+      });
+      caixa.appendChild(envolucro);
+    }
+  }
+
+  // ── Últimos cadastros ──
+  var tbody = document.getElementById('ow-novos');
+  if(!tbody) return;
+  tbody.innerHTML = '';
+
+  // A lista já vem do servidor ordenada do mais novo para o mais
+  // antigo; aqui só cortamos os 5 primeiros.
+  var recentes = lista.slice(0, 5);
+  if(!recentes.length){
+    var tr0 = document.createElement('tr'), td0 = document.createElement('td');
+    td0.colSpan = 3;
+    td0.style.cssText = 'padding:24px;text-align:center;color:var(--gray500);font-size:.85rem';
+    td0.textContent = 'Nenhum cadastro ainda.';
+    tr0.appendChild(td0); tbody.appendChild(tr0);
+    return;
+  }
+
+  recentes.forEach(function(e){
+    var tr = document.createElement('tr');
+
+    var tdNome = document.createElement('td');
+    tdNome.textContent = e.nome || '—';
+
+    var tdData = document.createElement('td');
+    tdData.textContent = e.created_at
+      ? new Date(e.created_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' })
+      : '—';
+
+    var tdRamo = document.createElement('td');
+    if(e.ramo){
+      var tag = document.createElement('span');
+      tag.className = 'tag'; tag.textContent = e.ramo;
+      tdRamo.appendChild(tag);
+    } else { tdRamo.textContent = '—'; }
+
+    [tdNome, tdData, tdRamo].forEach(function(c){ tr.appendChild(c); });
+    tbody.appendChild(tr);
+  });
 }
 
 function preencherFinanceiroOwner(metricas, assinantes){
