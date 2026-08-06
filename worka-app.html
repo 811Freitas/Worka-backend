@@ -497,6 +497,18 @@ tr:hover td{background:var(--g50)}
     <div class="login-logo-txt">Worka<span>p</span></div>
     <div class="login-sub">Confirme este aparelho</div>
 
+    <!-- Face ID / Touch ID: aparece só quando o aparelho tem essa
+         credencial cadastrada. É o caminho preferido porque não depende
+         de e-mail chegando — que é justamente o que mais falha. -->
+    <div id="disp-faceid" style="display:none;margin-bottom:18px">
+      <button class="btn-full" id="disp-btn-faceid" onclick="entrarComFaceId()" style="display:flex;align-items:center;justify-content:center;gap:8px">
+        <svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Entrar com Face ID
+      </button>
+      <div style="text-align:center;margin:14px 0 0;font-size:.75rem;color:var(--gray500)">
+        ou use o código enviado por e-mail
+      </div>
+    </div>
+
     <div style="background:var(--g50);border-radius:var(--r);padding:14px;font-size:.82rem;color:var(--g600);margin-bottom:18px;line-height:1.5">
       <svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Este aparelho é novo por aqui. Enviamos um código de 6 dígitos para <strong id="disp-email-txt"></strong> para confirmar que é você.
     </div>
@@ -687,7 +699,7 @@ tr:hover td{background:var(--g50)}
           <button class="ponto-btn ponto-btn-retorno" id="btn-retorno" onclick="baterPonto('retorno')" disabled><svg class=ico aria-hidden=true><use href=#i-return></use></svg> Retorno</button>
           <button class="ponto-btn ponto-btn-saida" id="btn-saida" onclick="baterPonto('saida')" disabled><svg class=ico aria-hidden=true><use href=#i-stop></use></svg> Saída</button>
         </div>
-        <div id="ponto-status" style="margin-top:14px;font-size:.8rem;color:rgba(255,255,255,.7)"></div>
+        <div id="ponto-status" class="ponto-status-box" style="margin-top:14px;font-size:.8rem;color:rgba(255,255,255,.7)"></div>
       </div>
 
       <div class="grid-2">
@@ -1469,6 +1481,11 @@ tr:hover td{background:var(--g50)}
           <button class="ponto-btn ponto-btn-retorno" onclick="baterPonto('retorno')"><svg class=ico aria-hidden=true><use href=#i-return></use></svg> Retorno</button>
           <button class="ponto-btn ponto-btn-saida" onclick="baterPonto('saida')"><svg class=ico aria-hidden=true><use href=#i-stop></use></svg> Saída</button>
         </div>
+        <!-- Faltava aqui: os avisos de GPS eram escritos só no painel da
+             página "Ponto". Quem batia o ponto por esta tela não via
+             mensagem nenhuma — nem "obtendo localização", nem o motivo
+             de a coordenada não ter vindo. -->
+        <div id="ponto-status-painel" class="ponto-status-box" style="margin-top:14px;font-size:.8rem;color:rgba(255,255,255,.7)"></div>
       </div>
 
       <div class="card" style="margin-bottom:16px">
@@ -1949,6 +1966,7 @@ function entrarComoDono(token, empresa, trial){
   // quem está logado nem qual empresa. "trial" vem direto do backend
   // (empresas.trial_fim), nunca calculado no navegador.
   sessaoWorka = { token: token, teamId: empresa.team_id, empresaId: empresa.id, trial: trial || null, nomeEmpresa: empresa.nome };
+  oferecerFaceId();
   localStorage.setItem('worka_token', token);
 
   usuarioAtual = {
@@ -2008,6 +2026,7 @@ function entrarComoOwner(token, email){
   localStorage.setItem('worka_token', token);
 
   usuarioAtual = { nome: 'Owner Workap', cargo: 'Owner Workap', empresa: 'Workap HQ', avatar: 'W', tipo: 'owner' };
+  oferecerFaceId();
   document.getElementById('tela-login').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   document.getElementById('user-name-display').textContent = usuarioAtual.nome;
@@ -2936,6 +2955,29 @@ function iniciarRelogio() {
 // PONTO
 // ═══════════════════════════════════
 
+/**
+ * Devolve TODOS os painéis de aviso do ponto que existem na tela.
+ *
+ * Os botões de bater ponto aparecem em duas páginas — "Ponto" e "Meu
+ * Painel" — mas o aviso só existia dentro da página "Ponto". Quem
+ * batia o ponto pelo Meu Painel recebia todas as mensagens de GPS
+ * ("Obtendo sua localização...", "permissão negada", "GPS demorou
+ * demais") escritas num elemento de uma página que estava escondida.
+ * Da cadeira de quem usa: aperta o botão, não acontece nada visível, e
+ * o ponto é gravado sem coordenada nenhuma sem dizer por quê. Era esse
+ * o "não puxa a localização".
+ */
+function paineisStatusPonto(){
+  return Array.prototype.slice.call(document.querySelectorAll('.ponto-status-box'));
+}
+
+function avisarPonto(mensagem, cor){
+  paineisStatusPonto().forEach(function(el){
+    escreverComIcones(el, mensagem);
+    el.style.color = cor || '';
+  });
+}
+
 async function baterPonto(tipo, btnEl) {
   var btn = btnEl || (typeof event !== 'undefined' && event ? event.target : null);
 
@@ -2944,16 +2986,14 @@ async function baterPonto(tipo, btnEl) {
     return;
   }
 
-  var statusEl = document.getElementById('ponto-status');
-
   if(!navigator.geolocation){
-    if(statusEl) escreverComIcones(statusEl, '<svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Este navegador não suporta localização — ponto será registrado sem GPS.');
+    avisarPonto('<svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Este navegador não suporta localização — ponto será registrado sem GPS.', '#fbbf24');
     await registrarPonto(tipo, null, null, btn);
     return;
   }
 
   if(btn){ escreverComIcones(btn, '<svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Capturando...'); btn.disabled = true; }
-  if(statusEl) escreverComIcones(statusEl, '<svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Obtendo sua localização...');
+  avisarPonto('<svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Obtendo sua localização...', '');
 
   // Antes a chamada era getCurrentPosition(sucesso, erro) sem opções:
   // o timeout padrão é infinito, então em celular com GPS lento o
@@ -2968,7 +3008,7 @@ async function baterPonto(tipo, btnEl) {
   };
 
   navigator.geolocation.getCurrentPosition(function(pos){
-    if(statusEl) escreverComIcones(statusEl, '<svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Localização obtida, registrando...');
+    avisarPonto('<svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Localização obtida, registrando...', '');
     registrarPonto(tipo, pos.coords.latitude, pos.coords.longitude, btn);
   }, function(err){
     // Agora cada motivo de falha tem uma mensagem própria, para a
@@ -2990,10 +3030,7 @@ async function baterPonto(tipo, btnEl) {
     // ler a tela para descobrir o que o código acabou de escrever
     // quebra sozinho na primeira mudança de texto ou de ícone.
     avisoGpsAtual = aviso;
-    if(statusEl){
-      escreverComIcones(statusEl, aviso);
-      statusEl.style.color = '#fbbf24';
-    }
+    avisarPonto(aviso, '#fbbf24');
     registrarPonto(tipo, null, null, btn);
   }, opcoes);
 }
@@ -3046,11 +3083,9 @@ async function registrarPonto(tipo, lat, lng, btn){
       if(info) escreverComIcones(info, '<svg class=ico aria-hidden=true><use href=#i-pin></use></svg> '+labelsPonto[tipo]+' registrada às '+h+' · Lat: '+lat.toFixed(4)+', Lng: '+lng.toFixed(4));
     }
 
-    var status = document.getElementById('ponto-status');
-    if(status){
+    {
       if(lat != null && lng != null){
-        escreverComIcones(status, '<svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> '+labelsPonto[tipo]+' registrada às '+h+' com localização');
-        status.style.color = ''; // volta ao padrão após um aviso amarelo anterior
+        avisarPonto('<svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> '+labelsPonto[tipo]+' registrada às '+h+' com localização', '');
         avisoGpsAtual = '';
       } else {
         // Repete o motivo da falha de GPS junto da confirmação: sem
@@ -3059,8 +3094,7 @@ async function registrarPonto(tipo, lat, lng, btn){
         var explicacao = avisoGpsAtual
           ? ' ' + avisoGpsAtual.replace(/^<svg[^>]*>(<use[^>]*><\/use>)?<\/svg>\s*/, '')
           : '';
-        escreverComIcones(status, '<svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> '+labelsPonto[tipo]+' registrada às '+h+' — sem localização.' + explicacao);
-        status.style.color = '#fbbf24';
+        avisarPonto('<svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> '+labelsPonto[tipo]+' registrada às '+h+' — sem localização.' + explicacao, '#fbbf24');
       }
     }
 
@@ -3508,7 +3542,194 @@ function descreverDispositivo(){
 // confirmar o código, então precisamos reenviá-la.
 var loginPendente = null;
 
-function pedirCodigoDispositivo(email, senha, tipo){
+// ═══════════════════════════════════
+// FACE ID / TOUCH ID (WebAuthn)
+// ═══════════════════════════════════
+// O aparelho guarda uma chave privada no próprio chip de segurança e
+// só a usa depois de conferir Face ID, Touch ID ou a senha do celular.
+// O servidor guarda apenas a chave pública — a biometria nunca sai do
+// aparelho, nunca trafega e não é armazenada em lugar nenhum.
+
+function faceIdDisponivel(){
+  return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create);
+}
+
+function b64urlParaBytes(s){
+  var b64 = String(s).replace(/-/g,'+').replace(/_/g,'/');
+  while(b64.length % 4) b64 += '=';
+  var bruto = atob(b64), arr = new Uint8Array(bruto.length);
+  for(var i=0;i<bruto.length;i++) arr[i] = bruto.charCodeAt(i);
+  return arr;
+}
+function bytesParaB64url(buf){
+  var bytes = new Uint8Array(buf), s = '';
+  for(var i=0;i<bytes.length;i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+
+/**
+ * Cadastra o Face ID deste aparelho. Só funciona com sessão aberta —
+ * quem cadastra é alguém que já provou a senha.
+ */
+async function cadastrarFaceId(silencioso){
+  if(!faceIdDisponivel()) {
+    if(!silencioso) alert('Este aparelho não oferece Face ID, Touch ID ou senha de desbloqueio para sites.');
+    return false;
+  }
+  if(!sessaoWorka || !sessaoWorka.token) return false;
+
+  try {
+    var inicio = await fetch(API_BASE + '/webauthn/registrar/inicio', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + sessaoWorka.token }
+    }).then(function(r){ return r.ok ? r.json() : null; });
+    if(!inicio || !inicio.challenge) return false;
+
+    var credencial = await navigator.credentials.create({ publicKey: {
+      challenge: b64urlParaBytes(inicio.challenge),
+      rp: inicio.rp,
+      user: {
+        id: b64urlParaBytes(inicio.user.id),
+        name: inicio.user.name,
+        displayName: inicio.user.displayName
+      },
+      pubKeyCredParams: inicio.pubKeyCredParams,
+      authenticatorSelection: inicio.authenticatorSelection,
+      timeout: inicio.timeout,
+      attestation: inicio.attestation
+    }});
+    if(!credencial) return false;
+
+    var fim = await fetch(API_BASE + '/webauthn/registrar/fim', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + sessaoWorka.token },
+      body: JSON.stringify({
+        clientDataJSON:    bytesParaB64url(credencial.response.clientDataJSON),
+        attestationObject: bytesParaB64url(credencial.response.attestationObject),
+        descricao:         descreverDispositivo()
+      })
+    }).then(function(r){ return r.json(); });
+
+    if(fim && fim.ok){
+      try { localStorage.setItem('workap_faceid', '1'); } catch(e) {}
+      if(!silencioso) alert('Pronto! Este aparelho agora entra com Face ID.');
+      return true;
+    }
+    if(!silencioso) alert(fim && fim.error ? fim.error : 'Não foi possível cadastrar o Face ID.');
+    return false;
+  } catch(e) {
+    // Cancelar o Face ID é uma escolha legítima — não vira erro na tela.
+    if(!silencioso && e && e.name !== 'NotAllowedError'){
+      alert('Não foi possível cadastrar o Face ID neste aparelho.');
+    }
+    return false;
+  }
+}
+
+/** Usa o Face ID no lugar do código de e-mail para confirmar o aparelho. */
+async function entrarComFaceId(){
+  var erroEl = document.getElementById('disp-erro');
+  var btn = document.getElementById('disp-btn-faceid');
+  if(!loginPendente) { voltarParaLogin(); return; }
+  erroEl.style.display = 'none';
+
+  var textoBtn = btn ? btn.innerHTML : '';
+  if(btn){ btn.disabled = true; escreverComIcones(btn, 'Confirmando...'); }
+
+  try {
+    var inicio = await fetch(API_BASE + '/webauthn/login/inicio', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email: loginPendente.email })
+    }).then(function(r){ return r.json(); });
+
+    if(!inicio || !inicio.disponivel){
+      erroEl.textContent = 'Este aparelho ainda não tem Face ID cadastrado. Use o código do e-mail.';
+      erroEl.style.display = 'block';
+      if(btn){ btn.disabled = false; btn.innerHTML = textoBtn; }
+      return;
+    }
+
+    var assercao = await navigator.credentials.get({ publicKey: {
+      challenge: b64urlParaBytes(inicio.challenge),
+      rpId: inicio.rpId,
+      allowCredentials: (inicio.allowCredentials||[]).map(function(c){
+        return { type:'public-key', id: b64urlParaBytes(c.id) };
+      }),
+      userVerification: inicio.userVerification,
+      timeout: inicio.timeout
+    }});
+
+    var resp = await fetch(API_BASE + '/webauthn/login/fim', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        email: loginPendente.email,
+        senha: loginPendente.senha,
+        credentialId:      bytesParaB64url(assercao.rawId),
+        clientDataJSON:    bytesParaB64url(assercao.response.clientDataJSON),
+        authenticatorData: bytesParaB64url(assercao.response.authenticatorData),
+        signature:         bytesParaB64url(assercao.response.signature),
+        deviceId:          obterDeviceId(),
+        descricao:         descreverDispositivo()
+      })
+    }).then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }); });
+
+    if(btn){ btn.disabled = false; btn.innerHTML = textoBtn; }
+
+    if(resp.status !== 200 || !resp.data.token){
+      erroEl.textContent = resp.data.error || 'Não foi possível confirmar com Face ID.';
+      erroEl.style.display = 'block';
+      return;
+    }
+
+    loginPendente = null;
+    document.getElementById('card-dispositivo').style.display = 'none';
+    document.getElementById('card-login').style.display = 'block';
+    if(resp.data.is_owner) entrarComoOwner(resp.data.token, resp.data.owner.email);
+    else entrarComoDono(resp.data.token, resp.data.empresa, resp.data.trial);
+
+  } catch(e) {
+    if(btn){ btn.disabled = false; btn.innerHTML = textoBtn; }
+    if(e && e.name === 'NotAllowedError') return;  // pessoa cancelou
+    erroEl.textContent = 'Não foi possível usar o Face ID. Use o código do e-mail.';
+    erroEl.style.display = 'block';
+  }
+}
+
+/**
+ * Oferece cadastrar o Face ID logo depois do login.
+ *
+ * Uma vez por aparelho: se a pessoa recusar, não pergunta de novo —
+ * insistir a cada login vira ruído e ensina a ignorar avisos. Espera
+ * alguns segundos para não competir com a tela que acabou de abrir, e
+ * some sozinho se nada for tocado.
+ */
+function oferecerFaceId(){
+  if(!faceIdDisponivel()) return;
+  try {
+    if(localStorage.getItem('workap_faceid')) return;        // já cadastrado
+    if(localStorage.getItem('workap_faceid_recusado')) return; // já disse não
+  } catch(e) { return; }
+
+  setTimeout(function(){
+    var barra = document.getElementById('faixa-faceid');
+    if(barra) barra.style.display = 'flex';
+  }, 3500);
+}
+
+function recusarFaceId(){
+  try { localStorage.setItem('workap_faceid_recusado','1'); } catch(e) {}
+  var barra = document.getElementById('faixa-faceid');
+  if(barra) barra.style.display = 'none';
+}
+
+async function aceitarFaceId(){
+  var barra = document.getElementById('faixa-faceid');
+  var ok = await cadastrarFaceId(false);
+  if(barra) barra.style.display = 'none';
+  if(!ok) recusarFaceId();  // não insiste depois de uma tentativa falha
+}
+
+async function pedirCodigoDispositivo(email, senha, tipo){
   loginPendente = { email: email, senha: senha, tipo: tipo };
   document.getElementById('card-login').style.display = 'none';
   document.getElementById('card-recuperar').style.display = 'none';
@@ -3516,6 +3737,22 @@ function pedirCodigoDispositivo(email, senha, tipo){
   document.getElementById('disp-email-txt').textContent = email;
   document.getElementById('disp-codigo').value = '';
   document.getElementById('disp-erro').style.display = 'none';
+
+  // Mostra o botão de Face ID só se ESTA conta já cadastrou um neste
+  // domínio. Perguntar ao servidor evita oferecer um caminho que vai
+  // falhar — e a resposta não revela nada para quem não tem a senha,
+  // porque o login por Face ID exige a senha do mesmo jeito.
+  var caixa = document.getElementById('disp-faceid');
+  if(caixa) caixa.style.display = 'none';
+  if(!faceIdDisponivel()) return;
+
+  try {
+    var r = await fetch(API_BASE + '/webauthn/login/inicio', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email: email })
+    }).then(function(x){ return x.json(); });
+    if(r && r.disponivel && caixa) caixa.style.display = 'block';
+  } catch(e) {}
 }
 
 function confirmarDispositivo(){
@@ -4507,6 +4744,18 @@ window.addEventListener('DOMContentLoaded', function(){
 </script>
 
 
+
+<!-- Convite para cadastrar Face ID. Aparece uma vez por aparelho,
+     alguns segundos depois do login, e nunca mais se for recusado. -->
+<div id="faixa-faceid" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9998;background:#0a2e1a;color:white;border-radius:14px;padding:14px 18px;box-shadow:0 8px 30px rgba(0,0,0,.3);align-items:center;gap:12px;max-width:340px;width:92%">
+  <svg class=ico aria-hidden=true style="width:22px;height:22px;flex-shrink:0"><use href=#i-lock></use></svg>
+  <div style="flex:1">
+    <div style="font-size:.82rem;font-weight:700">Entrar com Face ID</div>
+    <div style="font-size:.7rem;color:rgba(255,255,255,.65)">Sem esperar código por e-mail</div>
+  </div>
+  <button onclick="aceitarFaceId()" style="background:#3dd669;color:#0a2e1a;border:none;border-radius:8px;padding:7px 14px;font-size:.75rem;font-weight:700;cursor:pointer;font-family:var(--font)">Ativar</button>
+  <button onclick="recusarFaceId()" aria-label="Agora não" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:1.1rem;cursor:pointer;line-height:1"><svg class=ico aria-hidden=true><use href=#i-x></use></svg></button>
+</div>
 
 <div id="pwa-install" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;background:#0a2e1a;color:white;border-radius:14px;padding:14px 20px;box-shadow:0 8px 30px rgba(0,0,0,.3);display:flex;align-items:center;gap:12px;max-width:320px;width:90%">
   <span style="font-size:1.5rem"><svg class=ico aria-hidden=true><use href=#i-phone></use></svg></span>
