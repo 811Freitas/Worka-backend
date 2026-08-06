@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════
--- WORKA — Dispositivos confiáveis (verificação de login por código)
+-- WORKAP — Dispositivos confiáveis (verificação de login por código)
 -- ════════════════════════════════════════════════════════════
 -- Rode este SQL uma única vez no projeto Supabase ATIVO
 -- ("Worka1" — vtkmqykwyilcdnigaxsr), em: SQL Editor > New query.
@@ -18,7 +18,7 @@ create table if not exists public.dispositivos_confiaveis (
   id            uuid primary key default gen_random_uuid(),
 
   -- Identifica a CONTA. Guardamos o e-mail porque a conta de owner da
-  -- Worka não existe na tabela empresas (vive em variável de ambiente),
+  -- Workap não existe na tabela empresas (vive em variável de ambiente),
   -- então não há empresa_id para usar como chave nesse caso.
   email         text not null,
   empresa_id    uuid,                       -- null quando é a conta owner

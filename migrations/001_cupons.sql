@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════
--- WORKA — Tabela de cupons de desconto
+-- WORKAP — Tabela de cupons de desconto
 -- ════════════════════════════════════════════════════════════
 -- Rode este SQL uma única vez no projeto Supabase ATIVO
 -- ("Worka1" — vtkmqykwyilcdnigaxsr), em: SQL Editor > New query.

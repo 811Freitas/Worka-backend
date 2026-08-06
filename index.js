@@ -1,5 +1,5 @@
 /**
- * WORKA BACKEND v3.0 — SECURE
+ * WORKAP BACKEND v3.0 — SECURE
  * ════════════════════════════════════════════════════════════
  * Arquitetura de segurança implementada:
  * - Senhas: bcrypt (salt rounds = 12)
@@ -44,14 +44,14 @@ function env(nome) {
 const CONFIG = {
   PORT:          process.env.PORT || 3000,
   JWT_SECRET:    env("JWT_SECRET"),                // OBRIGATÓRIO
-  SUPABASE_URL:  "https://vtkmqykwyilcdnigaxsr.supabase.co", // Worka1 — projeto ativo (Worka original pausado)
+  SUPABASE_URL:  "https://vtkmqykwyilcdnigaxsr.supabase.co", // Worka1 — projeto ativo (Workap original pausado)
   SUPABASE_KEY:  env("SUPABASE_SERVICE_KEY"),
   RESEND_KEY:    env("RESEND_KEY"),
   PIX_URL:       env("DUTTYFY_PIX_URL_ENCRYPTED"),
   ENCRYPT_KEY:   env("ENCRYPT_SECRET"),
   VAPID_PUBLIC:  env("VAPID_PUBLIC_KEY"),
   VAPID_PRIVATE: env("VAPID_PRIVATE_KEY"),
-  // Conta administrativa única da Worka (painel Owner). Opcional — se
+  // Conta administrativa única da Workap (painel Owner). Opcional — se
   // não configurada, a rota /login/owner responde 503 em vez de negar
   // acesso a uma conta que não existe. OWNER_PASSWORD_HASH é o hash
   // bcrypt da senha (gerar com: node -e "console.log(require('bcryptjs').hashSync('SUA_SENHA',12))"),
@@ -218,7 +218,7 @@ var ROLE_PERMISSIONS = {
     "tarefas:read",
     "validade:read"
   ]),
-  // Dono da Worka (não do cliente). Recebe as mesmas permissões de um
+  // Dono da Workap (não do cliente). Recebe as mesmas permissões de um
   // "dono" — para navegar por todas as telas do produto — MAIS as
   // permissões administrativas do painel Owner (incluindo cupons).
   //
@@ -623,7 +623,7 @@ async function registrarDispositivo(email, deviceId, empresaId, descricao) {
 async function exigirCodigoDispositivo(email, nome) {
   var codigo = gerarCodigo();
   await salvarOTP(email, codigo);
-  enviarEmail(email, "🔐 Confirme seu acesso — Worka", EMAIL_TEMPLATES.novoDispositivo(nome || "", codigo))
+  enviarEmail(email, "🔐 Confirme seu acesso — Workap", EMAIL_TEMPLATES.novoDispositivo(nome || "", codigo))
     .catch(e => secLog("email_error", { type: "novo_dispositivo", message: e.message }));
 }
 
@@ -634,7 +634,7 @@ async function exigirCodigoDispositivo(email, nome) {
 var SENHA_DUMMY = "$2b$12$abcdefghijklmnopqrstuvuxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
 
 /**
- * Confere a senha do owner da Worka e responde o login.
+ * Confere a senha do owner da Workap e responde o login.
  *
  * Existe como função porque o owner entra por dois caminhos: o
  * formulário comum (POST /login/empresa, que reconhece o e-mail) e a
@@ -658,7 +658,7 @@ async function responderLoginOwner(res, senha, deviceIdBruto, ip) {
   // precisa da verificação de aparelho novo.
   var deviceIdOwner = sanitizarDeviceId(deviceIdBruto);
   if (!(await dispositivoConfiavel(CONFIG.OWNER_EMAIL, deviceIdOwner))) {
-    await exigirCodigoDispositivo(CONFIG.OWNER_EMAIL, "Owner Worka");
+    await exigirCodigoDispositivo(CONFIG.OWNER_EMAIL, "Owner Workap");
     secLog("login_owner_novo_dispositivo", { ip });
     return jsonOk(res, {
       requer_codigo: true,
@@ -670,7 +670,7 @@ async function responderLoginOwner(res, senha, deviceIdBruto, ip) {
   secLog("login_owner_ok", {});
   return jsonOk(res, {
     token: jwtSign({ email: CONFIG.OWNER_EMAIL, role: "owner_saas" }),
-    owner: { nome: "Owner Worka", email: CONFIG.OWNER_EMAIL },
+    owner: { nome: "Owner Workap", email: CONFIG.OWNER_EMAIL },
     // O frontend usa isto para mandar direto ao painel da plataforma
     // em vez do painel de empresa, já que a resposta chega pela mesma
     // rota de login das empresas.
@@ -893,7 +893,7 @@ async function enviarPush(empresaId, payload, funcionarioId) {
 function enviarEmail(para, assunto, html) {
   return new Promise((resolve, reject) => {
     var data = JSON.stringify({
-      from:    "Worka <onboarding@resend.dev>",
+      from:    "Workap <onboarding@resend.dev>",
       to:      [para],
       subject: assunto,
       html
@@ -936,7 +936,7 @@ function emailBase(conteudo) {
 </td></tr>
 <tr><td style="padding:36px 40px">${conteudo}</td></tr>
 <tr><td style="background:#f7f9f7;padding:20px 40px;text-align:center;border-top:1px solid #e8ede8">
-<p style="font-size:12px;color:#9aab9a;margin:0">Worka — Sistema de Gestão de Equipe</p>
+<p style="font-size:12px;color:#9aab9a;margin:0">Workap — Sistema de Gestão de Equipe</p>
 </td></tr>
 </table></td></tr></table></body></html>`;
 }
@@ -950,11 +950,11 @@ var EMAIL_TEMPLATES = {
       <div style="font-size:13px;color:rgba(255,255,255,.6);margin-top:10px">⏰ Expira em <strong style="color:#fff">10 minutos</strong></div>
     </div>
     <div style="background:#f0faf2;border-radius:12px;padding:16px;border-left:4px solid #3dd669">
-      <p style="margin:0;font-size:13px;color:#2d5a2d">🔒 <strong>Não compartilhe</strong> este código. A Worka nunca pedirá seu código por telefone.</p>
+      <p style="margin:0;font-size:13px;color:#2d5a2d">🔒 <strong>Não compartilhe</strong> este código. A Workap nunca pedirá seu código por telefone.</p>
     </div>`),
 
   boasVindas: (nome, teamId, trialFim) => emailBase(`
-    <h2 style="margin:0 0 8px;color:#0a2e1a;font-size:22px;font-weight:800">Bem-vindo ao Worka! 🎉</h2>
+    <h2 style="margin:0 0 8px;color:#0a2e1a;font-size:22px;font-weight:800">Bem-vindo ao Workap! 🎉</h2>
     <p style="color:#5a6b5a;font-size:15px;margin:0 0 20px;line-height:1.6">Olá, <strong>${SANITIZE.string(nome)}</strong>! Sua conta foi criada. Você tem <strong>7 dias grátis</strong>.</p>
     <div style="background:linear-gradient(135deg,#0a2e1a,#25b251);border-radius:16px;padding:24px;margin:0 0 24px;color:#fff">
       <div style="font-size:13px;color:rgba(255,255,255,.7)">Seu ID de equipe</div>
@@ -987,12 +987,12 @@ var EMAIL_TEMPLATES = {
     <h2 style="margin:0 0 16px;color:#0a2e1a;font-size:22px;font-weight:800">${SANITIZE.string(titulo, 150)}</h2>
     <div style="color:#3a3d39;font-size:15px;line-height:1.7;white-space:pre-wrap">${SANITIZE.string(mensagem, 4000)}</div>
     <div style="margin-top:28px;padding-top:20px;border-top:1px solid #e8ede8">
-      <p style="margin:0;font-size:12px;color:#9aab9a">Você recebeu este aviso porque tem uma conta no Worka.</p>
+      <p style="margin:0;font-size:12px;color:#9aab9a">Você recebeu este aviso porque tem uma conta no Workap.</p>
     </div>`),
 
   novoDispositivo: (nome, codigo) => emailBase(`
     <h2 style="margin:0 0 8px;color:#0a2e1a;font-size:22px;font-weight:800">Confirme seu acesso 🔐</h2>
-    <p style="color:#5a6b5a;font-size:15px;margin:0 0 28px;line-height:1.6">Olá${nome ? ", <strong>" + SANITIZE.string(nome) + "</strong>" : ""}! Detectamos um acesso à sua conta Worka a partir de um <strong>aparelho novo</strong>. Use o código abaixo para confirmar que é você:</p>
+    <p style="color:#5a6b5a;font-size:15px;margin:0 0 28px;line-height:1.6">Olá${nome ? ", <strong>" + SANITIZE.string(nome) + "</strong>" : ""}! Detectamos um acesso à sua conta Workap a partir de um <strong>aparelho novo</strong>. Use o código abaixo para confirmar que é você:</p>
     <div style="background:linear-gradient(135deg,#0a2e1a,#16622f);border-radius:16px;padding:28px;text-align:center;margin:0 0 28px">
       <div style="font-size:44px;font-weight:900;color:#3dd669;letter-spacing:14px;font-family:'Courier New',monospace">${codigo}</div>
       <div style="font-size:13px;color:rgba(255,255,255,.6);margin-top:10px">⏰ Expira em <strong style="color:#fff">10 minutos</strong></div>
@@ -1003,7 +1003,7 @@ var EMAIL_TEMPLATES = {
 
   recuperarSenha: (nome, codigo) => emailBase(`
     <h2 style="margin:0 0 8px;color:#0a2e1a;font-size:22px;font-weight:800">Redefinir sua senha 🔑</h2>
-    <p style="color:#5a6b5a;font-size:15px;margin:0 0 28px;line-height:1.6">Olá, <strong>${SANITIZE.string(nome)}</strong>! Recebemos um pedido para redefinir a senha da sua conta Worka. Use o código abaixo:</p>
+    <p style="color:#5a6b5a;font-size:15px;margin:0 0 28px;line-height:1.6">Olá, <strong>${SANITIZE.string(nome)}</strong>! Recebemos um pedido para redefinir a senha da sua conta Workap. Use o código abaixo:</p>
     <div style="background:linear-gradient(135deg,#0a2e1a,#16622f);border-radius:16px;padding:28px;text-align:center;margin:0 0 28px">
       <div style="font-size:44px;font-weight:900;color:#3dd669;letter-spacing:14px;font-family:'Courier New',monospace">${codigo}</div>
       <div style="font-size:13px;color:rgba(255,255,255,.6);margin-top:10px">⏰ Expira em <strong style="color:#fff">10 minutos</strong></div>
@@ -1146,7 +1146,7 @@ async function verificarTrials() {
       "status=eq.trial&trial_fim=lt." + new Date().toISOString() + "&aviso_expirado_sent=is.false"
     );
     for (var emp of (expirados.body || [])) {
-      await enviarEmail(emp.email, "😢 Seu trial do Worka expirou", EMAIL_TEMPLATES.trialExpirado(emp.nome));
+      await enviarEmail(emp.email, "😢 Seu trial do Workap expirou", EMAIL_TEMPLATES.trialExpirado(emp.nome));
       await DB.update("empresas", "id=eq." + emp.id, { status: "inadimplente", aviso_expirado_sent: true });
       secLog("trial_expirado", { empresa_id: emp.id });
     }
@@ -1247,7 +1247,7 @@ var server = http.createServer(async (req, res) => {
       secLog("empresa_cadastrada", { empresa_id: empresa.id, team_id: empresa.team_id });
 
       // Email async — não bloquear resposta
-      enviarEmail(empresa.email, "🎉 Bem-vindo ao Worka!", EMAIL_TEMPLATES.boasVindas(empresa.nome, empresa.team_id, trialFim))
+      enviarEmail(empresa.email, "🎉 Bem-vindo ao Workap!", EMAIL_TEMPLATES.boasVindas(empresa.nome, empresa.team_id, trialFim))
         .catch(e => secLog("email_error", { type: "boas_vindas", message: e.message }));
 
       // Não retornar senha_hash
@@ -1267,7 +1267,7 @@ var server = http.createServer(async (req, res) => {
       });
       if (!v.ok) return jsonErr(res, "Email ou senha inválidos", 401);
 
-      // A conta de owner da Worka entra pelo MESMO formulário das
+      // A conta de owner da Workap entra pelo MESMO formulário das
       // empresas — sem aba separada, sem URL escondida: e-mail e senha
       // como qualquer cliente. Ela é reconhecida aqui, antes da busca
       // no banco, porque não existe na tabela `empresas` (vive em
@@ -1293,7 +1293,7 @@ var server = http.createServer(async (req, res) => {
       // pedido do produto: sem isso, quem ainda não se cadastrou ficava
       // preso tentando a senha de novo, achando que tinha errado a senha.
       // Contrapartida consciente: isso permite descobrir se um e-mail tem
-      // conta na Worka (enumeração de usuários). O risco é aceitável aqui
+      // conta na Workap (enumeração de usuários). O risco é aceitável aqui
       // porque a lista de e-mails de empresas clientes não é segredo, e o
       // rate limit de 5 tentativas/15min já barra varredura em massa.
       if (!empresa) {
@@ -1386,7 +1386,7 @@ var server = http.createServer(async (req, res) => {
       return jsonOk(res, { token, funcionario, empresa });
     }
 
-    // ── LOGIN OWNER (conta administrativa única da Worka) ───
+    // ── LOGIN OWNER (conta administrativa única da Workap) ───
     // Substitui a checagem anterior, que comparava email/senha em
     // texto plano dentro do JavaScript do frontend (worka.html e
     // worka-app.html) — qualquer pessoa via "Ver código-fonte" via a
@@ -1474,7 +1474,7 @@ var server = http.createServer(async (req, res) => {
         secLog("login_owner_ok", { via: "novo_dispositivo" });
         return jsonOk(res, {
           token: jwtSign({ email: emailConf, role: "owner_saas" }),
-          owner: { nome: "Owner Worka", email: emailConf },
+          owner: { nome: "Owner Workap", email: emailConf },
           // Mesmo sinal do login comum: quem decide qual painel abrir é
           // o servidor, não uma lembrança guardada no navegador entre
           // os dois passos do login.
@@ -1516,7 +1516,7 @@ var server = http.createServer(async (req, res) => {
       secLog("otp_gerado", { email_hash: crypto.createHash("sha256").update(email).digest("hex").substring(0, 8) });
 
       try {
-        await enviarEmail(email, "🔐 Seu código de verificação Worka", EMAIL_TEMPLATES.codigo(nome, codigo));
+        await enviarEmail(email, "🔐 Seu código de verificação Workap", EMAIL_TEMPLATES.codigo(nome, codigo));
         return jsonOk(res, { ok: true });
       } catch(e) {
         secLog("otp_email_error", { message: e.message });
@@ -1560,7 +1560,7 @@ var server = http.createServer(async (req, res) => {
           // de só mostrar um erro genérico e deixar a pessoa travada.
           res.writeHead(409);
           return res.end(JSON.stringify({
-            error: "Este e-mail já tem uma conta Worka. Faça login para continuar.",
+            error: "Este e-mail já tem uma conta Workap. Faça login para continuar.",
             ja_cadastrado: true
           }));
         }
@@ -1577,7 +1577,7 @@ var server = http.createServer(async (req, res) => {
         if (result.body[0]) {
           var emp = result.body[0];
           var token = jwtSign({ empresa_id: emp.id, email: emp.email, role: "dono" });
-          enviarEmail(emp.email, "🎉 Bem-vindo ao Worka!", EMAIL_TEMPLATES.boasVindas(emp.nome, emp.team_id, trialFim))
+          enviarEmail(emp.email, "🎉 Bem-vindo ao Workap!", EMAIL_TEMPLATES.boasVindas(emp.nome, emp.team_id, trialFim))
             .catch(() => {});
           secLog("empresa_via_otp", { empresa_id: emp.id });
           delete emp.senha_hash;
@@ -1618,7 +1618,7 @@ var server = http.createServer(async (req, res) => {
         var codigoRec = gerarCodigo();
         await salvarOTP(email, codigoRec);
         secLog("recuperacao_senha_solicitada", { empresa_id: conta.id });
-        enviarEmail(email, "🔑 Redefinir sua senha — Worka", EMAIL_TEMPLATES.recuperarSenha(conta.nome, codigoRec))
+        enviarEmail(email, "🔑 Redefinir sua senha — Workap", EMAIL_TEMPLATES.recuperarSenha(conta.nome, codigoRec))
           .catch(e => secLog("email_error", { type: "recuperar_senha", message: e.message }));
       } else {
         secLog("recuperacao_senha_email_inexistente", { ip });
@@ -1709,7 +1709,7 @@ var server = http.createServer(async (req, res) => {
       if (!email || !nome) return jsonErr(res, "Dados inválidos");
 
       var pixUrl = new URL(CONFIG.PIX_URL);
-      if (!pixUrl.hostname.includes("duttyfy") && !pixUrl.hostname.includes("worka")) {
+      if (!pixUrl.hostname.includes("duttyfy") && !pixUrl.hostname.includes("workap")) {
         secLog("ssrf_attempt", { hostname: pixUrl.hostname });
         return jsonErr(res, "Configuração inválida", 500);
       }
@@ -1734,7 +1734,7 @@ var server = http.createServer(async (req, res) => {
       var response = await httpRequestExterno(pixUrl, "POST", {
         amount: valorCobrado,
         customer: { name: nome, document: doc, email, phone: tel },
-        item: { title: "Plano Completo Worka", price: valorCobrado, quantity: 1 },
+        item: { title: "Plano Completo Workap", price: valorCobrado, quantity: 1 },
         paymentMethod: "PIX"
       });
 
@@ -1778,7 +1778,7 @@ var server = http.createServer(async (req, res) => {
       if (!transactionId) return jsonErr(res, "transactionId obrigatório");
 
       var pixUrl2 = new URL(CONFIG.PIX_URL);
-      if (!pixUrl2.hostname.includes("duttyfy") && !pixUrl2.hostname.includes("worka")) {
+      if (!pixUrl2.hostname.includes("duttyfy") && !pixUrl2.hostname.includes("workap")) {
         secLog("ssrf_attempt", { hostname: pixUrl2.hostname });
         return jsonErr(res, "Configuração inválida", 500);
       }
@@ -1807,7 +1807,7 @@ var server = http.createServer(async (req, res) => {
             aviso_trial_sent: false,
             aviso_expirado_sent: false
           });
-          enviarEmail(empPag.email, "✅ Pagamento confirmado — Worka", EMAIL_TEMPLATES.pagamentoConfirmado(empPag.nome, "49,99"))
+          enviarEmail(empPag.email, "✅ Pagamento confirmado — Workap", EMAIL_TEMPLATES.pagamentoConfirmado(empPag.nome, "49,99"))
             .catch(() => {});
           secLog("pagamento_confirmado", { empresa_id: empPag.id });
         }
@@ -1830,12 +1830,12 @@ var server = http.createServer(async (req, res) => {
     // worka-app.html carregava, a pessoa caía na tela de login e
     // precisava digitar email/senha de novo, mesmo já autenticada.
     if (method === "GET" && path === "/me") {
-      // Owner da Worka: sessão válida, mas sem empresa vinculada — o
+      // Owner da Workap: sessão válida, mas sem empresa vinculada — o
       // app monta o menu completo a partir do role, sem depender de
       // dados de empresa nenhuma.
       if (authPayload.role === "owner_saas") {
         return jsonOk(res, {
-          owner: { email: authPayload.email, nome: "Owner Worka" },
+          owner: { email: authPayload.email, nome: "Owner Workap" },
           empresa: null,
           trial: null
         });
@@ -1860,13 +1860,13 @@ var server = http.createServer(async (req, res) => {
     }
 
     // ── COMUNICADOS DA PLATAFORMA (somente owner) ────
-    // Envia um aviso da Worka para as empresas clientes, por e-mail e
+    // Envia um aviso da Workap para as empresas clientes, por e-mail e
     // push. Só o owner_saas pode: é comunicação da plataforma, não de
     // uma empresa para os funcionários dela.
     if (method === "POST" && path === "/owner/comunicados") {
       if (!hasPermission(authPayload, "saas:write")) {
         secLog("permission_denied", { role: authPayload.role, action: "comunicado_plataforma" });
-        return jsonErr(res, "Apenas o owner da Worka pode enviar comunicados", 403);
+        return jsonErr(res, "Apenas o owner da Workap pode enviar comunicados", 403);
       }
       var raw = await getBody(req);
       var body = parseBody(raw);
@@ -1935,7 +1935,7 @@ var server = http.createServer(async (req, res) => {
 
     if (method === "GET" && path === "/owner/comunicados") {
       if (!hasPermission(authPayload, "saas:read")) {
-        return jsonErr(res, "Apenas o owner da Worka pode ver comunicados", 403);
+        return jsonErr(res, "Apenas o owner da Workap pode ver comunicados", 403);
       }
       var historico = await DB.select("comunicados_plataforma", "select=*&order=created_at.desc&limit=50")
         .catch(e => {
@@ -1951,7 +1951,7 @@ var server = http.createServer(async (req, res) => {
     // disparar e-mail para a base inteira não pode ser uma surpresa.
     if (method === "GET" && path === "/owner/comunicados/alcance") {
       if (!hasPermission(authPayload, "saas:read")) {
-        return jsonErr(res, "Apenas o owner da Worka pode ver isso", 403);
+        return jsonErr(res, "Apenas o owner da Workap pode ver isso", 403);
       }
       var todasEmp = await DB.select("empresas", "select=id,status").catch(() => ({ body: [] }));
       var lista = todasEmp.body || [];
@@ -1963,13 +1963,13 @@ var server = http.createServer(async (req, res) => {
       });
     }
 
-    // ── CUPONS — GESTÃO (somente owner da Worka) ─────
+    // ── CUPONS — GESTÃO (somente owner da Workap) ─────
     // Cupom vale para a assinatura da plataforma, não para nada dentro
     // da empresa cliente — por isso só o role owner_saas administra.
     if (method === "GET" && path === "/cupons") {
       if (!hasPermission(authPayload, "cupons:read")) {
         secLog("permission_denied", { role: authPayload.role, action: "cupons:read" });
-        return jsonErr(res, "Apenas o owner da Worka pode ver cupons", 403);
+        return jsonErr(res, "Apenas o owner da Workap pode ver cupons", 403);
       }
       var listaCupons = await DB.select("cupons", "select=*&order=created_at.desc&limit=200")
         .catch(e => {
@@ -1988,7 +1988,7 @@ var server = http.createServer(async (req, res) => {
     if (method === "POST" && path === "/cupons") {
       if (!hasPermission(authPayload, "cupons:write")) {
         secLog("permission_denied", { role: authPayload.role, action: "cupons:write" });
-        return jsonErr(res, "Apenas o owner da Worka pode criar cupons", 403);
+        return jsonErr(res, "Apenas o owner da Workap pode criar cupons", 403);
       }
       var raw = await getBody(req);
       var body = parseBody(raw);
@@ -2043,7 +2043,7 @@ var server = http.createServer(async (req, res) => {
     // usos, que some se o registro for excluído.
     if (method === "PUT" && path.match(/^\/cupons\/[\w-]+$/)) {
       if (!hasPermission(authPayload, "cupons:write")) {
-        return jsonErr(res, "Apenas o owner da Worka pode alterar cupons", 403);
+        return jsonErr(res, "Apenas o owner da Workap pode alterar cupons", 403);
       }
       var cupomId = SANITIZE.uuid(path.split("/")[2]);
       if (!cupomId) return jsonErr(res, "ID inválido");
@@ -2058,7 +2058,7 @@ var server = http.createServer(async (req, res) => {
 
     if (method === "DELETE" && path.match(/^\/cupons\/[\w-]+$/)) {
       if (!hasPermission(authPayload, "cupons:write")) {
-        return jsonErr(res, "Apenas o owner da Worka pode remover cupons", 403);
+        return jsonErr(res, "Apenas o owner da Workap pode remover cupons", 403);
       }
       var cupomIdDel = SANITIZE.uuid(path.split("/")[2]);
       if (!cupomIdDel) return jsonErr(res, "ID inválido");

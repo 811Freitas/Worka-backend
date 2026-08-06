@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0a2e1a"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<meta name="apple-mobile-web-app-title" content="Worka"/>
+<meta name="apple-mobile-web-app-title" content="Workap"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <link rel="manifest" href="manifest.json"/>
 <!-- Apontavam para icon-192.png e icon-512.png na raiz, arquivos que
@@ -16,7 +16,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png"/>
 <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Worka — Sistema de Gestão</title>
+<title>Workap — Sistema de Gestão</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -89,7 +89,12 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{box-shadow:var(-
 .login-card{background:rgba(255,255,255,.98);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.6);border-radius:var(--rxl);padding:44px 34px;width:100%;max-width:410px;box-shadow:var(--shadow-xl);position:relative;z-index:1;animation:scaleIn var(--dur-slow) var(--ease-out) both}
 /* A arte da logo já traz o nome escrito, então aqui ela substitui o
    texto por inteiro — é a tela de entrada, tem espaço de sobra. */
-.login-logo-img{display:block;width:84px;height:84px;margin:0 auto 10px;border-radius:19px}
+/* Só o símbolo: a arte original tem a palavra "WORKA" desenhada
+   dentro e mostraria o nome antigo. O nome vem logo abaixo, como
+   texto — assim uma troca de marca não exige refazer imagem. */
+.login-logo-img{display:block;width:76px;height:76px;margin:0 auto 8px;border-radius:17px}
+.login-logo-txt{font-family:var(--display);font-size:1.7rem;font-weight:800;color:var(--g600);text-align:center;margin-bottom:6px;letter-spacing:-.5px}
+.login-logo-txt span{color:var(--g400)}
 .login-sub{text-align:center;font-size:0.86rem;color:var(--gray500);margin-bottom:30px}
 .login-tabs{display:flex;background:var(--gray50);border-radius:var(--r);padding:4px;margin-bottom:24px;gap:4px;border:1px solid var(--gray100)}
 .login-tab{flex:1;padding:9px;text-align:center;border-radius:calc(var(--r) - 4px);font-size:0.8rem;font-weight:600;cursor:pointer;color:var(--gray500);transition:all var(--dur) var(--ease)}
@@ -331,7 +336,7 @@ tr:hover td{background:var(--g50)}
      Substitui os emojis que antes eram usados como ícones. Motivos:
      - Emoji muda de desenho conforme o sistema (iOS ≠ Android ≠
        Windows), então a interface nunca ficava igual para todo mundo.
-     - Emoji não aceita cor por CSS. Como o Worka é white label e cada
+     - Emoji não aceita cor por CSS. Como o Workap é white label e cada
        empresa escolhe suas cores, os ícones precisavam acompanhar o
        tema — aqui usam stroke="currentColor" e herdam a cor do texto.
      - Vetor não borra em tela de retina, em nenhum tamanho.
@@ -420,10 +425,11 @@ tr:hover td{background:var(--g50)}
 ═══════════════════════════════════════════ -->
 <div id="tela-login">
   <div class="login-card" id="card-login">
-    <img class="login-logo-img" src="assets/logo-worka-192.png" alt="Worka" width="84" height="84" />
+    <img class="login-logo-img" src="assets/logo-marca-192.png" alt="" width="76" height="76" />
+    <div class="login-logo-txt">Worka<span>p</span></div>
     <div class="login-sub">Gestão de equipe simplificada</div>
 
-    <!-- Sem aba "Owner": a conta administrativa da Worka entra por
+    <!-- Sem aba "Owner": a conta administrativa da Workap entra por
          "Empresa", com e-mail e senha como qualquer cliente. Quem
          separa os dois é o servidor, comparando o e-mail com
          OWNER_EMAIL — este arquivo não sabe qual é esse e-mail. -->
@@ -448,7 +454,7 @@ tr:hover td{background:var(--g50)}
 
 
     <div class="login-erro" id="login-erro">Credenciais inválidas. Tente novamente.</div>
-    <button class="btn-full" onclick="fazerLogin()">Entrar no Worka</button>
+    <button class="btn-full" onclick="fazerLogin()">Entrar no Workap</button>
     <div style="text-align:center;margin-top:14px">
       <a href="#" id="link-esqueci-senha" onclick="abrirRecuperarSenha();return false;" style="color:var(--gray500);font-size:0.78rem;text-decoration:underline">Esqueci minha senha</a>
     </div>
@@ -457,7 +463,8 @@ tr:hover td{background:var(--g50)}
 
   <!-- ── RECUPERAÇÃO DE SENHA ── -->
   <div class="login-card" id="card-recuperar" style="display:none">
-    <img class="login-logo-img" src="assets/logo-worka-192.png" alt="Worka" width="84" height="84" />
+    <img class="login-logo-img" src="assets/logo-marca-192.png" alt="" width="76" height="76" />
+    <div class="login-logo-txt">Worka<span>p</span></div>
     <div class="login-sub" id="rec-subtitulo">Vamos redefinir sua senha</div>
 
     <!-- Passo 1: pedir o código -->
@@ -486,7 +493,8 @@ tr:hover td{background:var(--g50)}
 
   <!-- ── CONFIRMAÇÃO DE APARELHO NOVO ── -->
   <div class="login-card" id="card-dispositivo" style="display:none">
-    <img class="login-logo-img" src="assets/logo-worka-192.png" alt="Worka" width="84" height="84" />
+    <img class="login-logo-img" src="assets/logo-marca-192.png" alt="" width="76" height="76" />
+    <div class="login-logo-txt">Worka<span>p</span></div>
     <div class="login-sub">Confirme este aparelho</div>
 
     <div style="background:var(--g50);border-radius:var(--r);padding:14px;font-size:.82rem;color:var(--g600);margin-bottom:18px;line-height:1.5">
@@ -520,7 +528,7 @@ tr:hover td{background:var(--g50)}
   <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-logo">
-      <div class="sidebar-logo-txt" id="sidebar-appname">Work<span>a</span></div>
+      <div class="sidebar-logo-txt" id="sidebar-appname">Worka<span>p</span></div>
       <div class="sidebar-company" id="sidebar-company">Minha Empresa</div>
     </div>
     <nav class="sidebar-nav" id="sidebar-nav"></nav>
@@ -843,7 +851,7 @@ tr:hover td{background:var(--g50)}
           <div class="card" style="margin-bottom:16px">
             <div class="card-header"><div class="card-title">Nome e logo</div></div>
             <div class="card-body">
-              <div class="field"><label>Nome do app / portal</label><input id="wl-appname" value="Worka" oninput="atualizarPreview()"></div>
+              <div class="field"><label>Nome do app / portal</label><input id="wl-appname" value="Workap" oninput="atualizarPreview()"></div>
               <div class="field"><label>Logo da empresa</label><input type="file" accept="image/*" style="padding:8px"></div>
               <div class="field"><label>Foto de banner</label><input type="file" accept="image/*" style="padding:8px"></div>
             </div>
@@ -872,7 +880,7 @@ tr:hover td{background:var(--g50)}
             <div class="card-body">
               <div class="wl-preview">
                 <div class="wl-topbar" id="wl-topbar-preview" style="background:#0a2e1a">
-                  <div class="wl-appname" id="wl-appname-preview">Worka</div>
+                  <div class="wl-appname" id="wl-appname-preview">Workap</div>
                   <div style="display:flex;gap:6px">
                     <div style="width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.2)"></div>
                     <div style="width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.2)"></div>
@@ -916,7 +924,7 @@ tr:hover td{background:var(--g50)}
             <div style="flex:1">
               <div style="font-weight:700;color:var(--gray900);margin-bottom:4px">Receber avisos neste aparelho</div>
               <p style="font-size:.85rem;color:var(--gray500);line-height:1.6">
-                Tarefas atribuídas a você, produtos perto do vencimento e comunicados da Worka chegam como notificação, mesmo com o app fechado.
+                Tarefas atribuídas a você, produtos perto do vencimento e comunicados da Workap chegam como notificação, mesmo com o app fechado.
               </p>
             </div>
           </div>
@@ -941,7 +949,7 @@ tr:hover td{background:var(--g50)}
             <div style="flex:1">
               <div style="font-weight:700;color:var(--gray900);margin-bottom:4px">Sempre ativo <span class="badge badge-green" style="margin-left:4px">Ativo</span></div>
               <p style="font-size:.85rem;color:var(--gray500);line-height:1.6">
-                Avisos importantes — trial acabando, pagamento confirmado, código de acesso e comunicados da Worka — são enviados para o e-mail cadastrado na conta. Não é preciso configurar nada.
+                Avisos importantes — trial acabando, pagamento confirmado, código de acesso e comunicados da Workap — são enviados para o e-mail cadastrado na conta. Não é preciso configurar nada.
               </p>
             </div>
           </div>
@@ -949,7 +957,7 @@ tr:hover td{background:var(--g50)}
       </div>
     </div>
 
-    <!-- ── CUPONS DE DESCONTO (somente owner da Worka) ── -->
+    <!-- ── CUPONS DE DESCONTO (somente owner da Workap) ── -->
     <!-- ── COMUNICADOS DA PLATAFORMA (somente owner) ── -->
     <div class="page" id="pg-comunicados">
       <div class="grid-2">
@@ -1063,7 +1071,7 @@ tr:hover td{background:var(--g50)}
       </div>
     </div>
 
-    <!-- PAINEL OWNER WORKA -->
+    <!-- PAINEL OWNER WORKAP -->
     <div class="page" id="pg-owner">
 
       <!-- MÉTRICAS GERAIS -->
@@ -1409,7 +1417,7 @@ tr:hover td{background:var(--g50)}
           <div class="card">
             <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-settings></use></svg> Configurações gerais</div></div>
             <div class="card-body">
-              <div class="field"><label>Nome da plataforma</label><input value="Worka"></div>
+              <div class="field"><label>Nome da plataforma</label><input value="Workap"></div>
               <div class="field"><label>E-mail de suporte</label><input value="suporte@worka.app"></div>
               <div class="field"><label>Preço mensal (R$)</label><input type="number" value="49.99" step="0.01"></div>
               <div class="field"><label>Dias de trial gratuito</label><input type="number" value="7"></div>
@@ -1439,7 +1447,7 @@ tr:hover td{background:var(--g50)}
             <div class="form-grid">
               <div class="field"><label>Gmail SMTP</label><input value="workappoficial@gmail.com"></div>
               <div class="field"><label>Senha de app</label><input type="password" value="••••••••••••••••"></div>
-              <div class="field form-full"><label>E-mail remetente exibido</label><input value="Worka &lt;noreply@worka.app&gt;"></div>
+              <div class="field form-full"><label>E-mail remetente exibido</label><input value="Workap &lt;noreply@worka.app&gt;"></div>
             </div>
             <button class="btn btn-secondary" onclick="ownerAcao('testar-email')"><svg class=ico aria-hidden=true><use href=#i-mail></use></svg> Enviar e-mail de teste</button>
           </div>
@@ -1887,12 +1895,12 @@ var menus = {
     {id:'mural',icon:'<svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg>',label:'Comunicados'},
     {id:'notificacoes',icon:'<svg class=ico aria-hidden=true><use href=#i-bell></use></svg>',label:'Notificações'},
   ],
-  // O owner da Worka vê o produto inteiro (mesmos itens do dono) mais
+  // O owner da Workap vê o produto inteiro (mesmos itens do dono) mais
   // a seção administrativa da plataforma. Os dados das telas de dono
   // vêm filtrados por empresa_id, que o token de owner não carrega —
   // então ele navega por tudo sem acessar a conta de nenhum cliente.
   owner: [
-    {sec:'Worka Admin'},
+    {sec:'Workap Admin'},
     {id:'owner',icon:'<svg class=ico aria-hidden=true><use href=#i-crown></use></svg>',label:'Painel Owner'},
     {id:'comunicados',icon:'<svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg>',label:'Enviar Comunicado'},
     {id:'cupons',icon:'<svg class=ico aria-hidden=true><use href=#i-ticket></use></svg>',label:'Cupons de Desconto'},
@@ -1989,7 +1997,7 @@ function entrarComoDono(token, empresa, trial){
 
 /**
  * Monta a sessão e a UI do owner (conta administrativa única da
- * Worka) após POST /login/owner confirmar as credenciais no backend.
+ * Workap) após POST /login/owner confirmar as credenciais no backend.
  * Antes disso a "sessão" de owner era só uma comparação de
  * email/senha em texto plano no JavaScript do cliente — qualquer
  * pessoa via "Ver código-fonte" via a senha real, e nenhuma chamada
@@ -1999,14 +2007,14 @@ function entrarComoOwner(token, email){
   sessaoWorka = { token: token, trial: null };
   localStorage.setItem('worka_token', token);
 
-  usuarioAtual = { nome: 'Owner Worka', cargo: 'Owner Worka', empresa: 'Worka HQ', avatar: 'W', tipo: 'owner' };
+  usuarioAtual = { nome: 'Owner Workap', cargo: 'Owner Workap', empresa: 'Workap HQ', avatar: 'W', tipo: 'owner' };
   document.getElementById('tela-login').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   document.getElementById('user-name-display').textContent = usuarioAtual.nome;
   document.getElementById('user-role-display').textContent = usuarioAtual.cargo;
   document.getElementById('user-avatar-icon').textContent = usuarioAtual.avatar;
-  document.getElementById('sidebar-appname').innerHTML = 'Work<span style="color:var(--brand-accent)">a</span>';
-  document.getElementById('sidebar-company').textContent = 'Worka — Admin Master';
+  document.getElementById('sidebar-appname').innerHTML = 'Worka<span style="color:var(--brand-accent)">p</span>';
+  document.getElementById('sidebar-company').textContent = 'Workap — Admin Master';
 
   var nav = document.getElementById('sidebar-nav');
   nav.innerHTML = '';
@@ -2803,7 +2811,7 @@ function abrirPagina(id) {
     'dashboard':'Dashboard','funcionarios':'Funcionários','ponto':'Controle de Ponto',
     'tarefas':'Tarefas','validade':'Validade de Produtos','cargos':'Cargos e Permissões',
     'visual':'Identidade Visual','notificacoes':'Notificações',
-    'owner':'Painel Owner Worka','meu-painel':'Meu Painel',
+    'owner':'Painel Owner Workap','meu-painel':'Meu Painel',
     'salarios':'Salários e Pagamentos','ausencias':'Ausências e Faltas',
     'escala':'Escala de Trabalho','relatorios':'Relatórios','mural':'Mural / Comunicados',
     'cupons':'Cupons de Desconto','comunicados':'Enviar Comunicado'
@@ -3255,7 +3263,7 @@ function atualizarPreview(){
   var bg=document.getElementById('wl-bg').value;
   var btn=document.getElementById('wl-btn').value;
   var accent=document.getElementById('wl-accent').value;
-  var name=document.getElementById('wl-appname').value||'Worka';
+  var name=document.getElementById('wl-appname').value||'Workap';
 
   document.getElementById('wl-topbar-preview').style.background=bg;
   document.getElementById('wl-appname-preview').textContent=name;
@@ -3278,7 +3286,7 @@ function salvarVisual(){
   var bg=document.getElementById('wl-bg').value;
   var btn=document.getElementById('wl-btn').value;
   var accent=document.getElementById('wl-accent').value;
-  var name=document.getElementById('wl-appname').value||'Worka';
+  var name=document.getElementById('wl-appname').value||'Workap';
 
   document.documentElement.style.setProperty('--brand-bg',bg);
   document.documentElement.style.setProperty('--brand-btn',btn);
@@ -3729,10 +3737,10 @@ function renderizarEstadoNotificacoes(){
     box.textContent = 'Falta instalar o app na tela de início';
     box.style.background = 'var(--yellow-bg)';
     box.style.color = '#92400e';
-    ajuda.innerHTML = 'No iPhone, notificações só funcionam com o Worka adicionado à Tela de Início:<br>' +
+    ajuda.innerHTML = 'No iPhone, notificações só funcionam com o Workap adicionado à Tela de Início:<br>' +
       '1. Toque em <strong>Compartilhar</strong> na barra do Safari<br>' +
       '2. Escolha <strong>Adicionar à Tela de Início</strong><br>' +
-      '3. Abra o Worka por esse ícone e volte aqui';
+      '3. Abra o Workap por esse ícone e volte aqui';
     ajuda.style.display = 'block';
     return;
   }
@@ -4414,7 +4422,7 @@ function mostrarModalTrialExpirado(nome) {
   overlay.innerHTML = '<div style="background:white;border-radius:20px;padding:36px 28px;max-width:380px;width:100%;text-align:center">' +
     '<div style="font-size:2.5rem;margin-bottom:12px"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg></div>' +
     '<div style="font-family:Syne,sans-serif;font-size:1.2rem;font-weight:800;color:#0a2e1a;margin-bottom:8px">Trial expirado, ' + (nome ? nome.split(' ')[0] : '') + '!</div>' +
-    '<p style="font-size:.85rem;color:#6b7068;line-height:1.6;margin-bottom:20px">Seu período gratuito de 7 dias terminou.<br>Assine por apenas <strong>R$ 49,99/mês</strong> para continuar usando o Worka.</p>' +
+    '<p style="font-size:.85rem;color:#6b7068;line-height:1.6;margin-bottom:20px">Seu período gratuito de 7 dias terminou.<br>Assine por apenas <strong>R$ 49,99/mês</strong> para continuar usando o Workap.</p>' +
     '<a href="index.html" style="display:block;width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;text-decoration:none;text-align:center;margin-bottom:10px"><svg class=ico aria-hidden=true><use href=#i-card></use></svg> Renovar agora — R$ 49,99/mês</a>' +
     '<button onclick="fazerLogout();this.closest(\'div[style*=fixed]\').remove()" style="width:100%;background:none;border:1.5px solid #eff0ef;color:#6b7068;padding:11px;border-radius:10px;font-size:.82rem;font-weight:600;cursor:pointer;font-family:Inter,sans-serif">Sair</button>' +
   '</div>';
@@ -4503,7 +4511,7 @@ window.addEventListener('DOMContentLoaded', function(){
 <div id="pwa-install" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;background:#0a2e1a;color:white;border-radius:14px;padding:14px 20px;box-shadow:0 8px 30px rgba(0,0,0,.3);display:flex;align-items:center;gap:12px;max-width:320px;width:90%">
   <span style="font-size:1.5rem"><svg class=ico aria-hidden=true><use href=#i-phone></use></svg></span>
   <div style="flex:1">
-    <div style="font-size:.82rem;font-weight:700">Instalar Worka</div>
+    <div style="font-size:.82rem;font-weight:700">Instalar Workap</div>
     <div style="font-size:.7rem;color:rgba(255,255,255,.6)">Adicione à tela inicial do iPhone</div>
   </div>
   <button id="pwa-install-btn" style="background:#3dd669;color:#0a2e1a;border:none;border-radius:8px;padding:7px 14px;font-size:.75rem;font-weight:700;cursor:pointer;font-family:var(--font)">Instalar</button>
@@ -4512,7 +4520,7 @@ window.addEventListener('DOMContentLoaded', function(){
 
 <div id="ios-install" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;background:#0a2e1a;color:white;border-radius:14px;padding:16px 20px;box-shadow:0 8px 30px rgba(0,0,0,.35);max-width:320px;width:90%;text-align:center">
   <div style="font-size:1.5rem;margin-bottom:8px"><svg class=ico aria-hidden=true><use href=#i-phone></use></svg></div>
-  <div style="font-size:.85rem;font-weight:700;margin-bottom:6px">Instalar Worka no iPhone</div>
+  <div style="font-size:.85rem;font-weight:700;margin-bottom:6px">Instalar Workap no iPhone</div>
   <div style="font-size:.75rem;color:rgba(255,255,255,.7);line-height:1.6;margin-bottom:12px">
     1. Toque em <b>Compartilhar</b> <span style="font-size:1rem"><svg class=ico aria-hidden=true><use href=#i-share></use></svg></span><br>
     2. Role e toque em <b>"Adicionar à Tela de Início"</b><br>
