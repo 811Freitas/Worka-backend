@@ -8,10 +8,10 @@
 // o sistema não tem. Login biométrico continua sendo uma feature em
 // aberto (exige WebAuthn + tabela de credenciais no banco).
 
-// Cache bumped para v5: a marca virou "Workap". Sem trocar o nome do
-// cache, quem já usa o app continuaria vendo o nome antigo em todas as
-// telas, servidas do cache, por tempo indeterminado.
-var CACHE = 'workap-v5';
+// Cache bumped para v6: os links deixaram de apontar para
+// "index.html" e a raiz "./" entrou na lista. Sem trocar o nome do
+// cache, quem já usa o app continuaria recebendo as páginas antigas.
+var CACHE = 'workap-v6';
 // Ícone das notificações push: só o símbolo. A arte original tem a
 // palavra "WORKA" desenhada dentro e mostraria o nome antigo.
 var NOTIFICATION_ICON = 'assets/icon-192.png';
@@ -24,6 +24,10 @@ var NOTIFICATION_BADGE = 'assets/favicon-32.png';
 // (worka.html virou index.html no repositório.)
 var ASSETS = [
   'worka-app.html',
+  // './' e 'index.html' são a MESMA página, mas endereços diferentes
+  // para o cache. Quem abre workap.com.br pede './'; sem essa entrada,
+  // a home não ficava disponível offline mesmo com o arquivo em cache.
+  './',
   'index.html',
   'manifest.json',
   'assets/logo-marca-192.png',

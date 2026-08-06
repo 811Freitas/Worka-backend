@@ -458,7 +458,7 @@ tr:hover td{background:var(--g50)}
     <div style="text-align:center;margin-top:14px">
       <a href="#" id="link-esqueci-senha" onclick="abrirRecuperarSenha();return false;" style="color:var(--gray500);font-size:0.78rem;text-decoration:underline">Esqueci minha senha</a>
     </div>
-    <div style="text-align:center;margin-top:12px;font-size:0.78rem;color:var(--gray500)">Não tem conta? <a href="index.html" style="color:var(--g500);font-weight:600">Assine por R$ 49,99/mês</a></div>
+    <div style="text-align:center;margin-top:12px;font-size:0.78rem;color:var(--gray500)">Não tem conta? <a href="./" style="color:var(--g500);font-weight:600">Assine por R$ 49,99/mês</a></div>
   </div>
 
   <!-- ── RECUPERAÇÃO DE SENHA ── -->
@@ -1325,39 +1325,27 @@ tr:hover td{background:var(--g50)}
 
       <!-- ABA: PLATAFORMA -->
       <div id="owner-plataforma" style="display:none">
+        <!-- Os quadros diziam 99,8% de uptime, 142ms de latência, 18.4k
+             requisições/dia e 2.3GB de storage; a lista de serviços
+             marcava tudo como "Online" por estar escrito assim no HTML,
+             inclusive quando o serviço estava fora. Nada era medido.
+             Agora vem de GET /owner/saude, aferido na hora — e o que o
+             sistema não mede aparece dizendo que não mede. -->
         <div class="stats-grid">
-          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></div><div class="stat-card-num">99,8%</div><div class="stat-card-lbl">Uptime</div><div class="stat-card-sub sub-green">Últimos 30 dias</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-rocket></use></svg></div><div class="stat-card-num">142ms</div><div class="stat-card-lbl">Latência média</div><div class="stat-card-sub sub-green">API resposta</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb"><svg class=ico aria-hidden=true><use href=#i-dashboard></use></svg></div><div class="stat-card-num">18.4k</div><div class="stat-card-lbl">Requisições/dia</div><div class="stat-card-sub sub-green">Hoje</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2"><svg class=ico aria-hidden=true><use href=#i-database></use></svg></div><div class="stat-card-num">2.3GB</div><div class="stat-card-lbl">Uso de storage</div><div class="stat-card-sub sub-green">de 10GB livres</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></div><div class="stat-card-num" id="ows-uptime">—</div><div class="stat-card-lbl">Servidor no ar há</div><div class="stat-card-sub" id="ows-ambiente">—</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-database></use></svg></div><div class="stat-card-num" id="ows-latencia">—</div><div class="stat-card-lbl">Resposta do banco</div><div class="stat-card-sub">Medido agora</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb"><svg class=ico aria-hidden=true><use href=#i-dashboard></use></svg></div><div class="stat-card-num" id="ows-memoria">—</div><div class="stat-card-lbl">Memória em uso</div><div class="stat-card-sub" id="ows-node">—</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#f5f3ff"><svg class=ico aria-hidden=true><use href=#i-plug></use></svg></div><div class="stat-card-num" id="ows-servicos">—</div><div class="stat-card-lbl">Serviços conectados</div><div class="stat-card-sub" id="ows-servicos-sub">—</div></div>
         </div>
-        <div class="grid-2">
-          <div class="card">
-            <div class="card-header"><div class="card-title">Status dos serviços</div></div>
-            <div class="card-body">
-              <div class="perm-row"><span class="perm-label"><span class=dot style=background:var(--g400,#25b251)></span> API Backend (Render)</span><span class="badge badge-green">Online</span></div>
-              <div class="perm-row"><span class="perm-label"><span class=dot style=background:var(--g400,#25b251)></span> Site institucional (GitHub Pages)</span><span class="badge badge-green">Online</span></div>
-              <div class="perm-row"><span class="perm-label"><span class=dot style=background:var(--g400,#25b251)></span> Gateway PIX (Duttyfy)</span><span class="badge badge-green">Online</span></div>
-              <div class="perm-row"><span class="perm-label"><span class=dot style=background:var(--g400,#25b251)></span> E-mail (Gmail SMTP)</span><span class="badge badge-green">Online</span></div>
-              <div class="perm-row"><span class="perm-label"><span class=dot style=background:#f59e0b></span> Banco de dados</span><span class="badge badge-yellow">Pendente config</span></div>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-header"><div class="card-title">Versão da plataforma</div><button class="btn btn-sm btn-primary">Deploy</button></div>
-            <div class="card-body">
-              <div class="perm-row"><span class="perm-label">Versão atual</span><span style="font-weight:700;color:var(--g600)">v1.0.0</span></div>
-              <div class="perm-row"><span class="perm-label">Último deploy</span><span style="font-size:.82rem;color:var(--gray500)">27/06/2026 18:01</span></div>
-              <div class="perm-row"><span class="perm-label">Ambiente</span><span class="badge badge-green">Produção</span></div>
-              <div class="perm-row"><span class="perm-label">Node.js</span><span style="font-size:.82rem;color:var(--gray500)">v18.x</span></div>
-              <div class="perm-row"><span class="perm-label">Commits pendentes</span><span class="badge badge-yellow">2 pendentes</span></div>
-            </div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header"><div class="card-title">Estado dos serviços</div><button class="btn btn-sm btn-secondary" onclick="carregarSaudePlataforma()">Verificar de novo</button></div>
+          <div class="card-body" id="ows-lista">
+            <div class="skel skel-text" style="width:70%"></div>
           </div>
         </div>
         <div class="card">
-          <div class="card-header"><div class="card-title">Manutenção programada</div><button class="btn btn-sm btn-primary" onclick="ownerAcao('agendar-manutencao')">Agendar</button></div>
-          <div class="card-body">
-            <div style="background:var(--gray50);border-radius:var(--r);padding:16px;text-align:center;color:var(--gray500);font-size:.85rem">Nenhuma manutenção agendada. A plataforma está operando normalmente.</div>
-          </div>
+          <div class="card-header"><div class="card-title">O que ainda não é medido</div></div>
+          <div class="card-body" id="ows-naomedido" style="font-size:.85rem;color:var(--gray500)">—</div>
         </div>
       </div>
 
@@ -1413,43 +1401,67 @@ tr:hover td{background:var(--g50)}
 
       <!-- ABA: CONFIGURAÇÕES -->
       <div id="owner-configuracoes" style="display:none">
+        <!-- Esta aba era inteira de mentira: campos editáveis de preço
+             e dias de trial que não salvavam em lugar nenhum, chaves
+             de "Gmail SMTP" (o sistema usa Resend, não Gmail), e
+             toggles de 2FA, modo manutenção e alerta de login que não
+             ligavam coisa alguma. O que dá para fazer de verdade ficou;
+             o resto saiu. -->
         <div class="grid-2">
           <div class="card">
-            <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-settings></use></svg> Configurações gerais</div></div>
+            <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-settings></use></svg> Como a plataforma está configurada</div></div>
             <div class="card-body">
-              <div class="field"><label>Nome da plataforma</label><input value="Workap"></div>
-              <div class="field"><label>E-mail de suporte</label><input value="suporte@worka.app"></div>
-              <div class="field"><label>Preço mensal (R$)</label><input type="number" value="49.99" step="0.01"></div>
-              <div class="field"><label>Dias de trial gratuito</label><input type="number" value="7"></div>
-              <div class="divider"></div>
-              <div class="perm-row"><span class="perm-label">Novos cadastros abertos</span><button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">E-mail de verificação obrigatório</span><button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Modo manutenção</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-              <button class="btn btn-primary" style="margin-top:14px" onclick="ownerAcao('salvar-config')">Salvar configurações</button>
+              <div class="perm-row"><span class="perm-label">Preço mensal</span><span style="font-weight:700;color:var(--g600)" id="owc-preco">—</span></div>
+              <div class="perm-row"><span class="perm-label">Dias de teste grátis</span><span style="font-weight:700;color:var(--g600)" id="owc-trial">—</span></div>
+              <div class="perm-row"><span class="perm-label">Remetente dos e-mails</span><span style="font-size:.8rem;color:var(--gray500)" id="owc-remetente">—</span></div>
+              <div class="perm-row"><span class="perm-label">Conta de owner</span><span style="font-size:.8rem;color:var(--gray500)" id="owc-email">—</span></div>
+              <div style="margin-top:12px;padding:12px;background:var(--gray50);border-radius:var(--r);font-size:.78rem;color:var(--gray500);line-height:1.5">
+                Estes valores vivem no código do servidor. Mudar qualquer um exige alterar o código e publicar — por isso aparecem aqui como leitura, e não como campo editável que não salvaria nada.
+              </div>
             </div>
           </div>
+
           <div class="card">
-            <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Segurança</div></div>
+            <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Trocar minha senha</div></div>
             <div class="card-body">
-              <div class="field"><label>Senha atual do Owner</label><input type="password" placeholder="••••••••"></div>
-              <div class="field"><label>Nova senha</label><input type="password" placeholder="••••••••"></div>
-              <div class="field"><label>Confirmar nova senha</label><input type="password" placeholder="••••••••"></div>
-              <button class="btn btn-primary" onclick="ownerAcao('alterar-senha')">Alterar senha</button>
-              <div class="divider"></div>
-              <div class="perm-row"><span class="perm-label">Autenticação 2 fatores</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Alerta de novo login</span><button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+              <div class="field"><label>Senha atual</label><input id="owc-senha-atual" type="password" placeholder="••••••••" autocomplete="current-password"></div>
+              <div class="field"><label>Nova senha</label><input id="owc-senha-nova" type="password" placeholder="Mínimo 8 caracteres" autocomplete="new-password"></div>
+              <div class="field"><label>Repetir a nova senha</label><input id="owc-senha-nova2" type="password" placeholder="Repita" autocomplete="new-password"></div>
+              <div class="login-erro" id="owc-senha-erro">Confira os campos.</div>
+              <button class="btn btn-primary" id="owc-btn-senha" onclick="trocarSenhaOwner()">Alterar senha</button>
             </div>
           </div>
         </div>
+
         <div class="card">
-          <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-mail></use></svg> Configurações de e-mail</div></div>
+          <div class="card-header">
+            <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg> Utmify — rastreio de origem das vendas</div>
+            <span class="badge" id="owc-utm-badge">—</span>
+          </div>
           <div class="card-body">
-            <div class="form-grid">
-              <div class="field"><label>Gmail SMTP</label><input value="workappoficial@gmail.com"></div>
-              <div class="field"><label>Senha de app</label><input type="password" value="••••••••••••••••"></div>
-              <div class="field form-full"><label>E-mail remetente exibido</label><input value="Workap &lt;noreply@worka.app&gt;"></div>
+            <div style="font-size:.82rem;color:var(--gray500);line-height:1.55;margin-bottom:14px">
+              Com a integração ligada, cada PIX gerado e cada pagamento confirmado são avisados à Utmify junto da origem da visita (utm_source, utm_campaign e as demais). É o que faz o anúncio saber quais cliques viraram venda.
             </div>
-            <button class="btn btn-secondary" onclick="ownerAcao('testar-email')"><svg class=ico aria-hidden=true><use href=#i-mail></use></svg> Enviar e-mail de teste</button>
+            <div class="field"><label>Token da API (Utmify → Integrações → Webhook/API)</label><input id="owc-utm-token" type="password" placeholder="Cole aqui o token" autocomplete="off"></div>
+            <div class="perm-row"><span class="perm-label">Integração ligada</span><button class="toggle-sw off" id="owc-utm-toggle" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
+            <div class="login-erro" id="owc-utm-erro">Erro</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+              <button class="btn btn-primary" onclick="salvarUtmify()"><svg class=ico aria-hidden=true><use href=#i-check></use></svg> Salvar</button>
+              <button class="btn btn-secondary" onclick="testarUtmify()"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg> Enviar pedido de teste</button>
+            </div>
+            <div id="owc-utm-resultado" style="display:none;margin-top:14px;padding:12px;border-radius:var(--r);font-size:.8rem;line-height:1.5;white-space:pre-wrap;word-break:break-word"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><div class="card-title">Últimos envios para a Utmify</div><button class="btn btn-sm btn-secondary" onclick="carregarEnviosUtmify()">Atualizar</button></div>
+          <div class="card-body" style="padding:0">
+            <table>
+              <thead><tr><th>Quando</th><th>Evento</th><th>Resultado</th><th>Resposta</th></tr></thead>
+              <tbody id="owc-utm-envios">
+                <tr><td colspan="4" style="padding:14px"><div class="skel skel-text" style="width:50%"></div></td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -2870,6 +2882,11 @@ function toggleSidebar() {
 // OWNER FUNCTIONS
 // ═══════════════════════════════════
 function ownerTab(tab) {
+  // Cada aba busca o que precisa só quando é aberta: carregar tudo de
+  // uma vez faria 6 chamadas ao servidor para ver uma tela só.
+  if(tab === 'plataforma'     && typeof carregarSaudePlataforma === 'function') carregarSaudePlataforma();
+  if(tab === 'configuracoes'  && typeof carregarConfigOwner     === 'function') carregarConfigOwner();
+
   // Esconder todas as abas
   ['assinantes','financeiro','plataforma','suporte','marketing','logs','api','configuracoes'].forEach(function(t){
     var el = document.getElementById('owner-'+t);
@@ -4636,6 +4653,279 @@ function renderizarAssinantes(lista){
 }
 
 // ═══════════════════════════════════
+// PLATAFORMA: SAÚDE, CONFIG E UTMIFY
+// ═══════════════════════════════════
+
+function cabecalhoOwner(){
+  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token };
+}
+
+function tempoLegivel(segundos){
+  var s = Number(segundos) || 0;
+  if(s < 60)    return s + 's';
+  if(s < 3600)  return Math.floor(s/60) + 'min';
+  if(s < 86400) return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'min';
+  return Math.floor(s/86400) + 'd ' + Math.floor((s%86400)/3600) + 'h';
+}
+
+async function carregarSaudePlataforma(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+  function escrever(id, t){ var el=document.getElementById(id); if(el) el.textContent = t; }
+
+  var d = null;
+  try {
+    d = await fetch(API_BASE + '/owner/saude', { headers: cabecalhoOwner() })
+      .then(function(r){ return r.ok ? r.json() : null; });
+  } catch(e) {}
+
+  if(!d){
+    escrever('ows-uptime','—');
+    var listaErro = document.getElementById('ows-lista');
+    if(listaErro) listaErro.textContent = 'Não foi possível falar com o servidor agora.';
+    return;
+  }
+
+  escrever('ows-uptime', tempoLegivel(d.servidor.no_ar_desde_segundos));
+  escrever('ows-ambiente', d.servidor.ambiente === 'production' ? 'Produção' : 'Desenvolvimento');
+  escrever('ows-memoria', d.servidor.memoria_mb + ' MB');
+  escrever('ows-node', 'Node ' + d.servidor.node);
+
+  var conectados = d.servicos.filter(function(x){ return x.ok; }).length;
+  escrever('ows-servicos', conectados + '/' + d.servicos.length);
+  escrever('ows-servicos-sub', conectados === d.servicos.length ? 'Todos respondendo' : 'Há serviço fora');
+
+  var banco = d.servicos.find(function(x){ return /banco/i.test(x.nome); });
+  escrever('ows-latencia', banco && banco.ok ? banco.detalhe : 'sem resposta');
+
+  var lista = document.getElementById('ows-lista');
+  if(lista){
+    lista.innerHTML = '';
+    d.servicos.forEach(function(sv){
+      var linha = document.createElement('div');
+      linha.className = 'perm-row';
+
+      var rotulo = document.createElement('span');
+      rotulo.className = 'perm-label';
+      var ponto = document.createElement('span');
+      ponto.className = 'dot';
+      ponto.style.background = sv.ok ? 'var(--g400)' : '#dc2626';
+      rotulo.appendChild(ponto);
+      rotulo.appendChild(document.createTextNode(' ' + sv.nome));
+
+      var direita = document.createElement('span');
+      direita.style.cssText = 'display:flex;flex-direction:column;align-items:flex-end;gap:4px';
+      var badge = document.createElement('span');
+      badge.className = 'badge ' + (sv.ok ? 'badge-green' : 'badge-red');
+      badge.textContent = sv.ok ? 'OK' : 'Fora';
+      var det = document.createElement('span');
+      det.style.cssText = 'font-size:.7rem;color:var(--gray500);text-align:right;max-width:280px';
+      det.textContent = sv.detalhe || '';
+      direita.appendChild(badge); direita.appendChild(det);
+
+      linha.appendChild(rotulo); linha.appendChild(direita);
+      lista.appendChild(linha);
+    });
+  }
+
+  var naoMedido = document.getElementById('ows-naomedido');
+  if(naoMedido){
+    naoMedido.textContent = (d.nao_medido || []).join(' · ') +
+      ' — nenhum destes é registrado pelo sistema hoje. Antes apareciam como números aqui, mas eram inventados.';
+  }
+}
+
+async function carregarConfigOwner(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+  function escrever(id, t){ var el=document.getElementById(id); if(el) el.textContent = t; }
+
+  var c = null;
+  try {
+    c = await fetch(API_BASE + '/owner/config', { headers: cabecalhoOwner() })
+      .then(function(r){ return r.ok ? r.json() : null; });
+  } catch(e) {}
+  if(!c) return;
+
+  escrever('owc-preco', 'R$ ' + c.preco_reais + '/mês');
+  escrever('owc-trial', c.dias_trial + ' dias');
+  escrever('owc-remetente', c.remetente_email);
+  escrever('owc-email', c.owner_email);
+
+  var campoToken = document.getElementById('owc-utm-token');
+  if(campoToken) campoToken.placeholder = c.utmify_token_fim
+    ? 'Token salvo (termina em ' + c.utmify_token_fim.slice(-4) + ') — cole outro para trocar'
+    : 'Cole aqui o token';
+
+  var toggle = document.getElementById('owc-utm-toggle');
+  if(toggle){
+    toggle.classList.toggle('on', !!c.utmify_ativo);
+    toggle.classList.toggle('off', !c.utmify_ativo);
+  }
+
+  var badge = document.getElementById('owc-utm-badge');
+  if(badge){
+    var ligado = c.utmify_ativo && c.utmify_token_fim;
+    badge.className = 'badge ' + (ligado ? 'badge-green' : 'badge-gray');
+    badge.textContent = ligado ? 'Ligada' : (c.utmify_ativo ? 'Falta o token' : 'Desligada');
+  }
+
+  carregarEnviosUtmify();
+}
+
+async function salvarUtmify(){
+  var erro = document.getElementById('owc-utm-erro');
+  erro.style.display = 'none';
+  var token = (document.getElementById('owc-utm-token').value || '').trim();
+  var ativo = document.getElementById('owc-utm-toggle').classList.contains('on');
+
+  if(ativo && !token){
+    // Só exige token quando ainda não há nenhum salvo — o campo fica
+    // vazio de propósito quando já existe um guardado.
+    var jaTem = /Token salvo/.test(document.getElementById('owc-utm-token').placeholder);
+    if(!jaTem){
+      erro.textContent = 'Cole o token da Utmify para ligar a integração.';
+      erro.style.display = 'block';
+      return;
+    }
+  }
+
+  var corpo = { utmify_ativo: ativo };
+  if(token) corpo.utmify_token = token;
+
+  try {
+    var r = await fetch(API_BASE + '/owner/config', {
+      method: 'PUT', headers: cabecalhoOwner(), body: JSON.stringify(corpo)
+    }).then(function(x){ return x.json().then(function(d){ return { status:x.status, data:d }; }); });
+
+    if(r.status !== 200){
+      erro.textContent = r.data.error || 'Não foi possível salvar.';
+      erro.style.display = 'block';
+      return;
+    }
+    document.getElementById('owc-utm-token').value = '';
+    mostrarResultadoUtmify(true, 'Configuração salva.');
+    carregarConfigOwner();
+  } catch(e) {
+    erro.textContent = 'Erro de conexão.';
+    erro.style.display = 'block';
+  }
+}
+
+function mostrarResultadoUtmify(sucesso, texto){
+  var box = document.getElementById('owc-utm-resultado');
+  if(!box) return;
+  box.style.display = 'block';
+  box.style.background = sucesso ? 'var(--g50)' : 'var(--red-bg, #fef2f2)';
+  box.style.color = sucesso ? 'var(--g600)' : '#dc2626';
+  box.textContent = texto;   // resposta crua da Utmify: texto, nunca HTML
+}
+
+async function testarUtmify(){
+  mostrarResultadoUtmify(true, 'Enviando pedido de teste...');
+  try {
+    var r = await fetch(API_BASE + '/owner/utmify/testar', {
+      method: 'POST', headers: cabecalhoOwner(), body: '{}'
+    }).then(function(x){ return x.json().then(function(d){ return { status:x.status, data:d }; }); });
+
+    if(r.status !== 200){
+      mostrarResultadoUtmify(false, r.data.error || 'Não foi possível testar.');
+      return;
+    }
+    // A resposta da Utmify aparece na íntegra: se o formato do envio
+    // estiver errado, é a mensagem dela que diz o que falta — melhor
+    // ler isso do que um "falhou" genérico.
+    mostrarResultadoUtmify(r.data.sucesso,
+      (r.data.sucesso ? 'Utmify aceitou o pedido de teste.' : 'A Utmify recusou o envio.') +
+      '\n\nHTTP ' + r.data.status + '\n' + r.data.resposta);
+    carregarEnviosUtmify();
+  } catch(e) {
+    mostrarResultadoUtmify(false, 'Erro de conexão com o servidor.');
+  }
+}
+
+async function carregarEnviosUtmify(){
+  var tbody = document.getElementById('owc-utm-envios');
+  if(!tbody || !sessaoWorka || !sessaoWorka.token) return;
+
+  var lista = [];
+  try {
+    lista = await fetch(API_BASE + '/owner/utmify/envios', { headers: cabecalhoOwner() })
+      .then(function(r){ return r.ok ? r.json() : []; });
+  } catch(e) {}
+
+  tbody.innerHTML = '';
+  if(!lista.length){
+    var tr0 = document.createElement('tr'), td0 = document.createElement('td');
+    td0.colSpan = 4;
+    td0.style.cssText = 'padding:24px;text-align:center;color:var(--gray500);font-size:.85rem';
+    td0.textContent = 'Nenhum envio ainda. Use "Enviar pedido de teste" para conferir a ligação.';
+    tr0.appendChild(td0); tbody.appendChild(tr0); return;
+  }
+
+  lista.forEach(function(e){
+    var tr = document.createElement('tr');
+
+    var td1 = document.createElement('td');
+    td1.style.cssText = 'font-size:.75rem;color:var(--gray500)';
+    td1.textContent = e.created_at
+      ? new Date(e.created_at).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+      : '—';
+
+    var td2 = document.createElement('td');
+    td2.textContent = e.evento === 'paid' ? 'Pagamento' : 'PIX gerado';
+
+    var td3 = document.createElement('td');
+    var b = document.createElement('span');
+    b.className = 'badge ' + (e.sucesso ? 'badge-green' : 'badge-red');
+    b.textContent = e.sucesso ? 'Enviado' : ('Falhou' + (e.status_http ? ' (' + e.status_http + ')' : ''));
+    td3.appendChild(b);
+
+    var td4 = document.createElement('td');
+    td4.style.cssText = 'font-size:.72rem;color:var(--gray500);max-width:320px;word-break:break-word';
+    td4.textContent = (e.resposta || '').slice(0, 160);
+
+    [td1,td2,td3,td4].forEach(function(c){ tr.appendChild(c); });
+    tbody.appendChild(tr);
+  });
+}
+
+async function trocarSenhaOwner(){
+  var erro = document.getElementById('owc-senha-erro');
+  erro.style.display = 'none';
+  var atual = document.getElementById('owc-senha-atual').value || '';
+  var nova  = document.getElementById('owc-senha-nova').value || '';
+  var nova2 = document.getElementById('owc-senha-nova2').value || '';
+
+  if(!atual){ erro.textContent='Informe a senha atual.'; erro.style.display='block'; return; }
+  if(nova.length < 8){ erro.textContent='A nova senha precisa ter pelo menos 8 caracteres.'; erro.style.display='block'; return; }
+  if(nova !== nova2){ erro.textContent='As duas senhas novas não são iguais.'; erro.style.display='block'; return; }
+
+  var btn = document.getElementById('owc-btn-senha');
+  btn.disabled = true; var t = btn.textContent; btn.textContent = 'Alterando...';
+
+  try {
+    var r = await fetch(API_BASE + '/owner/senha', {
+      method:'POST', headers: cabecalhoOwner(),
+      body: JSON.stringify({ senha_atual: atual, senha_nova: nova })
+    }).then(function(x){ return x.json().then(function(d){ return { status:x.status, data:d }; }); });
+
+    btn.disabled = false; btn.textContent = t;
+    if(r.status !== 200){
+      erro.textContent = r.data.error || 'Não foi possível alterar.';
+      erro.style.display = 'block';
+      return;
+    }
+    document.getElementById('owc-senha-atual').value = '';
+    document.getElementById('owc-senha-nova').value  = '';
+    document.getElementById('owc-senha-nova2').value = '';
+    alert('Senha alterada. Use a nova no próximo login.');
+  } catch(e) {
+    btn.disabled = false; btn.textContent = t;
+    erro.textContent = 'Erro de conexão.';
+    erro.style.display = 'block';
+  }
+}
+
+// ═══════════════════════════════════
 // FINANCEIRO (empresa e plataforma)
 // ═══════════════════════════════════
 // A MESMA tela serve aos dois painéis. Quem decide de quem são os
@@ -5024,7 +5314,7 @@ function verificarTrial() {
 function mostrarAvisoTrial(dias) {
   var aviso = document.createElement('div');
   aviso.style.cssText = 'position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:9000;background:#fffbeb;border:1.5px solid #f59e0b;border-radius:10px;padding:10px 16px;font-size:.78rem;color:#92400e;display:flex;align-items:center;gap:8px;max-width:360px;width:90%;box-shadow:0 4px 12px rgba(0,0,0,.1)';
-  aviso.innerHTML = '<svg class=ico aria-hidden=true><use href=#i-clock></use></svg> <span>Seu trial expira em <strong>' + dias + ' dia' + (dias > 1 ? 's' : '') + '</strong>. <a href="' + (window.location.href.replace('worka-app.html','index.html')) + '" style="color:#1e8a40;font-weight:700">Assinar agora <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></a></span><button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:#92400e;margin-left:auto"><svg class=ico aria-hidden=true><use href=#i-x></use></svg></button>';
+  aviso.innerHTML = '<svg class=ico aria-hidden=true><use href=#i-clock></use></svg> <span>Seu trial expira em <strong>' + dias + ' dia' + (dias > 1 ? 's' : '') + '</strong>. <a href="' + (window.location.href.replace(/worka-app\.html.*$/, '')) + '" style="color:#1e8a40;font-weight:700">Assinar agora <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></a></span><button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:#92400e;margin-left:auto"><svg class=ico aria-hidden=true><use href=#i-x></use></svg></button>';
   document.body.appendChild(aviso);
   setTimeout(() => { if(aviso.parentElement) aviso.remove(); }, 8000);
 }
@@ -5036,7 +5326,7 @@ function mostrarModalTrialExpirado(nome) {
     '<div style="font-size:2.5rem;margin-bottom:12px"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg></div>' +
     '<div style="font-family:Syne,sans-serif;font-size:1.2rem;font-weight:800;color:#0a2e1a;margin-bottom:8px">Trial expirado, ' + (nome ? nome.split(' ')[0] : '') + '!</div>' +
     '<p style="font-size:.85rem;color:#6b7068;line-height:1.6;margin-bottom:20px">Seu período gratuito de 7 dias terminou.<br>Assine por apenas <strong>R$ 49,99/mês</strong> para continuar usando o Workap.</p>' +
-    '<a href="index.html" style="display:block;width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;text-decoration:none;text-align:center;margin-bottom:10px"><svg class=ico aria-hidden=true><use href=#i-card></use></svg> Renovar agora — R$ 49,99/mês</a>' +
+    '<a href="./" style="display:block;width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;text-decoration:none;text-align:center;margin-bottom:10px"><svg class=ico aria-hidden=true><use href=#i-card></use></svg> Renovar agora — R$ 49,99/mês</a>' +
     '<button onclick="fazerLogout();this.closest(\'div[style*=fixed]\').remove()" style="width:100%;background:none;border:1.5px solid #eff0ef;color:#6b7068;padding:11px;border-radius:10px;font-size:.82rem;font-weight:600;cursor:pointer;font-family:Inter,sans-serif">Sair</button>' +
   '</div>';
   document.body.appendChild(overlay);
