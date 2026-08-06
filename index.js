@@ -139,6 +139,10 @@ var RATE_LIMITS = {
   "/redefinir-senha": { max: 5,  window: 15 * 60 * 1000 }, // 5/15min — anti brute force do código
   "/cupom/validar":  { max: 20,  window: 10 * 60 * 1000 }, // 20/10min — anti varredura de cupons
   "/login/confirmar-dispositivo": { max: 8, window: 15 * 60 * 1000 }, // 8/15min — anti brute force do código
+  // Face ID: gerar desafio é barato, mas serve para descobrir quais
+  // e-mails têm credencial cadastrada. Limite bem menor que o geral.
+  "/webauthn/login/inicio": { max: 10, window: 10 * 60 * 1000 },
+  "/webauthn/login/fim":    { max: 10, window: 10 * 60 * 1000 },
   "default":         { max: 100, window: 60 * 1000 }       // 100/min geral
 };
 
@@ -371,7 +375,7 @@ function supabase(method, table, options = {}) {
     "historico_salarios", "logs_sistema", "codigos_verificacao",
     "lancamentos_financeiros", "push_subscriptions", "cupons",
     "dispositivos_confiaveis", "comunicados_plataforma",
-    "owners_plataforma"
+    "owners_plataforma", "webauthn_credentials", "webauthn_challenges"
   ];
   if (!ALLOWED_TABLES.includes(table)) {
     return Promise.reject(new Error(`Tabela não permitida: ${table}`));
@@ -891,6 +895,254 @@ async function verificarOTP(email, codigo) {
 
   await supabase("PATCH", "codigos_verificacao", { query: `id=eq.${entry.id}`, body: { usado: true } }).catch(() => {});
   return { ok: true };
+}
+
+// ════════════════════════════════════════
+// FACE ID / TOUCH ID / SENHA DO APARELHO (WebAuthn)
+// ════════════════════════════════════════
+// Substitui o código por e-mail na confirmação de aparelho: em vez de
+// esperar uma mensagem chegar na caixa de entrada, a pessoa confirma
+// com o que o próprio celular já usa para se desbloquear — Face ID,
+// Touch ID ou a senha do aparelho. O navegador decide qual; o padrão
+// só exige que tenha havido "verificação do usuário".
+//
+// O que o servidor guarda é apenas uma CHAVE PÚBLICA. A biometria em
+// si nunca sai do aparelho, nunca trafega e não é armazenada aqui —
+// nem poderia ser. O que chega é uma assinatura, que só a chave
+// privada guardada no chip de segurança do celular consegue produzir.
+
+// ── Base64URL ────────────────────────────────────────────────
+function b64urlParaBuffer(s) {
+  if (typeof s !== "string") return Buffer.alloc(0);
+  var b64 = s.replace(/-/g, "+").replace(/_/g, "/");
+  while (b64.length % 4) b64 += "=";
+  return Buffer.from(b64, "base64");
+}
+function bufferParaB64url(buf) {
+  return Buffer.from(buf).toString("base64")
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/**
+ * Decodificador CBOR mínimo — só o que o WebAuthn usa.
+ *
+ * O attestationObject e a chave pública vêm em CBOR, um formato
+ * binário. Aqui só existem os tipos que aparecem nessas estruturas:
+ * inteiros, negativos, bytes, texto, listas e mapas. Não é um CBOR
+ * completo de propósito — implementar o formato inteiro seria mais
+ * superfície de erro do que o problema pede, e qualquer coisa fora
+ * desse conjunto é sinal de dado que não deveria estar ali.
+ */
+function cborDecodificar(buf, inicio) {
+  var pos = inicio || 0;
+
+  function lerTamanho(info) {
+    if (info < 24) return info;
+    if (info === 24) { var v = buf.readUInt8(pos); pos += 1; return v; }
+    if (info === 25) { var v2 = buf.readUInt16BE(pos); pos += 2; return v2; }
+    if (info === 26) { var v3 = buf.readUInt32BE(pos); pos += 4; return v3; }
+    throw new Error("CBOR: tamanho não suportado (" + info + ")");
+  }
+
+  function valor() {
+    if (pos >= buf.length) throw new Error("CBOR: acabou no meio");
+    var b = buf.readUInt8(pos); pos += 1;
+    var tipo = b >> 5, info = b & 0x1f;
+
+    if (tipo === 0) return lerTamanho(info);            // inteiro
+    if (tipo === 1) return -1 - lerTamanho(info);       // negativo
+    if (tipo === 2) {                                    // bytes
+      var n = lerTamanho(info); var fatia = buf.slice(pos, pos + n); pos += n; return fatia;
+    }
+    if (tipo === 3) {                                    // texto
+      var n2 = lerTamanho(info); var txt = buf.slice(pos, pos + n2).toString("utf8"); pos += n2; return txt;
+    }
+    if (tipo === 4) {                                    // lista
+      var n3 = lerTamanho(info); var lista = [];
+      for (var i = 0; i < n3; i++) lista.push(valor());
+      return lista;
+    }
+    if (tipo === 5) {                                    // mapa
+      var n4 = lerTamanho(info); var mapa = new Map();
+      for (var j = 0; j < n4; j++) { var k = valor(); mapa.set(k, valor()); }
+      return mapa;
+    }
+    if (tipo === 7) {                                    // false/true/null
+      if (info === 20) return false;
+      if (info === 21) return true;
+      if (info === 22) return null;
+    }
+    throw new Error("CBOR: tipo não suportado (" + tipo + ")");
+  }
+
+  var resultado = valor();
+  return { valor: resultado, fim: pos };
+}
+
+/**
+ * Lê o authenticatorData, um buffer de campos de tamanho fixo:
+ *   32 bytes  hash do domínio (rpIdHash)
+ *    1 byte   flags — bit 0 presença, bit 2 verificação do usuário,
+ *             bit 6 se traz credencial nova
+ *    4 bytes  contador de assinaturas
+ *   [quando bit 6] 16 bytes aaguid + 2 bytes tamanho + id + chave COSE
+ */
+function lerAuthData(buf) {
+  if (!buf || buf.length < 37) throw new Error("authData curto demais");
+  var flags = buf.readUInt8(32);
+  var dados = {
+    rpIdHash:  buf.slice(0, 32),
+    presenca:  !!(flags & 0x01),   // alguém tocou/olhou o aparelho
+    verificado:!!(flags & 0x04),   // Face ID / Touch ID / senha conferidos
+    temCredencial: !!(flags & 0x40),
+    contador:  buf.readUInt32BE(33)
+  };
+
+  if (dados.temCredencial) {
+    var p = 37 + 16;                       // pula o aaguid
+    var tamId = buf.readUInt16BE(p); p += 2;
+    dados.credentialId = buf.slice(p, p + tamId); p += tamId;
+    dados.chaveCose = cborDecodificar(buf, p).valor;
+  }
+  return dados;
+}
+
+/**
+ * Converte a chave pública COSE para um objeto de chave do Node.
+ * Só aceita ECDSA P-256 (alg -7) e RSA (alg -257) — os dois formatos
+ * que iPhone e Android geram. Recusar o resto é proposital: uma curva
+ * inesperada aqui é motivo para desconfiar, não para tentar adivinhar.
+ */
+function coseParaChave(cose) {
+  if (!(cose instanceof Map)) throw new Error("chave COSE inválida");
+  var kty = cose.get(1), alg = cose.get(3);
+
+  if (kty === 2 && alg === -7) {                 // EC2 P-256
+    if (cose.get(-1) !== 1) throw new Error("curva não suportada");
+    return crypto.createPublicKey({
+      key: {
+        kty: "EC", crv: "P-256",
+        x: bufferParaB64url(cose.get(-2)),
+        y: bufferParaB64url(cose.get(-3))
+      },
+      format: "jwk"
+    });
+  }
+
+  if (kty === 3 && alg === -257) {               // RSA
+    return crypto.createPublicKey({
+      key: {
+        kty: "RSA",
+        n: bufferParaB64url(cose.get(-1)),
+        e: bufferParaB64url(cose.get(-2))
+      },
+      format: "jwk"
+    });
+  }
+
+  throw new Error("algoritmo não suportado (" + alg + ")");
+}
+
+/**
+ * De qual domínio a credencial é. WebAuthn amarra cada credencial a um
+ * domínio: uma cadastrada em workap.com.br não funciona em outro lugar,
+ * e é justamente isso que impede um site clonado de pedir o Face ID da
+ * pessoa e reaproveitar a resposta.
+ *
+ * Sai da Origin do próprio pedido, mas só depois de a Origin passar
+ * pela mesma lista de permitidos do CORS — senão bastaria mandar uma
+ * Origin qualquer para escolher o domínio da credencial.
+ */
+function rpIdDaOrigem(origem) {
+  if (!origem || CONFIG.ALLOWED_ORIGINS.indexOf(origem) === -1) return null;
+  try { return new URL(origem).hostname; } catch (e) { return null; }
+}
+
+async function guardarDesafio(email, finalidade) {
+  var desafio = bufferParaB64url(crypto.randomBytes(32));
+
+  // Um desafio pendente por vez, por conta e finalidade.
+  await supabase("PATCH", "webauthn_challenges", {
+    query: `email=eq.${encodeURIComponent(email)}&finalidade=eq.${finalidade}&usado=is.false`,
+    body: { usado: true }
+  }).catch(() => {});
+
+  await supabase("POST", "webauthn_challenges", {
+    body: {
+      email: email,
+      challenge: desafio,
+      finalidade: finalidade,
+      usado: false,
+      expira_em: new Date(Date.now() + 5 * 60 * 1000).toISOString()
+    }
+  });
+  return desafio;
+}
+
+/** Consome o desafio: confere que existe, não venceu e não foi usado. */
+async function consumirDesafio(email, finalidade, desafioRecebido) {
+  var achado = await supabase("GET", "webauthn_challenges", {
+    query: `email=eq.${encodeURIComponent(email)}&finalidade=eq.${finalidade}` +
+           `&usado=is.false&order=created_at.desc&limit=1`
+  }).catch(() => ({ body: [] }));
+
+  var linha = achado.body && achado.body[0];
+  if (!linha) return { ok: false, erro: "Desafio não encontrado. Tente de novo." };
+
+  // Marca como usado ANTES de validar: mesmo que a comparação falhe, o
+  // desafio morre. Sem isso dava para ficar tentando contra o mesmo.
+  await supabase("PATCH", "webauthn_challenges", { query: `id=eq.${linha.id}`, body: { usado: true } }).catch(() => {});
+
+  if (new Date(linha.expira_em) < new Date()) return { ok: false, erro: "Tempo esgotado. Tente de novo." };
+
+  var a = Buffer.from(linha.challenge), b = Buffer.from(desafioRecebido || "");
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return { ok: false, erro: "Desafio não confere." };
+  }
+  return { ok: true };
+}
+
+/**
+ * Confere as partes que registro e login têm em comum: o clientDataJSON
+ * (o que o navegador diz ter assinado) e o authenticatorData.
+ */
+async function conferirCeremonia(opcoes) {
+  var dadosCliente;
+  try {
+    dadosCliente = JSON.parse(b64urlParaBuffer(opcoes.clientDataJSON).toString("utf8"));
+  } catch (e) {
+    return { ok: false, erro: "Resposta do aparelho ilegível." };
+  }
+
+  if (dadosCliente.type !== opcoes.tipoEsperado) {
+    return { ok: false, erro: "Tipo de operação inesperado." };
+  }
+  // A Origin volta assinada pelo navegador: é o que impede um site
+  // clonado de usar a credencial cadastrada no site verdadeiro.
+  if (dadosCliente.origin !== opcoes.origem) {
+    secLog("webauthn_origem_divergente", { esperada: opcoes.origem, recebida: String(dadosCliente.origin).slice(0, 80) });
+    return { ok: false, erro: "Origem não confere." };
+  }
+
+  var desafio = await consumirDesafio(opcoes.email, opcoes.finalidade, dadosCliente.challenge);
+  if (!desafio.ok) return { ok: false, erro: desafio.erro };
+
+  var authData;
+  try { authData = lerAuthData(b64urlParaBuffer(opcoes.authDataB64)); }
+  catch (e) { return { ok: false, erro: "Dados do aparelho inválidos." }; }
+
+  var hashEsperado = crypto.createHash("sha256").update(opcoes.rpId).digest();
+  if (!crypto.timingSafeEqual(authData.rpIdHash, hashEsperado)) {
+    return { ok: false, erro: "Domínio não confere." };
+  }
+  if (!authData.presenca) return { ok: false, erro: "O aparelho não confirmou a presença." };
+  if (!authData.verificado) {
+    // É o ponto todo: sem Face ID/Touch ID/senha conferidos, isto vira
+    // só "tem o aparelho na mão", que é bem menos do que se promete.
+    return { ok: false, erro: "Confirme com Face ID, Touch ID ou a senha do aparelho." };
+  }
+
+  return { ok: true, authData: authData, dadosCliente: dadosCliente };
 }
 
 // ════════════════════════════════════════
@@ -1495,6 +1747,272 @@ var server = http.createServer(async (req, res) => {
       }
 
       return await responderLoginOwner(res, ownerRota, v.data.senha, body.deviceId, ip);
+    }
+
+    // ════════════════════════════════════════
+    // FACE ID / TOUCH ID — 4 rotas
+    // ════════════════════════════════════════
+
+    // ── 1. Começar o cadastro do Face ID (exige sessão) ──
+    // Só quem já entrou com a senha pode cadastrar. Sem isso, qualquer
+    // pessoa cadastraria o próprio rosto numa conta alheia.
+    if (method === "POST" && path === "/webauthn/registrar/inicio") {
+      var authWA = requireAuth(req);
+      if (!authWA) return jsonErr(res, "Não autorizado", 401);
+
+      var rpIdReg = rpIdDaOrigem(req.headers.origin);
+      if (!rpIdReg) return jsonErr(res, "Origem não permitida para Face ID", 403);
+
+      var emailWA = authWA.email;
+      if (!emailWA) return jsonErr(res, "Sessão sem e-mail", 400);
+
+      var desafioReg = await guardarDesafio(emailWA, "registro");
+
+      return jsonOk(res, {
+        challenge: desafioReg,
+        rp: { id: rpIdReg, name: "Workap" },
+        user: {
+          // O id do usuário no WebAuthn é opaco: usamos o e-mail em
+          // bytes só para o aparelho saber que credenciais da mesma
+          // conta se substituem, em vez de acumular uma por login.
+          id: bufferParaB64url(Buffer.from(emailWA, "utf8")),
+          name: emailWA,
+          displayName: emailWA
+        },
+        pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+        authenticatorSelection: {
+          authenticatorAttachment: "platform",  // o próprio aparelho, não chavinha USB
+          userVerification: "required",         // exige Face ID / Touch ID / senha
+          residentKey: "preferred"
+        },
+        timeout: 60000,
+        attestation: "none"
+      });
+    }
+
+    // ── 2. Terminar o cadastro do Face ID (exige sessão) ──
+    if (method === "POST" && path === "/webauthn/registrar/fim") {
+      var authFim = requireAuth(req);
+      if (!authFim) return jsonErr(res, "Não autorizado", 401);
+
+      var rpIdFim = rpIdDaOrigem(req.headers.origin);
+      if (!rpIdFim) return jsonErr(res, "Origem não permitida para Face ID", 403);
+
+      var rawFim = await getBody(req);
+      var bodyFim = parseBody(rawFim);
+      if (!bodyFim || !bodyFim.clientDataJSON || !bodyFim.attestationObject) {
+        return jsonErr(res, "Dados incompletos");
+      }
+
+      var attest;
+      try { attest = cborDecodificar(b64urlParaBuffer(bodyFim.attestationObject)).valor; }
+      catch (e) { return jsonErr(res, "Resposta do aparelho ilegível."); }
+
+      var authDataBruto = attest instanceof Map ? attest.get("authData") : null;
+      if (!authDataBruto) return jsonErr(res, "Resposta do aparelho incompleta.");
+
+      var conf = await conferirCeremonia({
+        email: authFim.email,
+        finalidade: "registro",
+        tipoEsperado: "webauthn.create",
+        origem: req.headers.origin,
+        rpId: rpIdFim,
+        clientDataJSON: bodyFim.clientDataJSON,
+        authDataB64: bufferParaB64url(authDataBruto)
+      });
+      if (!conf.ok) return jsonErr(res, conf.erro, 400);
+      if (!conf.authData.credentialId || !conf.authData.chaveCose) {
+        return jsonErr(res, "O aparelho não enviou a credencial.");
+      }
+
+      var chavePublica;
+      try { chavePublica = coseParaChave(conf.authData.chaveCose); }
+      catch (e) {
+        secLog("webauthn_chave_recusada", { message: e.message });
+        return jsonErr(res, "Tipo de segurança do aparelho não suportado.");
+      }
+
+      var credId = bufferParaB64url(conf.authData.credentialId);
+
+      // Guardamos a chave em JWK (texto), e não o COSE cru: assim a
+      // verificação do login não precisa reinterpretar binário toda vez.
+      var registro = {
+        email:        authFim.email,
+        empresa_id:   authFim.empresa_id || null,
+        funcionario_id: authFim.funcionario_id || null,
+        credential_id: credId,
+        public_key:   JSON.stringify(chavePublica.export({ format: "jwk" })),
+        counter:      conf.authData.contador,
+        device_label: SANITIZE.string(bodyFim.descricao || "", 80) || null
+      };
+
+      var jaTem = await supabase("GET", "webauthn_credentials",
+        { query: `credential_id=eq.${encodeURIComponent(credId)}&select=id&limit=1` }
+      ).catch(() => ({ body: [] }));
+
+      if (jaTem.body && jaTem.body[0]) {
+        await supabase("PATCH", "webauthn_credentials",
+          { query: `id=eq.${jaTem.body[0].id}`, body: registro });
+      } else {
+        await supabase("POST", "webauthn_credentials", { body: registro });
+      }
+
+      secLog("webauthn_cadastrado", { email_hash: crypto.createHash("sha256").update(authFim.email).digest("hex").substring(0, 8) });
+      return jsonOk(res, { ok: true, message: "Este aparelho agora entra com Face ID." });
+    }
+
+    // ── 3. Começar o login por Face ID (rota pública) ──
+    if (method === "POST" && path === "/webauthn/login/inicio") {
+      var rpIdLog = rpIdDaOrigem(req.headers.origin);
+      if (!rpIdLog) return jsonErr(res, "Origem não permitida para Face ID", 403);
+
+      var rawLog = await getBody(req);
+      var bodyLog = parseBody(rawLog);
+      var emailLog = SANITIZE.email(bodyLog && bodyLog.email);
+      if (!emailLog) return jsonErr(res, "E-mail inválido");
+
+      var creds = await supabase("GET", "webauthn_credentials",
+        { query: `email=eq.${encodeURIComponent(emailLog)}&select=credential_id` }
+      ).catch(() => ({ body: [] }));
+
+      var lista = (creds.body || []).map(function (c) {
+        return { type: "public-key", id: c.credential_id };
+      });
+
+      // Conta sem Face ID cadastrado devolve lista vazia em vez de erro:
+      // o frontend cai no código por e-mail sozinho, e quem estiver
+      // sondando não descobre quais contas têm biometria.
+      if (!lista.length) return jsonOk(res, { disponivel: false, allowCredentials: [] });
+
+      return jsonOk(res, {
+        disponivel: true,
+        challenge: await guardarDesafio(emailLog, "login"),
+        rpId: rpIdLog,
+        allowCredentials: lista,
+        userVerification: "required",
+        timeout: 60000
+      });
+    }
+
+    // ── 4. Terminar o login por Face ID (rota pública) ──
+    // Substitui o código de 6 dígitos: prova que é o mesmo aparelho E
+    // que a pessoa passou pelo desbloqueio dele. A senha da conta já
+    // foi conferida no passo anterior do login.
+    if (method === "POST" && path === "/webauthn/login/fim") {
+      var rpIdVer = rpIdDaOrigem(req.headers.origin);
+      if (!rpIdVer) return jsonErr(res, "Origem não permitida para Face ID", 403);
+
+      var rawVer = await getBody(req);
+      var bodyVer = parseBody(rawVer);
+      if (!bodyVer) return jsonErr(res, "Dados inválidos");
+
+      var emailVer = SANITIZE.email(bodyVer.email);
+      var senhaVer = typeof bodyVer.senha === "string" ? bodyVer.senha : "";
+      if (!emailVer || !senhaVer) return jsonErr(res, "Dados inválidos");
+      if (!bodyVer.credentialId || !bodyVer.clientDataJSON || !bodyVer.authenticatorData || !bodyVer.signature) {
+        return jsonErr(res, "Resposta do aparelho incompleta.");
+      }
+
+      // A senha continua obrigatória. O Face ID substitui o CÓDIGO do
+      // e-mail, não a senha — sem isso, quem pegasse o celular
+      // desbloqueado entraria sem saber a senha da conta.
+      var ownerVer = await buscarOwner(emailVer);
+      var empresaVer = null;
+      if (ownerVer) {
+        if (!(await verificarSenha(senhaVer, ownerVer.senha_hash))) {
+          secLog("webauthn_senha_errada", { ip });
+          return jsonErr(res, "Email ou senha incorretos", 401);
+        }
+      } else {
+        var buscaVer = await DB.select("empresas", `email=eq.${encodeURIComponent(emailVer)}&select=*`);
+        empresaVer = buscaVer.body && buscaVer.body[0];
+        if (!empresaVer || !(await verificarSenha(senhaVer, empresaVer.senha_hash))) {
+          secLog("webauthn_senha_errada", { ip });
+          return jsonErr(res, "Email ou senha incorretos", 401);
+        }
+      }
+
+      var credBusca = await supabase("GET", "webauthn_credentials", {
+        query: `credential_id=eq.${encodeURIComponent(bodyVer.credentialId)}` +
+               `&email=eq.${encodeURIComponent(emailVer)}&select=*&limit=1`
+      }).catch(() => ({ body: [] }));
+
+      var cred = credBusca.body && credBusca.body[0];
+      if (!cred) {
+        secLog("webauthn_credencial_desconhecida", { ip });
+        return jsonErr(res, "Este aparelho não está cadastrado.", 401);
+      }
+
+      var confVer = await conferirCeremonia({
+        email: emailVer,
+        finalidade: "login",
+        tipoEsperado: "webauthn.get",
+        origem: req.headers.origin,
+        rpId: rpIdVer,
+        clientDataJSON: bodyVer.clientDataJSON,
+        authDataB64: bodyVer.authenticatorData
+      });
+      if (!confVer.ok) return jsonErr(res, confVer.erro, 401);
+
+      // A assinatura cobre authenticatorData + hash do clientDataJSON.
+      // É isto que prova que a chave privada — que nunca saiu do chip
+      // de segurança do aparelho — participou desta operação.
+      var authBuf = b64urlParaBuffer(bodyVer.authenticatorData);
+      var hashCliente = crypto.createHash("sha256").update(b64urlParaBuffer(bodyVer.clientDataJSON)).digest();
+      var assinado = Buffer.concat([authBuf, hashCliente]);
+
+      var chaveVer;
+      try { chaveVer = crypto.createPublicKey({ key: JSON.parse(cred.public_key), format: "jwk" }); }
+      catch (e) { return jsonErr(res, "Credencial corrompida. Cadastre o Face ID de novo.", 401); }
+
+      var assinaturaOk = crypto.verify("sha256", assinado, chaveVer, b64urlParaBuffer(bodyVer.signature));
+      if (!assinaturaOk) {
+        secLog("webauthn_assinatura_invalida", { ip });
+        return jsonErr(res, "Não foi possível confirmar este aparelho.", 401);
+      }
+
+      // Contador: o autenticador incrementa a cada uso. Voltar para trás
+      // indica credencial clonada. Zero dos dois lados significa que o
+      // aparelho não usa contador (comum no iPhone) — aí não dá sinal.
+      if (confVer.authData.contador > 0 && confVer.authData.contador <= Number(cred.counter)) {
+        secLog("webauthn_contador_suspeito", { guardado: cred.counter, recebido: confVer.authData.contador });
+        return jsonErr(res, "Não foi possível confirmar este aparelho.", 401);
+      }
+
+      await supabase("PATCH", "webauthn_credentials", {
+        query: `id=eq.${cred.id}`,
+        body: { counter: confVer.authData.contador, last_used_at: new Date().toISOString() }
+      }).catch(() => {});
+
+      // Aparelho provado: registra como confiável, igual faria o código
+      // por e-mail, para os próximos 30 dias entrarem direto.
+      var deviceVer = sanitizarDeviceId(bodyVer.deviceId);
+      if (deviceVer) {
+        await registrarDispositivo(emailVer, deviceVer, empresaVer ? empresaVer.id : null, bodyVer.descricao);
+      }
+
+      if (ownerVer) {
+        registrarLoginOwner(ownerVer);
+        secLog("login_owner_ok", { via: "face_id" });
+        return jsonOk(res, {
+          token: jwtSign({ email: emailVer, role: "owner_saas" }),
+          owner: { nome: ownerVer.nome, email: emailVer },
+          is_owner: true
+        });
+      }
+
+      var trialVer = null;
+      if (empresaVer.status === "trial") {
+        var diasVer = Math.ceil((new Date(empresaVer.trial_fim) - Date.now()) / (1000 * 60 * 60 * 24));
+        trialVer = { dias_restantes: diasVer, expirado: diasVer <= 0 };
+      }
+      secLog("login_ok", { empresa_id: empresaVer.id, via: "face_id" });
+      delete empresaVer.senha_hash;
+      return jsonOk(res, {
+        token: jwtSign({ empresa_id: empresaVer.id, email: empresaVer.email, role: "dono" }),
+        empresa: empresaVer,
+        trial: trialVer
+      });
     }
 
     // ── CONFIRMAR APARELHO NOVO (rota pública) ───────
