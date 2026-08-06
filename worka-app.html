@@ -1073,6 +1073,88 @@ tr:hover td{background:var(--g50)}
       </div>
     </div>
 
+    <!-- FINANCEIRO — mesma tela para empresa e para a plataforma.
+         Quem decide de quem são os números é o servidor, pelo token:
+         empresa vê os lançamentos dela, owner vê os da Workap. -->
+    <div class="page" id="pg-financeiro">
+      <div class="stats-grid" style="margin-bottom:20px">
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-money></use></svg></div>
+          <div class="stat-card-num" id="fin-saldo">—</div>
+          <div class="stat-card-lbl">Saldo atual</div>
+          <div class="stat-card-sub" id="fin-escopo">Todos os lançamentos</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-arrow-up></use></svg></div>
+          <div class="stat-card-num" id="fin-receita">—</div>
+          <div class="stat-card-lbl">Entradas do mês</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:#fef2f2"><svg class=ico aria-hidden=true><use href=#i-arrow-down></use></svg></div>
+          <div class="stat-card-num" id="fin-despesas">—</div>
+          <div class="stat-card-lbl">Despesas do mês</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:#f5f3ff"><svg class=ico aria-hidden=true><use href=#i-report></use></svg></div>
+          <div class="stat-card-num" id="fin-lucro">—</div>
+          <div class="stat-card-lbl">Resultado do mês</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header"><div class="card-title">Registrar lançamento</div></div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
+            <div class="field" style="margin:0">
+              <label>Tipo</label>
+              <select id="fin-tipo">
+                <option value="saida">Despesa (saída)</option>
+                <option value="entrada">Receita (entrada)</option>
+              </select>
+            </div>
+            <div class="field" style="margin:0">
+              <label>Valor (R$)</label>
+              <input id="fin-valor" type="number" step="0.01" min="0.01" placeholder="0,00" inputmode="decimal">
+            </div>
+            <div class="field" style="margin:0">
+              <label>Categoria</label>
+              <select id="fin-categoria">
+                <option value="despesa_fixa">Despesa fixa</option>
+                <option value="folha">Folha de pagamento</option>
+                <option value="estoque">Estoque / compras</option>
+                <option value="receita">Receita</option>
+                <option value="outro">Outro</option>
+              </select>
+            </div>
+            <div class="field" style="margin:0">
+              <label>Data</label>
+              <input id="fin-data" type="date">
+            </div>
+          </div>
+          <div class="field" style="margin-top:12px">
+            <label>Descrição</label>
+            <input id="fin-descricao" type="text" maxlength="200" placeholder="Ex.: Conta de luz de agosto">
+          </div>
+          <div class="login-erro" id="fin-erro" style="margin-top:10px">Preencha valor e descrição.</div>
+          <button class="btn btn-primary" id="fin-btn-salvar" onclick="salvarLancamento()" style="margin-top:12px">
+            <svg class=ico aria-hidden=true><use href=#i-check></use></svg> Registrar
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">Últimos lançamentos</div></div>
+        <div class="card-body" style="padding:0">
+          <table>
+            <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th><th></th></tr></thead>
+            <tbody id="fin-lista">
+              <tr><td colspan="5" style="padding:14px"><div class="skel skel-text" style="width:60%"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <div class="page" id="pg-relatorios">
       <div class="card">
         <div class="card-body empty-state">
@@ -1086,43 +1168,50 @@ tr:hover td{background:var(--g50)}
     <!-- PAINEL OWNER WORKAP -->
     <div class="page" id="pg-owner">
 
-      <!-- MÉTRICAS GERAIS -->
+      <!-- MÉTRICAS GERAIS — todas vindas de GET /owner/metricas.
+           Aqui havia números escritos à mão (47 empresas, R$ 1.170 de
+           MRR, 312 usuários, 94% de retenção, 99,8% de uptime). Eram
+           de maquete, mas apareciam com a mesma cara de dado real — e
+           a decisão de ligar tráfego pago sairia de olhar justamente
+           esses quadros. Retenção e uptime saíram da tela: não há como
+           calcular nenhum dos dois com o que o sistema registra hoje,
+           e um número inventado é pior que quadro nenhum. -->
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-building></use></svg></div>
-          <div class="stat-card-num">47</div>
-          <div class="stat-card-lbl">Empresas ativas</div>
-          <div class="stat-card-sub sub-green"><svg class=ico aria-hidden=true><use href=#i-arrow-up></use></svg> 3 este mês</div>
+          <div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-money></use></svg></div>
+          <div class="stat-card-num" id="ow-pagos">—</div>
+          <div class="stat-card-lbl">Assinantes pagos</div>
+          <div class="stat-card-sub sub-green" id="ow-pagos-sub">Status ativo</div>
         </div>
         <div class="stat-card">
-          <div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-money></use></svg></div>
-          <div class="stat-card-num">R$ 1.170</div>
-          <div class="stat-card-lbl">MRR</div>
-          <div class="stat-card-sub sub-green"><svg class=ico aria-hidden=true><use href=#i-arrow-up></use></svg> 6,7% este mês</div>
+          <div class="stat-card-icon" style="background:#fffbeb"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg></div>
+          <div class="stat-card-num" id="ow-trial">—</div>
+          <div class="stat-card-lbl">Em teste grátis</div>
+          <div class="stat-card-sub" id="ow-trial-sub">Ainda não pagam</div>
         </div>
         <div class="stat-card">
-          <div class="stat-card-icon" style="background:#fffbeb"><svg class=ico aria-hidden=true><use href=#i-users></use></svg></div>
-          <div class="stat-card-num">312</div>
-          <div class="stat-card-lbl">Usuários na plataforma</div>
-          <div class="stat-card-sub sub-green">Funcionários ativos</div>
+          <div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-report></use></svg></div>
+          <div class="stat-card-num" id="ow-mrr">—</div>
+          <div class="stat-card-lbl">Receita recorrente</div>
+          <div class="stat-card-sub" id="ow-mrr-sub">Só assinantes pagos</div>
         </div>
         <div class="stat-card">
-          <div class="stat-card-icon" style="background:#f5f3ff"><svg class=ico aria-hidden=true><use href=#i-report></use></svg></div>
-          <div class="stat-card-num">94%</div>
-          <div class="stat-card-lbl">Taxa de retenção</div>
-          <div class="stat-card-sub sub-green">Últimos 30 dias</div>
+          <div class="stat-card-icon" style="background:#f5f3ff"><svg class=ico aria-hidden=true><use href=#i-building></use></svg></div>
+          <div class="stat-card-num" id="ow-empresas">—</div>
+          <div class="stat-card-lbl">Empresas cadastradas</div>
+          <div class="stat-card-sub sub-green" id="ow-novas">—</div>
         </div>
         <div class="stat-card">
-          <div class="stat-card-icon" style="background:#fef2f2"><svg class=ico aria-hidden=true><use href=#i-refresh></use></svg></div>
-          <div class="stat-card-num">3</div>
-          <div class="stat-card-lbl">Cancelamentos</div>
-          <div class="stat-card-sub sub-red">Este mês</div>
+          <div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-users></use></svg></div>
+          <div class="stat-card-num" id="ow-funcionarios">—</div>
+          <div class="stat-card-lbl">Funcionários ativos</div>
+          <div class="stat-card-sub">Em todas as empresas</div>
         </div>
         <div class="stat-card">
-          <div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></div>
-          <div class="stat-card-num">99,8%</div>
-          <div class="stat-card-lbl">Uptime plataforma</div>
-          <div class="stat-card-sub sub-green">Últimos 30 dias</div>
+          <div class="stat-card-icon" style="background:#fef2f2"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg></div>
+          <div class="stat-card-num" id="ow-inadimplentes">—</div>
+          <div class="stat-card-lbl">Inadimplentes</div>
+          <div class="stat-card-sub sub-red" id="ow-cancelados">—</div>
         </div>
       </div>
 
@@ -1163,13 +1252,15 @@ tr:hover td{background:var(--g50)}
           </div>
           <div class="card-body" style="padding:0">
             <table>
-              <thead><tr><th>Empresa</th><th>Ramo</th><th>Desde</th><th>Funcionários</th><th>Status</th><th>Ações</th></tr></thead>
-              <tbody>
-                <tr><td><div style="font-weight:600">Barbearia Silva</div><div style="font-size:.72rem;color:var(--gray500)">Cadastro: Jan/2026</div></td><td><span class="tag">Barbearia</span></td><td>Jan 2026</td><td>5</td><td><span class="badge badge-green">Ativa</span></td><td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-secondary" onclick="ownerAcaoEmpresa('suspender')">Suspender</button><button class="btn btn-sm btn-danger" onclick="ownerAcaoEmpresa('cancelar')">Cancelar</button></div></td></tr>
-                <tr><td><div style="font-weight:600">Restaurante Sabor+</div><div style="font-size:.72rem;color:var(--gray500)">Cadastro: Fev/2026</div></td><td><span class="tag">Alimentação</span></td><td>Fev 2026</td><td>12</td><td><span class="badge badge-green">Ativa</span></td><td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-secondary" onclick="ownerAcaoEmpresa('suspender')">Suspender</button><button class="btn btn-sm btn-danger" onclick="ownerAcaoEmpresa('cancelar')">Cancelar</button></div></td></tr>
-                <tr><td><div style="font-weight:600">Farmácia Saúde Bem</div><div style="font-size:.72rem;color:var(--gray500)">Cadastro: Mar/2026</div></td><td><span class="tag">Saúde</span></td><td>Mar 2026</td><td>8</td><td><span class="badge badge-green">Ativa</span></td><td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-secondary" onclick="ownerAcaoEmpresa('suspender')">Suspender</button><button class="btn btn-sm btn-danger" onclick="ownerAcaoEmpresa('cancelar')">Cancelar</button></div></td></tr>
-                <tr><td><div style="font-weight:600">Auto Peças Roda Viva</div><div style="font-size:.72rem;color:var(--gray500)">Cadastro: Abr/2026</div></td><td><span class="tag">Oficina</span></td><td>Abr 2026</td><td>6</td><td><span class="badge badge-yellow">Trial</span></td><td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-primary" onclick="ownerAcaoEmpresa('ativar')">Ativar</button><button class="btn btn-sm btn-danger" onclick="ownerAcaoEmpresa('cancelar')">Cancelar</button></div></td></tr>
-                <tr><td><div style="font-weight:600">Clínica Estética Luz</div><div style="font-size:.72rem;color:var(--gray500)">Cadastro: Mai/2026</div></td><td><span class="tag">Estética</span></td><td>Mai 2026</td><td>4</td><td><span class="badge badge-red">Inadimplente</span></td><td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-secondary" onclick="ownerAcaoEmpresa('notificar')">Notificar</button><button class="btn btn-sm btn-danger" onclick="ownerAcaoEmpresa('suspender')">Suspender</button></div></td></tr>
+              <thead><tr><th>Empresa</th><th>Ramo</th><th>Desde</th><th>Funcionários</th><th>Status</th></tr></thead>
+              <!-- Havia 5 empresas de exemplo escritas no HTML (Barbearia
+                   Silva, Restaurante Sabor+, Farmácia Saúde Bem...), com
+                   botões de Suspender/Cancelar que não faziam nada. A
+                   lista agora vem de GET /owner/assinantes. As ações
+                   saíram: prometer "Cancelar" num botão que não cancela é
+                   pior do que não ter o botão. -->
+              <tbody id="ow-assinantes">
+                <tr><td colspan="5" style="padding:14px"><div class="skel skel-text" style="width:60%"></div></td></tr>
               </tbody>
             </table>
           </div>
@@ -1207,33 +1298,25 @@ tr:hover td{background:var(--g50)}
 
       <!-- ABA: FINANCEIRO -->
       <div id="owner-financeiro" style="display:none">
+        <!-- Os quadros traziam R$ 1.170 de MRR, R$ 14.040 de ARR e um
+             histórico de 6 meses de receita — tudo inventado, inclusive
+             as barras de progresso. O histórico saiu inteiro: não existe
+             registro de faturamento mensal no banco para reconstruí-lo,
+             e um gráfico plausível de números falsos é pior do que
+             gráfico nenhum. -->
         <div class="stats-grid">
-          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-money></use></svg></div><div class="stat-card-num">R$ 1.170</div><div class="stat-card-lbl">MRR atual</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-report></use></svg></div><div class="stat-card-num">R$ 14.040</div><div class="stat-card-lbl">ARR projetado</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg></div><div class="stat-card-num">R$ 99,60</div><div class="stat-card-lbl">Inadimplência</div><div class="stat-card-sub sub-red">4 empresas</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2"><svg class=ico aria-hidden=true><use href=#i-refresh></use></svg></div><div class="stat-card-num">R$ 74,70</div><div class="stat-card-lbl">Churn MRR</div><div class="stat-card-sub sub-red">Este mês</div></div>
-        </div>
-        <div class="card" style="margin-bottom:16px">
-          <div class="card-header"><div class="card-title">Histórico de receita mensal</div><button class="btn btn-sm btn-secondary">Exportar CSV</button></div>
-          <div class="card-body">
-            <div style="display:flex;flex-direction:column;gap:12px">
-              <div style="display:flex;align-items:center;justify-content:space-between;font-size:.85rem"><span style="color:var(--gray500);width:50px">Jun/26</span><div style="flex:1;margin:0 12px"><div class="progress-bar"><div class="progress-fill" style="width:85%"></div></div></div><span style="font-weight:700;color:var(--g600)">R$ 1.170 · 47 emp.</span></div>
-              <div style="display:flex;align-items:center;justify-content:space-between;font-size:.85rem"><span style="color:var(--gray500);width:50px">Mai/26</span><div style="flex:1;margin:0 12px"><div class="progress-bar"><div class="progress-fill" style="width:78%"></div></div></div><span style="font-weight:700;color:var(--g600)">R$ 1.096 · 44 emp.</span></div>
-              <div style="display:flex;align-items:center;justify-content:space-between;font-size:.85rem"><span style="color:var(--gray500);width:50px">Abr/26</span><div style="flex:1;margin:0 12px"><div class="progress-bar"><div class="progress-fill" style="width:65%"></div></div></div><span style="font-weight:700;color:var(--g600)">R$ 921 · 37 emp.</span></div>
-              <div style="display:flex;align-items:center;justify-content:space-between;font-size:.85rem"><span style="color:var(--gray500);width:50px">Mar/26</span><div style="flex:1;margin:0 12px"><div class="progress-bar"><div class="progress-fill" style="width:50%"></div></div></div><span style="font-weight:700;color:var(--g600)">R$ 697 · 28 emp.</span></div>
-              <div style="display:flex;align-items:center;justify-content:space-between;font-size:.85rem"><span style="color:var(--gray500);width:50px">Fev/26</span><div style="flex:1;margin:0 12px"><div class="progress-bar"><div class="progress-fill" style="width:35%"></div></div></div><span style="font-weight:700;color:var(--g600)">R$ 498 · 20 emp.</span></div>
-              <div style="display:flex;align-items:center;justify-content:space-between;font-size:.85rem"><span style="color:var(--gray500);width:50px">Jan/26</span><div style="flex:1;margin:0 12px"><div class="progress-bar"><div class="progress-fill" style="width:20%"></div></div></div><span style="font-weight:700;color:var(--g600)">R$ 249 · 10 emp.</span></div>
-            </div>
-          </div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-money></use></svg></div><div class="stat-card-num" id="owf-mrr">—</div><div class="stat-card-lbl">Receita recorrente (mês)</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-report></use></svg></div><div class="stat-card-num" id="owf-arr">—</div><div class="stat-card-lbl">Projeção 12 meses</div><div class="stat-card-sub">Se ninguém sair</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg></div><div class="stat-card-num" id="owf-inad">—</div><div class="stat-card-lbl">Em atraso</div><div class="stat-card-sub sub-red" id="owf-inad-sub">—</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#f5f3ff"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg></div><div class="stat-card-num" id="owf-potencial">—</div><div class="stat-card-lbl">Potencial em trial</div><div class="stat-card-sub">Se todos converterem</div></div>
         </div>
         <div class="card">
-          <div class="card-header"><div class="card-title">Empresas inadimplentes</div><button class="btn btn-sm btn-danger">Notificar todas</button></div>
+          <div class="card-header"><div class="card-title">Empresas em atraso</div></div>
           <div class="card-body" style="padding:0">
             <table>
-              <thead><tr><th>Empresa</th><th>Vencimento</th><th>Dias em atraso</th><th>Ação</th></tr></thead>
-              <tbody>
-                <tr><td>Clínica Estética Luz</td><td>01/06/2026</td><td style="color:var(--red);font-weight:700">27 dias</td><td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-secondary" onclick="ownerAcaoEmpresa('notificar')"><svg class=ico aria-hidden=true><use href=#i-mail></use></svg> Notificar</button><button class="btn btn-sm btn-danger" onclick="ownerAcaoEmpresa('suspender')">Suspender</button></div></td></tr>
-                <tr><td>Loja de Roupas Moda</td><td>05/06/2026</td><td style="color:var(--red);font-weight:700">23 dias</td><td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-secondary" onclick="ownerAcaoEmpresa('notificar')"><svg class=ico aria-hidden=true><use href=#i-mail></use></svg> Notificar</button><button class="btn btn-sm btn-danger" onclick="ownerAcaoEmpresa('suspender')">Suspender</button></div></td></tr>
+              <thead><tr><th>Empresa</th><th>Contato</th><th>Cadastro</th><th>Funcionários</th></tr></thead>
+              <tbody id="owf-inadimplentes">
+                <tr><td colspan="4" style="padding:14px"><div class="skel skel-text" style="width:50%"></div></td></tr>
               </tbody>
             </table>
           </div>
@@ -1280,145 +1363,50 @@ tr:hover td{background:var(--g50)}
 
       <!-- ABA: SUPORTE -->
       <div id="owner-suporte" style="display:none">
-        <div class="stats-grid">
-          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-support></use></svg></div><div class="stat-card-num">4</div><div class="stat-card-lbl">Tickets abertos</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg></div><div class="stat-card-num">28</div><div class="stat-card-lbl">Resolvidos este mês</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg></div><div class="stat-card-num">2h 14m</div><div class="stat-card-lbl">Tempo médio resposta</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-star></use></svg></div><div class="stat-card-num">4,8</div><div class="stat-card-lbl">Satisfação média</div></div>
-        </div>
+        <!-- Havia 4 tickets de exemplo com botão "Responder" que não
+             respondia nada. Não existe tabela de tickets no banco nem
+             rota de suporte no backend: a tela inteira era maquete. -->
         <div class="card">
-          <div class="card-header"><div class="card-title">Tickets em aberto</div><button class="btn btn-sm btn-primary">+ Novo ticket</button></div>
-          <div class="card-body" style="padding:0">
-            <table>
-              <thead><tr><th>Empresa</th><th>Assunto</th><th>Prioridade</th><th>Aberto em</th><th>Ação</th></tr></thead>
-              <tbody>
-                <tr><td>Restaurante Sabor+</td><td>Erro ao bater ponto</td><td><span class="badge badge-red">Alta</span></td><td>Hoje 10:32</td><td><button class="btn btn-sm btn-primary" onclick="ownerAcao('responder-ticket')">Responder</button></td></tr>
-                <tr><td>Barbearia Silva</td><td>Como personalizar cores?</td><td><span class="badge badge-yellow">Média</span></td><td>Ontem 15:00</td><td><button class="btn btn-sm btn-primary" onclick="ownerAcao('responder-ticket')">Responder</button></td></tr>
-                <tr><td>Auto Peças Roda Viva</td><td>Adicionar novo funcionário</td><td><span class="badge badge-blue">Baixa</span></td><td>26/06 09:15</td><td><button class="btn btn-sm btn-primary" onclick="ownerAcao('responder-ticket')">Responder</button></td></tr>
-                <tr><td>Farmácia Saúde Bem</td><td>Integração com sistema de caixa</td><td><span class="badge badge-yellow">Média</span></td><td>25/06 14:40</td><td><button class="btn btn-sm btn-primary" onclick="ownerAcao('responder-ticket')">Responder</button></td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg> Enviar comunicado para todas as empresas</div></div>
-          <div class="card-body">
-            <div class="field"><label>Assunto</label><input placeholder="Ex: Nova funcionalidade disponível!"></div>
-            <div class="field"><label>Mensagem</label><textarea placeholder="Escreva o comunicado..." style="width:100%;padding:10px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-family:var(--font);font-size:.9rem;resize:vertical;min-height:100px;outline:none"></textarea></div>
-            <div class="field"><label>Destinatários</label><select><option>Todas as empresas (47)</option><option>Apenas ativas (44)</option><option>Apenas trial (3)</option><option>Inadimplentes (4)</option></select></div>
-            <button class="btn btn-primary" onclick="ownerAcao('enviar-comunicado')"><svg class=ico aria-hidden=true><use href=#i-mail></use></svg> Enviar comunicado</button>
+          <div class="card-body empty-state">
+            <div class="icon"><svg class=ico aria-hidden=true><use href=#i-support></use></svg></div>
+            <div style="font-weight:700;color:var(--gray700);margin-bottom:6px">Central de suporte ainda não existe</div>
+            <p>Não há sistema de chamados no Workap hoje. Enquanto isso, o contato dos clientes está na aba Assinantes, e dá para falar com todos de uma vez em "Enviar Comunicado".</p>
           </div>
         </div>
       </div>
 
       <!-- ABA: MARKETING -->
       <div id="owner-marketing" style="display:none">
-        <div class="stats-grid">
-          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-link></use></svg></div><div class="stat-card-num">1.240</div><div class="stat-card-lbl">Visitas no site</div><div class="stat-card-sub sub-green">Este mês</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-target></use></svg></div><div class="stat-card-num">3,8%</div><div class="stat-card-lbl">Taxa de conversão</div><div class="stat-card-sub sub-green">Visita <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg> Trial</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb"><svg class=ico aria-hidden=true><use href=#i-money></use></svg></div><div class="stat-card-num">R$ 6,55</div><div class="stat-card-lbl">CAC médio</div><div class="stat-card-sub sub-green">Custo aquisição</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#f5f3ff"><svg class=ico aria-hidden=true><use href=#i-infinity></use></svg></div><div class="stat-card-num">R$ 298</div><div class="stat-card-lbl">LTV médio</div><div class="stat-card-sub sub-green">12 meses</div></div>
-        </div>
-        <div class="grid-2">
-          <div class="card">
-            <div class="card-header"><div class="card-title">Fontes de aquisição</div></div>
-            <div class="card-body">
-              <div style="display:flex;flex-direction:column;gap:10px">
-                <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Orgânico / Direto</span><span style="font-weight:600">18 · 38%</span></div><div class="progress-bar"><div class="progress-fill" style="width:38%"></div></div></div>
-                <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Instagram / Meta</span><span style="font-weight:600">14 · 30%</span></div><div class="progress-bar"><div class="progress-fill" style="width:30%"></div></div></div>
-                <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>Indicação</span><span style="font-weight:600">10 · 21%</span></div><div class="progress-bar"><div class="progress-fill" style="width:21%"></div></div></div>
-                <div><div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>WhatsApp / Outros</span><span style="font-weight:600">5 · 11%</span></div><div class="progress-bar"><div class="progress-fill" style="width:11%"></div></div></div>
-              </div>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-header"><div class="card-title">UTMs mais eficientes</div></div>
-            <div class="card-body" style="padding:0">
-              <table>
-                <thead><tr><th>Campanha</th><th>Conversões</th><th>Taxa</th></tr></thead>
-                <tbody>
-                  <tr><td>instagram_stories_jun</td><td>8</td><td style="color:var(--g600);font-weight:600">5,2%</td></tr>
-                  <tr><td>whatsapp_dono_mai</td><td>6</td><td style="color:var(--g600);font-weight:600">4,8%</td></tr>
-                  <tr><td>facebook_feed_jun</td><td>6</td><td style="color:var(--g600);font-weight:600">3,1%</td></tr>
-                  <tr><td>google_organico</td><td>4</td><td style="color:var(--g600);font-weight:600">2,9%</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+        <!-- Fontes de aquisição e UTMs vinham escritas no HTML
+             (instagram_stories_jun, whatsapp_dono_mai...). A coluna utm
+             existe em pagamentos_pix e é preenchida na cobrança, mas
+             ainda não houve pagamento nenhum — então o certo é mostrar
+             vazio até existir, não números inventados. -->
         <div class="card">
-          <div class="card-header"><div class="card-title">Links de rastreamento (UTM)</div><button class="btn btn-sm btn-primary" onclick="ownerAcao('gerar-utm')">+ Gerar link</button></div>
-          <div class="card-body">
-            <div class="field"><label>Campanha</label><input placeholder="Ex: instagram_junho" id="utm-campanha"></div>
-            <div class="field"><label>Mídia</label><select id="utm-midia"><option>instagram</option><option>facebook</option><option>whatsapp</option><option>tiktok</option><option>google</option><option>email</option></select></div>
-            <div style="background:var(--gray50);border-radius:var(--r);padding:12px;font-size:.82rem;color:var(--gray700);font-family:monospace;word-break:break-all" id="utm-resultado">
-              https://811freitas.github.io/Worka-backend/worka.html?utm_source=instagram&utm_medium=cpc&utm_campaign=lancamento
-            </div>
-            <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="copiarUTM()"><svg class=ico aria-hidden=true><use href=#i-tasks></use></svg> Copiar link</button>
+          <div class="card-body empty-state">
+            <div class="icon"><svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg></div>
+            <div style="font-weight:700;color:var(--gray700);margin-bottom:6px">Sem dados de origem ainda</div>
+            <p>A origem de cada assinatura (UTM) é gravada junto do pagamento. Assim que a primeira cobrança for confirmada, os números aparecem aqui.</p>
           </div>
         </div>
       </div>
 
       <!-- ABA: LOGS -->
       <div id="owner-logs" style="display:none">
-        <div class="card" style="margin-bottom:16px">
-          <div class="card-header"><div class="card-title">Log de atividades da plataforma</div><button class="btn btn-sm btn-secondary">Exportar</button></div>
+        <!-- Os eventos eram fictícios ("Deploy backend", "Backup
+             automático", assinantes que não existem). A tabela
+             logs_sistema é real e já recebe cadastro de empresa, login,
+             ponto batido, tarefa alterada e ajuste de salário — é dela
+             que a lista passa a sair. -->
+        <div class="card">
+          <div class="card-header"><div class="card-title">Atividade recente na plataforma</div></div>
           <div class="card-body" style="padding:0">
             <table>
-              <thead><tr><th>Data/Hora</th><th>Evento</th><th>Empresa</th><th>Status</th></tr></thead>
-              <tbody>
-                <tr><td style="font-size:.75rem;color:var(--gray500)">27/06 18:01</td><td>Deploy backend</td><td>—</td><td><span class="badge badge-green">Sucesso</span></td></tr>
-                <tr><td style="font-size:.75rem;color:var(--gray500)">27/06 17:10</td><td>Novo assinante PIX confirmado</td><td>Delivery Rápido</td><td><span class="badge badge-green">Pago</span></td></tr>
-                <tr><td style="font-size:.75rem;color:var(--gray500)">27/06 14:32</td><td>Solicitação de suporte</td><td>Restaurante Sabor+</td><td><span class="badge badge-yellow">Aberto</span></td></tr>
-                <tr><td style="font-size:.75rem;color:var(--gray500)">27/06 12:00</td><td>Pagamento PIX gerado</td><td>—</td><td><span class="badge badge-blue">Pendente</span></td></tr>
-                <tr><td style="font-size:.75rem;color:var(--gray500)">26/06 23:59</td><td>Alerta de inadimplência disparado</td><td>Clínica Estética Luz</td><td><span class="badge badge-red">Atraso</span></td></tr>
-                <tr><td style="font-size:.75rem;color:var(--gray500)">26/06 18:00</td><td>Backup automático</td><td>—</td><td><span class="badge badge-green">Sucesso</span></td></tr>
-                <tr><td style="font-size:.75rem;color:var(--gray500)">26/06 10:15</td><td>Novo assinante PIX confirmado</td><td>Mercado Central</td><td><span class="badge badge-green">Pago</span></td></tr>
+              <thead><tr><th>Quando</th><th>Evento</th><th>Detalhe</th></tr></thead>
+              <tbody id="ow-logs">
+                <tr><td colspan="3" style="padding:14px"><div class="skel skel-text" style="width:55%"></div></td></tr>
               </tbody>
             </table>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header"><div class="card-title">Erros recentes</div></div>
-          <div class="card-body">
-            <div style="background:var(--gray50);border-radius:var(--r);padding:16px;text-align:center;color:var(--gray500);font-size:.85rem"><svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> Nenhum erro crítico nas últimas 24 horas.</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ABA: API -->
-      <div id="owner-api" style="display:none">
-        <div class="stats-grid">
-          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-plug></use></svg></div><div class="stat-card-num">18.4k</div><div class="stat-card-lbl">Chamadas hoje</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></div><div class="stat-card-num">142ms</div><div class="stat-card-lbl">Latência média</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg></div><div class="stat-card-num">99,2%</div><div class="stat-card-lbl">Taxa de sucesso</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2"><svg class=ico aria-hidden=true><use href=#i-absent></use></svg></div><div class="stat-card-num">147</div><div class="stat-card-lbl">Erros hoje</div><div class="stat-card-sub sub-red">0,8% das chamadas</div></div>
-        </div>
-        <div class="card" style="margin-bottom:16px">
-          <div class="card-header"><div class="card-title">Endpoints mais usados</div></div>
-          <div class="card-body" style="padding:0">
-            <table>
-              <thead><tr><th>Endpoint</th><th>Chamadas</th><th>Latência</th><th>Erros</th></tr></thead>
-              <tbody>
-                <tr><td><code>POST /pix</code></td><td>1.240</td><td>890ms</td><td style="color:var(--g600)">0,3%</td></tr>
-                <tr><td><code>GET /pix?transactionId</code></td><td>8.920</td><td>210ms</td><td style="color:var(--g600)">0,1%</td></tr>
-                <tr><td><code>POST /enviar-codigo</code></td><td>1.180</td><td>1.2s</td><td style="color:var(--yellow)">1,2%</td></tr>
-                <tr><td><code>POST /verificar-codigo</code></td><td>1.060</td><td>95ms</td><td style="color:var(--g600)">0,4%</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header"><div class="card-title">Chaves de API ativas</div><button class="btn btn-sm btn-primary" onclick="ownerAcao('gerar-chave')">+ Gerar chave</button></div>
-          <div class="card-body">
-            <div style="background:var(--gray50);border-radius:var(--r);padding:14px;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-              <div><div style="font-size:.82rem;font-weight:600">Chave de produção</div><div style="font-size:.75rem;color:var(--gray500);font-family:monospace">wk_live_••••••••••••••••••••••••8f2a</div></div>
-              <span class="badge badge-green">Ativa</span>
-            </div>
-            <div style="background:var(--gray50);border-radius:var(--r);padding:14px;display:flex;align-items:center;justify-content:space-between">
-              <div><div style="font-size:.82rem;font-weight:600">Chave de sandbox</div><div style="font-size:.75rem;color:var(--gray500);font-family:monospace">wk_test_••••••••••••••••••••••••3c1b</div></div>
-              <span class="badge badge-yellow">Teste</span>
-            </div>
           </div>
         </div>
       </div>
@@ -1895,6 +1883,7 @@ var menus = {
     {id:'salarios',icon:'<svg class=ico aria-hidden=true><use href=#i-money></use></svg>',label:'Salários e Pagamentos'},
     {id:'ausencias',icon:'<svg class=ico aria-hidden=true><use href=#i-absent></use></svg>',label:'Ausências e Faltas'},
     {id:'escala',icon:'<svg class=ico aria-hidden=true><use href=#i-calendar></use></svg>',label:'Escala de Trabalho'},
+    {id:'financeiro',icon:'<svg class=ico aria-hidden=true><use href=#i-money></use></svg>',label:'Financeiro'},
     {id:'relatorios',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Relatórios'},
     {sec:'Recursos'},
     {id:'validade',icon:'<svg class=ico aria-hidden=true><use href=#i-alert></use></svg>',label:'Validade de Produtos'},
@@ -1930,6 +1919,7 @@ var menus = {
     {id:'salarios',icon:'<svg class=ico aria-hidden=true><use href=#i-money></use></svg>',label:'Salários e Pagamentos'},
     {id:'ausencias',icon:'<svg class=ico aria-hidden=true><use href=#i-absent></use></svg>',label:'Ausências e Faltas'},
     {id:'escala',icon:'<svg class=ico aria-hidden=true><use href=#i-calendar></use></svg>',label:'Escala de Trabalho'},
+    {id:'financeiro',icon:'<svg class=ico aria-hidden=true><use href=#i-money></use></svg>',label:'Financeiro'},
     {id:'relatorios',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Relatórios'},
     {sec:'Recursos'},
     {id:'validade',icon:'<svg class=ico aria-hidden=true><use href=#i-alert></use></svg>',label:'Validade de Produtos'},
@@ -2833,6 +2823,7 @@ function abrirPagina(id) {
     'owner':'Painel Owner Workap','meu-painel':'Meu Painel',
     'salarios':'Salários e Pagamentos','ausencias':'Ausências e Faltas',
     'escala':'Escala de Trabalho','relatorios':'Relatórios','mural':'Mural / Comunicados',
+    'financeiro':'Financeiro',
     'cupons':'Cupons de Desconto','comunicados':'Enviar Comunicado'
   };
   document.getElementById('topbar-title').textContent = labels[id]||id;
@@ -2851,6 +2842,8 @@ function abrirPagina(id) {
       carregarTarefasReais();
     }
   }
+  if(id==='financeiro' && typeof carregarFinanceiro === 'function') carregarFinanceiro();
+  if(id==='owner' && typeof carregarPainelOwner === 'function') carregarPainelOwner();
   if(id==='validade' && typeof carregarValidadeReal === 'function') carregarValidadeReal();
   if(id==='dashboard' && typeof carregarDashboardReal === 'function') carregarDashboardReal();
   if(id==='salarios' && typeof carregarSalariosReal === 'function') carregarSalariosReal();
@@ -2890,8 +2883,17 @@ function ownerTab(tab) {
     btn.classList.remove('btn-primary');
     btn.classList.add('btn-secondary');
   });
-  event.target.classList.remove('btn-secondary');
-  event.target.classList.add('btn-primary');
+  // Acha o botão pelo onclick em vez de depender do `event` global:
+  // chamar ownerTab() de qualquer lugar que não seja um clique — de
+  // outra função, do console, de um teste — estourava aqui com
+  // "cannot read properties of undefined".
+  var alvo = (typeof event !== 'undefined' && event && event.target)
+    ? event.target.closest('.owner-tab')
+    : document.querySelector('.owner-tab[onclick*="' + tab + '"]');
+  if(alvo){
+    alvo.classList.remove('btn-secondary');
+    alvo.classList.add('btn-primary');
+  }
 }
 
 function ownerAcaoEmpresa(acao) {
@@ -4423,6 +4425,380 @@ function salvarSalarioInicial(){
  * mês". Antes, a tabela inteira e os 4 cartões eram HTML fixo
  * (Maria Silva, João Pedro... nunca mudavam).
  */
+// ═══════════════════════════════════
+// PAINEL OWNER — DADOS REAIS
+// ═══════════════════════════════════
+
+var ROTULO_STATUS = {
+  ativa: ['Ativa','badge-green'], trial: ['Trial','badge-yellow'],
+  inadimplente: ['Inadimplente','badge-red'], cancelada: ['Cancelada','badge-gray'],
+  suspensa: ['Suspensa','badge-gray']
+};
+
+async function carregarPainelOwner(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+  var cab = { 'Authorization': 'Bearer ' + sessaoWorka.token };
+
+  function escrever(id, texto){
+    var el = document.getElementById(id);
+    if(el) el.textContent = texto;
+  }
+
+  var metricas = null;
+  try {
+    var m = await fetch(API_BASE + '/owner/metricas', { headers: cab })
+      .then(function(r){ return r.ok ? r.json() : null; });
+    metricas = m;
+    if(m){
+      escrever('ow-pagos', String(m.assinantes_pagos));
+      escrever('ow-pagos-sub', 'R$ ' + m.valor_plano_reais + ' cada');
+      escrever('ow-trial', String(m.assinantes_trial));
+      escrever('ow-trial-sub', m.assinantes_trial === 1 ? 'Ainda não paga' : 'Ainda não pagam');
+      escrever('ow-mrr', 'R$ ' + m.mrr_reais);
+      escrever('ow-empresas', String(m.total_empresas));
+      escrever('ow-novas', m.novas_no_mes === 0 ? 'Nenhuma este mês'
+               : '+' + m.novas_no_mes + (m.novas_no_mes === 1 ? ' este mês' : ' este mês'));
+      escrever('ow-funcionarios', String(m.funcionarios_ativos));
+      escrever('ow-inadimplentes', String(m.inadimplentes));
+      escrever('ow-cancelados', m.cancelados + (m.cancelados === 1 ? ' cancelamento' : ' cancelamentos'));
+    }
+  } catch(e) {}
+
+  try {
+    var lista = await fetch(API_BASE + '/owner/assinantes', { headers: cab })
+      .then(function(r){ return r.ok ? r.json() : []; });
+    renderizarAssinantes(lista || []);
+    preencherFinanceiroOwner(metricas, lista || []);
+  } catch(e) { renderizarAssinantes([]); preencherFinanceiroOwner(metricas, []); }
+
+  carregarLogsOwner();
+}
+
+function preencherFinanceiroOwner(metricas, assinantes){
+  function escrever(id, txt){ var el=document.getElementById(id); if(el) el.textContent = txt; }
+  if(metricas){
+    escrever('owf-mrr', 'R$ ' + metricas.mrr_reais);
+    // Projeção simples e honesta: o que entra hoje, doze vezes. Não é
+    // previsão de crescimento — o rótulo na tela diz "se ninguém sair".
+    escrever('owf-arr', moedaBR((metricas.mrr_centavos * 12) / 100));
+    escrever('owf-inad', String(metricas.inadimplentes));
+    escrever('owf-inad-sub', metricas.inadimplentes === 1 ? 'empresa em atraso' : 'empresas em atraso');
+    var potencial = metricas.assinantes_trial * (metricas.mrr_centavos > 0
+      ? metricas.mrr_centavos / Math.max(metricas.assinantes_pagos, 1) : 4999);
+    escrever('owf-potencial', moedaBR(potencial / 100));
+  }
+
+  var tbody = document.getElementById('owf-inadimplentes');
+  if(!tbody) return;
+  tbody.innerHTML = '';
+  var atrasadas = (assinantes || []).filter(function(e){ return e.status === 'inadimplente'; });
+
+  if(!atrasadas.length){
+    var tr = document.createElement('tr'), td = document.createElement('td');
+    td.colSpan = 4;
+    td.style.cssText = 'padding:24px;text-align:center;color:var(--gray500);font-size:.85rem';
+    td.textContent = 'Nenhuma empresa em atraso.';
+    tr.appendChild(td); tbody.appendChild(tr); return;
+  }
+
+  atrasadas.forEach(function(e){
+    var tr = document.createElement('tr');
+    [ e.nome || '—',
+      e.email || '—',
+      e.created_at ? new Date(e.created_at).toLocaleDateString('pt-BR') : '—',
+      String(e.funcionarios)
+    ].forEach(function(txt){
+      var td = document.createElement('td');
+      td.textContent = txt;          // dado de cliente: texto, nunca HTML
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+var ROTULO_LOG = {
+  empresa_cadastrada: 'Nova empresa cadastrada',
+  login_ok: 'Login de dono',
+  login_func_ok: 'Login de funcionário',
+  funcionario_cadastrado: 'Funcionário cadastrado',
+  func_status_atualizado: 'Status de funcionário alterado',
+  func_removido: 'Funcionário removido',
+  ponto_registrado: 'Ponto registrado',
+  tarefa_atualizada: 'Tarefa atualizada',
+  salario_ajustado: 'Salário ajustado',
+  lancamento_financeiro: 'Lançamento financeiro',
+  permission_denied: 'Acesso negado'
+};
+
+async function carregarLogsOwner(){
+  var tbody = document.getElementById('ow-logs');
+  if(!tbody || !sessaoWorka || !sessaoWorka.token) return;
+
+  var lista = [];
+  try {
+    lista = await fetch(API_BASE + '/owner/logs?limit=60', {
+      headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
+    }).then(function(r){ return r.ok ? r.json() : []; });
+  } catch(e) {}
+
+  tbody.innerHTML = '';
+  if(!lista.length){
+    var tr0 = document.createElement('tr'), td0 = document.createElement('td');
+    td0.colSpan = 3;
+    td0.style.cssText = 'padding:24px;text-align:center;color:var(--gray500);font-size:.85rem';
+    td0.textContent = 'Nenhuma atividade registrada ainda.';
+    tr0.appendChild(td0); tbody.appendChild(tr0); return;
+  }
+
+  lista.forEach(function(l){
+    var tr = document.createElement('tr');
+
+    var tdQuando = document.createElement('td');
+    tdQuando.style.cssText = 'font-size:.75rem;color:var(--gray500)';
+    tdQuando.textContent = l.created_at
+      ? new Date(l.created_at).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+      : '—';
+
+    var tdEvento = document.createElement('td');
+    tdEvento.textContent = ROTULO_LOG[l.tipo] || l.tipo || '—';
+
+    var tdDet = document.createElement('td');
+    tdDet.style.cssText = 'font-size:.8rem;color:var(--gray500)';
+    tdDet.textContent = l.descricao || '';
+
+    [tdQuando, tdEvento, tdDet].forEach(function(c){ tr.appendChild(c); });
+    tbody.appendChild(tr);
+  });
+}
+
+function renderizarAssinantes(lista){
+  var tbody = document.getElementById('ow-assinantes');
+  if(!tbody) return;
+  tbody.innerHTML = '';
+
+  if(!lista.length){
+    var tr0 = document.createElement('tr');
+    var td0 = document.createElement('td');
+    td0.colSpan = 5;
+    td0.style.cssText = 'padding:24px;text-align:center;color:var(--gray500);font-size:.85rem';
+    td0.textContent = 'Nenhuma empresa cadastrada ainda.';
+    tr0.appendChild(td0); tbody.appendChild(tr0);
+    return;
+  }
+
+  lista.forEach(function(e){
+    var tr = document.createElement('tr');
+
+    // Nome e e-mail vêm do cadastro de quem se inscreveu: texto puro,
+    // nunca HTML — é dado de fora entrando na tela do administrador.
+    var tdNome = document.createElement('td');
+    var nome = document.createElement('div');
+    nome.style.fontWeight = '600';
+    nome.textContent = e.nome || '—';
+    var sub = document.createElement('div');
+    sub.style.cssText = 'font-size:.72rem;color:var(--gray500)';
+    sub.textContent = e.email || '';
+    tdNome.appendChild(nome); tdNome.appendChild(sub);
+
+    var tdRamo = document.createElement('td');
+    if(e.ramo){
+      var tag = document.createElement('span');
+      tag.className = 'tag'; tag.textContent = e.ramo;
+      tdRamo.appendChild(tag);
+    } else { tdRamo.textContent = '—'; }
+
+    var tdDesde = document.createElement('td');
+    tdDesde.textContent = e.created_at
+      ? new Date(e.created_at).toLocaleDateString('pt-BR', { month:'short', year:'numeric' })
+      : '—';
+
+    var tdFunc = document.createElement('td');
+    tdFunc.textContent = String(e.funcionarios);
+
+    var tdStatus = document.createElement('td');
+    var info = ROTULO_STATUS[e.status] || [e.status, 'badge-gray'];
+    var badge = document.createElement('span');
+    badge.className = 'badge ' + info[1];
+    badge.textContent = info[0];
+    tdStatus.appendChild(badge);
+    if(e.status === 'trial' && e.dias_trial_restantes !== null){
+      var dias = document.createElement('div');
+      dias.style.cssText = 'font-size:.7rem;color:var(--gray500);margin-top:4px';
+      dias.textContent = e.dias_trial_restantes > 0
+        ? e.dias_trial_restantes + ' dia(s) restantes'
+        : 'Trial vencido';
+      tdStatus.appendChild(dias);
+    }
+
+    [tdNome, tdRamo, tdDesde, tdFunc, tdStatus].forEach(function(c){ tr.appendChild(c); });
+    tbody.appendChild(tr);
+  });
+}
+
+// ═══════════════════════════════════
+// FINANCEIRO (empresa e plataforma)
+// ═══════════════════════════════════
+// A MESMA tela serve aos dois painéis. Quem decide de quem são os
+// números é o servidor, pelo papel do token: empresa vê os lançamentos
+// dela, owner vê os da Workap. O navegador não escolhe escopo — se
+// escolhesse, bastaria adulterar o pedido para ver caixa alheio.
+
+function moedaBR(valor){
+  var n = Number(valor) || 0;
+  return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+var ROTULO_CATEGORIA = {
+  receita: 'Receita', folha: 'Folha', estoque: 'Estoque',
+  despesa_fixa: 'Despesa fixa', outro: 'Outro'
+};
+
+async function carregarFinanceiro(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+  var cab = { 'Authorization': 'Bearer ' + sessaoWorka.token };
+
+  // Data começa no dia de hoje: quem lança uma despesa quase sempre
+  // está lançando a de hoje, e a data em branco só dá trabalho.
+  var campoData = document.getElementById('fin-data');
+  if(campoData && !campoData.value) campoData.value = new Date().toISOString().slice(0,10);
+
+  try {
+    var resumo = await fetch(API_BASE + '/financeiro/resumo', { headers: cab })
+      .then(function(r){ return r.ok ? r.json() : null; });
+    if(resumo){
+      document.getElementById('fin-saldo').textContent    = moedaBR(resumo.saldo_atual);
+      document.getElementById('fin-receita').textContent  = moedaBR(resumo.receita_mes);
+      document.getElementById('fin-despesas').textContent = moedaBR(resumo.despesas_mes);
+      document.getElementById('fin-lucro').textContent    = moedaBR(resumo.lucro_mes);
+      var escopoEl = document.getElementById('fin-escopo');
+      if(escopoEl) escopoEl.textContent = resumo.escopo === 'plataforma'
+        ? 'Caixa da Workap (plataforma)' : 'Caixa da sua empresa';
+    }
+  } catch(e) {}
+
+  try {
+    var lista = await fetch(API_BASE + '/financeiro/lancamentos?limit=50', { headers: cab })
+      .then(function(r){ return r.ok ? r.json() : []; });
+    renderizarLancamentos(lista || []);
+  } catch(e) {
+    renderizarLancamentos([]);
+  }
+}
+
+function renderizarLancamentos(lista){
+  var tbody = document.getElementById('fin-lista');
+  if(!tbody) return;
+  tbody.innerHTML = '';
+
+  if(!lista.length){
+    var vazio = document.createElement('tr');
+    var td = document.createElement('td');
+    td.colSpan = 5;
+    td.style.cssText = 'padding:24px;text-align:center;color:var(--gray500);font-size:.85rem';
+    td.textContent = 'Nenhum lançamento ainda. Registre o primeiro acima.';
+    vazio.appendChild(td); tbody.appendChild(vazio);
+    return;
+  }
+
+  lista.forEach(function(l){
+    var tr = document.createElement('tr');
+
+    var tdData = document.createElement('td');
+    tdData.textContent = l.data ? new Date(l.data).toLocaleDateString('pt-BR') : '—';
+
+    // Descrição vem do banco, digitada por gente: entra como texto,
+    // nunca como HTML.
+    var tdDesc = document.createElement('td');
+    tdDesc.textContent = l.descricao || '—';
+
+    var tdCat = document.createElement('td');
+    var badge = document.createElement('span');
+    badge.className = 'badge badge-gray';
+    badge.textContent = ROTULO_CATEGORIA[l.categoria] || l.categoria || 'Outro';
+    tdCat.appendChild(badge);
+
+    var tdValor = document.createElement('td');
+    var entrada = l.tipo === 'entrada';
+    tdValor.textContent = (entrada ? '+ ' : '− ') + moedaBR(l.valor);
+    tdValor.style.color = entrada ? 'var(--g500)' : '#dc2626';
+    tdValor.style.fontWeight = '700';
+
+    var tdAcao = document.createElement('td');
+    var botao = document.createElement('button');
+    botao.className = 'btn btn-secondary btn-sm';
+    botao.textContent = 'Remover';
+    botao.onclick = function(){ removerLancamento(l.id); };
+    tdAcao.appendChild(botao);
+
+    [tdData, tdDesc, tdCat, tdValor, tdAcao].forEach(function(c){ tr.appendChild(c); });
+    tbody.appendChild(tr);
+  });
+}
+
+async function salvarLancamento(){
+  var erro = document.getElementById('fin-erro');
+  erro.style.display = 'none';
+
+  var valor = parseFloat((document.getElementById('fin-valor').value || '').replace(',', '.'));
+  var descricao = (document.getElementById('fin-descricao').value || '').trim();
+
+  if(isNaN(valor) || valor <= 0){
+    erro.textContent = 'Informe um valor maior que zero.';
+    erro.style.display = 'block'; return;
+  }
+  if(!descricao){
+    erro.textContent = 'Escreva uma descrição — sem ela o lançamento não diz nada daqui a um mês.';
+    erro.style.display = 'block'; return;
+  }
+
+  var btn = document.getElementById('fin-btn-salvar');
+  var textoOriginal = btn.innerHTML;
+  btn.disabled = true; escreverComIcones(btn, 'Registrando...');
+
+  try {
+    var resp = await fetch(API_BASE + '/financeiro/lancamento', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
+      body: JSON.stringify({
+        tipo:      document.getElementById('fin-tipo').value,
+        valor:     valor,
+        descricao: descricao,
+        categoria: document.getElementById('fin-categoria').value,
+        data:      document.getElementById('fin-data').value || null
+      })
+    }).then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }); });
+
+    btn.disabled = false; btn.innerHTML = textoOriginal;
+
+    if(resp.status !== 200 && resp.status !== 201){
+      erro.textContent = resp.data.error || 'Não foi possível registrar.';
+      erro.style.display = 'block';
+      return;
+    }
+
+    document.getElementById('fin-valor').value = '';
+    document.getElementById('fin-descricao').value = '';
+    carregarFinanceiro();
+  } catch(e) {
+    btn.disabled = false; btn.innerHTML = textoOriginal;
+    erro.textContent = 'Erro de conexão. Tente novamente.';
+    erro.style.display = 'block';
+  }
+}
+
+async function removerLancamento(id){
+  if(!confirm('Remover este lançamento?')) return;
+  try {
+    await fetch(API_BASE + '/financeiro/lancamento/' + id, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
+    });
+    carregarFinanceiro();
+  } catch(e) {
+    alert('Não foi possível remover agora.');
+  }
+}
+
 function carregarSalariosReal(){
   if(!sessaoWorka || !sessaoWorka.token) return;
   var headers = { 'Authorization': 'Bearer ' + sessaoWorka.token };

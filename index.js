@@ -2468,6 +2468,105 @@ var server = http.createServer(async (req, res) => {
       return jsonOk(res, { empresa: meEmpresa, trial: meTrialInfo });
     }
 
+    // ── MÉTRICAS DA PLATAFORMA (somente owner) ───────
+    // Substitui os números que estavam escritos à mão no HTML do painel
+    // (47 empresas, R$ 1.170 de MRR, 312 usuários, 94% de retenção).
+    // Eram números de maquete, mas apareciam com a mesma cara de dado
+    // real — e a decisão de ligar tráfego pago sairia de olhar isso.
+    if (method === "GET" && path === "/owner/metricas") {
+      if (!hasPermission(authPayload, "saas:read")) {
+        return jsonErr(res, "Apenas o owner da Workap pode ver isso", 403);
+      }
+
+      var todas = await DB.select("empresas", "select=id,nome,status,created_at,trial_fim,ramo,team_id,email");
+      var lista = todas.body || [];
+
+      var porStatus = { ativa: 0, trial: 0, inadimplente: 0, cancelada: 0, suspensa: 0 };
+      lista.forEach(function (e) {
+        if (porStatus[e.status] !== undefined) porStatus[e.status]++;
+      });
+
+      // Início do mês corrente, para "novas" e "cancelamentos no mês".
+      var agora = new Date();
+      var inicioDoMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
+      var novasNoMes = lista.filter(function (e) {
+        return e.created_at && new Date(e.created_at) >= inicioDoMes;
+      }).length;
+
+      // Funcionários ativos de todas as empresas.
+      var funcs = await DB.select("funcionarios", "select=id,status").catch(() => ({ body: [] }));
+      var funcionariosAtivos = (funcs.body || []).filter(function (f) { return f.status === "ativo"; }).length;
+
+      // MRR = quem paga de fato. Trial não entra: ainda não é receita,
+      // e somar os dois foi o erro que fez o número da maquete parecer
+      // bom. O valor sai de PLANO_CENTAVOS, mesma fonte da cobrança.
+      var mrrCentavos = porStatus.ativa * CONFIG.PLANO_CENTAVOS;
+
+      return jsonOk(res, {
+        assinantes_pagos:     porStatus.ativa,
+        assinantes_trial:     porStatus.trial,
+        inadimplentes:        porStatus.inadimplente,
+        cancelados:           porStatus.cancelada,
+        suspensos:            porStatus.suspensa,
+        total_empresas:       lista.length,
+        novas_no_mes:         novasNoMes,
+        funcionarios_ativos:  funcionariosAtivos,
+        mrr_centavos:         mrrCentavos,
+        mrr_reais:            centavosParaReais(mrrCentavos),
+        valor_plano_reais:    centavosParaReais(CONFIG.PLANO_CENTAVOS)
+      });
+    }
+
+    // ── LISTA DE ASSINANTES (somente owner) ──────────
+    if (method === "GET" && path === "/owner/assinantes") {
+      if (!hasPermission(authPayload, "saas:read")) {
+        return jsonErr(res, "Apenas o owner da Workap pode ver isso", 403);
+      }
+
+      var emp = await DB.select("empresas",
+        "select=id,nome,email,ramo,status,team_id,created_at,trial_fim&order=created_at.desc");
+      var empresas = emp.body || [];
+
+      // Uma consulta só de funcionários e a contagem feita aqui: uma
+      // consulta por empresa faria N+1 chamadas ao banco, e o painel
+      // ficaria mais lento a cada cliente novo — justo o contrário do
+      // que se quer conforme a base cresce.
+      var todosFuncs = await DB.select("funcionarios", "select=empresa_id,status").catch(() => ({ body: [] }));
+      var contagem = {};
+      (todosFuncs.body || []).forEach(function (f) {
+        if (f.status !== "ativo") return;
+        contagem[f.empresa_id] = (contagem[f.empresa_id] || 0) + 1;
+      });
+
+      return jsonOk(res, empresas.map(function (e) {
+        var diasTrial = null;
+        if (e.status === "trial" && e.trial_fim) {
+          diasTrial = Math.ceil((new Date(e.trial_fim) - Date.now()) / (1000 * 60 * 60 * 24));
+        }
+        return {
+          id: e.id, nome: e.nome, email: e.email, ramo: e.ramo || null,
+          status: e.status, team_id: e.team_id, created_at: e.created_at,
+          funcionarios: contagem[e.id] || 0,
+          dias_trial_restantes: diasTrial
+        };
+      }));
+    }
+
+    // ── ATIVIDADE DA PLATAFORMA (somente owner) ──────
+    // A rota /logs existente filtra por empresa_id, que o token de
+    // owner não carrega — para ele, precisa ser a atividade de todas
+    // as empresas junta.
+    if (method === "GET" && path === "/owner/logs") {
+      if (!hasPermission(authPayload, "saas:read")) {
+        return jsonErr(res, "Apenas o owner da Workap pode ver isso", 403);
+      }
+      var limiteLog = SANITIZE.int(url.searchParams.get("limit"), 1, 200) || 60;
+      var logs = await DB.select("logs_sistema",
+        `select=tipo,descricao,created_at,empresa_id&order=created_at.desc&limit=${limiteLog}`
+      ).catch(() => ({ body: [] }));
+      return jsonOk(res, logs.body || []);
+    }
+
     // ── COMUNICADOS DA PLATAFORMA (somente owner) ────
     // Envia um aviso da Workap para as empresas clientes, por e-mail e
     // push. Só o owner_saas pode: é comunicação da plataforma, não de
@@ -3181,22 +3280,34 @@ var server = http.createServer(async (req, res) => {
     // ── FINANCEIRO — MOTOR REAL ──────────────────────
     // Antes: a tela "Financeiro" era 100% HTML fixo (R$45.800 nunca
     // mudava). Agora lê de fato a tabela lancamentos_financeiros.
+    // O financeiro atende os dois painéis. Para empresa cliente, os
+    // lançamentos são os dela; para o owner da plataforma — que não tem
+    // empresa — são os da própria Workap (servidor, domínio, gateway,
+    // anúncios), gravados com empresa_id nulo. O filtro sai daqui, de um
+    // lugar só, para não haver rota que esqueça de aplicá-lo e acabe
+    // somando a conta de luz de um cliente no caixa da plataforma.
+    function filtroFinanceiro(auth) {
+      return auth.role === "owner_saas"
+        ? "empresa_id=is.null"
+        : `empresa_id=eq.${auth.empresa_id}`;
+    }
+
     if (method === "GET" && path === "/financeiro/resumo") {
-      var empresaId = authPayload.empresa_id;
       if (!hasPermission(authPayload, "financeiro:read")) {
         return jsonErr(res, "Sem permissão para ver dados financeiros", 403);
       }
+      var escopo = filtroFinanceiro(authPayload);
 
       var inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
       var lancamentos = await DB.select("lancamentos_financeiros",
-        `empresa_id=eq.${empresaId}&data=gte.${inicioMes}&select=tipo,valor,categoria`
+        `${escopo}&data=gte.${inicioMes}&select=tipo,valor,categoria`
       );
 
       var entradas = (lancamentos.body || []).filter(l => l.tipo === "entrada").reduce((s, l) => s + parseFloat(l.valor), 0);
       var saidas   = (lancamentos.body || []).filter(l => l.tipo === "saida").reduce((s, l) => s + parseFloat(l.valor), 0);
 
       // Saldo = soma de TODOS os lançamentos históricos, não só do mês
-      var todosLancamentos = await DB.select("lancamentos_financeiros", `empresa_id=eq.${empresaId}&select=tipo,valor`);
+      var todosLancamentos = await DB.select("lancamentos_financeiros", `${escopo}&select=tipo,valor`);
       var saldo = (todosLancamentos.body || []).reduce((s, l) =>
         s + (l.tipo === "entrada" ? parseFloat(l.valor) : -parseFloat(l.valor)), 0
       );
@@ -3205,8 +3316,23 @@ var server = http.createServer(async (req, res) => {
         saldo_atual: Math.round(saldo * 100) / 100,
         receita_mes: Math.round(entradas * 100) / 100,
         despesas_mes: Math.round(saidas * 100) / 100,
-        lucro_mes: Math.round((entradas - saidas) * 100) / 100
+        lucro_mes: Math.round((entradas - saidas) * 100) / 100,
+        escopo: authPayload.role === "owner_saas" ? "plataforma" : "empresa"
       });
+    }
+
+    // Lista os lançamentos para a tela poder mostrar o que foi
+    // registrado. Sem isto, a pessoa lança uma despesa e ela some da
+    // vista — só o total muda, sem como conferir nem lembrar o que foi.
+    if (method === "GET" && path === "/financeiro/lancamentos") {
+      if (!hasPermission(authPayload, "financeiro:read")) {
+        return jsonErr(res, "Sem permissão para ver dados financeiros", 403);
+      }
+      var limite = SANITIZE.int(url.searchParams.get("limit"), 1, 200) || 50;
+      var resultado = await DB.select("lancamentos_financeiros",
+        `${filtroFinanceiro(authPayload)}&select=*&order=data.desc&limit=${limite}`
+      );
+      return jsonOk(res, resultado.body || []);
     }
 
     if (method === "POST" && path === "/financeiro/lancamento") {
@@ -3224,16 +3350,44 @@ var server = http.createServer(async (req, res) => {
       var descricao = SANITIZE.string(body.descricao, 200);
       if (!descricao) return jsonErr(res, "Descrição obrigatória");
 
+      // Data escolhida pela pessoa (uma despesa costuma ser lançada
+      // depois de ter acontecido). Sem valor válido, cai em agora.
+      var quando = new Date();
+      if (body.data) {
+        var informada = new Date(body.data);
+        if (!isNaN(informada.getTime())) quando = informada;
+      }
+
+      var ehOwnerFin = authPayload.role === "owner_saas";
       var result = await DB.insert("lancamentos_financeiros", {
-        empresa_id: authPayload.empresa_id,
+        empresa_id: ehOwnerFin ? null : authPayload.empresa_id,
         tipo, valor,
         descricao,
         categoria: SANITIZE.categoriaFinanceira(body.categoria),
-        data: new Date().toISOString()
+        data: quando.toISOString()
       });
 
-      secLog("lancamento_financeiro", { empresa_id: authPayload.empresa_id, tipo, valor });
+      secLog("lancamento_financeiro", {
+        empresa_id: ehOwnerFin ? "plataforma" : authPayload.empresa_id, tipo, valor
+      });
       return jsonOk(res, { lancamento: result.body[0] }, 201);
+    }
+
+    if (method === "DELETE" && path.startsWith("/financeiro/lancamento/")) {
+      if (!hasPermission(authPayload, "financeiro:write")) {
+        return jsonErr(res, "Sem permissão para remover lançamentos", 403);
+      }
+      var idLanc = SANITIZE.uuid(path.split("/")[3]);
+      if (!idLanc) return jsonErr(res, "Lançamento inválido");
+
+      // O escopo entra na própria consulta de remoção: sem ele, um id
+      // adivinhado apagaria lançamento de outra empresa.
+      var alvo = await DB.select("lancamentos_financeiros",
+        `id=eq.${idLanc}&${filtroFinanceiro(authPayload)}&select=id`);
+      if (!alvo.body || !alvo.body[0]) return jsonErr(res, "Lançamento não encontrado", 404);
+
+      await DB.delete("lancamentos_financeiros", `id=eq.${idLanc}`);
+      return jsonOk(res, { ok: true });
     }
 
     // ── LOGS ─────────────────────────────────────────
