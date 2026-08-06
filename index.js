@@ -375,7 +375,8 @@ function supabase(method, table, options = {}) {
     "historico_salarios", "logs_sistema", "codigos_verificacao",
     "lancamentos_financeiros", "push_subscriptions", "cupons",
     "dispositivos_confiaveis", "comunicados_plataforma",
-    "owners_plataforma", "webauthn_credentials", "webauthn_challenges"
+    "owners_plataforma", "webauthn_credentials", "webauthn_challenges",
+    "config_plataforma", "utmify_envios"
   ];
   if (!ALLOWED_TABLES.includes(table)) {
     return Promise.reject(new Error(`Tabela não permitida: ${table}`));
@@ -754,6 +755,162 @@ function registrarLoginOwner(owner) {
     query: `id=eq.${owner.id}`,
     body: { ultimo_login: new Date().toISOString() }
   }).catch(e => secLog("owner_ultimo_login_falhou", { message: e.message }));
+}
+
+// ════════════════════════════════════════
+// CONFIGURAÇÃO DA PLATAFORMA (chave/valor no banco)
+// ════════════════════════════════════════
+// Ajustes que o owner precisa mudar sem esperar deploy — hoje o token
+// da Utmify e o liga/desliga da integração. Guardado no banco, não em
+// variável de ambiente, justamente para não depender de reiniciar o
+// serviço a cada mudança.
+
+var cacheConfig = { valores: {}, expiraEm: 0 };
+
+async function lerConfigPlataforma() {
+  // 60s de cache: a rota de PIX consulta a configuração a cada cobrança,
+  // e ir ao banco toda vez para ler duas linhas é desperdício. Curto o
+  // bastante para uma mudança no painel valer quase de imediato.
+  if (Date.now() < cacheConfig.expiraEm) return cacheConfig.valores;
+
+  var linhas = await supabase("GET", "config_plataforma", { query: "select=chave,valor" })
+    .catch(e => { secLog("config_plataforma_indisponivel", { message: e.message }); return null; });
+
+  if (!linhas) return cacheConfig.valores;   // mantém o último valor conhecido
+
+  var mapa = {};
+  (linhas.body || []).forEach(function (l) { mapa[l.chave] = l.valor; });
+  cacheConfig = { valores: mapa, expiraEm: Date.now() + 60000 };
+  return mapa;
+}
+
+async function gravarConfigPlataforma(chave, valor) {
+  var existente = await supabase("GET", "config_plataforma",
+    { query: `chave=eq.${encodeURIComponent(chave)}&select=chave&limit=1` }
+  ).catch(() => ({ body: [] }));
+
+  var corpo = { chave: chave, valor: valor, updated_at: new Date().toISOString() };
+  if (existente.body && existente.body[0]) {
+    await supabase("PATCH", "config_plataforma", { query: `chave=eq.${encodeURIComponent(chave)}`, body: corpo });
+  } else {
+    await supabase("POST", "config_plataforma", { body: corpo });
+  }
+  cacheConfig.expiraEm = 0;   // força releitura na próxima consulta
+}
+
+// ════════════════════════════════════════
+// UTMIFY — rastreio de origem das vendas
+// ════════════════════════════════════════
+// A Utmify recebe cada pedido e casa a venda com o anúncio que a
+// originou. São dois avisos por venda: um quando o PIX é gerado
+// (waiting_payment) e outro quando o pagamento cai (paid). Sem o
+// primeiro, o funil não mostra quantos geraram cobrança e desistiram —
+// que é o número que diz se o problema está no anúncio ou no checkout.
+
+var UTMIFY_URL_PADRAO = "https://api.utmify.com.br/api-credentials/orders";
+
+function utmifyDataFormatada(data) {
+  // A Utmify espera "YYYY-MM-DD HH:MM:SS" em UTC, não ISO com T e Z.
+  return new Date(data).toISOString().replace("T", " ").substring(0, 19);
+}
+
+/** Só as chaves de rastreio conhecidas, e sempre as 6, mesmo vazias. */
+function normalizarUtm(bruto) {
+  var origem = bruto || {};
+  function limpar(v) { return SANITIZE.string(v || "", 200) || null; }
+  return {
+    src:          limpar(origem.src),
+    sck:          limpar(origem.sck),
+    utm_source:   limpar(origem.utm_source),
+    utm_campaign: limpar(origem.utm_campaign),
+    utm_medium:   limpar(origem.utm_medium),
+    utm_content:  limpar(origem.utm_content),
+    utm_term:     limpar(origem.utm_term)
+  };
+}
+
+/**
+ * Manda um pedido para a Utmify e registra o que voltou.
+ *
+ * Nunca lança: é chamada no meio do fluxo de pagamento, e uma
+ * integração de marketing fora do ar não pode impedir uma venda. Mas
+ * também não falha calada — cada tentativa vira uma linha em
+ * utmify_envios com o status e a resposta, para dar para ver na tela
+ * do painel que parou de funcionar.
+ */
+async function enviarUtmify(dados) {
+  var cfg = await lerConfigPlataforma();
+  var token = cfg.utmify_token;
+  var ativo = cfg.utmify_ativo === "1";
+
+  if (!ativo || !token) return { enviado: false, motivo: "integracao_desligada" };
+
+  var payload = {
+    orderId:       String(dados.orderId),
+    platform:      "Workap",
+    paymentMethod: "pix",
+    status:        dados.status,                       // waiting_payment | paid
+    createdAt:     utmifyDataFormatada(dados.criadoEm || Date.now()),
+    approvedDate:  dados.status === "paid" ? utmifyDataFormatada(dados.pagoEm || Date.now()) : null,
+    refundedAt:    null,
+    customer: {
+      name:     dados.cliente.nome  || "Cliente",
+      email:    dados.cliente.email || "",
+      phone:    dados.cliente.telefone || null,
+      document: dados.cliente.documento || null,
+      country:  "BR",
+      ip:       dados.cliente.ip || null
+    },
+    products: [{
+      id:            "plano-completo",
+      name:          "Plano Completo Workap",
+      planId:        null,
+      planName:      null,
+      quantity:      1,
+      priceInCents:  dados.valorCentavos
+    }],
+    trackingParameters: normalizarUtm(dados.utm),
+    commission: {
+      totalPriceInCents:    dados.valorCentavos,
+      gatewayFeeInCents:    0,
+      userCommissionInCents: dados.valorCentavos
+    },
+    isTest: dados.teste === true
+  };
+
+  var url;
+  try { url = new URL(cfg.utmify_url || UTMIFY_URL_PADRAO); }
+  catch (e) { return { enviado: false, motivo: "url_invalida" }; }
+
+  var resultado = { enviado: false, status: null, resposta: "" };
+  try {
+    var resp = await httpRequestExterno(url, "POST", payload, { "x-api-token": token });
+    resultado.status = resp.status;
+    resultado.resposta = (resp.raw || "").substring(0, 500);
+    resultado.enviado = resp.status >= 200 && resp.status < 300;
+  } catch (e) {
+    resultado.resposta = "Falha de conexão: " + e.message;
+  }
+
+  await supabase("POST", "utmify_envios", {
+    body: {
+      transaction_id: String(dados.orderId),
+      evento:         dados.status,
+      status_http:    resultado.status,
+      sucesso:        resultado.enviado,
+      resposta:       resultado.resposta,
+      payload_resumo: JSON.stringify({
+        valor: dados.valorCentavos,
+        utm:   payload.trackingParameters,
+        teste: payload.isTest
+      }).substring(0, 500)
+    }
+  }).catch(e => secLog("utmify_log_falhou", { message: e.message }));
+
+  if (!resultado.enviado) {
+    secLog("utmify_falhou", { status: resultado.status, evento: dados.status });
+  }
+  return resultado;
 }
 
 // ════════════════════════════════════════
@@ -1360,6 +1517,11 @@ function httpRequestExterno(urlObj, method, payload, headersExtra) {
     }
     var req2 = https.request({
       hostname: urlObj.hostname,
+      // A porta vem da própria URL. Sem isso, https.request assume 443
+      // e qualquer endereço com porta explícita é chamado na porta
+      // errada — com um "connection refused" que não diz em momento
+      // algum que a porta foi descartada.
+      port:     urlObj.port || 443,
       path:     urlObj.pathname + urlObj.search,
       method:   method,
       headers:  headers
@@ -1367,8 +1529,11 @@ function httpRequestExterno(urlObj, method, payload, headersExtra) {
       var raw2 = "";
       res2.on("data", c => raw2 += c);
       res2.on("end", () => {
-        try { resolve({ status: res2.statusCode, body: JSON.parse(raw2) }); }
-        catch(e) { resolve({ status: res2.statusCode, body: {} }); }
+        // O corpo cru vai junto: quando a resposta não é JSON (erro de
+        // validação em texto, página de erro do gateway), era descartado
+        // aqui e o motivo real da falha se perdia.
+        try { resolve({ status: res2.statusCode, body: JSON.parse(raw2), raw: raw2 }); }
+        catch(e) { resolve({ status: res2.statusCode, body: {}, raw: raw2 }); }
       });
     });
     req2.on("error", reject);
@@ -1463,7 +1628,7 @@ async function verificarTrials() {
     for (var emp of (em2dias.body || [])) {
       var dias = Math.ceil((new Date(emp.trial_fim) - Date.now()) / (1000*60*60*24));
       await enviarEmail(emp.email, `⏰ Seu trial acaba em ${dias} dia(s)!`, EMAIL_TEMPLATES.trialAcabando(emp.nome, dias));
-      enviarPush(emp.id, { title: "Seu trial está acabando", body: `Faltam ${dias} dia(s). Renove para não perder o acesso.`, url: "index.html" }).catch(() => {});
+      enviarPush(emp.id, { title: "Seu trial está acabando", body: `Faltam ${dias} dia(s). Renove para não perder o acesso.`, url: "./" }).catch(() => {});
       await DB.update("empresas", "id=eq." + emp.id, { aviso_trial_sent: true });
       secLog("trial_aviso_enviado", { empresa_id: emp.id, dias });
     }
@@ -2360,6 +2525,18 @@ var server = http.createServer(async (req, res) => {
         secLog("cupom_usado", { codigo: cupomAplicado.codigo, valor_final: valorCobrado });
       }
 
+      // Utmify: avisa que a cobrança nasceu. Fire-and-forget de
+      // propósito — o PIX já foi gerado, e uma integração de marketing
+      // fora do ar não pode segurar a resposta nem derrubar a venda.
+      enviarUtmify({
+        orderId:       response.body.transactionId,
+        status:        "waiting_payment",
+        criadoEm:      Date.now(),
+        valorCentavos: valorCobrado,
+        cliente:       { nome: nome, email: email, telefone: tel || null, documento: doc || null, ip: ip },
+        utm:           body.utm
+      }).catch(e => secLog("utmify_erro", { message: e.message }));
+
       secLog("pix_gerado", { email_hash: crypto.createHash("sha256").update(email).digest("hex").substring(0, 8), valor: valorCobrado });
       return jsonOk(res, {
         pixCode:       response.body.pixCode,
@@ -2419,6 +2596,19 @@ var server = http.createServer(async (req, res) => {
           enviarEmail(empPag.email, "✅ Pagamento confirmado — Workap", EMAIL_TEMPLATES.pagamentoConfirmado(empPag.nome, "49,99"))
             .catch(() => {});
           secLog("pagamento_confirmado", { empresa_id: empPag.id });
+
+          // Utmify: a venda virou receita. Este é o evento que casa o
+          // dinheiro com o anúncio — sem ele o painel de anúncios
+          // mostra cliques e nenhuma conversão.
+          enviarUtmify({
+            orderId:       transactionId,
+            status:        "paid",
+            criadoEm:      Date.now(),
+            pagoEm:        Date.now(),
+            valorCentavos: CONFIG.PLANO_CENTAVOS,
+            cliente:       { nome: empPag.nome, email: empPag.email, ip: ip },
+            utm:           null   // o rastreio já foi enviado na criação
+          }).catch(e => secLog("utmify_erro", { message: e.message }));
         }
       }
 
@@ -2550,6 +2740,182 @@ var server = http.createServer(async (req, res) => {
           dias_trial_restantes: diasTrial
         };
       }));
+    }
+
+    // ── SAÚDE DA PLATAFORMA (somente owner) ──────────
+    // Substitui os quadros de "99,8% de uptime, 142ms de latência,
+    // 18.4k requisições/dia, 2.3GB de storage" e a lista de serviços
+    // toda marcada como "Online" — nenhum daqueles valores era medido.
+    // Aqui tudo é aferido na hora: o que dá para medir é medido, o que
+    // não dá aparece como "não medido" em vez de um número inventado.
+    if (method === "GET" && path === "/owner/saude") {
+      if (!hasPermission(authPayload, "saas:read")) {
+        return jsonErr(res, "Apenas o owner da Workap pode ver isso", 403);
+      }
+
+      // Latência real do banco: uma consulta mínima, cronometrada.
+      var t0 = Date.now();
+      var bancoOk = true, bancoErro = null;
+      try { await supabase("GET", "empresas", { query: "select=id&limit=1" }); }
+      catch (e) { bancoOk = false; bancoErro = e.message; }
+      var latenciaBanco = Date.now() - t0;
+
+      var cfgPlat = await lerConfigPlataforma();
+
+      return jsonOk(res, {
+        servidor: {
+          no_ar_desde_segundos: Math.floor(process.uptime()),
+          node:                 process.version,
+          ambiente:             process.env.NODE_ENV || "development",
+          memoria_mb:           Math.round(process.memoryUsage().rss / 1024 / 1024)
+        },
+        servicos: [
+          { nome: "Banco de dados (Supabase)", ok: bancoOk,
+            detalhe: bancoOk ? latenciaBanco + " ms" : (bancoErro || "sem resposta") },
+          { nome: "E-mail (Resend)", ok: !!CONFIG.RESEND_KEY,
+            detalhe: CONFIG.RESEND_KEY
+              ? "Remetente: onboarding@resend.dev — em modo de teste só entrega no e-mail dono da conta Resend"
+              : "Chave não configurada" },
+          { nome: "Pagamento PIX (Duttyfy)", ok: !!CONFIG.PIX_URL,
+            detalhe: CONFIG.PIX_URL ? "URL configurada" : "URL não configurada" },
+          { nome: "Notificações push (VAPID)", ok: !!CONFIG.VAPID_PUBLIC,
+            detalhe: CONFIG.VAPID_PUBLIC ? "Chaves válidas" : "Chaves ausentes ou inválidas" },
+          { nome: "Rastreio de origem (Utmify)", ok: cfgPlat.utmify_ativo === "1" && !!cfgPlat.utmify_token,
+            detalhe: cfgPlat.utmify_ativo === "1"
+              ? (cfgPlat.utmify_token ? "Integração ligada" : "Ligada, mas sem token")
+              : "Desligada" }
+        ],
+        // Uptime real do serviço e uso de disco do banco não são
+        // medidos por este backend — dizer que não sabe é mais útil do
+        // que devolver um número que ninguém apurou.
+        nao_medido: ["Uptime histórico", "Requisições por dia", "Uso de armazenamento"]
+      });
+    }
+
+    // ── CONFIGURAÇÃO DA PLATAFORMA (somente owner) ───
+    if (method === "GET" && path === "/owner/config") {
+      if (!hasPermission(authPayload, "saas:read")) {
+        return jsonErr(res, "Apenas o owner da Workap pode ver isso", 403);
+      }
+      var cfgLida = await lerConfigPlataforma();
+      var tokenUtm = cfgLida.utmify_token || "";
+      return jsonOk(res, {
+        // Valores que hoje vivem no código e só mudam com deploy —
+        // mostrados como leitura, para o painel não fingir que um campo
+        // editável muda alguma coisa.
+        preco_reais:      centavosParaReais(CONFIG.PLANO_CENTAVOS),
+        dias_trial:       7,
+        remetente_email:  "onboarding@resend.dev",
+        owner_email:      authPayload.email,
+        utmify_ativo:     cfgLida.utmify_ativo === "1",
+        // Nunca devolve o token inteiro: quem já está logado não
+        // precisa vê-lo de novo, e um print de tela deixaria de ser
+        // inofensivo.
+        utmify_token_fim: tokenUtm ? "••••" + tokenUtm.slice(-4) : null,
+        utmify_url:       cfgLida.utmify_url || UTMIFY_URL_PADRAO
+      });
+    }
+
+    if (method === "PUT" && path === "/owner/config") {
+      if (!hasPermission(authPayload, "saas:write")) {
+        return jsonErr(res, "Apenas o owner da Workap pode alterar isso", 403);
+      }
+      var rawCfg = await getBody(req);
+      var bodyCfg = parseBody(rawCfg);
+      if (!bodyCfg) return jsonErr(res, "Dados inválidos");
+
+      if (typeof bodyCfg.utmify_ativo === "boolean") {
+        await gravarConfigPlataforma("utmify_ativo", bodyCfg.utmify_ativo ? "1" : "0");
+      }
+      if (typeof bodyCfg.utmify_token === "string" && bodyCfg.utmify_token.trim()) {
+        await gravarConfigPlataforma("utmify_token", bodyCfg.utmify_token.trim());
+      }
+      if (typeof bodyCfg.utmify_url === "string" && bodyCfg.utmify_url.trim()) {
+        var urlTeste = bodyCfg.utmify_url.trim();
+        try { new URL(urlTeste); } catch (e) { return jsonErr(res, "URL da Utmify inválida"); }
+        await gravarConfigPlataforma("utmify_url", urlTeste);
+      }
+
+      secLog("config_plataforma_alterada", {});
+      return jsonOk(res, { ok: true });
+    }
+
+    // ── TESTAR A UTMIFY (somente owner) ──────────────
+    // Manda um pedido marcado como teste e devolve o que a Utmify
+    // respondeu, palavra por palavra. Sem isto, descobrir que a
+    // integração não funciona levaria até a primeira venda real.
+    if (method === "POST" && path === "/owner/utmify/testar") {
+      if (!hasPermission(authPayload, "saas:write")) {
+        return jsonErr(res, "Apenas o owner da Workap pode fazer isso", 403);
+      }
+      var cfgT = await lerConfigPlataforma();
+      if (!cfgT.utmify_token) return jsonErr(res, "Cole o token da Utmify antes de testar.");
+
+      var r = await enviarUtmify({
+        orderId:       "teste-" + Date.now(),
+        status:        "waiting_payment",
+        criadoEm:      Date.now(),
+        valorCentavos: CONFIG.PLANO_CENTAVOS,
+        cliente:       { nome: "Pedido de teste", email: authPayload.email, ip: ip },
+        utm:           { utm_source: "workap", utm_medium: "teste-painel", utm_campaign: "verificacao" },
+        teste:         true
+      });
+
+      if (r.motivo === "integracao_desligada") {
+        return jsonErr(res, "Ligue a integração antes de testar.");
+      }
+      return jsonOk(res, {
+        sucesso:  r.enviado,
+        status:   r.status,
+        resposta: r.resposta || "(sem corpo na resposta)"
+      });
+    }
+
+    if (method === "GET" && path === "/owner/utmify/envios") {
+      if (!hasPermission(authPayload, "saas:read")) {
+        return jsonErr(res, "Apenas o owner da Workap pode ver isso", 403);
+      }
+      var envios = await supabase("GET", "utmify_envios",
+        { query: "select=*&order=created_at.desc&limit=30" }
+      ).catch(() => ({ body: [] }));
+      return jsonOk(res, envios.body || []);
+    }
+
+    // ── TROCAR A SENHA DO OWNER ──────────────────────
+    // O formulário existia na tela e não fazia nada. Agora funciona,
+    // porque a conta passou a viver no banco (migration 003).
+    if (method === "POST" && path === "/owner/senha") {
+      if (authPayload.role !== "owner_saas") {
+        return jsonErr(res, "Apenas o owner pode trocar a própria senha", 403);
+      }
+      var rawS = await getBody(req);
+      var bodyS = parseBody(rawS);
+      if (!bodyS) return jsonErr(res, "Dados inválidos");
+
+      var atual = typeof bodyS.senha_atual === "string" ? bodyS.senha_atual : "";
+      var nova  = typeof bodyS.senha_nova  === "string" ? bodyS.senha_nova  : "";
+      if (nova.length < 8) return jsonErr(res, "A nova senha precisa ter pelo menos 8 caracteres.");
+
+      var ownerAtual = await buscarOwner(authPayload.email);
+      if (!ownerAtual) return jsonErr(res, "Conta de owner não encontrada", 404);
+
+      // A senha atual é exigida mesmo com sessão aberta: sem isso,
+      // um celular desbloqueado por um minuto vira uma conta perdida.
+      if (!(await verificarSenha(atual, ownerAtual.senha_hash))) {
+        secLog("owner_troca_senha_negada", { ip });
+        return jsonErr(res, "Senha atual incorreta.", 401);
+      }
+      if (ownerAtual.origem !== "banco") {
+        return jsonErr(res, "Esta conta ainda está configurada por variável de ambiente. Rode a migration 003 para poder trocar a senha por aqui.", 409);
+      }
+
+      await supabase("PATCH", "owners_plataforma", {
+        query: `id=eq.${ownerAtual.id}`,
+        body: { senha_hash: await hashSenha(nova) }
+      });
+
+      secLog("owner_senha_alterada", {});
+      return jsonOk(res, { ok: true, message: "Senha alterada. Use a nova no próximo login." });
     }
 
     // ── ATIVIDADE DA PLATAFORMA (somente owner) ──────

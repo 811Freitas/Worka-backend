@@ -1187,6 +1187,52 @@ var pollingInterval = null;
 var pollingTimeout  = null;
 
 /**
+ * Guarda a origem da visita (UTMs) assim que a página abre.
+ *
+ * Antes, a origem era lida de window.location.search só no momento de
+ * gerar o PIX. Quem chegava por um anúncio, navegava pelo site e só
+ * depois assinava perdia o rastreio no caminho — e a venda aparecia
+ * como se tivesse vindo do nada. Agora os parâmetros são gravados na
+ * primeira visita e sobrevivem à navegação.
+ *
+ * Só as chaves conhecidas são guardadas: a query string inteira podia
+ * carregar qualquer coisa que alguém colasse na URL.
+ */
+var CHAVES_UTM = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','src','sck'];
+
+function capturarOrigem(){
+  try {
+    var params = new URLSearchParams(window.location.search);
+    var achou = false, guardado = {};
+
+    try { guardado = JSON.parse(localStorage.getItem('workap_utm') || '{}'); } catch(e) { guardado = {}; }
+
+    CHAVES_UTM.forEach(function(chave){
+      var v = params.get(chave);
+      if(v){ guardado[chave] = String(v).slice(0, 200); achou = true; }
+    });
+
+    // Só regrava quando veio parâmetro novo: uma visita direta depois
+    // do anúncio não pode apagar de onde a pessoa veio.
+    if(achou){
+      guardado.capturado_em = new Date().toISOString();
+      localStorage.setItem('workap_utm', JSON.stringify(guardado));
+    }
+  } catch(e) {}
+}
+
+function origemGravada(){
+  try {
+    var g = JSON.parse(localStorage.getItem('workap_utm') || '{}');
+    var saida = {};
+    CHAVES_UTM.forEach(function(c){ if(g[c]) saida[c] = g[c]; });
+    return saida;
+  } catch(e) { return {}; }
+}
+
+capturarOrigem();
+
+/**
  * Escreve num elemento um conteúdo que mistura ícones SVG e texto.
  *
  * Existe por causa de um defeito real: a troca dos emojis por ícones
@@ -1391,7 +1437,7 @@ async function gerarPix() {
   btn.innerHTML = '<span style="animation:spin 1s linear infinite;display:inline-block;"><svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg></span> Enviando código...';
 
   // Salvar dados
-  dadosFormulario = { name: nome, document: doc, email: email, phone: tel, utm: window.location.search.replace(/^\?/,'') };
+  dadosFormulario = { name: nome, document: doc, email: email, phone: tel };
 
   // Enviar código de verificação
   try {
@@ -1492,13 +1538,14 @@ function iniciarTimerReenvio() {
 }
 
 async function gerarPixReal() {
-  var utm = dadosFormulario.utm || '';
   var body = {
     name: dadosFormulario.name,
     document: dadosFormulario.document,
     email: dadosFormulario.email,
     phone: dadosFormulario.phone,
-    utm: utm
+    // Objeto com as chaves nomeadas, não a query string crua: é assim
+    // que o backend repassa a origem para a Utmify.
+    utm: origemGravada()
   };
   // Só o código vai para o servidor — nunca o valor com desconto.
   // Quem calcula quanto cobrar é sempre o backend.
