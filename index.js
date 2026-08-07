@@ -385,7 +385,7 @@ function supabase(method, table, options = {}) {
     "dispositivos_confiaveis", "comunicados_plataforma",
     "owners_plataforma", "webauthn_credentials", "webauthn_challenges",
     "config_plataforma", "utmify_envios",
-    "comunicados", "cargos", "config_faltas"
+    "comunicados", "cargos", "config_faltas", "contas_pagar"
   ];
   if (!ALLOWED_TABLES.includes(table)) {
     return Promise.reject(new Error(`Tabela não permitida: ${table}`));
@@ -1482,6 +1482,20 @@ var EMAIL_TEMPLATES = {
       <p style="margin:0;font-size:12px;color:#9aab9a">Você recebeu este aviso porque tem uma conta no Workap.</p>
     </div>`),
 
+  // Lembrete de conta a pagar. Traz valor, data e o quanto falta —
+  // um e-mail que só diz "você tem uma conta" obriga a abrir o app
+  // para descobrir qual, e por isso não é lido.
+  contaVencendo: (nome, descricao, valor, vencimento, venceEm) => emailBase(`
+    <h2 style="margin:0 0 8px;color:#0a2e1a;font-size:22px;font-weight:800">Lembrete de conta a pagar</h2>
+    <p style="color:#5a6b5a;font-size:15px;margin:0 0 24px;line-height:1.6">Olá${nome ? ", <strong>" + SANITIZE.string(nome) + "</strong>" : ""}! Uma conta ${SANITIZE.string(venceEm)}:</p>
+    <div style="background:#f7f8f7;border-left:4px solid #1e8a40;border-radius:12px;padding:20px;margin:0 0 24px">
+      <div style="font-size:17px;font-weight:700;color:#0a2e1a;margin-bottom:6px">${SANITIZE.string(descricao)}</div>
+      <div style="font-size:24px;font-weight:800;color:#16622f;margin-bottom:6px">${SANITIZE.string(valor)}</div>
+      <div style="font-size:13px;color:#5a6b5a">Vencimento: ${SANITIZE.string(String(vencimento).split("-").reverse().join("/"))}</div>
+    </div>
+    <p style="color:#5a6b5a;font-size:14px;margin:0 0 8px;line-height:1.6">Depois de pagar, dê baixa em <strong>Contas a Pagar</strong> no app — a despesa entra no seu caixa automaticamente.</p>
+  `),
+
   novoDispositivo: (nome, codigo) => emailBase(`
     <h2 style="margin:0 0 8px;color:#0a2e1a;font-size:22px;font-weight:800">Confirme seu acesso 🔐</h2>
     <p style="color:#5a6b5a;font-size:15px;margin:0 0 28px;line-height:1.6">Olá${nome ? ", <strong>" + SANITIZE.string(nome) + "</strong>" : ""}! Detectamos um acesso à sua conta Workap a partir de um <strong>aparelho novo</strong>. Use o código abaixo para confirmar que é você:</p>
@@ -1655,6 +1669,105 @@ async function verificarTrials() {
   }
 }
 setInterval(verificarTrials, 60 * 60 * 1000);
+
+// ════════════════════════════════════════
+// CRON — lembrete de contas a pagar
+// ════════════════════════════════════════
+/**
+ * Roda de hora em hora junto do resto. Avisa quando a conta entra na
+ * janela que a própria pessoa definiu (dias_aviso) e quando vence sem
+ * ter sido paga.
+ *
+ * A trava é a coluna aviso_enviado: sem ela, o mesmo lembrete sairia
+ * 24 vezes por dia e a pessoa aprenderia a ignorar a notificação do
+ * Workap — que é o pior resultado possível para um lembrete.
+ */
+async function verificarContasVencendo() {
+  try {
+    // Busca as pendentes ainda não avisadas que vencem nos próximos 60
+    // dias. A janela de cada conta é conferida aqui embaixo, porque
+    // dias_aviso varia de linha para linha e não dá para filtrar no
+    // banco comparando duas colunas por PostgREST.
+    var limite = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10);
+    var pendentes = await DB.select("contas_pagar",
+      `status=eq.pendente&aviso_enviado=is.false&vencimento=lte.${limite}&select=*`
+    ).catch(function (e) {
+      // Tabela ainda não criada (migration 007 não rodada): não é erro
+      // que mereça log de falha a cada hora.
+      if (/does not exist|não permitida/i.test(e.message || "")) return null;
+      throw e;
+    });
+
+    if (!pendentes) return;
+
+    var hoje = new Date(new Date().toISOString().substring(0, 10) + "T00:00:00Z");
+
+    for (var conta of (pendentes.body || [])) {
+      var diasRestantes = Math.round(
+        (new Date(conta.vencimento + "T00:00:00Z") - hoje) / 86400000
+      );
+      if (diasRestantes > (conta.dias_aviso || 3)) continue;   // ainda cedo
+
+      // Para quem avisar: a empresa dona da conta, ou o owner quando é
+      // conta da plataforma (empresa_id nulo).
+      var destino = null, nomeDestino = "", empresaPush = null;
+      if (conta.empresa_id) {
+        var emp = await DB.select("empresas", `id=eq.${conta.empresa_id}&select=id,nome,email`).catch(() => ({ body: [] }));
+        var linhaEmp = emp.body && emp.body[0];
+        if (linhaEmp) { destino = linhaEmp.email; nomeDestino = linhaEmp.nome; empresaPush = linhaEmp.id; }
+      } else if (CONFIG.OWNER_EMAIL || true) {
+        var donos = await supabase("GET", "owners_plataforma", { query: "ativo=is.true&select=email,nome&limit=1" })
+          .catch(() => ({ body: [] }));
+        var dono = donos.body && donos.body[0];
+        if (dono) { destino = dono.email; nomeDestino = dono.nome || "Owner"; }
+        else if (CONFIG.OWNER_EMAIL) { destino = CONFIG.OWNER_EMAIL; nomeDestino = "Owner"; }
+      }
+      if (!destino) continue;
+
+      var venceEm = diasRestantes < 0
+        ? `venceu há ${Math.abs(diasRestantes)} dia(s)`
+        : diasRestantes === 0 ? "vence HOJE" : `vence em ${diasRestantes} dia(s)`;
+
+      var valorTexto = "R$ " + Number(conta.valor).toFixed(2).replace(".", ",");
+      var assunto = diasRestantes < 0
+        ? `Conta vencida: ${conta.descricao}`
+        : `Conta a pagar: ${conta.descricao} ${venceEm}`;
+
+      await enviarEmail(destino, assunto,
+        EMAIL_TEMPLATES.contaVencendo(nomeDestino, conta.descricao, valorTexto, conta.vencimento, venceEm)
+      ).catch(e => secLog("email_error", { type: "conta_vencendo", message: e.message }));
+
+      if (empresaPush) {
+        enviarPush(empresaPush, {
+          title: diasRestantes < 0 ? "Conta vencida" : "Conta a pagar",
+          body:  `${conta.descricao} — ${valorTexto} (${venceEm})`,
+          url:   "worka-app.html"
+        }).catch(() => {});
+      }
+
+      await DB.update("contas_pagar", `id=eq.${conta.id}`, { aviso_enviado: true });
+      secLog("conta_aviso_enviado", { conta_id: conta.id, dias: diasRestantes });
+    }
+  } catch (e) {
+    secLog("cron_error", { job: "contas_pagar", message: e.message });
+  }
+}
+setInterval(verificarContasVencendo, 60 * 60 * 1000);
+
+// Uma rodada logo depois de subir, além da de hora em hora.
+//
+// O Render no plano gratuito hiberna o serviço após ~15 minutos sem
+// acesso e o acorda na requisição seguinte. Um setInterval de uma hora
+// quase nunca chega a disparar nesse regime: o processo é morto antes.
+// Sem esta rodada inicial, o lembrete de conta a pagar simplesmente
+// nunca sairia — o recurso existiria no código e não no mundo.
+//
+// Os 20 segundos são para não competir com o primeiro pedido de quem
+// acabou de acordar o serviço e está esperando a tela abrir.
+setTimeout(function () {
+  verificarContasVencendo();
+  verificarTrials();
+}, 20 * 1000);
 
 // ════════════════════════════════════════
 // SERVIDOR HTTP
@@ -4176,6 +4289,168 @@ var server = http.createServer(async (req, res) => {
         },
         por_funcionario: porFuncionario
       });
+    }
+
+    // ════════════════════════════════════════
+    // CONTAS A PAGAR
+    // ════════════════════════════════════════
+    // O sistema registrava a despesa DEPOIS de paga. O que faltava era
+    // o antes: a conta que vence semana que vem e ninguém lembrou.
+    //
+    // Mesmo escopo do financeiro — empresa vê as dela, owner vê as da
+    // plataforma —, reaproveitando filtroFinanceiro().
+    if (method === "GET" && path === "/contas") {
+      if (!hasPermission(authPayload, "financeiro:read")) {
+        return jsonErr(res, "Sem permissão para ver contas a pagar", 403);
+      }
+      var escopoContas = filtroFinanceiro(authPayload);
+      var contas = await DB.select("contas_pagar",
+        `${escopoContas}&select=*&order=vencimento.asc&limit=200`);
+
+      var hojeStr = new Date().toISOString().substring(0, 10);
+      var listaContas = (contas.body || []).map(function (c) {
+        // "Dias até vencer" calculado no servidor: o navegador do
+        // cliente pode estar com a data errada, e uma conta vencida
+        // aparecendo como em dia é pior que não mostrar nada.
+        var diff = Math.round(
+          (new Date(c.vencimento + "T00:00:00Z") - new Date(hojeStr + "T00:00:00Z")) / 86400000
+        );
+        return Object.assign({}, c, {
+          dias_para_vencer: diff,
+          vencida: c.status === "pendente" && diff < 0
+        });
+      });
+
+      var pendentes = listaContas.filter(function (c) { return c.status === "pendente"; });
+      return jsonOk(res, {
+        contas: listaContas,
+        resumo: {
+          pendentes:        pendentes.length,
+          vencidas:         pendentes.filter(function (c) { return c.vencida; }).length,
+          vence_em_7_dias:  pendentes.filter(function (c) { return c.dias_para_vencer >= 0 && c.dias_para_vencer <= 7; }).length,
+          total_pendente:   Math.round(pendentes.reduce(function (s, c) { return s + parseFloat(c.valor); }, 0) * 100) / 100
+        }
+      });
+    }
+
+    if (method === "POST" && path === "/contas") {
+      if (!hasPermission(authPayload, "financeiro:write")) {
+        return jsonErr(res, "Sem permissão para cadastrar contas", 403);
+      }
+      var rawConta = await getBody(req);
+      var bodyConta = parseBody(rawConta);
+      if (!bodyConta) return jsonErr(res, "Dados inválidos");
+
+      var descConta = SANITIZE.string(bodyConta.descricao, 200);
+      if (!descConta) return jsonErr(res, "Descreva a conta (ex.: Aluguel de agosto).");
+
+      var valConta = parseFloat(bodyConta.valor);
+      if (isNaN(valConta) || valConta <= 0 || valConta > 9999999) return jsonErr(res, "Informe um valor maior que zero.");
+
+      // Data no formato AAAA-MM-DD. Aceitar qualquer texto aqui faria
+      // a conta nascer com vencimento inválido e nunca ser lembrada.
+      var vencConta = String(bodyConta.vencimento || "").substring(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(vencConta) || isNaN(new Date(vencConta).getTime())) {
+        return jsonErr(res, "Informe a data de vencimento.");
+      }
+
+      var novaConta = await DB.insert("contas_pagar", {
+        empresa_id:  authPayload.role === "owner_saas" ? null : authPayload.empresa_id,
+        descricao:   descConta,
+        valor:       valConta,
+        vencimento:  vencConta,
+        categoria:   SANITIZE.categoriaFinanceira(bodyConta.categoria),
+        recorrencia: bodyConta.recorrencia === "mensal" ? "mensal" : "nenhuma",
+        dias_aviso:  SANITIZE.int(bodyConta.dias_aviso, 0, 60) !== null ? SANITIZE.int(bodyConta.dias_aviso, 0, 60) : 3,
+        status:      "pendente",
+        // Explícito em vez de confiar no default da coluna: é a trava
+        // que faz o lembrete sair, e uma linha sem ela nunca seria
+        // encontrada pelo job (que filtra por aviso_enviado=false).
+        aviso_enviado: false
+      });
+
+      secLog("conta_cadastrada", { empresa_id: authPayload.empresa_id || "plataforma" });
+      return jsonOk(res, { conta: novaConta.body[0] }, 201);
+    }
+
+    // Marcar como paga. Faz três coisas de uma vez porque, feitas
+    // separadamente, uma delas sempre acaba esquecida.
+    if (method === "POST" && path.startsWith("/contas/") && path.endsWith("/pagar")) {
+      if (!hasPermission(authPayload, "financeiro:write")) {
+        return jsonErr(res, "Sem permissão para dar baixa em contas", 403);
+      }
+      var idPagar = SANITIZE.uuid(path.split("/")[2]);
+      if (!idPagar) return jsonErr(res, "Conta inválida");
+
+      var buscaPagar = await DB.select("contas_pagar",
+        `id=eq.${idPagar}&${filtroFinanceiro(authPayload)}&select=*`);
+      var conta = buscaPagar.body && buscaPagar.body[0];
+      if (!conta) return jsonErr(res, "Conta não encontrada", 404);
+      if (conta.status === "paga") return jsonErr(res, "Esta conta já está paga.", 409);
+
+      // 1. Lança a saída no caixa. Sem isto, a pessoa daria baixa aqui
+      //    e teria de digitar a mesma despesa de novo no Financeiro.
+      var lancamento = await DB.insert("lancamentos_financeiros", {
+        empresa_id: authPayload.role === "owner_saas" ? null : authPayload.empresa_id,
+        tipo:       "saida",
+        valor:      conta.valor,
+        descricao:  conta.descricao,
+        categoria:  conta.categoria || "despesa_fixa",
+        data:       new Date().toISOString()
+      });
+
+      // 2. Marca como paga.
+      await DB.update("contas_pagar", `id=eq.${idPagar}`, {
+        status:        "paga",
+        pago_em:       new Date().toISOString(),
+        lancamento_id: (lancamento.body && lancamento.body[0]) ? lancamento.body[0].id : null
+      });
+
+      // 3. Se for recorrente, já cria a do mês seguinte. Aluguel e
+      //    energia não deveriam exigir cadastro manual todo mês — é
+      //    exatamente o tipo de coisa que se esquece.
+      var proxima = null;
+      if (conta.recorrencia === "mensal") {
+        var d = new Date(conta.vencimento + "T00:00:00Z");
+        var diaOriginal = d.getUTCDate();
+        d.setUTCMonth(d.getUTCMonth() + 1);
+        // Vencimento dia 31 em mês de 30: o JavaScript viraria para o
+        // dia 1 do mês seguinte. Puxa para o último dia do mês certo.
+        if (d.getUTCDate() !== diaOriginal) d.setUTCDate(0);
+
+        var criada = await DB.insert("contas_pagar", {
+          empresa_id:  conta.empresa_id,
+          descricao:   conta.descricao,
+          valor:       conta.valor,
+          vencimento:  d.toISOString().substring(0, 10),
+          categoria:   conta.categoria,
+          recorrencia: "mensal",
+          dias_aviso:  conta.dias_aviso,
+          status:      "pendente",
+          aviso_enviado: false
+        });
+        proxima = (criada.body || [])[0] || null;
+      }
+
+      secLog("conta_paga", { empresa_id: authPayload.empresa_id || "plataforma", valor: conta.valor });
+      return jsonOk(res, { ok: true, proxima: proxima });
+    }
+
+    if (method === "DELETE" && path.startsWith("/contas/")) {
+      if (!hasPermission(authPayload, "financeiro:write")) {
+        return jsonErr(res, "Sem permissão para remover contas", 403);
+      }
+      var idDelConta = SANITIZE.uuid(path.split("/")[2]);
+      if (!idDelConta) return jsonErr(res, "Conta inválida");
+
+      var achadaConta = await DB.select("contas_pagar",
+        `id=eq.${idDelConta}&${filtroFinanceiro(authPayload)}&select=id`);
+      if (!achadaConta.body || !achadaConta.body[0]) return jsonErr(res, "Conta não encontrada", 404);
+
+      // Só a conta some. O lançamento financeiro, se já existir, fica:
+      // apagá-lo mudaria o caixa de um mês que já foi fechado.
+      await DB.delete("contas_pagar", `id=eq.${idDelConta}`);
+      return jsonOk(res, { ok: true });
     }
 
     // ── LOGS ─────────────────────────────────────────

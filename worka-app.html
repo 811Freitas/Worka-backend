@@ -1172,6 +1172,67 @@ tr:hover td{background:var(--g50)}
         </div>
       </div>
 
+      <!-- CONTAS A PAGAR — o Financeiro registrava a despesa depois de
+           paga; faltava o antes: a conta que vence semana que vem e
+           ninguém lembrou. Dar baixa aqui lança a saída no caixa
+           sozinho, para não precisar digitar a mesma despesa duas
+           vezes. -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header">
+          <div class="card-title">Contas a pagar</div>
+          <span class="badge" id="contas-badge">—</span>
+        </div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
+            <div class="field" style="margin:0">
+              <label>Descrição</label>
+              <input id="conta-descricao" type="text" maxlength="200" placeholder="Ex.: Aluguel">
+            </div>
+            <div class="field" style="margin:0">
+              <label>Valor (R$)</label>
+              <input id="conta-valor" type="number" step="0.01" min="0.01" placeholder="0,00" inputmode="decimal">
+            </div>
+            <div class="field" style="margin:0">
+              <label>Vencimento</label>
+              <input id="conta-vencimento" type="date">
+            </div>
+            <div class="field" style="margin:0">
+              <label>Avisar antes</label>
+              <select id="conta-aviso">
+                <option value="1">1 dia antes</option>
+                <option value="3" selected>3 dias antes</option>
+                <option value="5">5 dias antes</option>
+                <option value="7">7 dias antes</option>
+                <option value="10">10 dias antes</option>
+              </select>
+            </div>
+            <div class="field" style="margin:0">
+              <label>Repetir</label>
+              <select id="conta-recorrencia">
+                <option value="nenhuma">Uma vez só</option>
+                <option value="mensal">Todo mês</option>
+              </select>
+            </div>
+          </div>
+          <div class="login-erro" id="conta-erro">Preencha os campos.</div>
+          <button class="btn btn-primary" id="conta-btn" onclick="salvarConta()" style="margin-top:12px">
+            <svg class=ico aria-hidden=true><use href=#i-bell></use></svg> Adicionar conta
+          </button>
+
+          <div style="font-size:.75rem;color:var(--gray500);margin-top:10px">
+            O lembrete chega por e-mail e notificação no celular quando a data se aproxima.
+          </div>
+        </div>
+        <div class="card-body" style="padding:0;border-top:1px solid var(--gray100)">
+          <table>
+            <thead><tr><th>Conta</th><th>Vencimento</th><th>Valor</th><th></th></tr></thead>
+            <tbody id="contas-lista">
+              <tr><td colspan="4" style="padding:14px"><div class="skel skel-text" style="width:50%"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="card" style="margin-bottom:16px">
         <div class="card-header"><div class="card-title">Registrar lançamento</div></div>
         <div class="card-body">
@@ -5655,6 +5716,8 @@ async function carregarFinanceiro(){
   } catch(e) {
     renderizarLancamentos([]);
   }
+
+  carregarContas();
 }
 
 function renderizarLancamentos(lista){
@@ -5705,6 +5768,199 @@ function renderizarLancamentos(lista){
     [tdData, tdDesc, tdCat, tdValor, tdAcao].forEach(function(c){ tr.appendChild(c); });
     tbody.appendChild(tr);
   });
+}
+
+// ── Contas a pagar ──────────────────────────────────────────
+
+async function carregarContas(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+
+  // Vencimento começa em hoje: quem cadastra uma conta quase sempre
+  // está olhando um boleto que vence nos próximos dias.
+  var campoVenc = document.getElementById('conta-vencimento');
+  if(campoVenc && !campoVenc.value) campoVenc.value = new Date().toISOString().slice(0,10);
+
+  var d = null;
+  try {
+    d = await fetch(API_BASE + '/contas', { headers: cabecalhoAuth() })
+      .then(function(r){ return r.ok ? r.json() : null; });
+  } catch(e) {}
+
+  var badge = document.getElementById('contas-badge');
+  var tbody = document.getElementById('contas-lista');
+  if(!tbody) return;
+
+  if(!d){
+    tbody.innerHTML = '';
+    var tre = document.createElement('tr'), tde = document.createElement('td');
+    tde.colSpan = 4;
+    tde.style.cssText = 'padding:20px;text-align:center;color:var(--gray500);font-size:.85rem';
+    tde.textContent = 'Não foi possível carregar as contas agora.';
+    tre.appendChild(tde); tbody.appendChild(tre);
+    return;
+  }
+
+  if(badge){
+    var r2 = d.resumo;
+    if(r2.vencidas > 0){
+      badge.className = 'badge badge-red';
+      badge.textContent = r2.vencidas + (r2.vencidas === 1 ? ' vencida' : ' vencidas');
+    } else if(r2.vence_em_7_dias > 0){
+      badge.className = 'badge badge-yellow';
+      badge.textContent = r2.vence_em_7_dias + ' vence(m) esta semana';
+    } else if(r2.pendentes > 0){
+      badge.className = 'badge badge-green';
+      badge.textContent = r2.pendentes + ' em dia';
+    } else {
+      badge.className = 'badge badge-gray';
+      badge.textContent = 'Nenhuma conta';
+    }
+  }
+
+  // Pagas ficam fora da lista: o que importa aqui é o que falta pagar.
+  // O histórico do que saiu já aparece em "Últimos lançamentos".
+  var pendentes = (d.contas || []).filter(function(c){ return c.status === 'pendente'; });
+
+  tbody.innerHTML = '';
+  if(!pendentes.length){
+    var tr0 = document.createElement('tr'), td0 = document.createElement('td');
+    td0.colSpan = 4;
+    td0.style.cssText = 'padding:24px;text-align:center;color:var(--gray500);font-size:.85rem';
+    td0.textContent = 'Nenhuma conta pendente. Cadastre acima para receber o lembrete.';
+    tr0.appendChild(td0); tbody.appendChild(tr0);
+    return;
+  }
+
+  pendentes.forEach(function(c){
+    var tr = document.createElement('tr');
+
+    var tdDesc = document.createElement('td');
+    var nome = document.createElement('div');
+    nome.style.fontWeight = '600';
+    nome.textContent = c.descricao || '—';       // texto digitado: nunca HTML
+    tdDesc.appendChild(nome);
+    if(c.recorrencia === 'mensal'){
+      var rec = document.createElement('div');
+      rec.style.cssText = 'font-size:.7rem;color:var(--gray500)';
+      rec.textContent = 'Repete todo mês';
+      tdDesc.appendChild(rec);
+    }
+
+    var tdVenc = document.createElement('td');
+    var data = document.createElement('div');
+    data.textContent = String(c.vencimento).split('-').reverse().join('/');
+    tdVenc.appendChild(data);
+
+    var aviso = document.createElement('div');
+    aviso.style.cssText = 'font-size:.7rem;margin-top:2px';
+    if(c.vencida){
+      aviso.style.color = '#dc2626';
+      aviso.style.fontWeight = '700';
+      aviso.textContent = 'Venceu há ' + Math.abs(c.dias_para_vencer) + ' dia(s)';
+    } else if(c.dias_para_vencer === 0){
+      aviso.style.color = '#dc2626';
+      aviso.style.fontWeight = '700';
+      aviso.textContent = 'Vence hoje';
+    } else if(c.dias_para_vencer <= 7){
+      aviso.style.color = '#b45309';
+      aviso.textContent = 'Em ' + c.dias_para_vencer + ' dia(s)';
+    } else {
+      aviso.style.color = 'var(--gray500)';
+      aviso.textContent = 'Em ' + c.dias_para_vencer + ' dias';
+    }
+    tdVenc.appendChild(aviso);
+
+    var tdValor = document.createElement('td');
+    tdValor.style.cssText = 'font-weight:700;color:#dc2626';
+    tdValor.textContent = moedaBR(c.valor);
+
+    var tdAcoes = document.createElement('td');
+    tdAcoes.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
+
+    var btnPagar = document.createElement('button');
+    btnPagar.className = 'btn btn-sm btn-primary';
+    btnPagar.textContent = 'Dar baixa';
+    btnPagar.onclick = function(){ pagarConta(c.id, c.descricao, c.valor); };
+
+    var btnRemover = document.createElement('button');
+    btnRemover.className = 'btn btn-sm btn-secondary';
+    btnRemover.textContent = 'Remover';
+    btnRemover.onclick = function(){ removerConta(c.id); };
+
+    tdAcoes.appendChild(btnPagar); tdAcoes.appendChild(btnRemover);
+
+    [tdDesc, tdVenc, tdValor, tdAcoes].forEach(function(x){ tr.appendChild(x); });
+    tbody.appendChild(tr);
+  });
+}
+
+async function salvarConta(){
+  var erro = document.getElementById('conta-erro');
+  erro.style.display = 'none';
+
+  var descricao = (document.getElementById('conta-descricao').value || '').trim();
+  var valor = parseFloat((document.getElementById('conta-valor').value || '').replace(',', '.'));
+  var vencimento = document.getElementById('conta-vencimento').value;
+
+  if(!descricao){ erro.textContent = 'Escreva do que é a conta.'; erro.style.display='block'; return; }
+  if(isNaN(valor) || valor <= 0){ erro.textContent = 'Informe um valor maior que zero.'; erro.style.display='block'; return; }
+  if(!vencimento){ erro.textContent = 'Informe a data de vencimento.'; erro.style.display='block'; return; }
+
+  var btn = document.getElementById('conta-btn');
+  var texto = btn.innerHTML;
+  btn.disabled = true; escreverComIcones(btn, 'Salvando...');
+
+  try {
+    var r = await fetch(API_BASE + '/contas', {
+      method:'POST', headers: cabecalhoAuth(),
+      body: JSON.stringify({
+        descricao: descricao, valor: valor, vencimento: vencimento,
+        dias_aviso: parseInt(document.getElementById('conta-aviso').value, 10),
+        recorrencia: document.getElementById('conta-recorrencia').value,
+        categoria: 'despesa_fixa'
+      })
+    }).then(function(x){ return x.json().then(function(d){ return { status:x.status, data:d }; }); });
+
+    btn.disabled = false; btn.innerHTML = texto;
+    if(r.status !== 200 && r.status !== 201){
+      erro.textContent = r.data.error || 'Não foi possível salvar.';
+      erro.style.display = 'block';
+      return;
+    }
+    document.getElementById('conta-descricao').value = '';
+    document.getElementById('conta-valor').value = '';
+    carregarContas();
+  } catch(e) {
+    btn.disabled = false; btn.innerHTML = texto;
+    erro.textContent = 'Erro de conexão.';
+    erro.style.display = 'block';
+  }
+}
+
+async function pagarConta(id, descricao, valor){
+  if(!confirm('Dar baixa em "' + descricao + '" (' + moedaBR(valor) + ')?\n\nA despesa entra no caixa automaticamente.')) return;
+  try {
+    var r = await fetch(API_BASE + '/contas/' + id + '/pagar', {
+      method:'POST', headers: cabecalhoAuth(), body: '{}'
+    }).then(function(x){ return x.json().then(function(d){ return { status:x.status, data:d }; }); });
+
+    if(r.status !== 200){ alert(r.data.error || 'Não foi possível dar baixa.'); return; }
+    if(r.data.proxima){
+      alert('Baixa registrada. A próxima já foi criada para ' +
+            String(r.data.proxima.vencimento).split('-').reverse().join('/') + '.');
+    }
+    // Recarrega os dois: a baixa muda a lista de contas E o caixa.
+    carregarContas();
+    carregarFinanceiro();
+  } catch(e) { alert('Erro de conexão.'); }
+}
+
+async function removerConta(id){
+  if(!confirm('Remover esta conta da lista?')) return;
+  try {
+    await fetch(API_BASE + '/contas/' + id, { method:'DELETE', headers: cabecalhoAuth() });
+    carregarContas();
+  } catch(e) { alert('Não foi possível remover agora.'); }
 }
 
 async function salvarLancamento(){
