@@ -734,17 +734,13 @@ tr:hover td{background:var(--g50)}
         <div class="card-header">
           <div class="card-title">Histórico do mês</div>
         </div>
-        <!-- Antes havia aqui 4 linhas fixas com datas de junho/2026 e
-             um botão "Exportar" sem nenhum onclick (não fazia nada).
-             GET /ponto só retorna os registros de HOJE (filtro
-             horario=gte.hoje no backend) — um histórico mensal
-             agrupado por dia com total de horas exigiria uma rota
-             nova de agregação por período, que não existe ainda.
-             Removido o dado fixo enganoso em vez de deixá-lo parado
-             mostrando sempre as mesmas datas passadas. -->
-        <div class="card-body empty-state">
-          <div class="icon"><svg class=ico aria-hidden=true><use href=#i-calendar></use></svg></div>
-          <p>Histórico mensal detalhado ainda não está disponível — em desenvolvimento.<br>O registro de hoje aparece na tabela acima.</p>
+        <!-- Ficou "em desenvolvimento" enquanto GET /ponto só devolvia
+             os registros de HOJE e não existia rota de agregação por
+             período. Agora GET /relatorios faz essa conta, então o
+             resumo do mês sai de lá — dias trabalhados por pessoa e o
+             percentual de pontos batidos com localização. -->
+        <div class="card-body" id="ponto-historico">
+          <div class="skel skel-text" style="width:55%"></div>
         </div>
       </div>
     </div>
@@ -1053,23 +1049,98 @@ tr:hover td{background:var(--g50)}
          relatórios agregados), mas garante que a navegação nunca
          quebra — em vez de tela em branco, mostra um estado claro de
          "ainda não disponível". -->
+    <!-- ESCALA DE TRABALHO — a tabela `escalas` existia desde o começo
+         do projeto sem nenhuma rota que a usasse; a tela dizia "em
+         desenvolvimento". Agora é uma grade de funcionários por dia da
+         semana: clicar numa célula abre o turno daquele dia. -->
     <div class="page" id="pg-escala">
+      <div class="card" style="margin-bottom:16px" id="escala-editor">
+        <div class="card-header"><div class="card-title">Definir turno</div></div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+            <div class="field" style="margin:0">
+              <label>Funcionário</label>
+              <select id="esc-funcionario"><option value="">Carregando...</option></select>
+            </div>
+            <div class="field" style="margin:0">
+              <label>Dia da semana</label>
+              <select id="esc-dia">
+                <option value="1">Segunda</option><option value="2">Terça</option>
+                <option value="3">Quarta</option><option value="4">Quinta</option>
+                <option value="5">Sexta</option><option value="6">Sábado</option>
+                <option value="0">Domingo</option>
+              </select>
+            </div>
+            <div class="field" style="margin:0">
+              <label>Entrada</label>
+              <input id="esc-entrada" type="time" value="08:00">
+            </div>
+            <div class="field" style="margin:0">
+              <label>Saída</label>
+              <input id="esc-saida" type="time" value="18:00">
+            </div>
+          </div>
+          <div class="perm-row" style="margin-top:10px">
+            <span class="perm-label">Marcar como folga</span>
+            <button class="toggle-sw off" id="esc-folga" onclick="togglePerm(this);alternarCamposFolga()"><div class="toggle-dot"></div></button>
+          </div>
+          <div class="login-erro" id="esc-erro">Confira os campos.</div>
+          <button class="btn btn-primary" id="esc-btn" onclick="salvarEscala()" style="margin-top:10px">
+            <svg class=ico aria-hidden=true><use href=#i-check></use></svg> Salvar turno
+          </button>
+        </div>
+      </div>
+
       <div class="card">
-        <div class="card-body empty-state">
-          <div class="icon"><svg class=ico aria-hidden=true><use href=#i-calendar></use></svg></div>
-          <div style="font-weight:700;color:var(--gray700);margin-bottom:6px">Escala de Trabalho ainda não está disponível</div>
-          <p>Esta funcionalidade está em desenvolvimento e será liberada em uma próxima atualização.</p>
+        <div class="card-header"><div class="card-title">Escala da semana</div></div>
+        <div class="card-body" style="padding:0;overflow-x:auto">
+          <table>
+            <thead><tr><th>Funcionário</th><th>Seg</th><th>Ter</th><th>Qua</th><th>Qui</th><th>Sex</th><th>Sáb</th><th>Dom</th></tr></thead>
+            <tbody id="escala-grade">
+              <tr><td colspan="8" style="padding:14px"><div class="skel skel-text" style="width:60%"></div></td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
 
+    <!-- MURAL — a tabela `comunicados` também já existia sem rota.
+         Não confundir com "Enviar Comunicado" do painel owner: aquele
+         é a Workap falando com as empresas; este é a empresa falando
+         com os próprios funcionários. -->
     <div class="page" id="pg-mural">
-      <div class="card">
-        <div class="card-body empty-state">
-          <div class="icon"><svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg></div>
-          <div style="font-weight:700;color:var(--gray700);margin-bottom:6px">Mural / Comunicados ainda não está disponível</div>
-          <p>Esta funcionalidade está em desenvolvimento e será liberada em uma próxima atualização.</p>
+      <div class="card" style="margin-bottom:16px" id="mural-editor">
+        <div class="card-header"><div class="card-title">Publicar no mural</div></div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px">
+            <div class="field" style="margin:0">
+              <label>Título</label>
+              <input id="mural-titulo" type="text" maxlength="120" placeholder="Ex.: Horário especial no feriado">
+            </div>
+            <div class="field" style="margin:0">
+              <label>Categoria</label>
+              <select id="mural-categoria">
+                <option value="geral">Geral</option>
+                <option value="operacional">Operacional</option>
+                <option value="urgente">Urgente</option>
+                <option value="financeiro">Financeiro</option>
+              </select>
+            </div>
+          </div>
+          <div class="field" style="margin-top:12px">
+            <label>Mensagem</label>
+            <textarea id="mural-mensagem" rows="3" maxlength="2000" placeholder="O que a equipe precisa saber"></textarea>
+          </div>
+          <div style="font-size:.75rem;color:var(--gray500);margin-top:-6px">Todo mundo da equipe recebe uma notificação no celular.</div>
+          <div class="login-erro" id="mural-erro">Preencha título e mensagem.</div>
+          <button class="btn btn-primary" id="mural-btn" onclick="publicarComunicado()" style="margin-top:12px">
+            <svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg> Publicar
+          </button>
         </div>
+      </div>
+
+      <div id="mural-lista">
+        <div class="card"><div class="card-body"><div class="skel skel-text" style="width:60%"></div></div></div>
       </div>
     </div>
 
@@ -1155,12 +1226,59 @@ tr:hover td{background:var(--g50)}
       </div>
     </div>
 
+    <!-- RELATÓRIOS — os dados sempre estiveram no banco (ponto,
+         tarefas, ausências, folha); faltava juntar. A tela dizia "em
+         desenvolvimento" enquanto nada precisava ser criado além da
+         agregação. -->
     <div class="page" id="pg-relatorios">
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-body" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span style="font-size:.85rem;color:var(--gray500)">Período:</span>
+          <select id="rel-periodo" onchange="carregarRelatorios()" style="max-width:200px">
+            <option value="7">Últimos 7 dias</option>
+            <option value="30" selected>Últimos 30 dias</option>
+            <option value="90">Últimos 90 dias</option>
+            <option value="180">Últimos 180 dias</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="stats-grid" style="margin-bottom:20px">
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg></div>
+          <div class="stat-card-num" id="rel-pontos">—</div>
+          <div class="stat-card-lbl">Registros de ponto</div>
+          <div class="stat-card-sub" id="rel-gps">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-tasks></use></svg></div>
+          <div class="stat-card-num" id="rel-tarefas">—</div>
+          <div class="stat-card-lbl">Tarefas concluídas</div>
+          <div class="stat-card-sub" id="rel-tarefas-sub">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:#fef2f2"><svg class=ico aria-hidden=true><use href=#i-absent></use></svg></div>
+          <div class="stat-card-num" id="rel-faltas">—</div>
+          <div class="stat-card-lbl">Ausências</div>
+          <div class="stat-card-sub sub-red" id="rel-faltas-sub">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:#f5f3ff"><svg class=ico aria-hidden=true><use href=#i-money></use></svg></div>
+          <div class="stat-card-num" id="rel-folha">—</div>
+          <div class="stat-card-lbl">Folha mensal</div>
+          <div class="stat-card-sub" id="rel-equipe">—</div>
+        </div>
+      </div>
+
       <div class="card">
-        <div class="card-body empty-state">
-          <div class="icon"><svg class=ico aria-hidden=true><use href=#i-report></use></svg></div>
-          <div style="font-weight:700;color:var(--gray700);margin-bottom:6px">Relatórios ainda não estão disponíveis</div>
-          <p>Enquanto isso, os números reais de Dashboard, Salários e Ausências já refletem os dados da sua equipe.</p>
+        <div class="card-header"><div class="card-title">Por funcionário no período</div></div>
+        <div class="card-body" style="padding:0;overflow-x:auto">
+          <table>
+            <thead><tr><th>Funcionário</th><th>Dias trabalhados</th><th>Tarefas</th><th>Faltas</th><th>Desconto</th></tr></thead>
+            <tbody id="rel-tabela">
+              <tr><td colspan="5" style="padding:14px"><div class="skel skel-text" style="width:55%"></div></td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -1794,9 +1912,7 @@ tr:hover td{background:var(--g50)}
     <div class="perm-row"><span class="perm-label">Gerenciar e justificar pontos</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
     <div class="perm-row"><span class="perm-label">Gerenciar validade de produtos</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
     <div class="perm-row"><span class="perm-label">Ver relatórios e histórico</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-    <div id="cargo-aviso" style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;font-size:.82rem;color:#92400e;margin-top:8px">
-      <svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Criação de cargos customizados ainda não é suportada pelo backend (a tabela existe, mas nenhuma rota grava ou lê cargos ainda). O sistema de permissões continua usando os papéis fixos Dono / Gerente / Funcionário.
-    </div>
+    
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="fecharModal('modal-add-cargo')">Fechar</button>
     </div>
@@ -1968,6 +2084,9 @@ function entrarComoDono(token, empresa, trial){
   // (empresas.trial_fim), nunca calculado no navegador.
   sessaoWorka = { token: token, teamId: empresa.team_id, empresaId: empresa.id, trial: trial || null, nomeEmpresa: empresa.nome };
   oferecerFaceId();
+  // A regra de desconto por falta vem do banco: as telas de Salários
+  // e Ausências calculam com ela e são carregadas logo em seguida.
+  carregarConfigFalta();
   localStorage.setItem('worka_token', token);
 
   usuarioAtual = {
@@ -2842,6 +2961,7 @@ function abrirPagina(id) {
   if(id==='notificacoes' && typeof renderizarEstadoNotificacoes === 'function') renderizarEstadoNotificacoes();
   if(id==='funcionarios' && typeof carregarFuncionariosReais === 'function') carregarFuncionariosReais();
   if(id==='ponto' && typeof carregarPontoReal === 'function') carregarPontoReal();
+  if(id==='ponto' && typeof carregarHistoricoPonto === 'function') carregarHistoricoPonto();
   if(id==='tarefas' && typeof carregarTarefasReais === 'function'){
     // Se o cache de funcionários ainda estiver vazio (ex: a pessoa
     // navegou direto para Tarefas sem passar por Funcionários nesta
@@ -2854,6 +2974,9 @@ function abrirPagina(id) {
     }
   }
   if(id==='financeiro' && typeof carregarFinanceiro === 'function') carregarFinanceiro();
+  if(id==='mural'      && typeof carregarMural       === 'function') carregarMural();
+  if(id==='escala'     && typeof carregarEscala      === 'function') carregarEscala();
+  if(id==='relatorios' && typeof carregarRelatorios  === 'function') carregarRelatorios();
   if(id==='owner' && typeof carregarPainelOwner === 'function') carregarPainelOwner();
   if(id==='validade' && typeof carregarValidadeReal === 'function') carregarValidadeReal();
   if(id==='dashboard' && typeof carregarDashboardReal === 'function') carregarDashboardReal();
@@ -3426,15 +3549,37 @@ var funcSalarioAtual = 0;
 var ausenciasCache = []; // última lista real buscada (GET /ausencias), reaproveitada pelos cálculos da página de Salários
 
 /**
- * Configuração de desconto por falta. É só local (por navegador),
- * não existe coluna na empresa para isso no banco — diferente de
- * salário e ausência, que são dados reais compartilhados pela
- * equipe, esta é só uma preferência de cálculo do dono.
+ * Configuração de desconto por falta.
+ *
+ * Vivia só no localStorage: o dono configurava no computador e o valor
+ * não existia no celular — nem para o próprio sistema, na hora de
+ * calcular o desconto de quem faltou. A tabela config_faltas já existia
+ * no banco e nunca tinha sido usada.
+ *
+ * Fica em memória depois da primeira leitura porque as telas de
+ * Salários e Ausências consultam a cada linha renderizada.
  */
+var configFaltaCache = { tipo: 'fixo', valor: 100 };
+
 function configDescontoFalta(){
+  return configFaltaCache;
+}
+
+async function carregarConfigFalta(){
+  if(!sessaoWorka || !sessaoWorka.token) return configFaltaCache;
   try {
-    return JSON.parse(localStorage.getItem('worka_config_falta')) || { tipo: 'fixo', valor: 100 };
-  } catch(e) { return { tipo: 'fixo', valor: 100 }; }
+    var d = await fetch(API_BASE + '/config-faltas', {
+      headers: { 'Authorization': 'Bearer ' + sessaoWorka.token }
+    }).then(function(r){ return r.ok ? r.json() : null; });
+    if(d){
+      configFaltaCache = {
+        tipo:  d.tipo_desconto || 'fixo',
+        valor: d.valor_falta != null ? Number(d.valor_falta) : 100,
+        criar_tarefa: d.criar_tarefa_automatica !== false
+      };
+    }
+  } catch(e) {}
+  return configFaltaCache;
 }
 
 function darAumento(id, nome, salario) {
@@ -5032,6 +5177,437 @@ async function trocarSenhaOwner(){
 }
 
 // ═══════════════════════════════════
+// MURAL / COMUNICADOS DA EMPRESA
+// ═══════════════════════════════════
+
+var CORES_CATEGORIA = {
+  geral:       ['Geral',       'badge-gray'],
+  operacional: ['Operacional', 'badge-blue'],
+  urgente:     ['Urgente',     'badge-red'],
+  financeiro:  ['Financeiro',  'badge-green']
+};
+
+function cabecalhoAuth(){
+  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token };
+}
+
+async function carregarMural(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+
+  // Funcionário lê o mural mas não publica: o editor some para quem
+  // não tem permissão, em vez de mostrar um formulário que o servidor
+  // vai recusar.
+  var editor = document.getElementById('mural-editor');
+  if(editor) editor.style.display = (usuarioAtual && usuarioAtual.tipo === 'funcionario') ? 'none' : 'block';
+
+  var lista = [];
+  try {
+    lista = await fetch(API_BASE + '/comunicados', { headers: cabecalhoAuth() })
+      .then(function(r){ return r.ok ? r.json() : []; });
+  } catch(e) {}
+
+  var caixa = document.getElementById('mural-lista');
+  if(!caixa) return;
+  caixa.innerHTML = '';
+
+  if(!lista.length){
+    var vazio = document.createElement('div');
+    vazio.className = 'card';
+    var corpo = document.createElement('div');
+    corpo.className = 'card-body empty-state';
+    var t = document.createElement('div');
+    t.style.cssText = 'font-weight:700;color:var(--gray700);margin-bottom:6px';
+    t.textContent = 'Nenhum comunicado ainda';
+    var p2 = document.createElement('p');
+    p2.textContent = 'O que for publicado aqui aparece para toda a equipe e chega como notificação no celular.';
+    corpo.appendChild(t); corpo.appendChild(p2);
+    vazio.appendChild(corpo); caixa.appendChild(vazio);
+    return;
+  }
+
+  var podeApagar = !(usuarioAtual && usuarioAtual.tipo === 'funcionario');
+
+  lista.forEach(function(c){
+    var card = document.createElement('div');
+    card.className = 'card';
+    card.style.marginBottom = '12px';
+
+    var cab = document.createElement('div');
+    cab.className = 'card-header';
+
+    var titulo = document.createElement('div');
+    titulo.className = 'card-title';
+    titulo.textContent = c.titulo || '(sem título)';   // texto digitado: nunca HTML
+
+    var direita = document.createElement('div');
+    direita.style.cssText = 'display:flex;align-items:center;gap:8px';
+
+    var info = CORES_CATEGORIA[c.categoria] || ['Geral','badge-gray'];
+    var badge = document.createElement('span');
+    badge.className = 'badge ' + info[1];
+    badge.textContent = info[0];
+    direita.appendChild(badge);
+
+    if(podeApagar){
+      var btn = document.createElement('button');
+      btn.className = 'btn btn-sm btn-secondary';
+      btn.textContent = 'Remover';
+      btn.onclick = function(){ removerComunicado(c.id); };
+      direita.appendChild(btn);
+    }
+
+    cab.appendChild(titulo); cab.appendChild(direita);
+
+    var corpo2 = document.createElement('div');
+    corpo2.className = 'card-body';
+    var msg = document.createElement('div');
+    msg.style.cssText = 'font-size:.88rem;color:var(--gray700);line-height:1.6;white-space:pre-wrap';
+    msg.textContent = c.mensagem || '';
+    var quando = document.createElement('div');
+    quando.style.cssText = 'font-size:.72rem;color:var(--gray500);margin-top:10px';
+    quando.textContent = c.created_at
+      ? new Date(c.created_at).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+      : '';
+    corpo2.appendChild(msg); corpo2.appendChild(quando);
+
+    card.appendChild(cab); card.appendChild(corpo2);
+    caixa.appendChild(card);
+  });
+}
+
+async function publicarComunicado(){
+  var erro = document.getElementById('mural-erro');
+  erro.style.display = 'none';
+  var titulo = (document.getElementById('mural-titulo').value || '').trim();
+  var mensagem = (document.getElementById('mural-mensagem').value || '').trim();
+
+  if(!titulo){ erro.textContent = 'Escreva um título.'; erro.style.display = 'block'; return; }
+  if(!mensagem){ erro.textContent = 'Escreva a mensagem.'; erro.style.display = 'block'; return; }
+
+  var btn = document.getElementById('mural-btn');
+  var texto = btn.innerHTML;
+  btn.disabled = true; escreverComIcones(btn, 'Publicando...');
+
+  try {
+    var r = await fetch(API_BASE + '/comunicados', {
+      method: 'POST', headers: cabecalhoAuth(),
+      body: JSON.stringify({ titulo: titulo, mensagem: mensagem,
+                             categoria: document.getElementById('mural-categoria').value })
+    }).then(function(x){ return x.json().then(function(d){ return { status:x.status, data:d }; }); });
+
+    btn.disabled = false; btn.innerHTML = texto;
+    if(r.status !== 200 && r.status !== 201){
+      erro.textContent = r.data.error || 'Não foi possível publicar.';
+      erro.style.display = 'block';
+      return;
+    }
+    document.getElementById('mural-titulo').value = '';
+    document.getElementById('mural-mensagem').value = '';
+    carregarMural();
+  } catch(e) {
+    btn.disabled = false; btn.innerHTML = texto;
+    erro.textContent = 'Erro de conexão.';
+    erro.style.display = 'block';
+  }
+}
+
+async function removerComunicado(id){
+  if(!confirm('Remover este comunicado do mural?')) return;
+  try {
+    await fetch(API_BASE + '/comunicados/' + id, { method:'DELETE', headers: cabecalhoAuth() });
+    carregarMural();
+  } catch(e) { alert('Não foi possível remover agora.'); }
+}
+
+// ═══════════════════════════════════
+// ESCALA DE TRABALHO
+// ═══════════════════════════════════
+
+var DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+var ORDEM_GRADE = [1,2,3,4,5,6,0];   // começa na segunda, como a semana de trabalho
+
+function alternarCamposFolga(){
+  var folga = document.getElementById('esc-folga').classList.contains('on');
+  ['esc-entrada','esc-saida'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el){ el.disabled = folga; el.style.opacity = folga ? '.45' : '1'; }
+  });
+}
+
+async function carregarEscala(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+
+  var ehFuncionario = usuarioAtual && usuarioAtual.tipo === 'funcionario';
+  var editor = document.getElementById('escala-editor');
+  if(editor) editor.style.display = ehFuncionario ? 'none' : 'block';
+
+  // A grade precisa da lista de funcionários para ter as linhas; se o
+  // cache estiver vazio (a pessoa entrou direto nesta tela), busca.
+  if(!ehFuncionario && funcionariosCache.length === 0 && typeof carregarFuncionariosReais === 'function'){
+    try { await carregarFuncionariosReais(); } catch(e) {}
+  }
+
+  var seletor = document.getElementById('esc-funcionario');
+  if(seletor && !ehFuncionario){
+    seletor.innerHTML = '';
+    var ativos = funcionariosCache.filter(function(f){ return f.status === 'ativo'; });
+    if(!ativos.length){
+      var op = document.createElement('option');
+      op.value = ''; op.textContent = 'Cadastre um funcionário primeiro';
+      seletor.appendChild(op);
+    } else {
+      ativos.forEach(function(f){
+        var op2 = document.createElement('option');
+        op2.value = f.id; op2.textContent = f.nome;
+        seletor.appendChild(op2);
+      });
+    }
+  }
+
+  var escalas = [];
+  try {
+    escalas = await fetch(API_BASE + '/escalas', { headers: cabecalhoAuth() })
+      .then(function(r){ return r.ok ? r.json() : []; });
+  } catch(e) {}
+
+  renderizarGradeEscala(escalas, ehFuncionario);
+}
+
+function renderizarGradeEscala(escalas, ehFuncionario){
+  var tbody = document.getElementById('escala-grade');
+  if(!tbody) return;
+  tbody.innerHTML = '';
+
+  // Funcionário vê só a própria linha (o servidor já filtra); dono vê
+  // a equipe inteira, inclusive quem ainda não tem turno definido.
+  var pessoas = ehFuncionario
+    ? [{ id: (sessaoWorka && sessaoWorka.funcionarioId) || null, nome: (usuarioAtual && usuarioAtual.nome) || 'Você' }]
+    : funcionariosCache.filter(function(f){ return f.status === 'ativo'; });
+
+  if(!pessoas.length){
+    var tr0 = document.createElement('tr'), td0 = document.createElement('td');
+    td0.colSpan = 8;
+    td0.style.cssText = 'padding:24px;text-align:center;color:var(--gray500);font-size:.85rem';
+    td0.textContent = 'Cadastre funcionários para montar a escala.';
+    tr0.appendChild(td0); tbody.appendChild(tr0); return;
+  }
+
+  pessoas.forEach(function(pessoa){
+    var tr = document.createElement('tr');
+
+    var tdNome = document.createElement('td');
+    tdNome.style.fontWeight = '600';
+    tdNome.textContent = pessoa.nome || '—';
+    tr.appendChild(tdNome);
+
+    ORDEM_GRADE.forEach(function(dia){
+      var td = document.createElement('td');
+      var turno = escalas.find(function(e){
+        return e.funcionario_id === pessoa.id && Number(e.dia_semana) === dia;
+      });
+
+      if(!turno){
+        td.style.cssText = 'color:var(--gray500);font-size:.78rem';
+        td.textContent = '—';
+      } else if(turno.folga){
+        var b = document.createElement('span');
+        b.className = 'badge badge-gray';
+        b.textContent = 'Folga';
+        td.appendChild(b);
+      } else {
+        td.style.cssText = 'font-size:.78rem;font-weight:600;color:var(--g600)';
+        // O banco devolve "08:00:00"; na tela só as horas e minutos.
+        td.textContent = String(turno.horario_entrada || '').slice(0,5) + '–' + String(turno.horario_saida || '').slice(0,5);
+      }
+      tr.appendChild(td);
+    });
+
+    tbody.appendChild(tr);
+  });
+}
+
+async function salvarEscala(){
+  var erro = document.getElementById('esc-erro');
+  erro.style.display = 'none';
+
+  var funcId = document.getElementById('esc-funcionario').value;
+  if(!funcId){ erro.textContent = 'Escolha um funcionário.'; erro.style.display='block'; return; }
+
+  var folga = document.getElementById('esc-folga').classList.contains('on');
+  var corpo = {
+    funcionario_id: funcId,
+    dia_semana: parseInt(document.getElementById('esc-dia').value, 10),
+    folga: folga
+  };
+  if(!folga){
+    corpo.horario_entrada = document.getElementById('esc-entrada').value;
+    corpo.horario_saida   = document.getElementById('esc-saida').value;
+    if(!corpo.horario_entrada || !corpo.horario_saida){
+      erro.textContent = 'Informe entrada e saída.'; erro.style.display='block'; return;
+    }
+  }
+
+  var btn = document.getElementById('esc-btn');
+  var texto = btn.innerHTML;
+  btn.disabled = true; escreverComIcones(btn, 'Salvando...');
+
+  try {
+    var r = await fetch(API_BASE + '/escalas', {
+      method:'POST', headers: cabecalhoAuth(), body: JSON.stringify(corpo)
+    }).then(function(x){ return x.json().then(function(d){ return { status:x.status, data:d }; }); });
+
+    btn.disabled = false; btn.innerHTML = texto;
+    if(r.status !== 200 && r.status !== 201){
+      erro.textContent = r.data.error || 'Não foi possível salvar.';
+      erro.style.display = 'block';
+      return;
+    }
+    carregarEscala();
+  } catch(e) {
+    btn.disabled = false; btn.innerHTML = texto;
+    erro.textContent = 'Erro de conexão.';
+    erro.style.display = 'block';
+  }
+}
+
+// ═══════════════════════════════════
+// RELATÓRIOS
+// ═══════════════════════════════════
+
+/**
+ * Resumo do mês na tela de Ponto. Usa a MESMA rota de relatórios —
+ * não vale a pena uma segunda rota para reagrupar o que já é
+ * calculado lá.
+ */
+async function carregarHistoricoPonto(){
+  var caixa = document.getElementById('ponto-historico');
+  if(!caixa || !sessaoWorka || !sessaoWorka.token) return;
+
+  var d = null;
+  try {
+    d = await fetch(API_BASE + '/relatorios?dias=30', { headers: cabecalhoAuth() })
+      .then(function(r){ return r.ok ? r.json() : null; });
+  } catch(e) {}
+
+  caixa.innerHTML = '';
+  if(!d || !d.por_funcionario.length){
+    var vazio = document.createElement('div');
+    vazio.style.cssText = 'padding:16px;text-align:center;color:var(--gray500);font-size:.85rem';
+    vazio.textContent = 'Nenhum ponto registrado nos últimos 30 dias.';
+    caixa.appendChild(vazio);
+    return;
+  }
+
+  var resumo = document.createElement('div');
+  resumo.style.cssText = 'font-size:.8rem;color:var(--gray500);margin-bottom:12px';
+  resumo.textContent = d.ponto.registros + ' registros nos últimos 30 dias · ' +
+                       d.ponto.percentual_gps + '% das entradas com localização';
+  caixa.appendChild(resumo);
+
+  var linhas = document.createElement('div');
+  linhas.style.cssText = 'display:flex;flex-direction:column;gap:10px';
+
+  var maximo = Math.max.apply(null, d.por_funcionario.map(function(f){ return f.dias_trabalhados; })) || 1;
+  d.por_funcionario.forEach(function(f){
+    var linha = document.createElement('div');
+    var topo = document.createElement('div');
+    topo.style.cssText = 'display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px';
+
+    var nome = document.createElement('span');
+    nome.textContent = f.nome;
+    var valor = document.createElement('span');
+    valor.style.fontWeight = '600';
+    valor.textContent = f.dias_trabalhados + (f.dias_trabalhados === 1 ? ' dia' : ' dias');
+    topo.appendChild(nome); topo.appendChild(valor);
+
+    var barra = document.createElement('div');
+    barra.className = 'progress-bar';
+    var cheio = document.createElement('div');
+    cheio.className = 'progress-fill';
+    cheio.style.width = Math.round((f.dias_trabalhados / maximo) * 100) + '%';
+    barra.appendChild(cheio);
+
+    linha.appendChild(topo); linha.appendChild(barra);
+    linhas.appendChild(linha);
+  });
+  caixa.appendChild(linhas);
+}
+
+async function carregarRelatorios(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+  function escrever(id, t){ var el=document.getElementById(id); if(el) el.textContent = t; }
+
+  var dias = (document.getElementById('rel-periodo') || {}).value || '30';
+
+  var d = null;
+  try {
+    d = await fetch(API_BASE + '/relatorios?dias=' + encodeURIComponent(dias), { headers: cabecalhoAuth() })
+      .then(function(r){ return r.ok ? r.json() : null; });
+  } catch(e) {}
+  if(!d) return;
+
+  escrever('rel-pontos', String(d.ponto.registros));
+  escrever('rel-gps', d.ponto.entradas
+    ? d.ponto.percentual_gps + '% das entradas com localização'
+    : 'Nenhuma entrada no período');
+
+  escrever('rel-tarefas', String(d.tarefas.concluidas));
+  escrever('rel-tarefas-sub', d.tarefas.total
+    ? d.tarefas.percentual_conclusao + '% de ' + d.tarefas.total + ' tarefas'
+    : 'Nenhuma tarefa no período');
+
+  escrever('rel-faltas', String(d.ausencias.total));
+  escrever('rel-faltas-sub', d.ausencias.desconto_total > 0
+    ? moedaBR(d.ausencias.desconto_total) + ' em descontos'
+    : 'Sem descontos');
+
+  escrever('rel-folha', moedaBR(d.equipe.folha_mensal));
+  escrever('rel-equipe', d.equipe.ativos + (d.equipe.ativos === 1 ? ' pessoa ativa' : ' pessoas ativas'));
+
+  var tbody = document.getElementById('rel-tabela');
+  if(!tbody) return;
+  tbody.innerHTML = '';
+
+  if(!d.por_funcionario.length){
+    var tr0 = document.createElement('tr'), td0 = document.createElement('td');
+    td0.colSpan = 5;
+    td0.style.cssText = 'padding:24px;text-align:center;color:var(--gray500);font-size:.85rem';
+    td0.textContent = 'Nenhum funcionário ativo no período.';
+    tr0.appendChild(td0); tbody.appendChild(tr0); return;
+  }
+
+  d.por_funcionario.forEach(function(f){
+    var tr = document.createElement('tr');
+
+    var tdNome = document.createElement('td');
+    tdNome.style.fontWeight = '600';
+    tdNome.textContent = f.nome || '—';
+
+    var tdDias = document.createElement('td');
+    tdDias.textContent = f.dias_trabalhados + (f.dias_trabalhados === 1 ? ' dia' : ' dias');
+
+    var tdTarefas = document.createElement('td');
+    tdTarefas.textContent = f.tarefas_total
+      ? f.tarefas_concluidas + ' de ' + f.tarefas_total
+      : '—';
+
+    var tdFaltas = document.createElement('td');
+    if(f.faltas > 0){
+      var bf = document.createElement('span');
+      bf.className = 'badge badge-red';
+      bf.textContent = String(f.faltas);
+      tdFaltas.appendChild(bf);
+    } else { tdFaltas.textContent = '0'; }
+
+    var tdDesc = document.createElement('td');
+    tdDesc.textContent = f.desconto_faltas > 0 ? moedaBR(f.desconto_faltas) : '—';
+
+    [tdNome, tdDias, tdTarefas, tdFaltas, tdDesc].forEach(function(c){ tr.appendChild(c); });
+    tbody.appendChild(tr);
+  });
+}
+
+// ═══════════════════════════════════
 // FINANCEIRO (empresa e plataforma)
 // ═══════════════════════════════════
 // A MESMA tela serve aos dois painéis. Quem decide de quem são os
@@ -5363,21 +5939,43 @@ function carregarAusenciasReal(){
   .catch(function(){});
 }
 
-function aplicarConfigFaltaNaTela(){
-  var cfg = configDescontoFalta();
+async function aplicarConfigFaltaNaTela(){
+  var cfg = await carregarConfigFalta();
   var selTipo = document.getElementById('tipo-desconto-falta');
   var inpValor = document.getElementById('valor-falta');
   if(selTipo) selTipo.value = cfg.tipo;
   if(inpValor) inpValor.value = cfg.valor;
 }
 
-function salvarConfigFalta() {
+async function salvarConfigFalta() {
   var tipo = document.getElementById('tipo-desconto-falta').value;
-  var valor = document.getElementById('valor-falta').value;
-  localStorage.setItem('worka_config_falta', JSON.stringify({ tipo: tipo, valor: valor }));
+  var valor = parseFloat(document.getElementById('valor-falta').value) || 0;
+
+  try {
+    var r = await fetch(API_BASE + '/config-faltas', {
+      method: 'PUT',
+      headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + sessaoWorka.token },
+      body: JSON.stringify({
+        tipo_desconto: tipo,
+        valor_falta: valor,
+        criar_tarefa_automatica: configFaltaCache.criar_tarefa !== false
+      })
+    }).then(function(x){ return x.json().then(function(d){ return { status:x.status, data:d }; }); });
+
+    if(r.status !== 200){
+      alert(r.data.error || 'Não foi possível salvar a configuração.');
+      return;
+    }
+    configFaltaCache = { tipo: tipo, valor: valor, criar_tarefa: configFaltaCache.criar_tarefa !== false };
+  } catch(e) {
+    alert('Erro de conexão ao salvar a configuração.');
+    return;
+  }
+
   if(typeof carregarSalariosReal === 'function') carregarSalariosReal();
   if(typeof carregarAusenciasReal === 'function') carregarAusenciasReal();
-  alert('<svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> Configuração salva! Desconto por falta: ' + (tipo==='fixo' ? 'R$ '+valor : tipo === 'diaria' ? 'diário (salário ÷ 22)' : 'sem desconto automático'));
+  alert('Configuração salva para toda a empresa. Desconto por falta: ' +
+        (tipo==='fixo' ? 'R$ ' + valor : tipo === 'diaria' ? 'diário (salário ÷ 22)' : 'sem desconto automático'));
 }
 
 // ═══════════════════════════════════

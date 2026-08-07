@@ -205,6 +205,9 @@ var PERMISSOES_DONO = [
   "tarefas:read", "tarefas:write",
   "validade:read", "validade:write",
   "ausencias:read", "ausencias:write",
+  "escala:read", "escala:write",
+  "mural:read", "mural:write",
+  "cargos:read", "cargos:write",
   "logs:read",
   "config:write"
 ];
@@ -219,12 +222,17 @@ var ROLE_PERMISSIONS = {
     "tarefas:read", "tarefas:write",
     "validade:read", "validade:write",
     "ausencias:read", "ausencias:write",
+    "escala:read", "escala:write",
+    "mural:read", "mural:write",
+    "cargos:read",          // vê os cargos, mas quem cria é o dono
     "logs:read"
   ]),
   funcionario: new Set([
     "ponto:write",       // só o próprio ponto — checagem extra na rota
     "tarefas:read",
-    "validade:read"
+    "validade:read",
+    "escala:read",       // consulta a própria escala da semana
+    "mural:read"         // lê os comunicados da empresa
   ]),
   // Dono da Workap (não do cliente). Recebe as mesmas permissões de um
   // "dono" — para navegar por todas as telas do produto — MAIS as
@@ -376,7 +384,8 @@ function supabase(method, table, options = {}) {
     "lancamentos_financeiros", "push_subscriptions", "cupons",
     "dispositivos_confiaveis", "comunicados_plataforma",
     "owners_plataforma", "webauthn_credentials", "webauthn_challenges",
-    "config_plataforma", "utmify_envios"
+    "config_plataforma", "utmify_envios",
+    "comunicados", "cargos", "config_faltas"
   ];
   if (!ALLOWED_TABLES.includes(table)) {
     return Promise.reject(new Error(`Tabela não permitida: ${table}`));
@@ -3754,6 +3763,419 @@ var server = http.createServer(async (req, res) => {
 
       await DB.delete("lancamentos_financeiros", `id=eq.${idLanc}`);
       return jsonOk(res, { ok: true });
+    }
+
+    // ════════════════════════════════════════
+    // MURAL / COMUNICADOS DA EMPRESA
+    // ════════════════════════════════════════
+    // A tabela `comunicados` existe desde o começo do projeto e nunca
+    // teve uma rota. A tela dizia "em desenvolvimento" enquanto o
+    // banco já estava pronto para receber.
+    //
+    // Não confundir com `comunicados_plataforma`: aquele é a Workap
+    // falando com as empresas clientes; este é a empresa falando com
+    // os próprios funcionários.
+    if (method === "GET" && path === "/comunicados") {
+      if (!hasPermission(authPayload, "mural:read")) {
+        return jsonErr(res, "Sem permissão para ver o mural", 403);
+      }
+      var limMural = SANITIZE.int(url.searchParams.get("limit"), 1, 100) || 50;
+      var mural = await DB.select("comunicados",
+        `empresa_id=eq.${authPayload.empresa_id}&select=*&order=created_at.desc&limit=${limMural}`
+      );
+      return jsonOk(res, mural.body || []);
+    }
+
+    if (method === "POST" && path === "/comunicados") {
+      if (!hasPermission(authPayload, "mural:write")) {
+        return jsonErr(res, "Sem permissão para publicar no mural", 403);
+      }
+      var rawMural = await getBody(req);
+      var bodyMural = parseBody(rawMural);
+      if (!bodyMural) return jsonErr(res, "Dados inválidos");
+
+      var tituloMural = SANITIZE.string(bodyMural.titulo, 120);
+      var msgMural    = SANITIZE.string(bodyMural.mensagem, 2000);
+      if (!tituloMural) return jsonErr(res, "Escreva um título.");
+      if (!msgMural)    return jsonErr(res, "Escreva a mensagem.");
+
+      var catsMural = ["geral", "operacional", "urgente", "financeiro"];
+      var catMural = catsMural.includes(bodyMural.categoria) ? bodyMural.categoria : "geral";
+
+      var novoMural = await DB.insert("comunicados", {
+        empresa_id:    authPayload.empresa_id,
+        autor_id:      authPayload.funcionario_id || null,
+        titulo:        tituloMural,
+        mensagem:      msgMural,
+        categoria:     catMural,
+        destinatarios: "todos"
+      });
+
+      // Avisa a equipe no celular. Um mural que ninguém abre não
+      // comunica nada — é o push que faz a mensagem chegar.
+      enviarPush(authPayload.empresa_id, {
+        title: tituloMural,
+        body:  msgMural.substring(0, 140),
+        url:   "worka-app.html"
+      }).catch(() => {});
+
+      secLog("comunicado_publicado", { empresa_id: authPayload.empresa_id, categoria: catMural });
+      return jsonOk(res, { comunicado: novoMural.body[0] }, 201);
+    }
+
+    if (method === "DELETE" && path.startsWith("/comunicados/")) {
+      if (!hasPermission(authPayload, "mural:write")) {
+        return jsonErr(res, "Sem permissão para remover comunicados", 403);
+      }
+      var idMural = SANITIZE.uuid(path.split("/")[2]);
+      if (!idMural) return jsonErr(res, "Comunicado inválido");
+
+      // A empresa entra na busca: sem isso, um id adivinhado apagaria
+      // o comunicado de outra empresa.
+      var achadoMural = await DB.select("comunicados",
+        `id=eq.${idMural}&empresa_id=eq.${authPayload.empresa_id}&select=id`);
+      if (!achadoMural.body || !achadoMural.body[0]) return jsonErr(res, "Comunicado não encontrado", 404);
+
+      await DB.delete("comunicados", `id=eq.${idMural}`);
+      return jsonOk(res, { ok: true });
+    }
+
+    // ════════════════════════════════════════
+    // ESCALA DE TRABALHO
+    // ════════════════════════════════════════
+    // Uma linha por funcionário por dia da semana (0 = domingo).
+    // A tabela `escalas` também já existia sem nenhuma rota.
+    if (method === "GET" && path === "/escalas") {
+      if (!hasPermission(authPayload, "escala:read")) {
+        return jsonErr(res, "Sem permissão para ver a escala", 403);
+      }
+
+      var filtroEscala = `empresa_id=eq.${authPayload.empresa_id}`;
+      // Funcionário só enxerga a própria escala. Sem esta linha, quem
+      // bate ponto veria o horário de todo mundo da empresa.
+      if (authPayload.role === "funcionario") {
+        if (!authPayload.funcionario_id) return jsonOk(res, []);
+        filtroEscala += `&funcionario_id=eq.${authPayload.funcionario_id}`;
+      }
+
+      var escalas = await DB.select("escalas", `${filtroEscala}&select=*&order=dia_semana.asc`);
+      return jsonOk(res, escalas.body || []);
+    }
+
+    if (method === "POST" && path === "/escalas") {
+      if (!hasPermission(authPayload, "escala:write")) {
+        return jsonErr(res, "Sem permissão para montar a escala", 403);
+      }
+      var rawEsc = await getBody(req);
+      var bodyEsc = parseBody(rawEsc);
+      if (!bodyEsc) return jsonErr(res, "Dados inválidos");
+
+      var funcEsc = SANITIZE.uuid(bodyEsc.funcionario_id);
+      if (!funcEsc) return jsonErr(res, "Escolha o funcionário.");
+
+      var diaEsc = SANITIZE.int(bodyEsc.dia_semana, 0, 6);
+      if (diaEsc === null || diaEsc === undefined) return jsonErr(res, "Dia da semana inválido.");
+
+      var folgaEsc = bodyEsc.folga === true;
+      var entradaEsc = null, saidaEsc = null;
+
+      if (!folgaEsc) {
+        var horaValida = /^([01]\d|2[0-3]):[0-5]\d$/;
+        entradaEsc = String(bodyEsc.horario_entrada || "").trim();
+        saidaEsc   = String(bodyEsc.horario_saida || "").trim();
+        if (!horaValida.test(entradaEsc) || !horaValida.test(saidaEsc)) {
+          return jsonErr(res, "Informe os horários no formato 08:00.");
+        }
+      }
+
+      // O funcionário precisa ser DESTA empresa. Sem conferir, daria
+      // para montar escala para alguém de outra conta mandando o id.
+      var donoFunc = await DB.select("funcionarios",
+        `id=eq.${funcEsc}&empresa_id=eq.${authPayload.empresa_id}&select=id`);
+      if (!donoFunc.body || !donoFunc.body[0]) return jsonErr(res, "Funcionário não encontrado", 404);
+
+      // Um turno por funcionário por dia: gravar de novo substitui, em
+      // vez de empilhar duas escalas contraditórias no mesmo dia.
+      var jaTemEsc = await DB.select("escalas",
+        `empresa_id=eq.${authPayload.empresa_id}&funcionario_id=eq.${funcEsc}&dia_semana=eq.${diaEsc}&select=id`);
+
+      var corpoEsc = {
+        empresa_id: authPayload.empresa_id,
+        funcionario_id: funcEsc,
+        dia_semana: diaEsc,
+        horario_entrada: entradaEsc,
+        horario_saida: saidaEsc,
+        folga: folgaEsc
+      };
+
+      var salvoEsc;
+      if (jaTemEsc.body && jaTemEsc.body[0]) {
+        salvoEsc = await DB.update("escalas", `id=eq.${jaTemEsc.body[0].id}`, corpoEsc);
+      } else {
+        salvoEsc = await DB.insert("escalas", corpoEsc);
+      }
+
+      return jsonOk(res, { escala: (salvoEsc.body || [])[0] || corpoEsc }, 201);
+    }
+
+    if (method === "DELETE" && path.startsWith("/escalas/")) {
+      if (!hasPermission(authPayload, "escala:write")) {
+        return jsonErr(res, "Sem permissão para alterar a escala", 403);
+      }
+      var idEsc = SANITIZE.uuid(path.split("/")[2]);
+      if (!idEsc) return jsonErr(res, "Escala inválida");
+
+      var achadoEsc = await DB.select("escalas",
+        `id=eq.${idEsc}&empresa_id=eq.${authPayload.empresa_id}&select=id`);
+      if (!achadoEsc.body || !achadoEsc.body[0]) return jsonErr(res, "Escala não encontrada", 404);
+
+      await DB.delete("escalas", `id=eq.${idEsc}`);
+      return jsonOk(res, { ok: true });
+    }
+
+    // ════════════════════════════════════════
+    // CARGOS E PERMISSÕES
+    // ════════════════════════════════════════
+    // A tela avisava que "criação de cargos customizados ainda não é
+    // suportada pelo backend". A tabela `cargos` já existia, com uma
+    // coluna booleana por permissão.
+    var PERMISSOES_CARGO = [
+      "ver_faturamento", "aprovar_funcionarios", "criar_tarefas",
+      "editar_visual", "gerenciar_ponto", "acessar_api",
+      "gerenciar_validade", "ver_relatorios", "gerenciar_salarios"
+    ];
+
+    if (method === "GET" && path === "/cargos") {
+      if (!hasPermission(authPayload, "cargos:read")) {
+        return jsonErr(res, "Sem permissão para ver cargos", 403);
+      }
+      var cargos = await DB.select("cargos",
+        `empresa_id=eq.${authPayload.empresa_id}&select=*&order=nivel.desc`);
+      return jsonOk(res, cargos.body || []);
+    }
+
+    if (method === "POST" && path === "/cargos") {
+      if (!hasPermission(authPayload, "cargos:write")) {
+        return jsonErr(res, "Sem permissão para criar cargos", 403);
+      }
+      var rawCargo = await getBody(req);
+      var bodyCargo = parseBody(rawCargo);
+      if (!bodyCargo) return jsonErr(res, "Dados inválidos");
+
+      var nomeCargo = SANITIZE.string(bodyCargo.nome, 60);
+      if (!nomeCargo) return jsonErr(res, "Dê um nome ao cargo.");
+
+      var jaTemCargo = await DB.select("cargos",
+        `empresa_id=eq.${authPayload.empresa_id}&nome=eq.${encodeURIComponent(nomeCargo)}&select=id`);
+      if (jaTemCargo.body && jaTemCargo.body[0]) {
+        return jsonErr(res, "Já existe um cargo com esse nome.", 409);
+      }
+
+      var corpoCargo = {
+        empresa_id: authPayload.empresa_id,
+        nome: nomeCargo,
+        nivel: SANITIZE.int(bodyCargo.nivel, 1, 10) || 1
+      };
+      // Só as permissões conhecidas entram, e sempre como booleano:
+      // o que vem do navegador nunca vira coluna nova nem valor solto.
+      PERMISSOES_CARGO.forEach(function (perm) {
+        corpoCargo[perm] = bodyCargo[perm] === true;
+      });
+
+      var novoCargo = await DB.insert("cargos", corpoCargo);
+      secLog("cargo_criado", { empresa_id: authPayload.empresa_id });
+      return jsonOk(res, { cargo: novoCargo.body[0] }, 201);
+    }
+
+    if (method === "PUT" && path.startsWith("/cargos/")) {
+      if (!hasPermission(authPayload, "cargos:write")) {
+        return jsonErr(res, "Sem permissão para alterar cargos", 403);
+      }
+      var idCargo = SANITIZE.uuid(path.split("/")[2]);
+      if (!idCargo) return jsonErr(res, "Cargo inválido");
+
+      var rawUp = await getBody(req);
+      var bodyUp = parseBody(rawUp);
+      if (!bodyUp) return jsonErr(res, "Dados inválidos");
+
+      var achadoCargo = await DB.select("cargos",
+        `id=eq.${idCargo}&empresa_id=eq.${authPayload.empresa_id}&select=id`);
+      if (!achadoCargo.body || !achadoCargo.body[0]) return jsonErr(res, "Cargo não encontrado", 404);
+
+      var updCargo = {};
+      if (bodyUp.nome) updCargo.nome = SANITIZE.string(bodyUp.nome, 60);
+      if (bodyUp.nivel !== undefined) updCargo.nivel = SANITIZE.int(bodyUp.nivel, 1, 10) || 1;
+      PERMISSOES_CARGO.forEach(function (perm) {
+        if (bodyUp[perm] !== undefined) updCargo[perm] = bodyUp[perm] === true;
+      });
+
+      var atualizado = await DB.update("cargos", `id=eq.${idCargo}`, updCargo);
+      return jsonOk(res, { cargo: (atualizado.body || [])[0] });
+    }
+
+    if (method === "DELETE" && path.startsWith("/cargos/")) {
+      if (!hasPermission(authPayload, "cargos:write")) {
+        return jsonErr(res, "Sem permissão para remover cargos", 403);
+      }
+      var idDel = SANITIZE.uuid(path.split("/")[2]);
+      if (!idDel) return jsonErr(res, "Cargo inválido");
+
+      var achadoDel = await DB.select("cargos",
+        `id=eq.${idDel}&empresa_id=eq.${authPayload.empresa_id}&select=id`);
+      if (!achadoDel.body || !achadoDel.body[0]) return jsonErr(res, "Cargo não encontrado", 404);
+
+      // Cargo em uso não é apagado: apagar deixaria funcionários
+      // apontando para um cargo que não existe mais.
+      var emUso = await DB.select("funcionarios",
+        `cargo_id=eq.${idDel}&select=id&limit=1`).catch(() => ({ body: [] }));
+      if (emUso.body && emUso.body[0]) {
+        return jsonErr(res, "Há funcionários com este cargo. Troque o cargo deles antes de remover.", 409);
+      }
+
+      await DB.delete("cargos", `id=eq.${idDel}`);
+      return jsonOk(res, { ok: true });
+    }
+
+    // ════════════════════════════════════════
+    // CONFIGURAÇÃO DE FALTAS
+    // ════════════════════════════════════════
+    // Estava só no localStorage do navegador: o dono configurava o
+    // desconto por falta no computador e o valor não existia no
+    // celular — nem para o sistema, na hora de calcular. A tabela
+    // config_faltas já existia e nunca tinha sido usada.
+    if (method === "GET" && path === "/config-faltas") {
+      if (!hasPermission(authPayload, "ausencias:read")) {
+        return jsonErr(res, "Sem permissão", 403);
+      }
+      var cfgFalta = await DB.select("config_faltas",
+        `empresa_id=eq.${authPayload.empresa_id}&select=*&limit=1`).catch(() => ({ body: [] }));
+
+      var linhaFalta = (cfgFalta.body || [])[0] || {
+        tipo_desconto: "fixo", valor_falta: 100, criar_tarefa_automatica: true
+      };
+      return jsonOk(res, linhaFalta);
+    }
+
+    if (method === "PUT" && path === "/config-faltas") {
+      if (!hasPermission(authPayload, "ausencias:write")) {
+        return jsonErr(res, "Sem permissão para alterar a configuração", 403);
+      }
+      var rawFalta = await getBody(req);
+      var bodyFalta = parseBody(rawFalta);
+      if (!bodyFalta) return jsonErr(res, "Dados inválidos");
+
+      var tiposFalta = ["fixo", "diaria", "sem_desconto"];
+      var tipoFalta = tiposFalta.includes(bodyFalta.tipo_desconto) ? bodyFalta.tipo_desconto : "fixo";
+
+      var valorFalta = parseFloat(bodyFalta.valor_falta);
+      if (isNaN(valorFalta) || valorFalta < 0 || valorFalta > 99999) valorFalta = 0;
+
+      var corpoFalta = {
+        empresa_id: authPayload.empresa_id,
+        tipo_desconto: tipoFalta,
+        valor_falta: valorFalta,
+        criar_tarefa_automatica: bodyFalta.criar_tarefa_automatica === true,
+        updated_at: new Date().toISOString()
+      };
+
+      // empresa_id é a chave primária desta tabela: existe no máximo
+      // uma linha por empresa.
+      var temFalta = await DB.select("config_faltas",
+        `empresa_id=eq.${authPayload.empresa_id}&select=empresa_id&limit=1`).catch(() => ({ body: [] }));
+
+      if (temFalta.body && temFalta.body[0]) {
+        await DB.update("config_faltas", `empresa_id=eq.${authPayload.empresa_id}`, corpoFalta);
+      } else {
+        await DB.insert("config_faltas", corpoFalta);
+      }
+      return jsonOk(res, { ok: true, config: corpoFalta });
+    }
+
+    // ════════════════════════════════════════
+    // RELATÓRIOS
+    // ════════════════════════════════════════
+    // A tela dizia "em desenvolvimento". Os dados sempre estiveram
+    // lá — ponto, tarefas, ausências e folha —, faltava juntar.
+    if (method === "GET" && path === "/relatorios") {
+      if (!hasPermission(authPayload, "ponto:read")) {
+        return jsonErr(res, "Sem permissão para ver relatórios", 403);
+      }
+
+      // Período: até 180 dias para trás. Sem teto, um pedido de "todo
+      // o histórico" varreria a tabela inteira a cada abertura da tela.
+      var dias = SANITIZE.int(url.searchParams.get("dias"), 1, 180) || 30;
+      var desde = new Date(Date.now() - dias * 24 * 60 * 60 * 1000).toISOString();
+      var empRel = authPayload.empresa_id;
+
+      var [pontos, tarefasRel, ausenciasRel, funcsRel] = await Promise.all([
+        DB.select("registros_ponto", `empresa_id=eq.${empRel}&created_at=gte.${desde}&select=tipo,funcionario_id,latitude,horario,created_at`).catch(() => ({ body: [] })),
+        DB.select("tarefas",          `empresa_id=eq.${empRel}&created_at=gte.${desde}&select=status,responsavel_id,prazo,concluida_em`).catch(() => ({ body: [] })),
+        DB.select("ausencias",        `empresa_id=eq.${empRel}&data=gte.${desde.substring(0,10)}&select=tipo,funcionario_id,desconto`).catch(() => ({ body: [] })),
+        DB.select("funcionarios",     `empresa_id=eq.${empRel}&select=id,nome,status,salario_base`).catch(() => ({ body: [] }))
+      ]);
+
+      var listaPontos = pontos.body || [];
+      var listaTarefas = tarefasRel.body || [];
+      var listaAusencias = ausenciasRel.body || [];
+      var listaFuncs = funcsRel.body || [];
+
+      var entradas = listaPontos.filter(function (p) { return p.tipo === "entrada"; });
+      var comGps = entradas.filter(function (p) { return p.latitude !== null && p.latitude !== undefined; }).length;
+
+      // Por funcionário: quantos dias trabalhou, tarefas concluídas e
+      // faltas. É a tabela que o dono realmente usa na conversa de fim
+      // de mês, então vem pronta em vez de exigir cruzamento manual.
+      var porFuncionario = listaFuncs.filter(function (f) { return f.status === "ativo"; }).map(function (f) {
+        var diasTrabalhados = new Set(
+          entradas.filter(function (p) { return p.funcionario_id === f.id; })
+                  .map(function (p) { return (p.horario || p.created_at || "").substring(0, 10); })
+        ).size;
+
+        var minhasTarefas = listaTarefas.filter(function (t) { return t.responsavel_id === f.id; });
+        var minhasAusencias = listaAusencias.filter(function (a) { return a.funcionario_id === f.id; });
+
+        return {
+          id: f.id,
+          nome: f.nome,
+          dias_trabalhados: diasTrabalhados,
+          tarefas_total: minhasTarefas.length,
+          tarefas_concluidas: minhasTarefas.filter(function (t) { return t.status === "concluida"; }).length,
+          faltas: minhasAusencias.length,
+          desconto_faltas: Math.round(minhasAusencias.reduce(function (s, a) { return s + (parseFloat(a.desconto) || 0); }, 0) * 100) / 100
+        };
+      }).sort(function (a, b) { return b.dias_trabalhados - a.dias_trabalhados; });
+
+      var concluidas = listaTarefas.filter(function (t) { return t.status === "concluida"; }).length;
+      var folhaMes = listaFuncs.filter(function (f) { return f.status === "ativo"; })
+                               .reduce(function (s, f) { return s + (parseFloat(f.salario_base) || 0); }, 0);
+
+      return jsonOk(res, {
+        periodo_dias: dias,
+        ponto: {
+          registros:    listaPontos.length,
+          entradas:     entradas.length,
+          com_gps:      comGps,
+          // Percentual de pontos com coordenada: é o número que mostra
+          // se a equipe está batendo ponto com a localização ligada.
+          percentual_gps: entradas.length ? Math.round((comGps / entradas.length) * 100) : 0
+        },
+        tarefas: {
+          total:        listaTarefas.length,
+          concluidas:   concluidas,
+          pendentes:    listaTarefas.filter(function (t) { return t.status === "pendente"; }).length,
+          atrasadas:    listaTarefas.filter(function (t) { return t.status === "atrasada"; }).length,
+          percentual_conclusao: listaTarefas.length ? Math.round((concluidas / listaTarefas.length) * 100) : 0
+        },
+        ausencias: {
+          total:        listaAusencias.length,
+          desconto_total: Math.round(listaAusencias.reduce(function (s, a) { return s + (parseFloat(a.desconto) || 0); }, 0) * 100) / 100
+        },
+        equipe: {
+          ativos: listaFuncs.filter(function (f) { return f.status === "ativo"; }).length,
+          folha_mensal: Math.round(folhaMes * 100) / 100
+        },
+        por_funcionario: porFuncionario
+      });
     }
 
     // ── LOGS ─────────────────────────────────────────
