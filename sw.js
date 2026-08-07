@@ -8,11 +8,10 @@
 // o sistema não tem. Login biométrico continua sendo uma feature em
 // aberto (exige WebAuthn + tabela de credenciais no banco).
 
-// Cache bumped para v7: saíram os últimos dados de maquete do painel
-// (distribuição por ramo e "novos assinantes"). Sem trocar o nome do
-// cache, quem já abriu o app continuaria vendo as empresas fictícias
-// servidas do cache — foi exatamente o que aconteceu no print.
-var CACHE = 'workap-v7';
+// Cache bumped para v8: Mural, Escala e Relatórios saíram do "em
+// desenvolvimento" e viraram telas de verdade. Sem trocar o nome do
+// cache, quem já abriu o app continuaria vendo os avisos antigos.
+var CACHE = 'workap-v8';
 // Ícone das notificações push: só o símbolo. A arte original tem a
 // palavra "WORKA" desenhada dentro e mostraria o nome antigo.
 var NOTIFICATION_ICON = 'assets/icon-192.png';
