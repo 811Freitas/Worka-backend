@@ -208,6 +208,9 @@ var PERMISSOES_DONO = [
   "escala:read", "escala:write",
   "mural:read", "mural:write",
   "cargos:read", "cargos:write",
+  "chat:usar",
+  "afastamentos:read", "afastamentos:write",
+  "metas:read", "metas:write",
   "logs:read",
   "config:write"
 ];
@@ -225,6 +228,9 @@ var ROLE_PERMISSIONS = {
     "escala:read", "escala:write",
     "mural:read", "mural:write",
     "cargos:read",          // vê os cargos, mas quem cria é o dono
+    "chat:usar",
+    "afastamentos:read", "afastamentos:write",
+    "metas:read", "metas:write",
     "logs:read"
   ]),
   funcionario: new Set([
@@ -232,7 +238,10 @@ var ROLE_PERMISSIONS = {
     "tarefas:read",
     "validade:read",
     "escala:read",       // consulta a própria escala da semana
-    "mural:read"         // lê os comunicados da empresa
+    "mural:read",        // lê os comunicados da empresa
+    "chat:usar",         // conversa com a equipe
+    "afastamentos:read", // vê as próprias férias/folgas — filtro na rota
+    "metas:read"         // acompanha as metas atribuídas a si
   ]),
   // Dono da Workap (não do cliente). Recebe as mesmas permissões de um
   // "dono" — para navegar por todas as telas do produto — MAIS as
@@ -385,7 +394,8 @@ function supabase(method, table, options = {}) {
     "dispositivos_confiaveis", "comunicados_plataforma",
     "owners_plataforma", "webauthn_credentials", "webauthn_challenges",
     "config_plataforma", "utmify_envios",
-    "comunicados", "cargos", "config_faltas", "contas_pagar"
+    "comunicados", "cargos", "config_faltas", "contas_pagar",
+    "mensagens", "periodos_afastamento", "metas"
   ];
   if (!ALLOWED_TABLES.includes(table)) {
     return Promise.reject(new Error(`Tabela não permitida: ${table}`));
@@ -3313,13 +3323,61 @@ var server = http.createServer(async (req, res) => {
       // é resolvido para nome legível aqui porque a tabela cargos
       // não está sendo populada por nenhuma rota ainda.
       var campos = podeVerSalario
-        ? "id,nome,email,telefone,cargo_id,status,salario_base,created_at"
-        : "id,nome,email,telefone,cargo_id,status,created_at";
+        ? "id,nome,email,telefone,cargo_id,status,salario_base,created_at,desligado_em,motivo_desligamento"
+        : "id,nome,email,telefone,cargo_id,status,created_at,desligado_em";
 
       var result = await DB.select("funcionarios",
         `empresa_id=eq.${empresa_id}&select=${campos}&order=created_at.desc`
       );
       return jsonOk(res, result.body);
+    }
+
+    // ── DESLIGAR FUNCIONÁRIO ─────────────────────────
+    // Diferente de mudar o status para "inativo": aqui fica registrado
+    // QUANDO e POR QUÊ. Sem isso, "demitir" apagaria a história da
+    // pessoa e ninguém saberia responder daqui a seis meses.
+    //
+    // O cadastro NÃO é removido de propósito: ponto batido, tarefas
+    // feitas e histórico de salário continuam ligados a ele. Apagar a
+    // pessoa quebraria os relatórios de todos os meses em que ela
+    // trabalhou — e a folha de um mês fechado deixaria de bater.
+    if (method === "POST" && path.match(/^\/funcionarios\/[\w-]+\/desligar$/)) {
+      if (!hasPermission(authPayload, "funcionarios:delete")) {
+        secLog("permission_denied", { role: authPayload.role, action: "funcionarios:desligar" });
+        return jsonErr(res, "Sem permissão para desligar funcionários", 403);
+      }
+      var idDesl = SANITIZE.uuid(path.split("/")[2]);
+      if (!idDesl) return jsonErr(res, "ID inválido");
+
+      var rawDesl = await getBody(req);
+      var bodyDesl = parseBody(rawDesl) || {};
+
+      var checkDesl = await DB.select("funcionarios",
+        `id=eq.${idDesl}&empresa_id=eq.${authPayload.empresa_id}&select=id,nome,status`);
+      var pessoa = checkDesl.body && checkDesl.body[0];
+      if (!pessoa) return jsonErr(res, "Funcionário não encontrado", 404);
+      if (pessoa.status === "inativo") return jsonErr(res, "Esta pessoa já está desligada.", 409);
+
+      await DB.update("funcionarios", `id=eq.${idDesl}`, {
+        status:              "inativo",
+        desligado_em:        new Date().toISOString(),
+        motivo_desligamento: SANITIZE.string(bodyDesl.motivo, 300) || null
+      });
+
+      // Escala e metas individuais são limpas: manter o turno de quem
+      // saiu faz a grade da semana mostrar uma pessoa que não trabalha
+      // mais ali, e alguém acaba contando com ela.
+      await DB.delete("escalas", `funcionario_id=eq.${idDesl}`).catch(() => {});
+      await supabase("PATCH", "metas", {
+        query: `funcionario_id=eq.${idDesl}&status=eq.ativa`,
+        body:  { status: "cancelada" }
+      }).catch(() => {});
+
+      secLog("func_removido", { empresa_id: authPayload.empresa_id, funcionario_id: idDesl });
+      return jsonOk(res, {
+        ok: true,
+        message: "Desligamento registrado. O histórico da pessoa foi mantido."
+      });
     }
 
     if (method === "PUT" && path.match(/^\/funcionarios\/[\w-]+\/status$/)) {
@@ -4450,6 +4508,425 @@ var server = http.createServer(async (req, res) => {
       // Só a conta some. O lançamento financeiro, se já existir, fica:
       // apagá-lo mudaria o caixa de um mês que já foi fechado.
       await DB.delete("contas_pagar", `id=eq.${idDelConta}`);
+      return jsonOk(res, { ok: true });
+    }
+
+    // ════════════════════════════════════════
+    // CHAT DA EQUIPE
+    // ════════════════════════════════════════
+    // Conversa direta entre duas pessoas da mesma empresa. Não é o
+    // Mural (aviso de um para todos) nem os Comunicados da plataforma.
+    //
+    // O dono não tem linha em `funcionarios`, então "o dono" é
+    // representado por null nas pontas da conversa. Uma função só
+    // resolve isso para não haver dois entendimentos de quem é quem.
+    function quemSou(auth) {
+      return auth.role === "funcionario" ? (auth.funcionario_id || null) : null;
+    }
+    function mesmaPessoa(a, b) {
+      return (a || null) === (b || null);
+    }
+
+    // Lista de conversas: uma linha por pessoa, com a última mensagem
+    // e o número de não lidas. É a tela que abre primeiro.
+    if (method === "GET" && path === "/chat/conversas") {
+      if (!hasPermission(authPayload, "chat:usar")) {
+        return jsonErr(res, "Sem permissão para usar o chat", 403);
+      }
+      var euChat = quemSou(authPayload);
+
+      var [msgs, equipe] = await Promise.all([
+        DB.select("mensagens", `empresa_id=eq.${authPayload.empresa_id}&select=*&order=created_at.desc&limit=500`).catch(() => ({ body: [] })),
+        DB.select("funcionarios", `empresa_id=eq.${authPayload.empresa_id}&status=eq.ativo&select=id,nome,foto_url`).catch(() => ({ body: [] }))
+      ]);
+
+      var todasMsgs = msgs.body || [];
+      var pessoas = equipe.body || [];
+
+      // Quem pode aparecer na lista: para o dono, a equipe toda; para
+      // o funcionário, a equipe menos ele mesmo, mais o dono.
+      var contatos = pessoas
+        .filter(function (f) { return !mesmaPessoa(f.id, euChat); })
+        .map(function (f) { return { id: f.id, nome: f.nome, foto_url: f.foto_url || null, eh_dono: false }; });
+
+      if (euChat !== null) {
+        contatos.unshift({ id: null, nome: "Administração", foto_url: null, eh_dono: true });
+      }
+
+      var lista = contatos.map(function (c) {
+        var daConversa = todasMsgs.filter(function (m) {
+          return (mesmaPessoa(m.remetente_id, euChat) && mesmaPessoa(m.destinatario_id, c.id)) ||
+                 (mesmaPessoa(m.remetente_id, c.id)   && mesmaPessoa(m.destinatario_id, euChat));
+        });
+        // Ordena aqui em vez de confiar que a ordem do banco sobreviva
+        // ao filtro: a consulta traz as mensagens da empresa TODA, e
+        // depender de "a primeira do array é a mais nova" quebra em
+        // silêncio — a lista mostraria a mensagem mais antiga como se
+        // fosse a última.
+        var ultima = daConversa.slice().sort(function (x, y) {
+          return new Date(y.created_at) - new Date(x.created_at);
+        })[0] || null;
+        return {
+          id: c.id, nome: c.nome, foto_url: c.foto_url, eh_dono: c.eh_dono,
+          ultima_mensagem: ultima ? ultima.texto.substring(0, 80) : null,
+          ultima_em: ultima ? ultima.created_at : null,
+          nao_lidas: daConversa.filter(function (m) {
+            return !m.lida && mesmaPessoa(m.destinatario_id, euChat);
+          }).length
+        };
+      });
+
+      // Conversa com mensagem recente sobe; quem nunca conversou fica
+      // embaixo, em ordem alfabética.
+      lista.sort(function (a, b) {
+        if (a.ultima_em && b.ultima_em) return new Date(b.ultima_em) - new Date(a.ultima_em);
+        if (a.ultima_em) return -1;
+        if (b.ultima_em) return 1;
+        return String(a.nome).localeCompare(String(b.nome));
+      });
+
+      return jsonOk(res, {
+        conversas: lista,
+        total_nao_lidas: lista.reduce(function (s, c) { return s + c.nao_lidas; }, 0)
+      });
+    }
+
+    // Mensagens de UMA conversa. O "com" vem na query: id do
+    // funcionário, ou "dono" para falar com a administração.
+    if (method === "GET" && path === "/chat/mensagens") {
+      if (!hasPermission(authPayload, "chat:usar")) {
+        return jsonErr(res, "Sem permissão para usar o chat", 403);
+      }
+      var euMsg = quemSou(authPayload);
+      var comParam = url.searchParams.get("com");
+      var outro = (comParam === "dono" || !comParam) ? null : SANITIZE.uuid(comParam);
+      if (comParam && comParam !== "dono" && !outro) return jsonErr(res, "Conversa inválida");
+
+      // Falar consigo mesmo não é conversa.
+      if (mesmaPessoa(outro, euMsg)) return jsonErr(res, "Conversa inválida");
+
+      var todas = await DB.select("mensagens",
+        `empresa_id=eq.${authPayload.empresa_id}&select=*&order=created_at.asc&limit=300`
+      ).catch(() => ({ body: [] }));
+
+      var daConversa = (todas.body || []).filter(function (m) {
+        return (mesmaPessoa(m.remetente_id, euMsg) && mesmaPessoa(m.destinatario_id, outro)) ||
+               (mesmaPessoa(m.remetente_id, outro) && mesmaPessoa(m.destinatario_id, euMsg));
+      });
+
+      // Marcar como lidas o que chegou para mim. Fire-and-forget: o
+      // recibo de leitura não pode atrasar a exibição da conversa.
+      var naoLidas = daConversa.filter(function (m) {
+        return !m.lida && mesmaPessoa(m.destinatario_id, euMsg);
+      });
+      naoLidas.forEach(function (m) {
+        supabase("PATCH", "mensagens", {
+          query: `id=eq.${m.id}`,
+          body: { lida: true, lida_em: new Date().toISOString() }
+        }).catch(() => {});
+      });
+
+      return jsonOk(res, daConversa.map(function (m) {
+        return {
+          id: m.id,
+          texto: m.texto,
+          minha: mesmaPessoa(m.remetente_id, euMsg),
+          lida: m.lida,
+          created_at: m.created_at
+        };
+      }));
+    }
+
+    if (method === "POST" && path === "/chat/mensagens") {
+      if (!hasPermission(authPayload, "chat:usar")) {
+        return jsonErr(res, "Sem permissão para usar o chat", 403);
+      }
+      var rawMsg = await getBody(req);
+      var bodyMsg = parseBody(rawMsg);
+      if (!bodyMsg) return jsonErr(res, "Dados inválidos");
+
+      var textoMsg = SANITIZE.string(bodyMsg.texto, 2000);
+      if (!textoMsg) return jsonErr(res, "Escreva alguma coisa.");
+
+      var euEnvio = quemSou(authPayload);
+      var paraParam = bodyMsg.para;
+      var destino = (paraParam === "dono" || paraParam === null || paraParam === undefined)
+        ? null : SANITIZE.uuid(paraParam);
+      if (paraParam && paraParam !== "dono" && !destino) return jsonErr(res, "Destinatário inválido");
+      if (mesmaPessoa(destino, euEnvio)) return jsonErr(res, "Não dá para conversar consigo mesmo.");
+
+      // O destinatário precisa ser DESTA empresa. Sem conferir, daria
+      // para mandar mensagem para alguém de outra conta pelo id.
+      if (destino) {
+        var existe = await DB.select("funcionarios",
+          `id=eq.${destino}&empresa_id=eq.${authPayload.empresa_id}&select=id,nome`);
+        if (!existe.body || !existe.body[0]) return jsonErr(res, "Destinatário não encontrado", 404);
+      }
+
+      var nova = await DB.insert("mensagens", {
+        empresa_id:      authPayload.empresa_id,
+        remetente_id:    euEnvio,
+        destinatario_id: destino,
+        texto:           textoMsg,
+        lida:            false
+      });
+
+      // Notificação para quem recebeu. Sem ela, o chat só funciona
+      // para quem já está com o app aberto — que é quase ninguém.
+      var nomeRemetente = "Administração";
+      if (euEnvio) {
+        var quemEnviou = await DB.select("funcionarios", `id=eq.${euEnvio}&select=nome`).catch(() => ({ body: [] }));
+        if (quemEnviou.body && quemEnviou.body[0]) nomeRemetente = quemEnviou.body[0].nome;
+      }
+      enviarPush(authPayload.empresa_id, {
+        title: nomeRemetente,
+        body:  textoMsg.substring(0, 120),
+        url:   "worka-app.html"
+      }, destino || undefined).catch(() => {});
+
+      return jsonOk(res, { mensagem: nova.body[0] }, 201);
+    }
+
+    // ════════════════════════════════════════
+    // FÉRIAS, FOLGAS E LICENÇAS
+    // ════════════════════════════════════════
+    if (method === "GET" && path === "/afastamentos") {
+      if (!hasPermission(authPayload, "afastamentos:read")) {
+        return jsonErr(res, "Sem permissão", 403);
+      }
+      var filtroAfast = `empresa_id=eq.${authPayload.empresa_id}`;
+      // Funcionário vê só os próprios períodos.
+      if (authPayload.role === "funcionario") {
+        if (!authPayload.funcionario_id) return jsonOk(res, { afastamentos: [], em_curso: [] });
+        filtroAfast += `&funcionario_id=eq.${authPayload.funcionario_id}`;
+      }
+
+      var afast = await DB.select("periodos_afastamento",
+        `${filtroAfast}&select=*&order=data_inicio.desc&limit=200`).catch(() => ({ body: [] }));
+
+      var nomes = {};
+      var equipeAf = await DB.select("funcionarios",
+        `empresa_id=eq.${authPayload.empresa_id}&select=id,nome`).catch(() => ({ body: [] }));
+      (equipeAf.body || []).forEach(function (f) { nomes[f.id] = f.nome; });
+
+      var hojeAf = new Date().toISOString().substring(0, 10);
+      var listaAf = (afast.body || []).map(function (a) {
+        return Object.assign({}, a, {
+          funcionario_nome: nomes[a.funcionario_id] || "—",
+          em_curso: a.data_inicio <= hojeAf && a.data_fim >= hojeAf,
+          futuro:   a.data_inicio > hojeAf,
+          dias:     Math.round((new Date(a.data_fim) - new Date(a.data_inicio)) / 86400000) + 1
+        });
+      });
+
+      return jsonOk(res, {
+        afastamentos: listaAf,
+        em_curso: listaAf.filter(function (a) { return a.em_curso; })
+      });
+    }
+
+    if (method === "POST" && path === "/afastamentos") {
+      if (!hasPermission(authPayload, "afastamentos:write")) {
+        return jsonErr(res, "Sem permissão para registrar férias e folgas", 403);
+      }
+      var rawAf = await getBody(req);
+      var bodyAf = parseBody(rawAf);
+      if (!bodyAf) return jsonErr(res, "Dados inválidos");
+
+      var funcAf = SANITIZE.uuid(bodyAf.funcionario_id);
+      if (!funcAf) return jsonErr(res, "Escolha o funcionário.");
+
+      var tiposAf = ["ferias", "folga", "licenca", "afastamento"];
+      var tipoAf = tiposAf.includes(bodyAf.tipo) ? bodyAf.tipo : "ferias";
+
+      var dataFormato = /^\d{4}-\d{2}-\d{2}$/;
+      var inicioAf = String(bodyAf.data_inicio || "").substring(0, 10);
+      var fimAf    = String(bodyAf.data_fim || "").substring(0, 10);
+      if (!dataFormato.test(inicioAf) || !dataFormato.test(fimAf)) {
+        return jsonErr(res, "Informe as datas de início e fim.");
+      }
+      if (fimAf < inicioAf) return jsonErr(res, "A data de fim não pode ser antes do início.");
+
+      var donoAf = await DB.select("funcionarios",
+        `id=eq.${funcAf}&empresa_id=eq.${authPayload.empresa_id}&select=id,nome`);
+      if (!donoAf.body || !donoAf.body[0]) return jsonErr(res, "Funcionário não encontrado", 404);
+
+      // Períodos que se sobrepõem para a mesma pessoa: duas férias na
+      // mesma semana é erro de digitação, não intenção.
+      var conflito = await DB.select("periodos_afastamento",
+        `funcionario_id=eq.${funcAf}&data_inicio=lte.${fimAf}&data_fim=gte.${inicioAf}&select=id,tipo,data_inicio,data_fim&limit=1`
+      ).catch(() => ({ body: [] }));
+      if (conflito.body && conflito.body[0]) {
+        var c = conflito.body[0];
+        return jsonErr(res, `Já existe um período de ${c.tipo} para esta pessoa entre ` +
+          `${c.data_inicio.split("-").reverse().join("/")} e ${c.data_fim.split("-").reverse().join("/")}.`, 409);
+      }
+
+      var novoAf = await DB.insert("periodos_afastamento", {
+        empresa_id:     authPayload.empresa_id,
+        funcionario_id: funcAf,
+        tipo:           tipoAf,
+        data_inicio:    inicioAf,
+        data_fim:       fimAf,
+        observacao:     SANITIZE.string(bodyAf.observacao, 300) || null,
+        registrado_por: authPayload.funcionario_id || null
+      });
+
+      secLog("afastamento_registrado", { empresa_id: authPayload.empresa_id, tipo: tipoAf });
+      return jsonOk(res, { afastamento: novoAf.body[0] }, 201);
+    }
+
+    if (method === "DELETE" && path.startsWith("/afastamentos/")) {
+      if (!hasPermission(authPayload, "afastamentos:write")) {
+        return jsonErr(res, "Sem permissão", 403);
+      }
+      var idAf = SANITIZE.uuid(path.split("/")[2]);
+      if (!idAf) return jsonErr(res, "Período inválido");
+
+      var achadoAf = await DB.select("periodos_afastamento",
+        `id=eq.${idAf}&empresa_id=eq.${authPayload.empresa_id}&select=id`);
+      if (!achadoAf.body || !achadoAf.body[0]) return jsonErr(res, "Período não encontrado", 404);
+
+      await DB.delete("periodos_afastamento", `id=eq.${idAf}`);
+      return jsonOk(res, { ok: true });
+    }
+
+    // ════════════════════════════════════════
+    // METAS
+    // ════════════════════════════════════════
+    if (method === "GET" && path === "/metas") {
+      if (!hasPermission(authPayload, "metas:read")) {
+        return jsonErr(res, "Sem permissão para ver metas", 403);
+      }
+      var todasMetas = await DB.select("metas",
+        `empresa_id=eq.${authPayload.empresa_id}&select=*&order=periodo_fim.asc&limit=200`
+      ).catch(() => ({ body: [] }));
+
+      var listaMetas = todasMetas.body || [];
+
+      // Funcionário vê as metas da empresa (sem dono) e as suas. Não vê
+      // a meta individual de um colega.
+      if (authPayload.role === "funcionario") {
+        listaMetas = listaMetas.filter(function (m) {
+          return !m.funcionario_id || m.funcionario_id === authPayload.funcionario_id;
+        });
+      }
+
+      var nomesMeta = {};
+      var equipeM = await DB.select("funcionarios",
+        `empresa_id=eq.${authPayload.empresa_id}&select=id,nome`).catch(() => ({ body: [] }));
+      (equipeM.body || []).forEach(function (f) { nomesMeta[f.id] = f.nome; });
+
+      var hojeM = new Date().toISOString().substring(0, 10);
+      return jsonOk(res, listaMetas.map(function (m) {
+        var alvo = parseFloat(m.alvo) || 1;
+        var atual = parseFloat(m.atual) || 0;
+        return Object.assign({}, m, {
+          funcionario_nome: m.funcionario_id ? (nomesMeta[m.funcionario_id] || "—") : null,
+          // Trava em 100% na exibição: uma barra de progresso a 180%
+          // vazaria do card. O valor real continua em `atual`.
+          percentual: Math.min(100, Math.round((atual / alvo) * 100)),
+          batida:     atual >= alvo,
+          vencida:    m.status === "ativa" && m.periodo_fim < hojeM && atual < alvo,
+          dias_restantes: Math.round((new Date(m.periodo_fim) - new Date(hojeM)) / 86400000)
+        });
+      }));
+    }
+
+    if (method === "POST" && path === "/metas") {
+      if (!hasPermission(authPayload, "metas:write")) {
+        return jsonErr(res, "Sem permissão para criar metas", 403);
+      }
+      var rawMeta = await getBody(req);
+      var bodyMeta = parseBody(rawMeta);
+      if (!bodyMeta) return jsonErr(res, "Dados inválidos");
+
+      var tituloMeta = SANITIZE.string(bodyMeta.titulo, 120);
+      if (!tituloMeta) return jsonErr(res, "Dê um nome à meta.");
+
+      var alvoMeta = parseFloat(bodyMeta.alvo);
+      if (isNaN(alvoMeta) || alvoMeta <= 0) return jsonErr(res, "O alvo precisa ser maior que zero.");
+
+      var fmtData = /^\d{4}-\d{2}-\d{2}$/;
+      var iniMeta = String(bodyMeta.periodo_inicio || "").substring(0, 10);
+      var fimMeta = String(bodyMeta.periodo_fim || "").substring(0, 10);
+      if (!fmtData.test(iniMeta) || !fmtData.test(fimMeta)) return jsonErr(res, "Informe o período da meta.");
+      if (fimMeta < iniMeta) return jsonErr(res, "O fim do período não pode ser antes do início.");
+
+      var funcMeta = bodyMeta.funcionario_id ? SANITIZE.uuid(bodyMeta.funcionario_id) : null;
+      if (funcMeta) {
+        var donoMeta = await DB.select("funcionarios",
+          `id=eq.${funcMeta}&empresa_id=eq.${authPayload.empresa_id}&select=id`);
+        if (!donoMeta.body || !donoMeta.body[0]) return jsonErr(res, "Funcionário não encontrado", 404);
+      }
+
+      var novaMeta = await DB.insert("metas", {
+        empresa_id:     authPayload.empresa_id,
+        funcionario_id: funcMeta,
+        titulo:         tituloMeta,
+        descricao:      SANITIZE.string(bodyMeta.descricao, 500) || null,
+        tipo:           bodyMeta.tipo === "quantidade" ? "quantidade" : "valor",
+        alvo:           alvoMeta,
+        atual:          0,
+        periodo_inicio: iniMeta,
+        periodo_fim:    fimMeta,
+        status:         "ativa"
+      });
+
+      secLog("meta_criada", { empresa_id: authPayload.empresa_id });
+      return jsonOk(res, { meta: novaMeta.body[0] }, 201);
+    }
+
+    // Atualizar o quanto já foi feito. Rota separada do PUT geral
+    // porque é a ação do dia a dia: registrar progresso, não editar.
+    if (method === "PUT" && path.startsWith("/metas/")) {
+      if (!hasPermission(authPayload, "metas:write")) {
+        return jsonErr(res, "Sem permissão para alterar metas", 403);
+      }
+      var idMeta = SANITIZE.uuid(path.split("/")[2]);
+      if (!idMeta) return jsonErr(res, "Meta inválida");
+
+      var rawUpMeta = await getBody(req);
+      var bodyUpMeta = parseBody(rawUpMeta);
+      if (!bodyUpMeta) return jsonErr(res, "Dados inválidos");
+
+      var achadaMeta = await DB.select("metas",
+        `id=eq.${idMeta}&empresa_id=eq.${authPayload.empresa_id}&select=*`);
+      var metaAtual = achadaMeta.body && achadaMeta.body[0];
+      if (!metaAtual) return jsonErr(res, "Meta não encontrada", 404);
+
+      var updMeta = {};
+      if (bodyUpMeta.atual !== undefined) {
+        var novoAtual = parseFloat(bodyUpMeta.atual);
+        if (isNaN(novoAtual) || novoAtual < 0) return jsonErr(res, "Valor inválido.");
+        updMeta.atual = novoAtual;
+        // Bater o alvo fecha a meta sozinha: obrigar a marcar como
+        // concluída depois de já ter batido é trabalho à toa.
+        if (novoAtual >= parseFloat(metaAtual.alvo) && metaAtual.status === "ativa") {
+          updMeta.status = "concluida";
+        }
+      }
+      if (["ativa", "concluida", "cancelada"].includes(bodyUpMeta.status)) {
+        updMeta.status = bodyUpMeta.status;
+      }
+      if (bodyUpMeta.titulo) updMeta.titulo = SANITIZE.string(bodyUpMeta.titulo, 120);
+
+      var metaSalva = await DB.update("metas", `id=eq.${idMeta}`, updMeta);
+      return jsonOk(res, { meta: (metaSalva.body || [])[0] });
+    }
+
+    if (method === "DELETE" && path.startsWith("/metas/")) {
+      if (!hasPermission(authPayload, "metas:write")) {
+        return jsonErr(res, "Sem permissão", 403);
+      }
+      var idDelMeta = SANITIZE.uuid(path.split("/")[2]);
+      if (!idDelMeta) return jsonErr(res, "Meta inválida");
+
+      var achadaDel = await DB.select("metas",
+        `id=eq.${idDelMeta}&empresa_id=eq.${authPayload.empresa_id}&select=id`);
+      if (!achadaDel.body || !achadaDel.body[0]) return jsonErr(res, "Meta não encontrada", 404);
+
+      await DB.delete("metas", `id=eq.${idDelMeta}`);
       return jsonOk(res, { ok: true });
     }
 
