@@ -314,6 +314,38 @@ tr:hover td{background:var(--g50)}
 .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
 @media(max-width:768px){.grid-2,.grid-3{grid-template-columns:1fr}}
 
+/* ── CHAT ─────────────────────────────────────────────────
+   Bolhas de conversa. Verde e à direita quando é minha, cinza e à
+   esquerda quando é da outra pessoa — o padrão que todo mundo já
+   conhece de aplicativo de mensagem, para não ter que aprender. */
+.chat-wrap{display:grid;grid-template-columns:280px 1fr;gap:16px;height:calc(100vh - 150px);min-height:420px}
+.chat-lista{background:white;border-radius:var(--r);border:1px solid var(--gray100);overflow-y:auto}
+.chat-contato{padding:12px 14px;border-bottom:1px solid var(--gray100);cursor:pointer;display:flex;gap:10px;align-items:center;transition:background .15s}
+.chat-contato:hover{background:var(--gray50)}
+.chat-contato.ativo{background:var(--g50)}
+.chat-avatar{width:38px;height:38px;border-radius:50%;background:var(--g500);color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;flex-shrink:0}
+.chat-contato-info{flex:1;min-width:0}
+.chat-contato-nome{font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-contato-ultima{font-size:.75rem;color:var(--gray500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-badge{background:#dc2626;color:white;border-radius:100px;min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;padding:0 6px}
+.chat-painel{background:white;border-radius:var(--r);border:1px solid var(--gray100);display:flex;flex-direction:column;overflow:hidden}
+.chat-topo{padding:12px 16px;border-bottom:1px solid var(--gray100);display:flex;align-items:center;gap:10px}
+.chat-msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px;background:var(--gray50)}
+.chat-bolha{max-width:min(70%,420px);padding:9px 13px;border-radius:14px;font-size:.86rem;line-height:1.45;word-break:break-word;white-space:pre-wrap}
+.chat-bolha.minha{align-self:flex-end;background:var(--g500);color:white;border-bottom-right-radius:4px}
+.chat-bolha.dela{align-self:flex-start;background:white;border:1px solid var(--gray100);border-bottom-left-radius:4px}
+.chat-hora{font-size:.65rem;opacity:.7;margin-top:3px;text-align:right}
+.chat-envio{padding:12px;border-top:1px solid var(--gray100);display:flex;gap:8px}
+.chat-envio input{flex:1;margin:0}
+@media (max-width:860px){
+  .chat-wrap{grid-template-columns:1fr;height:auto}
+  /* No celular é uma tela de cada vez: lista OU conversa. Mostrar as
+     duas lado a lado deixaria as duas pequenas demais para usar. */
+  .chat-wrap.conversando .chat-lista{display:none}
+  .chat-wrap:not(.conversando) .chat-painel{display:none}
+  .chat-painel{height:calc(100vh - 190px)}
+}
+
 /* ── ÍCONES SVG ──────────────────────────────────────────
    Substituem os emojis usados como ícone. Herdam a cor do
    texto (currentColor), então acompanham o tema white label
@@ -1101,6 +1133,143 @@ tr:hover td{background:var(--g50)}
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+
+    <!-- CHAT — conversa direta entre duas pessoas da mesma empresa.
+         Não é o Mural (aviso de um para todos). O dono não tem linha
+         em `funcionarios`, então aparece como "Administração". -->
+    <div class="page" id="pg-chat">
+      <div class="chat-wrap" id="chat-wrap">
+        <div class="chat-lista" id="chat-lista">
+          <div style="padding:14px"><div class="skel skel-text" style="width:70%"></div></div>
+        </div>
+        <div class="chat-painel">
+          <div class="chat-topo">
+            <button class="btn btn-sm btn-secondary" id="chat-voltar" onclick="fecharConversa()" style="display:none">
+              <svg class=ico aria-hidden=true><use href=#i-arrow-left></use></svg>
+            </button>
+            <div class="chat-avatar" id="chat-avatar" style="display:none">?</div>
+            <div style="font-weight:700;font-size:.9rem" id="chat-nome">Escolha uma conversa</div>
+          </div>
+          <div class="chat-msgs" id="chat-msgs">
+            <div style="margin:auto;text-align:center;color:var(--gray500);font-size:.85rem;padding:20px">
+              Escolha alguém na lista para começar a conversar.
+            </div>
+          </div>
+          <div class="chat-envio" id="chat-envio" style="display:none">
+            <input id="chat-texto" type="text" maxlength="2000" placeholder="Escreva a mensagem" onkeydown="if(event.key==='Enter')enviarMensagem()">
+            <button class="btn btn-primary" onclick="enviarMensagem()">
+              <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FÉRIAS E FOLGAS — a tabela `ausencias` guarda UM dia e serve
+         para falta e atestado. Férias é período combinado antes, não
+         ausência a justificar depois; misturar as duas faria "faltas
+         do mês" contar as férias de alguém. -->
+    <div class="page" id="pg-ferias">
+      <div class="card" style="margin-bottom:16px" id="ferias-editor">
+        <div class="card-header"><div class="card-title">Registrar período</div></div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+            <div class="field" style="margin:0">
+              <label>Funcionário</label>
+              <select id="fer-funcionario"><option value="">Carregando...</option></select>
+            </div>
+            <div class="field" style="margin:0">
+              <label>Tipo</label>
+              <select id="fer-tipo">
+                <option value="ferias">Férias</option>
+                <option value="folga">Folga</option>
+                <option value="licenca">Licença</option>
+                <option value="afastamento">Afastamento</option>
+              </select>
+            </div>
+            <div class="field" style="margin:0">
+              <label>Início</label>
+              <input id="fer-inicio" type="date">
+            </div>
+            <div class="field" style="margin:0">
+              <label>Fim</label>
+              <input id="fer-fim" type="date">
+            </div>
+          </div>
+          <div class="field" style="margin-top:12px">
+            <label>Observação (opcional)</label>
+            <input id="fer-obs" type="text" maxlength="300" placeholder="Ex.: férias combinadas em janeiro">
+          </div>
+          <div class="login-erro" id="fer-erro">Confira os campos.</div>
+          <button class="btn btn-primary" id="fer-btn" onclick="salvarAfastamento()" style="margin-top:12px">
+            <svg class=ico aria-hidden=true><use href=#i-calendar></use></svg> Registrar
+          </button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px" id="ferias-agora-card" style="display:none">
+        <div class="card-header"><div class="card-title">Fora agora</div></div>
+        <div class="card-body" id="ferias-agora"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">Períodos registrados</div></div>
+        <div class="card-body" style="padding:0;overflow-x:auto">
+          <table>
+            <thead><tr><th>Funcionário</th><th>Tipo</th><th>Período</th><th>Dias</th><th></th></tr></thead>
+            <tbody id="ferias-lista">
+              <tr><td colspan="5" style="padding:14px"><div class="skel skel-text" style="width:55%"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- METAS — da empresa (sem responsável) ou de uma pessoa. -->
+    <div class="page" id="pg-metas">
+      <div class="card" style="margin-bottom:16px" id="metas-editor">
+        <div class="card-header"><div class="card-title">Nova meta</div></div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+            <div class="field" style="margin:0">
+              <label>Título</label>
+              <input id="meta-titulo" type="text" maxlength="120" placeholder="Ex.: Vendas de agosto">
+            </div>
+            <div class="field" style="margin:0">
+              <label>Responsável</label>
+              <select id="meta-funcionario"><option value="">A empresa toda</option></select>
+            </div>
+            <div class="field" style="margin:0">
+              <label>Tipo</label>
+              <select id="meta-tipo">
+                <option value="valor">Valor em R$</option>
+                <option value="quantidade">Quantidade</option>
+              </select>
+            </div>
+            <div class="field" style="margin:0">
+              <label>Alvo</label>
+              <input id="meta-alvo" type="number" step="0.01" min="0.01" placeholder="0" inputmode="decimal">
+            </div>
+            <div class="field" style="margin:0">
+              <label>De</label>
+              <input id="meta-inicio" type="date">
+            </div>
+            <div class="field" style="margin:0">
+              <label>Até</label>
+              <input id="meta-fim" type="date">
+            </div>
+          </div>
+          <div class="login-erro" id="meta-erro">Confira os campos.</div>
+          <button class="btn btn-primary" id="meta-btn" onclick="salvarMeta()" style="margin-top:12px">
+            <svg class=ico aria-hidden=true><use href=#i-report></use></svg> Criar meta
+          </button>
+        </div>
+      </div>
+
+      <div id="metas-lista">
+        <div class="card"><div class="card-body"><div class="skel skel-text" style="width:60%"></div></div></div>
       </div>
     </div>
 
@@ -2071,6 +2240,9 @@ var menus = {
     {id:'salarios',icon:'<svg class=ico aria-hidden=true><use href=#i-money></use></svg>',label:'Salários e Pagamentos'},
     {id:'ausencias',icon:'<svg class=ico aria-hidden=true><use href=#i-absent></use></svg>',label:'Ausências e Faltas'},
     {id:'escala',icon:'<svg class=ico aria-hidden=true><use href=#i-calendar></use></svg>',label:'Escala de Trabalho'},
+    {id:'chat',icon:'<svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg>',label:'Chat da Equipe'},
+    {id:'ferias',icon:'<svg class=ico aria-hidden=true><use href=#i-calendar></use></svg>',label:'Férias e Folgas'},
+    {id:'metas',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Metas'},
     {id:'financeiro',icon:'<svg class=ico aria-hidden=true><use href=#i-money></use></svg>',label:'Financeiro'},
     {id:'relatorios',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Relatórios'},
     {sec:'Recursos'},
@@ -2086,6 +2258,9 @@ var menus = {
     {id:'meu-painel',icon:'<svg class=ico aria-hidden=true><use href=#i-home></use></svg>',label:'Início'},
     {id:'ponto',icon:'<svg class=ico aria-hidden=true><use href=#i-clock></use></svg>',label:'Meu Ponto'},
     {id:'tarefas',icon:'<svg class=ico aria-hidden=true><use href=#i-tasks></use></svg>',label:'Minhas Tarefas'},
+    {id:'chat',icon:'<svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg>',label:'Chat da Equipe'},
+    {id:'ferias',icon:'<svg class=ico aria-hidden=true><use href=#i-calendar></use></svg>',label:'Minhas Férias'},
+    {id:'metas',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Minhas Metas'},
     {id:'mural',icon:'<svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg>',label:'Comunicados'},
     {id:'notificacoes',icon:'<svg class=ico aria-hidden=true><use href=#i-bell></use></svg>',label:'Notificações'},
   ],
@@ -2107,6 +2282,9 @@ var menus = {
     {id:'salarios',icon:'<svg class=ico aria-hidden=true><use href=#i-money></use></svg>',label:'Salários e Pagamentos'},
     {id:'ausencias',icon:'<svg class=ico aria-hidden=true><use href=#i-absent></use></svg>',label:'Ausências e Faltas'},
     {id:'escala',icon:'<svg class=ico aria-hidden=true><use href=#i-calendar></use></svg>',label:'Escala de Trabalho'},
+    {id:'chat',icon:'<svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg>',label:'Chat da Equipe'},
+    {id:'ferias',icon:'<svg class=ico aria-hidden=true><use href=#i-calendar></use></svg>',label:'Férias e Folgas'},
+    {id:'metas',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Metas'},
     {id:'financeiro',icon:'<svg class=ico aria-hidden=true><use href=#i-money></use></svg>',label:'Financeiro'},
     {id:'relatorios',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Relatórios'},
     {sec:'Recursos'},
@@ -2731,24 +2909,77 @@ function carregarFuncionariosReais(){
       return;
     }
 
-    tbody.innerHTML = lista.map(function(f){
-      var inicial = (f.nome||'?').charAt(0).toUpperCase();
-      var statusBadge = f.status === 'ativo'
-        ? '<span class="badge badge-green"><span class=dot style=background:currentColor></span> Ativo</span>'
-        : f.status === 'pendente'
-          ? '<span class="badge badge-yellow">Pendente de aprovação</span>'
-          : '<span class="badge badge-red">Inativo</span>';
-      return '<tr>' +
-        '<td><div style="display:flex;align-items:center;gap:10px">' +
-        '<div style="width:32px;height:32px;border-radius:50%;background:var(--g50);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--g600)">'+inicial+'</div>' +
-        '<div><div style="font-weight:600">'+f.nome+'</div><div style="font-size:.72rem;color:var(--gray500)">'+f.email+'</div></div>' +
-        '</div></td>' +
-        '<td>—</td>' + // cargo: ainda não gravado pelo backend (cargo_id sem tabela de resolução ligada)
-        '<td>'+statusBadge+'</td>' +
-        '<td>—</td>' + // ponto hoje: rota de listagem não faz join com registros_ponto ainda
-        '<td><div style="display:flex;gap:6px"><button class="btn btn-sm btn-secondary" onclick="verFuncionario(\''+f.nome.replace(/'/g,"\\'")+'\')">Ver</button><button class="btn btn-sm btn-danger" onclick="excluirFuncionarioReal(\''+f.id+'\')"><svg class=ico aria-hidden=true><use href=#i-trash></use></svg></button></div></td>' +
-        '</tr>';
-    }).join('');
+    // Montado com createElement, não com innerHTML + concatenação.
+    // Nome e e-mail vêm do cadastro feito pelo próprio funcionário:
+    // interpolados como HTML, um nome com <img onerror=...> executaria
+    // na sessão de quem tem MAIS acesso no sistema — o dono.
+    tbody.innerHTML = '';
+    lista.forEach(function(f){
+      var tr = document.createElement('tr');
+      if(f.status === 'inativo') tr.style.opacity = '.55';
+
+      // ── Pessoa ──
+      var tdPessoa = document.createElement('td');
+      var flex = document.createElement('div');
+      flex.style.cssText = 'display:flex;align-items:center;gap:10px';
+      var bolinha = document.createElement('div');
+      bolinha.style.cssText = 'width:32px;height:32px;border-radius:50%;background:var(--g50);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--g600);flex-shrink:0';
+      bolinha.textContent = (f.nome||'?').charAt(0).toUpperCase();
+      var textos = document.createElement('div');
+      var nomeEl = document.createElement('div');
+      nomeEl.style.fontWeight = '600';
+      nomeEl.textContent = f.nome || '—';
+      var emailEl = document.createElement('div');
+      emailEl.style.cssText = 'font-size:.72rem;color:var(--gray500)';
+      emailEl.textContent = f.email || '';
+      textos.appendChild(nomeEl); textos.appendChild(emailEl);
+      flex.appendChild(bolinha); flex.appendChild(textos);
+      tdPessoa.appendChild(flex);
+
+      var tdCargo = document.createElement('td');
+      tdCargo.textContent = '—';
+
+      // ── Status ──
+      var tdStatus = document.createElement('td');
+      var badge = document.createElement('span');
+      if(f.status === 'ativo'){ badge.className = 'badge badge-green'; badge.textContent = 'Ativo'; }
+      else if(f.status === 'pendente'){ badge.className = 'badge badge-yellow'; badge.textContent = 'Pendente de aprovação'; }
+      else { badge.className = 'badge badge-red'; badge.textContent = 'Desligado'; }
+      tdStatus.appendChild(badge);
+      if(f.status === 'inativo' && f.desligado_em){
+        var quando = document.createElement('div');
+        quando.style.cssText = 'font-size:.68rem;color:var(--gray500);margin-top:3px';
+        quando.textContent = 'em ' + new Date(f.desligado_em).toLocaleDateString('pt-BR');
+        tdStatus.appendChild(quando);
+      }
+
+      var tdPonto = document.createElement('td');
+      tdPonto.textContent = '—';
+
+      // ── Ações ──
+      var tdAcoes = document.createElement('td');
+      var caixaBtns = document.createElement('div');
+      caixaBtns.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
+
+      var btnVer = document.createElement('button');
+      btnVer.className = 'btn btn-sm btn-secondary';
+      btnVer.textContent = 'Ver';
+      btnVer.onclick = function(){ verFuncionario(f.nome); };
+      caixaBtns.appendChild(btnVer);
+
+      if(f.status === 'ativo'){
+        var btnDesligar = document.createElement('button');
+        btnDesligar.className = 'btn btn-sm btn-danger';
+        btnDesligar.textContent = 'Desligar';
+        btnDesligar.onclick = function(){ desligarFuncionario(f.id, f.nome); };
+        caixaBtns.appendChild(btnDesligar);
+      }
+
+      tdAcoes.appendChild(caixaBtns);
+
+      [tdPessoa, tdCargo, tdStatus, tdPonto, tdAcoes].forEach(function(c){ tr.appendChild(c); });
+      tbody.appendChild(tr);
+    });
 
     // Card de aprovações: filtra os pendentes da mesma lista já
     // buscada, sem segunda chamada de rede. Antes, este card sempre
@@ -2761,15 +2992,33 @@ function carregarFuncionariosReais(){
         cardAprov.style.display = 'none';
       } else {
         cardAprov.style.display = 'block';
-        tbodyAprov.innerHTML = pendentes.map(function(f){
-          var dataSolicitada = f.created_at ? new Date(f.created_at).toLocaleDateString('pt-BR') : '—';
-          return '<tr>' +
-            '<td>'+f.nome+'</td><td>'+f.email+'</td><td>'+dataSolicitada+'</td>' +
-            '<td><div style="display:flex;gap:6px">' +
-            '<button class="btn btn-sm btn-primary" onclick="aprovarFuncionarioReal(\''+f.id+'\')"><svg class=ico aria-hidden=true><use href=#i-check></use></svg> Aprovar</button>' +
-            '<button class="btn btn-sm btn-danger" onclick="recusarFuncionarioReal(\''+f.id+'\')"><svg class=ico aria-hidden=true><use href=#i-x></use></svg> Recusar</button>' +
-            '</div></td></tr>';
-        }).join('');
+        tbodyAprov.innerHTML = '';
+        pendentes.forEach(function(f){
+          var tr = document.createElement('tr');
+          [f.nome || '—', f.email || '—',
+           f.created_at ? new Date(f.created_at).toLocaleDateString('pt-BR') : '—'
+          ].forEach(function(txt){
+            var td = document.createElement('td');
+            td.textContent = txt;      // cadastro feito pela pessoa: texto puro
+            tr.appendChild(td);
+          });
+
+          var tdA = document.createElement('td');
+          var box = document.createElement('div');
+          box.style.cssText = 'display:flex;gap:6px';
+          var ok = document.createElement('button');
+          ok.className = 'btn btn-sm btn-primary';
+          ok.textContent = 'Aprovar';
+          ok.onclick = function(){ aprovarFuncionarioReal(f.id); };
+          var nao = document.createElement('button');
+          nao.className = 'btn btn-sm btn-danger';
+          nao.textContent = 'Recusar';
+          nao.onclick = function(){ recusarFuncionarioReal(f.id); };
+          box.appendChild(ok); box.appendChild(nao);
+          tdA.appendChild(box); tr.appendChild(tdA);
+
+          tbodyAprov.appendChild(tr);
+        });
       }
     }
   })
@@ -2789,6 +3038,31 @@ function carregarFuncionariosReais(){
  * chegou a ser funcionário de fato, então a ação correta é excluir
  * a solicitação, não deixá-la pendurada em algum estado intermediário).
  */
+/**
+ * Desligar funcionário.
+ *
+ * Não apaga o cadastro de propósito: ponto batido, tarefas feitas e
+ * histórico de salário continuam ligados a ele. Apagar a pessoa
+ * quebraria os relatórios de todos os meses em que ela trabalhou — e
+ * a folha de um mês já fechado deixaria de bater.
+ */
+async function desligarFuncionario(id, nome){
+  var motivo = prompt('Desligar ' + nome + '?\n\nMotivo (opcional, fica registrado no histórico):');
+  if(motivo === null) return;   // cancelou
+
+  try {
+    var r = await fetch(API_BASE + '/funcionarios/' + encodeURIComponent(id) + '/desligar', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + sessaoWorka.token },
+      body: JSON.stringify({ motivo: motivo })
+    }).then(function(x){ return x.json().then(function(d){ return { status:x.status, data:d }; }); });
+
+    if(r.status !== 200){ alert(r.data.error || 'Não foi possível desligar.'); return; }
+    alert('Desligamento registrado. O histórico da pessoa foi mantido.');
+    carregarFuncionariosReais();
+  } catch(e) { alert('Erro de conexão.'); }
+}
+
 function aprovarFuncionarioReal(id){
   if(!sessaoWorka || !sessaoWorka.token) return;
   fetch(API_BASE + '/funcionarios/'+encodeURIComponent(id)+'/status', {
@@ -3014,7 +3288,7 @@ function abrirPagina(id) {
     'owner':'Painel Owner Workap','meu-painel':'Meu Painel',
     'salarios':'Salários e Pagamentos','ausencias':'Ausências e Faltas',
     'escala':'Escala de Trabalho','relatorios':'Relatórios','mural':'Mural / Comunicados',
-    'financeiro':'Financeiro',
+    'financeiro':'Financeiro','chat':'Chat da Equipe','ferias':'Férias e Folgas','metas':'Metas',
     'cupons':'Cupons de Desconto','comunicados':'Enviar Comunicado'
   };
   document.getElementById('topbar-title').textContent = labels[id]||id;
@@ -3036,6 +3310,10 @@ function abrirPagina(id) {
   }
   if(id==='financeiro' && typeof carregarFinanceiro === 'function') carregarFinanceiro();
   if(id==='mural'      && typeof carregarMural       === 'function') carregarMural();
+  if(id==='chat'       && typeof carregarChat          === 'function') carregarChat();
+  if(id!=='chat'       && typeof pararTimerChat        === 'function') pararTimerChat();
+  if(id==='ferias'     && typeof carregarAfastamentos  === 'function') carregarAfastamentos();
+  if(id==='metas'      && typeof carregarMetas         === 'function') carregarMetas();
   if(id==='escala'     && typeof carregarEscala      === 'function') carregarEscala();
   if(id==='relatorios' && typeof carregarRelatorios  === 'function') carregarRelatorios();
   if(id==='owner' && typeof carregarPainelOwner === 'function') carregarPainelOwner();
@@ -5235,6 +5513,622 @@ async function trocarSenhaOwner(){
     erro.textContent = 'Erro de conexão.';
     erro.style.display = 'block';
   }
+}
+
+// ═══════════════════════════════════
+// CHAT DA EQUIPE
+// ═══════════════════════════════════
+// O backend não tem WebSocket, então a atualização é por consulta
+// periódica: 5 segundos com a conversa aberta, 20 com só a lista.
+// Não é tempo real de verdade, mas para uma equipe pequena a
+// diferença não aparece — e a notificação push chega na hora.
+
+var conversaAtual = null;      // id do funcionário, ou 'dono'
+var timerChat = null;
+
+function iniciais(nome){
+  return String(nome || '?').trim().split(/\s+/).slice(0,2)
+    .map(function(p){ return p[0]; }).join('').toUpperCase();
+}
+
+function pararTimerChat(){
+  if(timerChat){ clearInterval(timerChat); timerChat = null; }
+}
+
+async function carregarChat(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+  await carregarConversas();
+
+  pararTimerChat();
+  // Só continua consultando enquanto a tela do chat está aberta:
+  // deixar rodando em outra página gastaria bateria e dados à toa.
+  timerChat = setInterval(function(){
+    var pagina = document.getElementById('pg-chat');
+    if(!pagina || !pagina.classList.contains('active')){ pararTimerChat(); return; }
+    if(conversaAtual !== null) carregarMensagens(true);
+    else carregarConversas();
+  }, conversaAtual !== null ? 5000 : 20000);
+}
+
+async function carregarConversas(){
+  var caixa = document.getElementById('chat-lista');
+  if(!caixa) return;
+
+  var d = null;
+  try {
+    d = await fetch(API_BASE + '/chat/conversas', { headers: cabecalhoAuth() })
+      .then(function(r){ return r.ok ? r.json() : null; });
+  } catch(e) {}
+
+  if(!d){ return; }
+
+  atualizarBadgeChat(d.total_nao_lidas);
+
+  caixa.innerHTML = '';
+  if(!d.conversas.length){
+    var vazio = document.createElement('div');
+    vazio.style.cssText = 'padding:20px;text-align:center;color:var(--gray500);font-size:.82rem';
+    vazio.textContent = 'Cadastre funcionários para conversar com a equipe.';
+    caixa.appendChild(vazio);
+    return;
+  }
+
+  d.conversas.forEach(function(c){
+    var chave = c.eh_dono ? 'dono' : c.id;
+
+    var linha = document.createElement('div');
+    linha.className = 'chat-contato' + (String(chave) === String(conversaAtual) ? ' ativo' : '');
+    linha.onclick = function(){ abrirConversa(chave, c.nome); };
+
+    var av = document.createElement('div');
+    av.className = 'chat-avatar';
+    av.textContent = c.eh_dono ? '★' : iniciais(c.nome);
+    if(c.eh_dono) av.style.background = 'var(--g600)';
+
+    var info = document.createElement('div');
+    info.className = 'chat-contato-info';
+    var nome = document.createElement('div');
+    nome.className = 'chat-contato-nome';
+    nome.textContent = c.nome;                     // nome do cadastro: texto puro
+    var ultima = document.createElement('div');
+    ultima.className = 'chat-contato-ultima';
+    ultima.textContent = c.ultima_mensagem || 'Nenhuma mensagem ainda';
+    info.appendChild(nome); info.appendChild(ultima);
+
+    linha.appendChild(av); linha.appendChild(info);
+
+    if(c.nao_lidas > 0){
+      var badge = document.createElement('div');
+      badge.className = 'chat-badge';
+      badge.textContent = c.nao_lidas > 99 ? '99+' : String(c.nao_lidas);
+      linha.appendChild(badge);
+    }
+
+    caixa.appendChild(linha);
+  });
+}
+
+function atualizarBadgeChat(total){
+  // Marca o item do menu, para a pessoa ver que tem mensagem sem
+  // precisar entrar na tela.
+  var item = document.querySelector('.nav-item[data-page="chat"]');
+  if(!item) return;
+  var antigo = item.querySelector('.chat-badge');
+  if(antigo) antigo.remove();
+  if(total > 0){
+    var b = document.createElement('span');
+    b.className = 'chat-badge';
+    b.style.marginLeft = 'auto';
+    b.textContent = total > 99 ? '99+' : String(total);
+    item.appendChild(b);
+  }
+}
+
+async function abrirConversa(chave, nome){
+  conversaAtual = chave;
+
+  var wrap = document.getElementById('chat-wrap');
+  if(wrap) wrap.classList.add('conversando');
+
+  document.getElementById('chat-nome').textContent = nome;
+  var av = document.getElementById('chat-avatar');
+  av.style.display = 'flex';
+  av.textContent = chave === 'dono' ? '★' : iniciais(nome);
+  document.getElementById('chat-envio').style.display = 'flex';
+
+  var voltar = document.getElementById('chat-voltar');
+  if(voltar) voltar.style.display = window.innerWidth <= 860 ? 'inline-flex' : 'none';
+
+  await carregarMensagens(false);
+  carregarConversas();
+
+  // Passa a consultar mais rápido: com a conversa aberta, 20s de
+  // espera pela resposta faria parecer que o outro sumiu.
+  pararTimerChat();
+  timerChat = setInterval(function(){
+    var pagina = document.getElementById('pg-chat');
+    if(!pagina || !pagina.classList.contains('active')){ pararTimerChat(); return; }
+    carregarMensagens(true);
+  }, 5000);
+}
+
+function fecharConversa(){
+  conversaAtual = null;
+  var wrap = document.getElementById('chat-wrap');
+  if(wrap) wrap.classList.remove('conversando');
+  document.getElementById('chat-envio').style.display = 'none';
+  document.getElementById('chat-avatar').style.display = 'none';
+  document.getElementById('chat-nome').textContent = 'Escolha uma conversa';
+  carregarConversas();
+}
+
+async function carregarMensagens(silencioso){
+  if(conversaAtual === null) return;
+  var caixa = document.getElementById('chat-msgs');
+  if(!caixa) return;
+
+  var lista = [];
+  try {
+    lista = await fetch(API_BASE + '/chat/mensagens?com=' + encodeURIComponent(conversaAtual), {
+      headers: cabecalhoAuth()
+    }).then(function(r){ return r.ok ? r.json() : []; });
+  } catch(e) { if(!silencioso) return; }
+
+  // Só redesenha se mudou: redesenhar a cada 5s perderia a seleção de
+  // texto e faria a tela piscar enquanto a pessoa lê.
+  var assinatura = lista.map(function(m){ return m.id; }).join(',');
+  if(silencioso && caixa.dataset.assinatura === assinatura) return;
+  caixa.dataset.assinatura = assinatura;
+
+  // Se já estava no fim, continua no fim depois de redesenhar.
+  var estavaNoFim = caixa.scrollHeight - caixa.scrollTop - caixa.clientHeight < 60;
+
+  caixa.innerHTML = '';
+  if(!lista.length){
+    var vazio = document.createElement('div');
+    vazio.style.cssText = 'margin:auto;text-align:center;color:var(--gray500);font-size:.85rem;padding:20px';
+    vazio.textContent = 'Nenhuma mensagem ainda. Diga oi.';
+    caixa.appendChild(vazio);
+    return;
+  }
+
+  lista.forEach(function(m){
+    var bolha = document.createElement('div');
+    bolha.className = 'chat-bolha ' + (m.minha ? 'minha' : 'dela');
+    bolha.textContent = m.texto;                   // mensagem digitada: nunca HTML
+
+    var hora = document.createElement('div');
+    hora.className = 'chat-hora';
+    hora.textContent = new Date(m.created_at).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })
+      + (m.minha && m.lida ? ' · lida' : '');
+    bolha.appendChild(hora);
+
+    caixa.appendChild(bolha);
+  });
+
+  if(estavaNoFim || !silencioso) caixa.scrollTop = caixa.scrollHeight;
+}
+
+async function enviarMensagem(){
+  var campo = document.getElementById('chat-texto');
+  var texto = (campo.value || '').trim();
+  if(!texto || conversaAtual === null) return;
+
+  campo.value = '';   // limpa antes de enviar: a resposta demora e a
+                      // pessoa já quer digitar a próxima
+
+  try {
+    var r = await fetch(API_BASE + '/chat/mensagens', {
+      method:'POST', headers: cabecalhoAuth(),
+      body: JSON.stringify({ para: conversaAtual, texto: texto })
+    }).then(function(x){ return x.json().then(function(d){ return { status:x.status, data:d }; }); });
+
+    if(r.status !== 200 && r.status !== 201){
+      alert(r.data.error || 'Não foi possível enviar.');
+      campo.value = texto;   // devolve o texto para não se perder
+      return;
+    }
+    await carregarMensagens(false);
+    carregarConversas();
+  } catch(e) {
+    alert('Erro de conexão. A mensagem não foi enviada.');
+    campo.value = texto;
+  }
+}
+
+// ═══════════════════════════════════
+// FÉRIAS, FOLGAS E LICENÇAS
+// ═══════════════════════════════════
+
+var ROTULO_AFASTAMENTO = {
+  ferias:      ['Férias',      'badge-green'],
+  folga:       ['Folga',       'badge-blue'],
+  licenca:     ['Licença',     'badge-yellow'],
+  afastamento: ['Afastamento', 'badge-gray']
+};
+
+function formatarData(iso){
+  return String(iso || '').split('-').reverse().join('/');
+}
+
+async function carregarAfastamentos(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+
+  var ehFunc = usuarioAtual && usuarioAtual.tipo === 'funcionario';
+  var editor = document.getElementById('ferias-editor');
+  if(editor) editor.style.display = ehFunc ? 'none' : 'block';
+
+  if(!ehFunc && funcionariosCache.length === 0 && typeof carregarFuncionariosReais === 'function'){
+    try { await carregarFuncionariosReais(); } catch(e) {}
+  }
+
+  var sel = document.getElementById('fer-funcionario');
+  if(sel && !ehFunc){
+    sel.innerHTML = '';
+    var ativos = funcionariosCache.filter(function(f){ return f.status === 'ativo'; });
+    if(!ativos.length){
+      var op = document.createElement('option');
+      op.value = ''; op.textContent = 'Cadastre um funcionário primeiro';
+      sel.appendChild(op);
+    } else {
+      ativos.forEach(function(f){
+        var o = document.createElement('option');
+        o.value = f.id; o.textContent = f.nome;
+        sel.appendChild(o);
+      });
+    }
+  }
+
+  var d = null;
+  try {
+    d = await fetch(API_BASE + '/afastamentos', { headers: cabecalhoAuth() })
+      .then(function(r){ return r.ok ? r.json() : null; });
+  } catch(e) {}
+  if(!d) return;
+
+  // Quem está fora AGORA, em destaque: é a pergunta que se faz ao
+  // abrir a tela ("quem não vem hoje?").
+  var cardAgora = document.getElementById('ferias-agora-card');
+  var caixaAgora = document.getElementById('ferias-agora');
+  if(cardAgora && caixaAgora){
+    if(!d.em_curso.length){
+      cardAgora.style.display = 'none';
+    } else {
+      cardAgora.style.display = 'block';
+      caixaAgora.innerHTML = '';
+      d.em_curso.forEach(function(a){
+        var linha = document.createElement('div');
+        linha.className = 'perm-row';
+        var nome = document.createElement('span');
+        nome.className = 'perm-label';
+        nome.textContent = a.funcionario_nome;
+        var info = ROTULO_AFASTAMENTO[a.tipo] || ['—','badge-gray'];
+        var dir = document.createElement('span');
+        dir.style.cssText = 'display:flex;align-items:center;gap:8px';
+        var b = document.createElement('span');
+        b.className = 'badge ' + info[1];
+        b.textContent = info[0];
+        var ate = document.createElement('span');
+        ate.style.cssText = 'font-size:.75rem;color:var(--gray500)';
+        ate.textContent = 'até ' + formatarData(a.data_fim);
+        dir.appendChild(b); dir.appendChild(ate);
+        linha.appendChild(nome); linha.appendChild(dir);
+        caixaAgora.appendChild(linha);
+      });
+    }
+  }
+
+  var tbody = document.getElementById('ferias-lista');
+  if(!tbody) return;
+  tbody.innerHTML = '';
+
+  if(!d.afastamentos.length){
+    var tr0 = document.createElement('tr'), td0 = document.createElement('td');
+    td0.colSpan = 5;
+    td0.style.cssText = 'padding:24px;text-align:center;color:var(--gray500);font-size:.85rem';
+    td0.textContent = 'Nenhum período registrado ainda.';
+    tr0.appendChild(td0); tbody.appendChild(tr0);
+    return;
+  }
+
+  d.afastamentos.forEach(function(a){
+    var tr = document.createElement('tr');
+
+    var tdNome = document.createElement('td');
+    tdNome.style.fontWeight = '600';
+    tdNome.textContent = a.funcionario_nome;
+
+    var tdTipo = document.createElement('td');
+    var info = ROTULO_AFASTAMENTO[a.tipo] || ['—','badge-gray'];
+    var badge = document.createElement('span');
+    badge.className = 'badge ' + info[1];
+    badge.textContent = info[0];
+    tdTipo.appendChild(badge);
+
+    var tdPer = document.createElement('td');
+    tdPer.textContent = formatarData(a.data_inicio) + ' a ' + formatarData(a.data_fim);
+    if(a.em_curso){
+      var agora = document.createElement('div');
+      agora.style.cssText = 'font-size:.7rem;color:var(--g500);font-weight:700;margin-top:2px';
+      agora.textContent = 'Em curso';
+      tdPer.appendChild(agora);
+    } else if(a.futuro){
+      var fut = document.createElement('div');
+      fut.style.cssText = 'font-size:.7rem;color:var(--gray500);margin-top:2px';
+      fut.textContent = 'Ainda vai começar';
+      tdPer.appendChild(fut);
+    }
+
+    var tdDias = document.createElement('td');
+    tdDias.textContent = a.dias + (a.dias === 1 ? ' dia' : ' dias');
+
+    var tdAcao = document.createElement('td');
+    if(!(usuarioAtual && usuarioAtual.tipo === 'funcionario')){
+      var btn = document.createElement('button');
+      btn.className = 'btn btn-sm btn-secondary';
+      btn.textContent = 'Remover';
+      btn.onclick = function(){ removerAfastamento(a.id); };
+      tdAcao.appendChild(btn);
+    }
+
+    [tdNome, tdTipo, tdPer, tdDias, tdAcao].forEach(function(c){ tr.appendChild(c); });
+    tbody.appendChild(tr);
+  });
+}
+
+async function salvarAfastamento(){
+  var erro = document.getElementById('fer-erro');
+  erro.style.display = 'none';
+
+  var func = document.getElementById('fer-funcionario').value;
+  var inicio = document.getElementById('fer-inicio').value;
+  var fim = document.getElementById('fer-fim').value;
+
+  if(!func){ erro.textContent = 'Escolha o funcionário.'; erro.style.display='block'; return; }
+  if(!inicio || !fim){ erro.textContent = 'Informe início e fim.'; erro.style.display='block'; return; }
+  if(fim < inicio){ erro.textContent = 'O fim não pode ser antes do início.'; erro.style.display='block'; return; }
+
+  var btn = document.getElementById('fer-btn');
+  var texto = btn.innerHTML;
+  btn.disabled = true; escreverComIcones(btn, 'Salvando...');
+
+  try {
+    var r = await fetch(API_BASE + '/afastamentos', {
+      method:'POST', headers: cabecalhoAuth(),
+      body: JSON.stringify({
+        funcionario_id: func,
+        tipo: document.getElementById('fer-tipo').value,
+        data_inicio: inicio, data_fim: fim,
+        observacao: (document.getElementById('fer-obs').value || '').trim()
+      })
+    }).then(function(x){ return x.json().then(function(d){ return { status:x.status, data:d }; }); });
+
+    btn.disabled = false; btn.innerHTML = texto;
+    if(r.status !== 200 && r.status !== 201){
+      erro.textContent = r.data.error || 'Não foi possível registrar.';
+      erro.style.display = 'block';
+      return;
+    }
+    document.getElementById('fer-obs').value = '';
+    carregarAfastamentos();
+  } catch(e) {
+    btn.disabled = false; btn.innerHTML = texto;
+    erro.textContent = 'Erro de conexão.';
+    erro.style.display = 'block';
+  }
+}
+
+async function removerAfastamento(id){
+  if(!confirm('Remover este período?')) return;
+  try {
+    await fetch(API_BASE + '/afastamentos/' + id, { method:'DELETE', headers: cabecalhoAuth() });
+    carregarAfastamentos();
+  } catch(e) { alert('Não foi possível remover agora.'); }
+}
+
+// ═══════════════════════════════════
+// METAS
+// ═══════════════════════════════════
+
+async function carregarMetas(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+
+  var ehFunc = usuarioAtual && usuarioAtual.tipo === 'funcionario';
+  var editor = document.getElementById('metas-editor');
+  if(editor) editor.style.display = ehFunc ? 'none' : 'block';
+
+  if(!ehFunc && funcionariosCache.length === 0 && typeof carregarFuncionariosReais === 'function'){
+    try { await carregarFuncionariosReais(); } catch(e) {}
+  }
+
+  var sel = document.getElementById('meta-funcionario');
+  if(sel && !ehFunc && sel.options.length <= 1){
+    funcionariosCache.filter(function(f){ return f.status === 'ativo'; }).forEach(function(f){
+      var o = document.createElement('option');
+      o.value = f.id; o.textContent = f.nome;
+      sel.appendChild(o);
+    });
+  }
+
+  var lista = [];
+  try {
+    lista = await fetch(API_BASE + '/metas', { headers: cabecalhoAuth() })
+      .then(function(r){ return r.ok ? r.json() : []; });
+  } catch(e) {}
+
+  var caixa = document.getElementById('metas-lista');
+  if(!caixa) return;
+  caixa.innerHTML = '';
+
+  if(!lista.length){
+    var vazio = document.createElement('div');
+    vazio.className = 'card';
+    var corpo = document.createElement('div');
+    corpo.className = 'card-body empty-state';
+    var t = document.createElement('div');
+    t.style.cssText = 'font-weight:700;color:var(--gray700);margin-bottom:6px';
+    t.textContent = 'Nenhuma meta ainda';
+    var p2 = document.createElement('p');
+    p2.textContent = ehFunc ? 'Quando o dono criar metas para você, elas aparecem aqui.'
+                            : 'Crie a primeira meta acima — da empresa toda ou de alguém.';
+    corpo.appendChild(t); corpo.appendChild(p2);
+    vazio.appendChild(corpo); caixa.appendChild(vazio);
+    return;
+  }
+
+  lista.forEach(function(m){
+    var card = document.createElement('div');
+    card.className = 'card';
+    card.style.marginBottom = '12px';
+
+    var cab = document.createElement('div');
+    cab.className = 'card-header';
+
+    var titulo = document.createElement('div');
+    titulo.className = 'card-title';
+    titulo.textContent = m.titulo;
+
+    var dir = document.createElement('div');
+    dir.style.cssText = 'display:flex;align-items:center;gap:8px';
+
+    var badge = document.createElement('span');
+    if(m.status === 'concluida' || m.batida){
+      badge.className = 'badge badge-green'; badge.textContent = 'Batida';
+    } else if(m.status === 'cancelada'){
+      badge.className = 'badge badge-gray'; badge.textContent = 'Cancelada';
+    } else if(m.vencida){
+      badge.className = 'badge badge-red'; badge.textContent = 'Venceu sem bater';
+    } else {
+      badge.className = 'badge badge-yellow';
+      badge.textContent = m.dias_restantes >= 0 ? m.dias_restantes + ' dia(s)' : 'Encerrada';
+    }
+    dir.appendChild(badge);
+
+    if(!ehFunc){
+      var btnDel = document.createElement('button');
+      btnDel.className = 'btn btn-sm btn-secondary';
+      btnDel.textContent = 'Remover';
+      btnDel.onclick = function(){ removerMeta(m.id); };
+      dir.appendChild(btnDel);
+    }
+
+    cab.appendChild(titulo); cab.appendChild(dir);
+
+    var corpo = document.createElement('div');
+    corpo.className = 'card-body';
+
+    var quem = document.createElement('div');
+    quem.style.cssText = 'font-size:.78rem;color:var(--gray500);margin-bottom:10px';
+    quem.textContent = (m.funcionario_nome ? m.funcionario_nome : 'Meta da empresa') +
+                       ' · ' + formatarData(m.periodo_inicio) + ' a ' + formatarData(m.periodo_fim);
+    corpo.appendChild(quem);
+
+    var numeros = document.createElement('div');
+    numeros.style.cssText = 'display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:6px';
+    var atual = document.createElement('span');
+    atual.style.fontWeight = '700';
+    var fmt = function(v){ return m.tipo === 'valor' ? moedaBR(v) : String(Number(v)); };
+    atual.textContent = fmt(m.atual) + ' de ' + fmt(m.alvo);
+    var pct = document.createElement('span');
+    pct.style.cssText = 'font-weight:700;color:' + (m.batida ? 'var(--g500)' : 'var(--gray500)');
+    pct.textContent = m.percentual + '%';
+    numeros.appendChild(atual); numeros.appendChild(pct);
+    corpo.appendChild(numeros);
+
+    var barra = document.createElement('div');
+    barra.className = 'progress-bar';
+    var cheio = document.createElement('div');
+    cheio.className = 'progress-fill';
+    cheio.style.width = m.percentual + '%';
+    if(m.vencida && !m.batida) cheio.style.background = '#dc2626';
+    barra.appendChild(cheio);
+    corpo.appendChild(barra);
+
+    // Registrar progresso é a ação do dia a dia, então fica à mão.
+    if(!ehFunc && m.status === 'ativa'){
+      var linhaAcao = document.createElement('div');
+      linhaAcao.style.cssText = 'display:flex;gap:8px;margin-top:12px;align-items:center';
+      var campo = document.createElement('input');
+      campo.type = 'number'; campo.step = '0.01'; campo.min = '0';
+      campo.placeholder = 'Quanto já foi feito';
+      campo.style.cssText = 'flex:1;margin:0';
+      campo.value = m.atual;
+      var btnSalvar = document.createElement('button');
+      btnSalvar.className = 'btn btn-sm btn-primary';
+      btnSalvar.textContent = 'Atualizar';
+      btnSalvar.onclick = function(){ atualizarProgressoMeta(m.id, campo.value); };
+      linhaAcao.appendChild(campo); linhaAcao.appendChild(btnSalvar);
+      corpo.appendChild(linhaAcao);
+    }
+
+    card.appendChild(cab); card.appendChild(corpo);
+    caixa.appendChild(card);
+  });
+}
+
+async function salvarMeta(){
+  var erro = document.getElementById('meta-erro');
+  erro.style.display = 'none';
+
+  var titulo = (document.getElementById('meta-titulo').value || '').trim();
+  var alvo = parseFloat((document.getElementById('meta-alvo').value || '').replace(',','.'));
+  var inicio = document.getElementById('meta-inicio').value;
+  var fim = document.getElementById('meta-fim').value;
+
+  if(!titulo){ erro.textContent = 'Dê um nome à meta.'; erro.style.display='block'; return; }
+  if(isNaN(alvo) || alvo <= 0){ erro.textContent = 'O alvo precisa ser maior que zero.'; erro.style.display='block'; return; }
+  if(!inicio || !fim){ erro.textContent = 'Informe o período.'; erro.style.display='block'; return; }
+  if(fim < inicio){ erro.textContent = 'O fim não pode ser antes do início.'; erro.style.display='block'; return; }
+
+  var btn = document.getElementById('meta-btn');
+  var texto = btn.innerHTML;
+  btn.disabled = true; escreverComIcones(btn, 'Criando...');
+
+  try {
+    var r = await fetch(API_BASE + '/metas', {
+      method:'POST', headers: cabecalhoAuth(),
+      body: JSON.stringify({
+        titulo: titulo, alvo: alvo,
+        funcionario_id: document.getElementById('meta-funcionario').value || null,
+        tipo: document.getElementById('meta-tipo').value,
+        periodo_inicio: inicio, periodo_fim: fim
+      })
+    }).then(function(x){ return x.json().then(function(d){ return { status:x.status, data:d }; }); });
+
+    btn.disabled = false; btn.innerHTML = texto;
+    if(r.status !== 200 && r.status !== 201){
+      erro.textContent = r.data.error || 'Não foi possível criar.';
+      erro.style.display = 'block';
+      return;
+    }
+    document.getElementById('meta-titulo').value = '';
+    document.getElementById('meta-alvo').value = '';
+    carregarMetas();
+  } catch(e) {
+    btn.disabled = false; btn.innerHTML = texto;
+    erro.textContent = 'Erro de conexão.';
+    erro.style.display = 'block';
+  }
+}
+
+async function atualizarProgressoMeta(id, valor){
+  var n = parseFloat(String(valor).replace(',','.'));
+  if(isNaN(n) || n < 0){ alert('Informe um número válido.'); return; }
+  try {
+    var r = await fetch(API_BASE + '/metas/' + id, {
+      method:'PUT', headers: cabecalhoAuth(), body: JSON.stringify({ atual: n })
+    }).then(function(x){ return x.json().then(function(d){ return { status:x.status, data:d }; }); });
+    if(r.status !== 200){ alert(r.data.error || 'Não foi possível atualizar.'); return; }
+    carregarMetas();
+  } catch(e) { alert('Erro de conexão.'); }
+}
+
+async function removerMeta(id){
+  if(!confirm('Remover esta meta?')) return;
+  try {
+    await fetch(API_BASE + '/metas/' + id, { method:'DELETE', headers: cabecalhoAuth() });
+    carregarMetas();
+  } catch(e) { alert('Não foi possível remover agora.'); }
 }
 
 // ═══════════════════════════════════

@@ -8,10 +8,10 @@
 // o sistema não tem. Login biométrico continua sendo uma feature em
 // aberto (exige WebAuthn + tabela de credenciais no banco).
 
-// Cache bumped para v9: entrou Contas a Pagar no Financeiro. Sem
-// trocar o nome do cache, quem já abriu o app continuaria vendo a
-// tela sem a seção nova.
-var CACHE = 'workap-v9';
+// Cache bumped para v10: entraram Chat, Férias/Folgas e Metas, além do
+// botão de desligar na lista de funcionários. Sem trocar o nome do
+// cache, quem já abriu o app continuaria vendo o app sem as telas novas.
+var CACHE = 'workap-v10';
 // Ícone das notificações push: só o símbolo. A arte original tem a
 // palavra "WORKA" desenhada dentro e mostraria o nome antigo.
 var NOTIFICATION_ICON = 'assets/icon-192.png';
