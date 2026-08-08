@@ -1,0 +1,560 @@
+<meta charset="UTF-8"/>
+<!--
+  VITRINE PÚBLICA — workap.com.br/loja/?l=slug-da-loja
+
+  Página que o CLIENTE do estabelecimento abre. Não tem login, não tem
+  conta, não tem pagamento: monta o carrinho, manda o pedido, paga na
+  entrega ou na retirada.
+
+  Arquivo separado do app de propósito. O app é grande e carrega o
+  mundo inteiro (ponto, folha, chat); quem só quer pedir um lanche não
+  deve baixar nada disso, ainda mais no 3G da rua.
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://worka-backend-awng.onrender.com https://fonts.googleapis.com https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://worka-backend-awng.onrender.com;"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<title>Fazer pedido</title>
+<link rel="icon" type="image/svg+xml" href="../assets/simbolo.svg"/>
+<meta name="theme-color" content="#0a2e1a"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+
+<style>
+  :root{
+    --btn:#1e8a40; --destaque:#3dd669;
+    --tinta:#12261a; --cinza:#6b7068; --linha:#e8eae7; --fundo:#f6f8f6;
+    --r:12px; --sombra:0 2px 10px rgba(16,32,20,.07);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Inter',system-ui,sans-serif;background:var(--fundo);color:var(--tinta);
+       /* padding-bottom deixa espaço para a barra fixa do carrinho não
+          cobrir o último item da lista */
+       padding-bottom:96px;-webkit-font-smoothing:antialiased}
+  .capa{background:linear-gradient(140deg,#0a2e1a,#155c30);color:#fff;padding:26px 18px 22px}
+  .capa h1{margin:0;font-size:1.35rem;font-weight:800;letter-spacing:-.3px}
+  .capa p{margin:6px 0 0;font-size:.86rem;color:rgba(255,255,255,.78);line-height:1.5}
+  .capa .meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  .chip{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);border-radius:999px;
+        padding:5px 11px;font-size:.74rem;font-weight:600}
+  .aviso{background:#fff8e6;border-left:3px solid #d97706;color:#7c4a03;padding:11px 16px;font-size:.82rem}
+
+  .conteudo{max-width:720px;margin:0 auto;padding:16px}
+  .grupo-titulo{font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.6px;
+                color:var(--cinza);margin:20px 0 10px}
+  .item{background:#fff;border:1px solid var(--linha);border-radius:var(--r);padding:12px;
+        display:flex;gap:12px;align-items:center;margin-bottom:10px;box-shadow:var(--sombra)}
+  .item img{width:62px;height:62px;border-radius:10px;object-fit:cover;flex-shrink:0;background:var(--linha)}
+  .item .semfoto{width:62px;height:62px;border-radius:10px;flex-shrink:0;background:var(--linha);
+                 display:flex;align-items:center;justify-content:center;color:#9aa39b;font-size:1.3rem;font-weight:700}
+  .item-info{flex:1;min-width:0}
+  .item-nome{font-weight:700;font-size:.92rem;line-height:1.3}
+  .item-desc{font-size:.78rem;color:var(--cinza);margin-top:3px;line-height:1.4}
+  .item-preco{font-weight:800;color:var(--btn);margin-top:5px;font-size:.95rem}
+  .qtd{display:flex;align-items:center;gap:8px;flex-shrink:0}
+  .qtd button{width:32px;height:32px;border-radius:9px;border:1.5px solid var(--linha);background:#fff;
+              font-size:1.1rem;font-weight:700;color:var(--btn);cursor:pointer;line-height:1;
+              display:flex;align-items:center;justify-content:center}
+  .qtd button:active{background:var(--fundo)}
+  .qtd .n{min-width:22px;text-align:center;font-weight:800;font-size:.95rem}
+  .btn-add{background:var(--btn);color:#fff;border:none;border-radius:10px;padding:9px 15px;
+           font-weight:700;font-size:.82rem;cursor:pointer;font-family:inherit;white-space:nowrap}
+
+  .barra{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--linha);
+         padding:12px 16px calc(12px + env(safe-area-inset-bottom));display:none;
+         box-shadow:0 -4px 18px rgba(16,32,20,.10);z-index:20}
+  .barra.mostrar{display:block}
+  .barra-inner{max-width:720px;margin:0 auto;display:flex;align-items:center;gap:12px}
+  .barra .resumo{flex:1;min-width:0}
+  .barra .resumo small{display:block;color:var(--cinza);font-size:.75rem}
+  .barra .resumo strong{font-size:1.05rem}
+  .btn-grande{background:var(--btn);color:#fff;border:none;border-radius:11px;padding:13px 20px;
+              font-weight:800;font-size:.92rem;cursor:pointer;font-family:inherit}
+  .btn-grande:disabled{opacity:.5;cursor:not-allowed}
+
+  .tela{display:none}
+  .tela.ativa{display:block}
+  .voltar{background:none;border:none;color:var(--btn);font-weight:700;font-size:.86rem;
+          cursor:pointer;padding:0;font-family:inherit;margin-bottom:14px}
+  .campo{margin-bottom:13px}
+  .campo label{display:block;font-size:.79rem;font-weight:700;margin-bottom:5px}
+  .campo input,.campo select,.campo textarea{width:100%;padding:11px 13px;border:1.5px solid var(--linha);
+    border-radius:10px;font-size:.9rem;font-family:inherit;outline:none;background:#fff}
+  .campo input:focus,.campo select:focus,.campo textarea:focus{border-color:var(--btn)}
+  .opcoes{display:flex;gap:8px}
+  .opcao{flex:1;border:1.5px solid var(--linha);border-radius:10px;padding:11px;text-align:center;
+         font-size:.85rem;font-weight:700;cursor:pointer;background:#fff}
+  .opcao.on{border-color:var(--btn);background:#f0faf3;color:var(--btn)}
+  .totais{background:#fff;border:1px solid var(--linha);border-radius:var(--r);padding:14px;margin:14px 0}
+  .linha-total{display:flex;justify-content:space-between;font-size:.86rem;padding:3px 0;color:var(--cinza)}
+  .linha-total.final{font-size:1.05rem;font-weight:800;color:var(--tinta);border-top:1px solid var(--linha);
+                     margin-top:8px;padding-top:10px}
+  .erro{background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:10px;padding:11px 13px;
+        font-size:.83rem;margin-bottom:12px;display:none}
+  .sucesso{text-align:center;padding:44px 20px}
+  .sucesso .n{font-size:2.6rem;font-weight:800;color:var(--btn);margin:12px 0 4px}
+  .vazio{text-align:center;color:var(--cinza);padding:50px 20px;font-size:.9rem;line-height:1.6}
+  .rodape{text-align:center;padding:26px 16px;color:var(--cinza);font-size:.72rem}
+  .rodape a{color:var(--cinza)}
+</style>
+
+<div id="carregando" class="vazio">Carregando a loja…</div>
+
+<div id="loja" style="display:none">
+  <!-- ── CATÁLOGO ── -->
+  <div class="tela ativa" id="tela-catalogo">
+    <div class="capa">
+      <h1 id="loja-nome"></h1>
+      <p id="loja-descricao"></p>
+      <div class="meta" id="loja-meta"></div>
+    </div>
+    <div class="aviso" id="loja-aviso" style="display:none"></div>
+    <div class="conteudo" id="lista-itens"></div>
+    <div class="rodape">Pedidos por <strong>Workap</strong> · o pagamento é combinado direto com a loja</div>
+  </div>
+
+  <!-- ── CHECKOUT (sem pagamento) ── -->
+  <div class="tela" id="tela-checkout">
+    <div class="conteudo">
+      <button class="voltar" onclick="verCatalogo()">← Voltar e continuar escolhendo</button>
+      <h2 style="margin:0 0 4px;font-size:1.15rem">Seus dados</h2>
+      <p style="margin:0 0 16px;font-size:.83rem;color:var(--cinza);line-height:1.5">
+        Nada é cobrado aqui. O pedido vai direto para a equipe da loja e o
+        pagamento é feito na entrega ou na retirada.
+      </p>
+
+      <div class="erro" id="checkout-erro"></div>
+
+      <div class="campo"><label>Seu nome *</label><input id="c-nome" maxlength="120" placeholder="Como podemos te chamar"></div>
+      <div class="campo"><label>WhatsApp / Telefone *</label><input id="c-tel" maxlength="15" inputmode="numeric" placeholder="(11) 98765-4321" oninput="mascaraTel(this)"></div>
+      <div class="campo">
+        <label>Nome do estabelecimento <span style="font-weight:400;color:var(--cinza)">(se for compra para empresa)</span></label>
+        <input id="c-estab" maxlength="120" placeholder="Ex: Bar do Zé, Mercado Bom Preço">
+      </div>
+
+      <div class="campo" id="campo-tipo">
+        <label>Como quer receber?</label>
+        <div class="opcoes">
+          <div class="opcao on" id="op-entrega" onclick="escolherTipo('entrega')">Entrega</div>
+          <div class="opcao" id="op-retirada" onclick="escolherTipo('retirada')">Retirar na loja</div>
+        </div>
+      </div>
+
+      <div class="campo" id="campo-endereco">
+        <label>Endereço da entrega *</label>
+        <input id="c-endereco" maxlength="250" placeholder="Rua, número, bairro e ponto de referência">
+      </div>
+
+      <div class="campo" id="campo-pagamento">
+        <label>Como vai pagar na entrega?</label>
+        <select id="c-pagamento"></select>
+      </div>
+
+      <div class="campo" id="campo-troco" style="display:none">
+        <label>Precisa de troco para quanto?</label>
+        <input id="c-troco" inputmode="decimal" placeholder="Ex: 100,00">
+      </div>
+
+      <div class="campo"><label>Observações</label><textarea id="c-obs" rows="2" maxlength="400" placeholder="Sem cebola, entregar após as 18h..."></textarea></div>
+
+      <div class="totais" id="checkout-totais"></div>
+
+      <button class="btn-grande" style="width:100%" id="btn-enviar" onclick="enviarPedido()">Enviar pedido</button>
+      <div class="rodape">Você não paga nada agora.</div>
+    </div>
+  </div>
+
+  <!-- ── CONFIRMAÇÃO ── -->
+  <div class="tela" id="tela-pronto">
+    <div class="conteudo sucesso">
+      <div style="font-size:2.4rem">✅</div>
+      <div style="font-size:.9rem;color:var(--cinza)">Pedido enviado! Seu número é</div>
+      <div class="n" id="numero-pedido">#0</div>
+      <p style="color:var(--cinza);font-size:.88rem;line-height:1.6;max-width:380px;margin:8px auto 22px">
+        A loja já recebeu e vai preparar. Guarde este número — é por ele
+        que você é atendido. O pagamento é feito na hora da entrega.
+      </p>
+      <div class="totais" style="text-align:left" id="pronto-resumo"></div>
+      <button class="btn-grande" style="width:100%;margin-top:14px" onclick="novoPedido()">Fazer outro pedido</button>
+    </div>
+  </div>
+</div>
+
+<div class="barra" id="barra-carrinho">
+  <div class="barra-inner">
+    <div class="resumo">
+      <small id="barra-qtd">0 itens</small>
+      <strong id="barra-total">R$ 0,00</strong>
+    </div>
+    <button class="btn-grande" onclick="verCheckout()">Fechar pedido</button>
+  </div>
+</div>
+
+<script>
+var API_BASE = 'https://worka-backend-awng.onrender.com';
+
+// Slug pela query (?l=padaria-do-ze). Poderia ser um caminho bonito
+// (/loja/padaria-do-ze), mas o GitHub Pages serve arquivo estático e
+// não reescreve caminho — daria 404 em toda loja.
+var SLUG = new URLSearchParams(location.search).get('l') || '';
+
+var loja = null;
+var itens = [];
+var carrinho = {};        // { idDoItem: quantidade }
+var tipoEntrega = 'entrega';
+
+function reais(centavos){
+  return 'R$ ' + (Math.round(centavos) / 100).toFixed(2).replace('.', ',');
+}
+function elemento(tag, css, texto){
+  var el = document.createElement(tag);
+  if(css) el.style.cssText = css;
+  if(texto != null) el.textContent = texto;
+  return el;
+}
+function mascaraTel(campo){
+  var v = campo.value.replace(/\D/g, '').substring(0, 11);
+  if(v.length > 10)      v = v.replace(/(\d{2})(\d{5})(\d{0,4})/, '($1) $2-$3');
+  else if(v.length > 6)  v = v.replace(/(\d{2})(\d{4})(\d{0,4})/, '($1) $2-$3');
+  else if(v.length > 2)  v = v.replace(/(\d{2})(\d{0,5})/, '($1) $2');
+  else if(v.length > 0)  v = v.replace(/(\d{0,2})/, '($1');
+  campo.value = v;
+}
+
+// ── Carregar a loja ──
+function abrirLoja(){
+  if(!SLUG){
+    document.getElementById('carregando').textContent = 'Link incompleto. Peça o endereço certo para a loja.';
+    return;
+  }
+  fetch(API_BASE + '/loja/' + encodeURIComponent(SLUG))
+    .then(function(r){ return r.json().then(function(d){ return { status: r.status, d: d }; }); })
+    .then(function(res){
+      if(res.status !== 200){
+        document.getElementById('carregando').textContent =
+          'Esta loja não está disponível no momento.';
+        return;
+      }
+      loja = res.d.loja;
+      itens = res.d.itens || [];
+      montarLoja();
+    })
+    .catch(function(){
+      document.getElementById('carregando').textContent =
+        'Não foi possível carregar a loja. Verifique sua internet e tente de novo.';
+    });
+}
+
+function montarLoja(){
+  document.title = loja.nome + ' — Fazer pedido';
+  // Cores da identidade visual do lojista: quem abre o link vê a loja
+  // dele, não a marca do Workap.
+  if(loja.cor_botao)    document.documentElement.style.setProperty('--btn', loja.cor_botao);
+  if(loja.cor_destaque) document.documentElement.style.setProperty('--destaque', loja.cor_destaque);
+
+  document.getElementById('carregando').style.display = 'none';
+  document.getElementById('loja').style.display = 'block';
+
+  document.getElementById('loja-nome').textContent = loja.nome;
+  document.getElementById('loja-descricao').textContent = loja.descricao || '';
+
+  var meta = document.getElementById('loja-meta');
+  meta.textContent = '';
+  if(loja.horario)  meta.appendChild(elemento('span', '', loja.horario)).className = 'chip';
+  if(loja.aceita_entrega){
+    var t = loja.taxa_entrega_centavos ? 'Entrega ' + reais(loja.taxa_entrega_centavos) : 'Entrega grátis';
+    meta.appendChild(elemento('span', '', t)).className = 'chip';
+  }
+  if(loja.aceita_retirada) meta.appendChild(elemento('span', '', 'Retirada na loja')).className = 'chip';
+  if(loja.pedido_minimo_centavos){
+    meta.appendChild(elemento('span', '', 'Mínimo ' + reais(loja.pedido_minimo_centavos))).className = 'chip';
+  }
+
+  if(loja.aviso){
+    var av = document.getElementById('loja-aviso');
+    av.textContent = loja.aviso;
+    av.style.display = 'block';
+  }
+
+  // Só mostra a escolha entrega/retirada quando a loja faz as duas.
+  if(!loja.aceita_entrega || !loja.aceita_retirada){
+    document.getElementById('campo-tipo').style.display = 'none';
+    tipoEntrega = loja.aceita_entrega ? 'entrega' : 'retirada';
+  }
+
+  var sel = document.getElementById('c-pagamento');
+  var rotulos = { dinheiro: 'Dinheiro', pix: 'PIX na entrega', cartao: 'Cartão na entrega' };
+  sel.textContent = '';
+  (loja.formas_pagamento || ['dinheiro']).forEach(function(f){
+    var o = document.createElement('option');
+    o.value = f; o.textContent = rotulos[f] || f;
+    sel.appendChild(o);
+  });
+  sel.onchange = atualizarTroco;
+  atualizarTroco();
+
+  montarItens();
+}
+
+function montarItens(){
+  var caixa = document.getElementById('lista-itens');
+  caixa.textContent = '';
+
+  if(!itens.length){
+    var vazio = elemento('div', '', 'Esta loja ainda não publicou nenhum item. Volte mais tarde.');
+    vazio.className = 'vazio';
+    caixa.appendChild(vazio);
+    return;
+  }
+
+  // Agrupado por categoria para a lista não virar um paredão.
+  var grupos = {};
+  itens.forEach(function(i){
+    var g = i.categoria || 'Outros';
+    (grupos[g] = grupos[g] || []).push(i);
+  });
+
+  Object.keys(grupos).forEach(function(nomeGrupo){
+    var titulo = elemento('div', '', nomeGrupo);
+    titulo.className = 'grupo-titulo';
+    caixa.appendChild(titulo);
+
+    grupos[nomeGrupo].forEach(function(item){
+      var linha = document.createElement('div');
+      linha.className = 'item';
+
+      if(item.foto){
+        var img = document.createElement('img');
+        img.src = item.foto; img.alt = '';
+        linha.appendChild(img);
+      } else {
+        var ph = elemento('div', '', (item.nome || '?').charAt(0).toUpperCase());
+        ph.className = 'semfoto';
+        linha.appendChild(ph);
+      }
+
+      var info = document.createElement('div');
+      info.className = 'item-info';
+      var nome = elemento('div', '', item.nome);
+      nome.className = 'item-nome';
+      info.appendChild(nome);
+      if(item.descricao){
+        var d = elemento('div', '', item.descricao);
+        d.className = 'item-desc';
+        info.appendChild(d);
+      }
+      var preco = elemento('div', '', reais(item.preco_centavos) + (item.unidade && item.unidade !== 'unidades' ? ' / ' + item.unidade : ''));
+      preco.className = 'item-preco';
+      info.appendChild(preco);
+      linha.appendChild(info);
+
+      linha.appendChild(controleQuantidade(item));
+      caixa.appendChild(linha);
+    });
+  });
+}
+
+function controleQuantidade(item){
+  var qtd = carrinho[item.id] || 0;
+
+  if(!qtd){
+    var add = elemento('button', '', 'Adicionar');
+    add.className = 'btn-add';
+    add.onclick = function(){ mudarQuantidade(item.id, 1); };
+    return add;
+  }
+
+  var caixa = document.createElement('div');
+  caixa.className = 'qtd';
+  var menos = elemento('button', '', '−');
+  menos.onclick = function(){ mudarQuantidade(item.id, -1); };
+  var n = elemento('span', '', String(qtd));
+  n.className = 'n';
+  var mais = elemento('button', '', '+');
+  mais.onclick = function(){ mudarQuantidade(item.id, 1); };
+  caixa.appendChild(menos); caixa.appendChild(n); caixa.appendChild(mais);
+  return caixa;
+}
+
+function mudarQuantidade(id, delta){
+  var nova = (carrinho[id] || 0) + delta;
+  if(nova <= 0) delete carrinho[id];
+  else if(nova <= 999) carrinho[id] = nova;
+  montarItens();
+  atualizarBarra();
+}
+
+function totaisDoCarrinho(){
+  var subtotal = 0, qtdTotal = 0;
+  itens.forEach(function(i){
+    var q = carrinho[i.id] || 0;
+    if(!q) return;
+    subtotal += i.preco_centavos * q;
+    qtdTotal += q;
+  });
+  var taxa = (tipoEntrega === 'entrega' && loja) ? (loja.taxa_entrega_centavos || 0) : 0;
+  return { subtotal: subtotal, taxa: taxa, total: subtotal + taxa, qtd: qtdTotal };
+}
+
+function atualizarBarra(){
+  var t = totaisDoCarrinho();
+  var barra = document.getElementById('barra-carrinho');
+  barra.classList.toggle('mostrar', t.qtd > 0);
+  document.getElementById('barra-qtd').textContent = t.qtd === 1 ? '1 item' : t.qtd + ' itens';
+  document.getElementById('barra-total').textContent = reais(t.subtotal);
+}
+
+// ── Telas ──
+function mostrarTela(id){
+  document.querySelectorAll('.tela').forEach(function(t){ t.classList.remove('ativa'); });
+  document.getElementById(id).classList.add('ativa');
+  window.scrollTo(0, 0);
+}
+function verCatalogo(){
+  mostrarTela('tela-catalogo');
+  document.getElementById('barra-carrinho').classList.toggle('mostrar', totaisDoCarrinho().qtd > 0);
+}
+function verCheckout(){
+  mostrarTela('tela-checkout');
+  document.getElementById('barra-carrinho').classList.remove('mostrar');
+  montarTotais();
+}
+function novoPedido(){
+  carrinho = {};
+  ['c-nome','c-tel','c-estab','c-endereco','c-obs','c-troco'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.value = '';
+  });
+  montarItens();
+  atualizarBarra();
+  verCatalogo();
+}
+
+function escolherTipo(tipo){
+  tipoEntrega = tipo;
+  document.getElementById('op-entrega').classList.toggle('on', tipo === 'entrega');
+  document.getElementById('op-retirada').classList.toggle('on', tipo === 'retirada');
+  document.getElementById('campo-endereco').style.display = tipo === 'entrega' ? '' : 'none';
+  montarTotais();
+}
+
+function atualizarTroco(){
+  var forma = document.getElementById('c-pagamento').value;
+  document.getElementById('campo-troco').style.display = forma === 'dinheiro' ? '' : 'none';
+}
+
+function montarTotais(){
+  var t = totaisDoCarrinho();
+  var caixa = document.getElementById('checkout-totais');
+  caixa.textContent = '';
+
+  itens.forEach(function(i){
+    var q = carrinho[i.id] || 0;
+    if(!q) return;
+    var l = document.createElement('div');
+    l.className = 'linha-total';
+    l.appendChild(elemento('span', '', q + '× ' + i.nome));
+    l.appendChild(elemento('span', '', reais(i.preco_centavos * q)));
+    caixa.appendChild(l);
+  });
+
+  if(t.taxa){
+    var lt = document.createElement('div');
+    lt.className = 'linha-total';
+    lt.appendChild(elemento('span', '', 'Taxa de entrega'));
+    lt.appendChild(elemento('span', '', reais(t.taxa)));
+    caixa.appendChild(lt);
+  }
+
+  var fim = document.createElement('div');
+  fim.className = 'linha-total final';
+  fim.appendChild(elemento('span', '', 'Total a pagar na entrega'));
+  fim.appendChild(elemento('span', '', reais(t.total)));
+  caixa.appendChild(fim);
+}
+
+function enviarPedido(){
+  var erro = document.getElementById('checkout-erro');
+  erro.style.display = 'none';
+
+  function falhar(msg){
+    erro.textContent = msg;
+    erro.style.display = 'block';
+    window.scrollTo(0, 0);
+  }
+
+  var t = totaisDoCarrinho();
+  if(!t.qtd) return falhar('Seu carrinho está vazio.');
+  if(loja.pedido_minimo_centavos && t.subtotal < loja.pedido_minimo_centavos){
+    return falhar('O pedido mínimo desta loja é ' + reais(loja.pedido_minimo_centavos) + '.');
+  }
+
+  var nome = document.getElementById('c-nome').value.trim();
+  var tel  = document.getElementById('c-tel').value.trim();
+  if(!nome) return falhar('Informe seu nome.');
+  if(tel.replace(/\D/g, '').length < 10) return falhar('Informe um telefone com DDD.');
+
+  var endereco = document.getElementById('c-endereco').value.trim();
+  if(tipoEntrega === 'entrega' && !endereco) return falhar('Informe o endereço da entrega.');
+
+  // Troco em centavos, sem ponto flutuante: "100,00" vira 10000.
+  var trocoTxt = (document.getElementById('c-troco').value || '').replace(/[^\d,]/g, '').replace(',', '.');
+  var trocoCentavos = trocoTxt ? Math.round(parseFloat(trocoTxt) * 100) : null;
+
+  // O servidor só recebe id e quantidade. Preço e total são calculados
+  // lá — mandar valor daqui seria deixar o preço na mão do cliente.
+  var listaItens = Object.keys(carrinho).map(function(id){
+    return { id: id, quantidade: carrinho[id] };
+  });
+
+  var btn = document.getElementById('btn-enviar');
+  btn.textContent = 'Enviando...';
+  btn.disabled = true;
+
+  fetch(API_BASE + '/loja/' + encodeURIComponent(SLUG) + '/pedido', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      cliente_nome: nome,
+      cliente_telefone: tel,
+      cliente_estabelecimento: document.getElementById('c-estab').value.trim(),
+      tipo: tipoEntrega,
+      endereco: endereco,
+      forma_pagamento: document.getElementById('c-pagamento').value,
+      troco_para_centavos: trocoCentavos,
+      observacoes: document.getElementById('c-obs').value.trim(),
+      itens: listaItens
+    })
+  })
+  .then(function(r){ return r.json().then(function(d){ return { status: r.status, d: d }; }); })
+  .then(function(res){
+    btn.textContent = 'Enviar pedido';
+    btn.disabled = false;
+    if(res.status !== 201){
+      return falhar(res.d.error || 'Não foi possível enviar o pedido. Tente de novo.');
+    }
+
+    document.getElementById('numero-pedido').textContent = '#' + res.d.numero;
+    var resumo = document.getElementById('pronto-resumo');
+    resumo.textContent = '';
+    [['Itens', res.d.subtotal_reais], ['Entrega', res.d.taxa_reais]].forEach(function(par){
+      var l = document.createElement('div');
+      l.className = 'linha-total';
+      l.appendChild(elemento('span', '', par[0]));
+      l.appendChild(elemento('span', '', 'R$ ' + par[1]));
+      resumo.appendChild(l);
+    });
+    var fim = document.createElement('div');
+    fim.className = 'linha-total final';
+    fim.appendChild(elemento('span', '', 'A pagar na entrega'));
+    fim.appendChild(elemento('span', '', 'R$ ' + res.d.total_reais));
+    resumo.appendChild(fim);
+
+    mostrarTela('tela-pronto');
+  })
+  .catch(function(){
+    btn.textContent = 'Enviar pedido';
+    btn.disabled = false;
+    falhar('Erro de conexão. Verifique sua internet e tente de novo.');
+  });
+}
+
+abrirLoja();
+</script>
