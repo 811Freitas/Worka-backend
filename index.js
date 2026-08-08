@@ -64,11 +64,28 @@ const CONFIG = {
   OWNER_PASSWORD_HASH: env("OWNER_PASSWORD_HASH"),
   BCRYPT_ROUNDS: 12,
   JWT_EXPIRES:   "8h",
-  // Valor do plano em CENTAVOS — é assim que o gateway PIX espera
-  // receber. Fonte única da verdade: o cálculo de desconto por cupom
-  // e a cobrança partem daqui, para o preço nunca divergir entre a
-  // tela de checkout e o que é realmente cobrado.
-  PLANO_CENTAVOS: 4999,
+  // Planos em CENTAVOS — é assim que o gateway PIX espera receber.
+  // Fonte única da verdade: checkout, cupom, cobrança e MRR partem
+  // daqui, para o preço nunca divergir entre a tela e o que é
+  // realmente cobrado.
+  //
+  // Eram um número só (4999). Com o plano de pedidos, virou catálogo:
+  // um escalar não consegue responder "quanto custa ESTA conta", e
+  // esse era exatamente o cálculo do MRR e do desconto por cupom.
+  PLANOS: {
+    completo: {
+      nome: "Plano Completo",
+      centavos: 4999,
+      resumo: "Ponto, tarefas, estoque, escala, folha, metas e chat."
+    },
+    pedidos: {
+      nome: "Plano Pedidos",
+      centavos: 8990,
+      resumo: "Tudo do Completo + loja online com carrinho e fila de pedidos para a equipe."
+    }
+  },
+  // Plano padrão de quem se cadastra sem escolher.
+  PLANO_PADRAO: "completo",
   // Domínios permitidos no CORS.
   // ATENÇÃO: o domínio real do site (arquivo CNAME) é "workap.com.br",
   // com P. A lista tinha "worka.com.br" — domínio diferente, que não é
@@ -148,6 +165,12 @@ var RATE_LIMITS = {
   // 60/10min ainda cobre folgado o cadastro em lote de um estoque
   // inteiro, que é feito uma vez.
   "/validade":       { max: 60,  window: 10 * 60 * 1000 },
+  // Loja pública: qualquer um na internet alcança. A vitrine é barata
+  // e pode ser vista muitas vezes; enviar pedido é caro (grava linha e
+  // dispara push), então tem teto bem menor — um cliente de verdade
+  // manda um pedido, não vinte por minuto.
+  "/loja":           { max: 120, window: 60 * 1000 },
+  "/loja/pedido":    { max: 8,   window: 10 * 60 * 1000 },
   "default":         { max: 100, window: 60 * 1000 }       // 100/min geral
 };
 
@@ -410,6 +433,29 @@ function configDoRamo(slug) {
 }
 
 /**
+ * Normaliza o nome de um plano. Qualquer coisa desconhecida cai no
+ * padrão — assim uma conta antiga com o campo em branco continua
+ * sendo cobrada e contada, em vez de virar um plano de preço zero.
+ */
+function planoValido(nome) {
+  var chave = typeof nome === "string" ? nome.trim().toLowerCase() : "";
+  return CONFIG.PLANOS[chave] ? chave : CONFIG.PLANO_PADRAO;
+}
+
+function precoDoPlano(nome) {
+  return CONFIG.PLANOS[planoValido(nome)].centavos;
+}
+
+/**
+ * A loja online e a fila de pedidos são o que separa os dois planos.
+ * Checado no servidor em toda rota do módulo — esconder o menu no app
+ * é conveniência visual, não controle de acesso.
+ */
+function planoTemPedidos(nome) {
+  return planoValido(nome) === "pedidos";
+}
+
+/**
  * Filtra os atributos enviados pelo cliente contra os campos que o
  * ramo declara.
  *
@@ -445,6 +491,7 @@ function filtrarAtributos(slugRamo, enviados) {
 // carrega permissões — apenas o role — para que revogar/alterar
 // acesso não exija invalidar tokens já emitidos além do necessário.
 var PERMISSOES_DONO = [
+  "loja:read", "loja:write", "pedidos:read", "pedidos:write",
   "funcionarios:read", "funcionarios:write", "funcionarios:delete",
   "salarios:read", "salarios:write",
   "financeiro:read", "financeiro:write",
@@ -478,6 +525,8 @@ var ROLE_PERMISSIONS = {
     "chat:usar",
     "afastamentos:read", "afastamentos:write",
     "metas:read", "metas:write",
+    "loja:read",                 // vê a configuração da loja, quem edita é o dono
+    "pedidos:read", "pedidos:write",
     "logs:read"
   ]),
   funcionario: new Set([
@@ -488,7 +537,11 @@ var ROLE_PERMISSIONS = {
     "mural:read",        // lê os comunicados da empresa
     "chat:usar",         // conversa com a equipe
     "afastamentos:read", // vê as próprias férias/folgas — filtro na rota
-    "metas:read"         // acompanha as metas atribuídas a si
+    "metas:read",        // acompanha as metas atribuídas a si
+    // Entregador/atendente precisa ver e mover os pedidos do próprio
+    // cargo. A rota filtra pelo cargo dele — a permissão sozinha não
+    // mostra a fila inteira da empresa.
+    "pedidos:read", "pedidos:write"
   ]),
   // Dono da Workap (não do cliente). Recebe as mesmas permissões de um
   // "dono" — para navegar por todas as telas do produto — MAIS as
@@ -671,7 +724,8 @@ function supabase(method, table, options = {}) {
     "owners_plataforma", "webauthn_credentials", "webauthn_challenges",
     "config_plataforma", "utmify_envios",
     "comunicados", "cargos", "config_faltas", "contas_pagar",
-    "mensagens", "periodos_afastamento", "metas"
+    "mensagens", "periodos_afastamento", "metas",
+    "loja_config", "pedidos"
   ];
   if (!ALLOWED_TABLES.includes(table)) {
     return Promise.reject(new Error(`Tabela não permitida: ${table}`));
@@ -1224,7 +1278,7 @@ async function enviarUtmify(dados) {
  * com casa decimal) para não acumular erro de ponto flutuante no
  * valor que vai para o gateway de pagamento.
  */
-async function validarCupom(codigoBruto) {
+async function validarCupom(codigoBruto, planoAlvo) {
   var codigo = SANITIZE.string(codigoBruto || "", 40).toUpperCase().trim();
   if (!codigo) return { ok: false, erro: "Informe um código de cupom." };
 
@@ -1256,7 +1310,9 @@ async function validarCupom(codigoBruto) {
   var valorCupom = parseFloat(cupom.valor);
   if (isNaN(valorCupom) || valorCupom <= 0) return { ok: false, erro: "Cupom inválido." };
 
-  var precoOriginal = CONFIG.PLANO_CENTAVOS;
+  // O desconto percentual precisa saber sobre QUAL preço incide: 20%
+  // do plano de R$ 89,90 não é 20% do de R$ 49,99.
+  var precoOriginal = precoDoPlano(planoAlvo);
   var desconto;
   if (cupom.tipo === "percentual") {
     if (valorCupom > 100) valorCupom = 100; // trava de segurança
@@ -2079,7 +2135,14 @@ var server = http.createServer(async (req, res) => {
   if (method === "OPTIONS") { res.writeHead(204); return res.end(); }
 
   // ── Rate limiting global ──
-  var rl = checkRateLimit(ip, path.startsWith("/login") ? "/login" : (RATE_LIMITS[path] ? path : "default"));
+  // A loja pública tem o slug no meio do caminho (/loja/padaria-do-ze),
+  // então o limite não pode ser buscado pelo path exato. Enviar pedido
+  // e ver a vitrine têm tetos diferentes de propósito.
+  var chaveLimite = path.startsWith("/login") ? "/login"
+    : /^\/loja\/[\w-]+\/pedido$/.test(path) ? "/loja/pedido"
+    : /^\/loja\//.test(path) ? "/loja"
+    : (RATE_LIMITS[path] ? path : "default");
+  var rl = checkRateLimit(ip, chaveLimite);
   if (rl.blocked) {
     secLog("rate_limit_blocked", { ip, path });
     res.setHeader("Retry-After", rl.retryAfter);
@@ -2144,6 +2207,8 @@ var server = http.createServer(async (req, res) => {
         email:                v.data.email,
         senha_hash:           senhaHash,
         ramo:                 ramoDaEmpresa(body.ramo),
+        plano:                planoValido(body.plano),
+        valor_mensal:         precoDoPlano(body.plano) / 100,
         team_id:              gerarTeamId(),
         status:               "trial",
         trial_fim:            trialFim,
@@ -2769,10 +2834,13 @@ var server = http.createServer(async (req, res) => {
         // negócio" desde sempre, mas o cadastro nunca enviou o campo e
         // o app nunca leu — toda conta nascia sem ramo.
         var ramoEscolhido = ramoDaEmpresa(body.ramo);
+        var planoNovo = planoValido(body.plano);
 
         var result = await DB.insert("empresas", {
           nome, email, senha_hash: senhaHash,
           ramo: ramoEscolhido,
+          plano: planoNovo,
+          valor_mensal: CONFIG.PLANOS[planoNovo].centavos / 100,
           team_id: gerarTeamId(), status: "trial",
           trial_fim: trialFim, aviso_trial_sent: false, aviso_expirado_sent: false
         }).catch(e => { secLog("erro_criar_empresa", { message: e.message }); return { body: [] }; });
@@ -2876,7 +2944,9 @@ var server = http.createServer(async (req, res) => {
       var body = parseBody(raw);
       if (!body) return jsonErr(res, "Dados inválidos");
 
-      var checagem = await validarCupom(body.codigo);
+      // Mesmo plano que o checkout vai cobrar: sem isso a tela mostra
+      // o desconto calculado sobre um preço e o PIX vem com outro.
+      var checagem = await validarCupom(body.codigo, body.plano);
       if (!checagem.ok) return jsonErr(res, checagem.erro, 404);
 
       secLog("cupom_validado", { codigo: checagem.codigo });
@@ -2889,6 +2959,233 @@ var server = http.createServer(async (req, res) => {
         desconto_reais: centavosParaReais(checagem.desconto_centavos),
         valor_original: centavosParaReais(checagem.valor_original_centavos),
         valor_final:    centavosParaReais(checagem.valor_final_centavos)
+      });
+    }
+
+    // ══════════════════════════════════════════════
+    // LOJA ONLINE — VITRINE E PEDIDO (rotas públicas)
+    // ══════════════════════════════════════════════
+    //
+    // Aqui NÃO se cobra nada. O cliente monta o carrinho, manda o
+    // pedido e paga na entrega ou na retirada. Sem gateway, sem dado
+    // de cartão, sem estorno — e sem a responsabilidade que vem junto.
+    //
+    // Públicas de propósito: quem compra não tem conta no Workap. Em
+    // troca, tudo que entra por aqui é tratado como hostil.
+
+    // Nomes que a própria API usa depois de /loja/. Sem esta lista, a
+    // rota pública abaixo engole GET /loja/config — que é a rota
+    // AUTENTICADA de configuração — e o lojista recebe 404 tentando
+    // abrir a própria loja. Foi exatamente o que aconteceu.
+    var SLUGS_RESERVADOS = ["config", "pedido", "pedidos", "admin", "api", "app", "novo"];
+
+    // Vitrine: dados da loja + itens marcados para o catálogo.
+    if (method === "GET" && path.match(/^\/loja\/[\w-]{2,60}$/) &&
+        SLUGS_RESERVADOS.indexOf(String(path.split("/")[2] || "").toLowerCase()) === -1) {
+      var slugLoja = String(path.split("/")[2] || "").toLowerCase();
+
+      var lojaRes = await DB.select("loja_config", `slug=eq.${encodeURIComponent(slugLoja)}&select=*`);
+      var loja = lojaRes.body && lojaRes.body[0];
+      // 404 igual para "não existe" e "está desligada": responder
+      // diferente transformaria a rota numa forma de descobrir quais
+      // lojas existem no sistema.
+      if (!loja || !loja.ativa) return jsonErr(res, "Loja não encontrada", 404);
+
+      var empLoja = await DB.select("empresas", `id=eq.${loja.empresa_id}&select=id,nome,plano,status,cor_botao,cor_destaque`);
+      var donoLoja = empLoja.body && empLoja.body[0];
+      // Plano vencido ou downgrade derrubam a vitrine. Sem esta
+      // checagem, uma loja continuaria no ar depois de a assinatura
+      // acabar — vendendo de graça pelo nosso servidor.
+      if (!donoLoja || !planoTemPedidos(donoLoja.plano)) return jsonErr(res, "Loja não encontrada", 404);
+      if (donoLoja.status === "cancelada" || donoLoja.status === "suspensa") {
+        return jsonErr(res, "Loja temporariamente indisponível", 404);
+      }
+
+      // Só o que é do catálogo, e só as colunas que o público pode
+      // ver. Fornecedor, custo e quantidade em estoque ficam de fora —
+      // é informação interna do lojista, não da vitrine.
+      var itensLoja = await DB.select("produtos_validade",
+        `empresa_id=eq.${loja.empresa_id}&no_catalogo=is.true&preco_centavos=not.is.null&select=id,nome,descricao,categoria,unidade,preco_centavos,foto_thumb&order=categoria.asc,nome.asc`
+      );
+
+      return jsonOk(res, {
+        loja: {
+          slug:            loja.slug,
+          nome:            loja.nome_exibicao || donoLoja.nome,
+          descricao:       loja.descricao || null,
+          whatsapp:        loja.whatsapp || null,
+          endereco:        loja.endereco || null,
+          horario:         loja.horario || null,
+          aviso:           loja.aviso || null,
+          taxa_entrega_centavos:  loja.taxa_entrega_centavos || 0,
+          pedido_minimo_centavos: loja.pedido_minimo_centavos || 0,
+          aceita_entrega:  loja.aceita_entrega !== false,
+          aceita_retirada: loja.aceita_retirada !== false,
+          formas_pagamento: loja.formas_pagamento || ["dinheiro"],
+          cor_botao:       donoLoja.cor_botao || "#1e8a40",
+          cor_destaque:    donoLoja.cor_destaque || "#3dd669"
+        },
+        itens: (itensLoja.body || []).map(function (i) {
+          return {
+            id: i.id, nome: i.nome, descricao: i.descricao || null,
+            categoria: i.categoria || "Outros", unidade: i.unidade || "unidade",
+            preco_centavos: i.preco_centavos, foto: i.foto_thumb || null
+          };
+        })
+      });
+    }
+
+    // Enviar pedido. Cria a linha em `pedidos` e avisa a equipe.
+    if (method === "POST" && path.match(/^\/loja\/[\w-]{2,60}\/pedido$/)) {
+      var slugPed = String(path.split("/")[2] || "").toLowerCase();
+      var rawPed = await getBody(req);
+      var bodyPed = parseBody(rawPed);
+      if (!bodyPed) return jsonErr(res, "Dados inválidos");
+
+      var lojaP = await DB.select("loja_config", `slug=eq.${encodeURIComponent(slugPed)}&select=*`);
+      var cfgLoja = lojaP.body && lojaP.body[0];
+      if (!cfgLoja || !cfgLoja.ativa) return jsonErr(res, "Loja não encontrada", 404);
+
+      var empPed = await DB.select("empresas", `id=eq.${cfgLoja.empresa_id}&select=id,nome,plano,status`);
+      var donoPed = empPed.body && empPed.body[0];
+      if (!donoPed || !planoTemPedidos(donoPed.plano)) return jsonErr(res, "Loja não encontrada", 404);
+
+      var nomeCli = SANITIZE.string(bodyPed.cliente_nome, 120);
+      var telCli  = SANITIZE.string(bodyPed.cliente_telefone, 25);
+      if (!nomeCli) return jsonErr(res, "Informe seu nome.");
+      if (!telCli || telCli.replace(/\D/g, "").length < 10) {
+        return jsonErr(res, "Informe um telefone válido com DDD.");
+      }
+
+      var tipoPed = bodyPed.tipo === "retirada" ? "retirada" : "entrega";
+      if (tipoPed === "entrega" && cfgLoja.aceita_entrega === false) {
+        return jsonErr(res, "Esta loja não faz entrega no momento.");
+      }
+      if (tipoPed === "retirada" && cfgLoja.aceita_retirada === false) {
+        return jsonErr(res, "Esta loja não aceita retirada no momento.");
+      }
+      var enderecoPed = SANITIZE.string(bodyPed.endereco || "", 250);
+      if (tipoPed === "entrega" && !enderecoPed) {
+        return jsonErr(res, "Informe o endereço de entrega.");
+      }
+
+      var formasOk = cfgLoja.formas_pagamento || ["dinheiro"];
+      var formaPed = SANITIZE.string(bodyPed.forma_pagamento || "", 20).toLowerCase();
+      if (formaPed && formasOk.indexOf(formaPed) === -1) {
+        return jsonErr(res, "Forma de pagamento não aceita por esta loja.");
+      }
+
+      // ── O carrinho ──
+      // O navegador manda APENAS id e quantidade. Nome, preço e
+      // subtotal são buscados e calculados aqui. Aceitar o preço que
+      // vem do cliente seria deixar qualquer um comprar um item de
+      // R$ 300 por R$ 1 mexendo no DevTools.
+      var carrinho = Array.isArray(bodyPed.itens) ? bodyPed.itens.slice(0, 60) : [];
+      if (!carrinho.length) return jsonErr(res, "Seu carrinho está vazio.");
+
+      var idsPedidos = carrinho.map(function (i) { return SANITIZE.uuid(i && i.id); }).filter(Boolean);
+      if (!idsPedidos.length) return jsonErr(res, "Seu carrinho está vazio.");
+
+      var disponiveis = await DB.select("produtos_validade",
+        `empresa_id=eq.${cfgLoja.empresa_id}&no_catalogo=is.true&id=in.(${idsPedidos.join(",")})&select=id,nome,unidade,preco_centavos`
+      );
+      var porId = {};
+      (disponiveis.body || []).forEach(function (i) { porId[i.id] = i; });
+
+      var itensFinais = [];
+      var subtotal = 0;
+      carrinho.forEach(function (linha) {
+        var id = SANITIZE.uuid(linha && linha.id);
+        var prod = id && porId[id];
+        // Item que saiu do catálogo entre abrir a página e enviar o
+        // pedido é ignorado em silêncio: o pedido segue com o resto,
+        // em vez de o cliente perder tudo que montou.
+        if (!prod || prod.preco_centavos == null) return;
+        var qtd = SANITIZE.int(linha.quantidade, 1, 999) || 1;
+        var totalLinha = prod.preco_centavos * qtd;
+        subtotal += totalLinha;
+        itensFinais.push({
+          id: prod.id, nome: prod.nome, unidade: prod.unidade || "unidade",
+          quantidade: qtd, preco_unitario_centavos: prod.preco_centavos,
+          total_centavos: totalLinha
+        });
+      });
+
+      if (!itensFinais.length) {
+        return jsonErr(res, "Os itens do seu carrinho não estão mais disponíveis. Atualize a página.");
+      }
+      if (cfgLoja.pedido_minimo_centavos && subtotal < cfgLoja.pedido_minimo_centavos) {
+        return jsonErr(res, `O pedido mínimo desta loja é R$ ${centavosParaReais(cfgLoja.pedido_minimo_centavos)}.`);
+      }
+
+      var taxaPed = tipoPed === "entrega" ? (cfgLoja.taxa_entrega_centavos || 0) : 0;
+      var totalPed = subtotal + taxaPed;
+
+      // Número sequencial por empresa. Lido e incrementado na hora;
+      // duas lojas diferentes podem ter o pedido 47 sem conflito, por
+      // causa da chave única (empresa_id, numero).
+      var ultimoPed = await DB.select("pedidos",
+        `empresa_id=eq.${cfgLoja.empresa_id}&select=numero&order=numero.desc&limit=1`
+      ).catch(() => ({ body: [] }));
+      var proximoNumero = ((ultimoPed.body && ultimoPed.body[0] && ultimoPed.body[0].numero) || 0) + 1;
+
+      var novoPedido = await DB.insert("pedidos", {
+        empresa_id:  cfgLoja.empresa_id,
+        numero:      proximoNumero,
+        cliente_nome: nomeCli,
+        cliente_telefone: telCli,
+        cliente_estabelecimento: SANITIZE.string(bodyPed.cliente_estabelecimento || "", 120) || null,
+        tipo:        tipoPed,
+        endereco:    enderecoPed || null,
+        forma_pagamento: formaPed || null,
+        troco_para_centavos: SANITIZE.int(bodyPed.troco_para_centavos, 0, 10000000),
+        observacoes: SANITIZE.string(bodyPed.observacoes || "", 400) || null,
+        itens:       itensFinais,
+        subtotal_centavos: subtotal,
+        taxa_centavos:     taxaPed,
+        total_centavos:    totalPed,
+        status:      "novo",
+        cargo_destino: cfgLoja.cargo_destino || null
+      });
+
+      var pedidoCriado = novoPedido.body && novoPedido.body[0];
+      secLog("pedido_recebido", { empresa_id: cfgLoja.empresa_id, numero: proximoNumero, total: totalPed });
+
+      // Notificação para a equipe. Falha aqui não derruba o pedido: o
+      // pedido já está gravado e aparece na fila do app de qualquer
+      // jeito — o push é atalho, não o canal.
+      enviarPush(cfgLoja.empresa_id, {
+        title: "Pedido novo #" + proximoNumero,
+        body:  nomeCli + " · R$ " + centavosParaReais(totalPed) + " · " + (tipoPed === "entrega" ? "entrega" : "retirada"),
+        url:   "app/"
+      }).catch(function () {});
+
+      return jsonOk(res, {
+        ok: true,
+        numero: proximoNumero,
+        id: pedidoCriado && pedidoCriado.id,
+        total_reais: centavosParaReais(totalPed),
+        taxa_reais: centavosParaReais(taxaPed),
+        subtotal_reais: centavosParaReais(subtotal)
+      }, 201);
+    }
+
+    // ── PLANOS (rota pública) ────────────────────────
+    // O site monta os cartões de preço a partir daqui, em vez de ter
+    // os valores escritos no HTML. Preço em dois lugares é preço que
+    // um dia diverge — e divergência entre a vitrine e a cobrança é a
+    // pior das divergências.
+    if (method === "GET" && path === "/planos") {
+      return jsonOk(res, {
+        planos: Object.keys(CONFIG.PLANOS).map(function (slug) {
+          return {
+            slug:        slug,
+            nome:        CONFIG.PLANOS[slug].nome,
+            resumo:      CONFIG.PLANOS[slug].resumo,
+            centavos:    CONFIG.PLANOS[slug].centavos,
+            preco_reais: centavosParaReais(CONFIG.PLANOS[slug].centavos)
+          };
+        })
       });
     }
 
@@ -2948,10 +3245,14 @@ var server = http.createServer(async (req, res) => {
       // partir do código enviado. O valor final que o navegador
       // mostrou é ignorado de propósito — se o cliente adulterasse o
       // valor no JavaScript, ele pagaria o que quisesse.
-      var valorCobrado = CONFIG.PLANO_CENTAVOS;
+      // Plano escolhido no checkout. Vem do navegador, então é
+      // normalizado: um "plano": "gratis" inventado no DevTools cai no
+      // padrão pago, nunca em preço zero.
+      var planoEscolhido = planoValido(body.plano);
+      var valorCobrado = precoDoPlano(planoEscolhido);
       var cupomAplicado = null;
       if (body.cupom) {
-        var cupomCheck = await validarCupom(body.cupom);
+        var cupomCheck = await validarCupom(body.cupom, planoEscolhido);
         if (cupomCheck.ok) {
           valorCobrado = cupomCheck.valor_final_centavos;
           cupomAplicado = cupomCheck;
@@ -3061,7 +3362,7 @@ var server = http.createServer(async (req, res) => {
             status:        "paid",
             criadoEm:      Date.now(),
             pagoEm:        Date.now(),
-            valorCentavos: CONFIG.PLANO_CENTAVOS,
+            valorCentavos: precoDoPlano(empPag.plano),
             cliente:       { nome: empPag.nome, email: empPag.email, ip: ip },
             utm:           null   // o rastreio já foi enviado na criação
           }).catch(e => secLog("utmify_erro", { message: e.message }));
@@ -3149,8 +3450,21 @@ var server = http.createServer(async (req, res) => {
 
       // MRR = quem paga de fato. Trial não entra: ainda não é receita,
       // e somar os dois foi o erro que fez o número da maquete parecer
-      // bom. O valor sai de PLANO_CENTAVOS, mesma fonte da cobrança.
-      var mrrCentavos = porStatus.ativa * CONFIG.PLANO_CENTAVOS;
+      // bom.
+      //
+      // Somado conta a conta pelo plano de cada uma. Multiplicar o
+      // total de assinantes por um preço único deixou de valer no
+      // momento em que passaram a existir dois planos — e o erro
+      // apareceria como receita subestimada, o tipo que ninguém
+      // percebe porque o número continua "parecendo certo".
+      var mrrCentavos = 0;
+      var porPlano = { completo: 0, pedidos: 0 };
+      lista.forEach(function (e) {
+        if (e.status !== "ativa") return;
+        var p = planoValido(e.plano);
+        porPlano[p] = (porPlano[p] || 0) + 1;
+        mrrCentavos += CONFIG.PLANOS[p].centavos;
+      });
 
       return jsonOk(res, {
         assinantes_pagos:     porStatus.ativa,
@@ -3163,7 +3477,11 @@ var server = http.createServer(async (req, res) => {
         funcionarios_ativos:  funcionariosAtivos,
         mrr_centavos:         mrrCentavos,
         mrr_reais:            centavosParaReais(mrrCentavos),
-        valor_plano_reais:    centavosParaReais(CONFIG.PLANO_CENTAVOS)
+        assinantes_completo:  porPlano.completo || 0,
+        assinantes_pedidos:   porPlano.pedidos || 0,
+        planos: Object.keys(CONFIG.PLANOS).map(function (k) {
+          return { slug: k, nome: CONFIG.PLANOS[k].nome, preco_reais: centavosParaReais(CONFIG.PLANOS[k].centavos) };
+        })
       });
     }
 
@@ -3263,7 +3581,8 @@ var server = http.createServer(async (req, res) => {
         // Valores que hoje vivem no código e só mudam com deploy —
         // mostrados como leitura, para o painel não fingir que um campo
         // editável muda alguma coisa.
-        preco_reais:      centavosParaReais(CONFIG.PLANO_CENTAVOS),
+        preco_reais:      centavosParaReais(CONFIG.PLANOS.completo.centavos),
+        preco_pedidos_reais: centavosParaReais(CONFIG.PLANOS.pedidos.centavos),
         dias_trial:       7,
         remetente_email:  "onboarding@resend.dev",
         owner_email:      authPayload.email,
@@ -3315,7 +3634,7 @@ var server = http.createServer(async (req, res) => {
         orderId:       "teste-" + Date.now(),
         status:        "waiting_payment",
         criadoEm:      Date.now(),
-        valorCentavos: CONFIG.PLANO_CENTAVOS,
+        valorCentavos: CONFIG.PLANOS.completo.centavos,
         cliente:       { nome: "Pedido de teste", email: authPayload.email, ip: ip },
         utm:           { utm_source: "workap", utm_medium: "teste-painel", utm_campaign: "verificacao" },
         teste:         true
@@ -3537,8 +3856,13 @@ var server = http.createServer(async (req, res) => {
       var valorNovo = parseFloat(body.valor);
       if (isNaN(valorNovo) || valorNovo <= 0) return jsonErr(res, "Informe um valor de desconto maior que zero.");
       if (tipoNovo === "percentual" && valorNovo > 100) return jsonErr(res, "Desconto percentual não pode passar de 100%.");
-      if (tipoNovo === "valor" && valorNovo * 100 >= CONFIG.PLANO_CENTAVOS) {
-        return jsonErr(res, `Desconto em reais precisa ser menor que o valor do plano (R$ ${centavosParaReais(CONFIG.PLANO_CENTAVOS)}).`);
+      // Comparado com o plano MAIS BARATO: um desconto de R$ 60 é
+      // válido no de R$ 89,90 e zeraria o de R$ 49,99. Barrar pelo
+      // menor evita criar um cupom que funciona num plano e quebra no
+      // outro sem ninguém entender por quê.
+      var menorPlano = Math.min.apply(null, Object.keys(CONFIG.PLANOS).map(function (k) { return CONFIG.PLANOS[k].centavos; }));
+      if (tipoNovo === "valor" && valorNovo * 100 >= menorPlano) {
+        return jsonErr(res, `Desconto em reais precisa ser menor que o plano mais barato (R$ ${centavosParaReais(menorPlano)}).`);
       }
 
       var jaExisteCupom = await DB.select("cupons", `codigo=eq.${encodeURIComponent(codigoNovo)}&select=id`)
@@ -3984,6 +4308,241 @@ var server = http.createServer(async (req, res) => {
       return jsonOk(res, historico.body);
     }
 
+    // ══════════════════════════════════════════════
+    // MINHA LOJA E PEDIDOS (autenticado)
+    // ══════════════════════════════════════════════
+
+    /**
+     * Carrega a empresa e barra quem não tem o plano de pedidos.
+     * Checado no servidor em toda rota do módulo: esconder o menu no
+     * app é conveniência visual, não controle de acesso — qualquer um
+     * chamaria a rota direto.
+     *
+     * 402 (Payment Required) em vez de 403: o app distingue "você não
+     * pode" de "seu plano não inclui" e oferece a troca de plano em
+     * vez de mostrar um erro sem saída.
+     */
+    async function exigirPlanoPedidos() {
+      var e = await DB.select("empresas", `id=eq.${authPayload.empresa_id}&select=id,nome,plano`);
+      var emp = e.body && e.body[0];
+      if (!emp || !planoTemPedidos(emp.plano)) return null;
+      return emp;
+    }
+
+    if (method === "GET" && path === "/loja/config") {
+      if (!hasPermission(authPayload, "loja:read")) {
+        return jsonErr(res, "Sem permissão para ver a loja", 403);
+      }
+      var empLojaCfg = await exigirPlanoPedidos();
+      if (!empLojaCfg) {
+        return jsonErr(res, "A loja online faz parte do Plano Pedidos.", 402);
+      }
+      var cfgL = await DB.select("loja_config", `empresa_id=eq.${authPayload.empresa_id}&select=*`);
+      return jsonOk(res, { loja: (cfgL.body && cfgL.body[0]) || null, empresa_nome: empLojaCfg.nome });
+    }
+
+    if (method === "PUT" && path === "/loja/config") {
+      if (authPayload.role !== "dono") {
+        secLog("permission_denied", { role: authPayload.role, action: "loja:write" });
+        return jsonErr(res, "Só o dono da conta pode configurar a loja", 403);
+      }
+      var empSalvarLoja = await exigirPlanoPedidos();
+      if (!empSalvarLoja) return jsonErr(res, "A loja online faz parte do Plano Pedidos.", 402);
+
+      var rawL = await getBody(req);
+      var bodyL = parseBody(rawL);
+      if (!bodyL) return jsonErr(res, "Dados inválidos");
+
+      // O slug vira endereço público. Só letras minúsculas, números e
+      // hífen: acento e espaço quebram o link quando alguém cola no
+      // WhatsApp, e maiúscula faz duas lojas parecerem a mesma.
+      var slugPedido = String(bodyL.slug || "").toLowerCase().trim()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").substring(0, 40);
+      if (slugPedido.length < 3) {
+        return jsonErr(res, "O endereço da loja precisa de pelo menos 3 letras.");
+      }
+      // Registrar uma loja chamada "config" faria o endereço dela
+      // colidir com uma rota da própria API — a loja simplesmente não
+      // abriria, e ninguém entenderia por quê.
+      if (["config", "pedido", "pedidos", "admin", "api", "app", "novo"].indexOf(slugPedido) >= 0) {
+        return jsonErr(res, "Esse endereço é reservado pelo sistema. Escolha outro.");
+      }
+
+      var donoSlug = await DB.select("loja_config", `slug=eq.${encodeURIComponent(slugPedido)}&select=empresa_id`);
+      if (donoSlug.body && donoSlug.body[0] && donoSlug.body[0].empresa_id !== authPayload.empresa_id) {
+        return jsonErr(res, "Esse endereço já está em uso por outra loja. Escolha outro.", 409);
+      }
+
+      // Só as formas que o sistema conhece. Texto livre aqui viraria
+      // "pix, cartao, fiado, permuta" e nenhuma tela conseguiria
+      // desenhar isso.
+      var FORMAS = ["dinheiro", "pix", "cartao"];
+      var formasEnviadas = Array.isArray(bodyL.formas_pagamento) ? bodyL.formas_pagamento : [];
+      var formasLimpas = FORMAS.filter(function (f) { return formasEnviadas.indexOf(f) >= 0; });
+      if (!formasLimpas.length) formasLimpas = ["dinheiro"];
+
+      // Cargo de destino tem que ser um cargo DESTA empresa. Sem esta
+      // checagem, o id de um cargo de outra empresa entraria aqui e os
+      // pedidos ficariam roteados para o vazio.
+      var cargoDestino = SANITIZE.uuid(bodyL.cargo_destino);
+      if (cargoDestino) {
+        var cargoOk = await DB.select("cargos", `id=eq.${cargoDestino}&empresa_id=eq.${authPayload.empresa_id}&select=id`);
+        if (!cargoOk.body || !cargoOk.body[0]) cargoDestino = null;
+      }
+
+      var corpoLoja = {
+        empresa_id:  authPayload.empresa_id,
+        slug:        slugPedido,
+        ativa:       bodyL.ativa === true,
+        nome_exibicao: SANITIZE.string(bodyL.nome_exibicao || "", 80) || null,
+        descricao:   SANITIZE.string(bodyL.descricao || "", 300) || null,
+        whatsapp:    SANITIZE.string(bodyL.whatsapp || "", 25) || null,
+        endereco:    SANITIZE.string(bodyL.endereco || "", 250) || null,
+        taxa_entrega_centavos:  SANITIZE.int(bodyL.taxa_entrega_centavos, 0, 100000) || 0,
+        pedido_minimo_centavos: SANITIZE.int(bodyL.pedido_minimo_centavos, 0, 10000000) || 0,
+        aceita_entrega:  bodyL.aceita_entrega !== false,
+        aceita_retirada: bodyL.aceita_retirada !== false,
+        formas_pagamento: formasLimpas,
+        horario:     SANITIZE.string(bodyL.horario || "", 120) || null,
+        aviso:       SANITIZE.string(bodyL.aviso || "", 200) || null,
+        cargo_destino: cargoDestino,
+        updated_at:  new Date().toISOString()
+      };
+
+      var jaTem = await DB.select("loja_config", `empresa_id=eq.${authPayload.empresa_id}&select=empresa_id`);
+      if (jaTem.body && jaTem.body[0]) {
+        await supabase("PATCH", "loja_config", {
+          query: `empresa_id=eq.${authPayload.empresa_id}`, body: corpoLoja
+        });
+      } else {
+        await DB.insert("loja_config", corpoLoja);
+      }
+      secLog("loja_configurada", { empresa_id: authPayload.empresa_id, ativa: corpoLoja.ativa });
+      return jsonOk(res, { ok: true, loja: corpoLoja });
+    }
+
+    // Preço e visibilidade de um item na vitrine.
+    if (method === "PUT" && path.match(/^\/validade\/[\w-]+\/catalogo$/)) {
+      if (!hasPermission(authPayload, "validade:write")) {
+        return jsonErr(res, "Sem permissão para editar itens", 403);
+      }
+      var idCat = SANITIZE.uuid(path.split("/")[2]);
+      if (!idCat) return jsonErr(res, "Item inválido");
+
+      var rawCat = await getBody(req);
+      var bodyCat = parseBody(rawCat);
+      if (!bodyCat) return jsonErr(res, "Dados inválidos");
+
+      var existeCat = await DB.select("produtos_validade",
+        `id=eq.${idCat}&empresa_id=eq.${authPayload.empresa_id}&select=id`);
+      if (!existeCat.body || !existeCat.body[0]) return jsonErr(res, "Item não encontrado", 404);
+
+      var precoCat = SANITIZE.int(bodyCat.preco_centavos, 0, 100000000);
+      var noCatalogo = bodyCat.no_catalogo === true;
+      // Publicar sem preço deixaria o item na vitrine sem como ser
+      // comprado — e o cliente descobriria isso só no carrinho.
+      if (noCatalogo && !precoCat) {
+        return jsonErr(res, "Defina o preço antes de colocar na loja.");
+      }
+
+      await supabase("PATCH", "produtos_validade", {
+        query: `id=eq.${idCat}&empresa_id=eq.${authPayload.empresa_id}`,
+        body: {
+          preco_centavos: precoCat,
+          no_catalogo:    noCatalogo,
+          descricao:      SANITIZE.string(bodyCat.descricao || "", 300) || null
+        }
+      });
+      return jsonOk(res, { ok: true, no_catalogo: noCatalogo, preco_centavos: precoCat });
+    }
+
+    // Fila de pedidos.
+    if (method === "GET" && path === "/pedidos") {
+      if (!hasPermission(authPayload, "pedidos:read")) {
+        return jsonErr(res, "Sem permissão para ver pedidos", 403);
+      }
+      var empPedidos = await exigirPlanoPedidos();
+      if (!empPedidos) return jsonErr(res, "Os pedidos fazem parte do Plano Pedidos.", 402);
+
+      var filtroStatus = SANITIZE.string(url.searchParams.get("status") || "", 20);
+      var query = `empresa_id=eq.${authPayload.empresa_id}&select=*&order=created_at.desc&limit=200`;
+      if (["novo", "aceito", "em_rota", "entregue", "cancelado"].indexOf(filtroStatus) >= 0) {
+        query = `empresa_id=eq.${authPayload.empresa_id}&status=eq.${filtroStatus}&select=*&order=created_at.desc&limit=200`;
+      }
+      var listaPed = await DB.select("pedidos", query);
+      var pedidos = listaPed.body || [];
+
+      // Funcionário vê só a fila do próprio cargo. Um entregador não
+      // precisa — nem deve — ver o endereço e o telefone de todos os
+      // clientes da empresa, só dos pedidos que são dele.
+      if (authPayload.role === "funcionario") {
+        var euPed = await DB.select("funcionarios",
+          `id=eq.${authPayload.funcionario_id}&empresa_id=eq.${authPayload.empresa_id}&select=cargo_id`
+        ).catch(() => ({ body: [] }));
+        var meuCargo = (euPed.body && euPed.body[0] && euPed.body[0].cargo_id) || null;
+        pedidos = pedidos.filter(function (p) {
+          // Pedido sem cargo de destino é da casa: aparece para todos
+          // que têm acesso a pedidos, senão ficaria invisível até
+          // alguém configurar a loja.
+          return !p.cargo_destino || p.cargo_destino === meuCargo;
+        });
+      }
+
+      return jsonOk(res, pedidos);
+    }
+
+    if (method === "PUT" && path.match(/^\/pedidos\/[\w-]+\/status$/)) {
+      if (!hasPermission(authPayload, "pedidos:write")) {
+        return jsonErr(res, "Sem permissão para mover pedidos", 403);
+      }
+      var empMove = await exigirPlanoPedidos();
+      if (!empMove) return jsonErr(res, "Os pedidos fazem parte do Plano Pedidos.", 402);
+
+      var idPed = SANITIZE.uuid(path.split("/")[2]);
+      if (!idPed) return jsonErr(res, "Pedido inválido");
+
+      var rawMove = await getBody(req);
+      var bodyMove = parseBody(rawMove);
+      if (!bodyMove) return jsonErr(res, "Dados inválidos");
+
+      var novoStatus = SANITIZE.string(bodyMove.status || "", 20);
+      var VALIDOS = ["novo", "aceito", "em_rota", "entregue", "cancelado"];
+      if (VALIDOS.indexOf(novoStatus) === -1) return jsonErr(res, "Status inválido");
+
+      var atual = await DB.select("pedidos",
+        `id=eq.${idPed}&empresa_id=eq.${authPayload.empresa_id}&select=*`);
+      var pedido = atual.body && atual.body[0];
+      if (!pedido) return jsonErr(res, "Pedido não encontrado", 404);
+
+      // Pedido entregue não volta atrás. Reabrir um pedido concluído
+      // apagaria a hora da entrega, que é o registro de quem cumpriu.
+      if (pedido.status === "entregue" && novoStatus !== "entregue") {
+        return jsonErr(res, "Este pedido já foi entregue.", 409);
+      }
+      if (pedido.status === "cancelado" && novoStatus !== "cancelado") {
+        return jsonErr(res, "Este pedido foi cancelado.", 409);
+      }
+
+      var mudanca = { status: novoStatus };
+      if (novoStatus === "aceito"   && !pedido.aceito_em)   mudanca.aceito_em = new Date().toISOString();
+      if (novoStatus === "entregue" && !pedido.entregue_em) mudanca.entregue_em = new Date().toISOString();
+      if (novoStatus === "cancelado") {
+        mudanca.motivo_cancelamento = SANITIZE.string(bodyMove.motivo || "", 200) || null;
+      }
+      // Quem assumiu o pedido fica registrado — é o que responde "quem
+      // levou" quando o cliente liga reclamando.
+      if (authPayload.role === "funcionario" && !pedido.funcionario_id && novoStatus !== "novo") {
+        mudanca.funcionario_id = authPayload.funcionario_id || null;
+      }
+
+      await supabase("PATCH", "pedidos", {
+        query: `id=eq.${idPed}&empresa_id=eq.${authPayload.empresa_id}`, body: mudanca
+      });
+      secLog("pedido_movido", { empresa_id: authPayload.empresa_id, numero: pedido.numero, status: novoStatus });
+      return jsonOk(res, { ok: true, status: novoStatus });
+    }
+
     // ── RAMO DA EMPRESA ──────────────────────────────
     // Trocar de ramo é operação de dono: muda o vocabulário e os
     // campos que toda a equipe vê. Um gerente não decide isso.
@@ -4099,7 +4658,13 @@ var server = http.createServer(async (req, res) => {
       // produtos fotografados transformaria esta listagem em vários MB
       // baixados no 4G a cada abertura da tela — a miniatura basta
       // para a lista, e a foto grande tem rota própria.
-      var COLUNAS_LISTA = "id,nome,lote,categoria,quantidade,unidade,data_vencimento,dias_aviso,status,created_at,foto_thumb,atributos";
+      // `preco_centavos`, `no_catalogo` e `descricao` entram na lista
+      // porque a tela "Minha Loja" precisa mostrar o preço atual e se o
+      // item já está publicado. Sem eles, a tela abria com todos os
+      // preços em branco e todas as chaves desligadas, mesmo para item
+      // que já estava à venda — e quem salvasse por cima tiraria o
+      // próprio produto do ar sem perceber.
+      var COLUNAS_LISTA = "id,nome,lote,categoria,quantidade,unidade,data_vencimento,dias_aviso,status,created_at,foto_thumb,atributos,preco_centavos,no_catalogo,descricao";
       var result = await DB.select("produtos_validade",
         `empresa_id=eq.${authPayload.empresa_id}&select=${COLUNAS_LISTA}&order=data_vencimento.asc`
       );
