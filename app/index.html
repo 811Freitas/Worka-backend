@@ -993,6 +993,43 @@ tr:hover td{background:var(--g50)}
               </div>
             </div>
 
+            <div class="card" style="margin-bottom:16px">
+              <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-report></use></svg> Impressão da comanda</div></div>
+              <div class="card-body">
+                <div class="field">
+                  <label>Largura do papel</label>
+                  <select id="lj-largura">
+                    <option value="80">80mm (padrão de balcão)</option>
+                    <option value="58">58mm (pequena / portátil)</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>Quantas vias por pedido</label>
+                  <select id="lj-vias">
+                    <option value="1">1 via</option>
+                    <option value="2">2 vias (cozinha + entrega)</option>
+                    <option value="3">3 vias</option>
+                  </select>
+                </div>
+                <div class="field"><label>CNPJ no cabeçalho (opcional)</label><input id="lj-cnpj" maxlength="20" placeholder="00.000.000/0001-00"></div>
+                <div class="field"><label>Mensagem no rodapé</label><input id="lj-rodape" maxlength="120" placeholder="Obrigado pela preferência!"></div>
+                <div class="field">
+                  <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                    <input type="checkbox" id="lj-auto" style="width:auto"> Abrir a impressão ao aceitar o pedido
+                  </label>
+                </div>
+                <button class="btn btn-sm btn-secondary" style="width:100%" onclick="testarComanda()">Imprimir uma comanda de teste</button>
+                <!-- Aviso visível para o lojista, não só no papel: é a
+                     diferença entre organizar pedido e emitir documento
+                     fiscal, e confundir os dois é problema dele com o
+                     fisco, não nosso. -->
+                <div style="margin-top:12px;background:#fffbeb;border-left:3px solid #d97706;border-radius:var(--r);padding:11px 13px;font-size:.78rem;color:#7c4a03;line-height:1.5">
+                  <strong>Isto não é cupom fiscal.</strong> É a comanda do pedido — a mesma que o iFood imprime.
+                  Cupom fiscal (NFC-e ou SAT) exige Inscrição Estadual, certificado digital e autorização da SEFAZ do seu estado.
+                </div>
+              </div>
+            </div>
+
             <div class="card">
               <div class="card-header"><div class="card-title">Quem recebe os pedidos</div></div>
               <div class="card-body">
@@ -4876,6 +4913,10 @@ function carregarPedidos(){
     mostrarBloqueioPlano('pedidos', false);
     pedidosCache = Array.isArray(res.d) ? res.d : [];
     renderizarPedidos();
+    // A comanda leva nome, endereço e rodapé da loja. Quem entra
+    // direto em Pedidos sem passar por "Minha Loja" imprimiria um
+    // papel sem cabeçalho — por isso a config é buscada aqui também.
+    if(!lojaCache) carregarConfigDaLojaParaImpressao();
   })
   .catch(function(){});
 }
@@ -5009,13 +5050,25 @@ function renderizarPedidos(){
       acoes.appendChild(b);
     }
     if(p.status === 'novo'){
-      botao('Aceitar pedido', 'btn-primary', function(){ moverPedido(p.id, 'aceito'); });
+      botao('Aceitar pedido', 'btn-primary', function(){
+        // A impressão sai daqui, dentro do clique. Navegador nenhum
+        // deixa uma página imprimir sozinha; presa ao clique de
+        // "Aceitar", a comanda sai sem ninguém precisar lembrar.
+        if(lojaCache && lojaCache.impressao_auto) imprimirComanda(p);
+        moverPedido(p.id, 'aceito');
+      });
       botao('Recusar', 'btn-secondary', function(){ cancelarPedido(p.id, p.numero); });
     } else if(p.status === 'aceito'){
       botao(p.tipo === 'retirada' ? 'Pronto para retirada' : 'Saiu para entrega', 'btn-primary', function(){ moverPedido(p.id, 'em_rota'); });
       botao('Cancelar', 'btn-secondary', function(){ cancelarPedido(p.id, p.numero); });
     } else if(p.status === 'em_rota'){
       botao(p.tipo === 'retirada' ? 'Cliente retirou' : 'Entregue', 'btn-primary', function(){ moverPedido(p.id, 'entregue'); });
+    }
+    // Imprimir aparece em qualquer pedido que não foi cancelado — é
+    // comum precisar de uma segunda via depois, quando o papel some
+    // ou o entregador troca de rota.
+    if(p.status !== 'cancelado'){
+      botao('Imprimir comanda', 'btn-secondary', function(){ imprimirComanda(p); });
     }
     if(p.cliente_telefone && p.status !== 'cancelado'){
       var zap = document.createElement('a');
@@ -5059,6 +5112,246 @@ function cancelarPedido(id, numero){
   moverPedido(id, 'cancelado', motivo);
 }
 
+// ── COMANDA PARA IMPRESSORA TÉRMICA ──
+//
+// O papel que sai na cozinha e vai junto com a entrega — exatamente o
+// que o iFood imprime.
+//
+// NÃO É CUPOM FISCAL, e o papel diz isso em letras claras. Cupom
+// fiscal (NFC-e ou SAT/CF-e) é documento regulado: exige Inscrição
+// Estadual, certificado digital e autorização da SEFAZ do estado. Isso
+// é integração com o fisco, não impressão — e um papel que se parece
+// com cupom fiscal sem ser cria problema para o lojista.
+//
+// A impressão sai por HTML + CSS de impressão, não por comandos
+// ESC/POS. ESC/POS via WebUSB exigiria permissão especial, não
+// funciona no iPhone e quebra a cada modelo de impressora; com o
+// driver do sistema, qualquer térmica que o computador enxerga
+// imprime.
+
+function larguraDaComanda(){
+  return (lojaCache && lojaCache.impressao_largura === '58') ? 58 : 80;
+}
+
+/**
+ * Monta o HTML da comanda. Texto escapado à mão porque aqui o destino
+ * é um documento novo, e nome e endereço vêm de gente de fora da
+ * empresa, digitando na internet aberta.
+ */
+function htmlDaComanda(p, cfg){
+  cfg = cfg || {};
+  var mm = cfg.largura === 58 ? 58 : 80;
+  // 58mm cabe ~32 caracteres em fonte monoespaçada; 80mm cabe ~48.
+  var colunas = mm === 58 ? 32 : 48;
+
+  function esc(t){
+    return String(t == null ? '' : t)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+  function linhaDupla(esquerda, direita){
+    return '<div class="par"><span>' + esc(esquerda) + '</span><span>' + esc(direita) + '</span></div>';
+  }
+
+  var criado = new Date(p.created_at);
+  var partes = [];
+
+  partes.push('<div class="centro forte grande">' + esc(cfg.nomeLoja || 'Pedido') + '</div>');
+  if(cfg.cnpj)     partes.push('<div class="centro pequeno">CNPJ ' + esc(cfg.cnpj) + '</div>');
+  if(cfg.endereco) partes.push('<div class="centro pequeno">' + esc(cfg.endereco) + '</div>');
+  if(cfg.whatsapp) partes.push('<div class="centro pequeno">' + esc(cfg.whatsapp) + '</div>');
+
+  partes.push('<div class="risco"></div>');
+  partes.push('<div class="centro forte enorme">PEDIDO #' + esc(p.numero) + '</div>');
+  partes.push('<div class="centro pequeno">' +
+    esc(criado.toLocaleDateString('pt-BR')) + '  ' +
+    esc(criado.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })) + '</div>');
+  partes.push('<div class="centro forte">' + (p.tipo === 'retirada' ? 'RETIRADA NA LOJA' : 'ENTREGA') + '</div>');
+
+  partes.push('<div class="risco"></div>');
+  partes.push('<div class="forte">CLIENTE</div>');
+  partes.push('<div>' + esc(p.cliente_nome) + '</div>');
+  if(p.cliente_estabelecimento) partes.push('<div>' + esc(p.cliente_estabelecimento) + '</div>');
+  partes.push('<div>' + esc(p.cliente_telefone) + '</div>');
+  if(p.tipo !== 'retirada' && p.endereco){
+    partes.push('<div class="espaco"></div>');
+    partes.push('<div class="forte">ENDERECO</div>');
+    partes.push('<div>' + esc(p.endereco) + '</div>');
+  }
+
+  partes.push('<div class="risco"></div>');
+  partes.push('<div class="forte">ITENS</div>');
+  (p.itens || []).forEach(function(i){
+    partes.push('<div>' + esc(i.quantidade + 'x ' + i.nome) + '</div>');
+    partes.push(linhaDupla('   ' + reaisDeCentavos(i.preco_unitario_centavos) + ' cada',
+                           'R$ ' + reaisDeCentavos(i.total_centavos)));
+  });
+
+  partes.push('<div class="risco"></div>');
+  partes.push(linhaDupla('Subtotal', 'R$ ' + reaisDeCentavos(p.subtotal_centavos)));
+  if(p.taxa_centavos) partes.push(linhaDupla('Taxa de entrega', 'R$ ' + reaisDeCentavos(p.taxa_centavos)));
+  partes.push('<div class="par forte grande"><span>TOTAL</span><span>R$ ' + esc(reaisDeCentavos(p.total_centavos)) + '</span></div>');
+
+  var rotuloPg = { dinheiro: 'DINHEIRO', pix: 'PIX', cartao: 'CARTAO' };
+  if(p.forma_pagamento){
+    partes.push('<div class="espaco"></div>');
+    partes.push('<div class="forte">PAGAR NA ' + (p.tipo === 'retirada' ? 'RETIRADA' : 'ENTREGA') + ': ' +
+      esc(rotuloPg[p.forma_pagamento] || p.forma_pagamento) + '</div>');
+    if(p.troco_para_centavos){
+      var troco = p.troco_para_centavos - p.total_centavos;
+      partes.push('<div class="forte">LEVAR TROCO PARA R$ ' + esc(reaisDeCentavos(p.troco_para_centavos)) + '</div>');
+      // O troco calculado evita a conta de cabeça na porta do cliente,
+      // que é onde o entregador erra e o dinheiro falta no fim do dia.
+      if(troco > 0){
+        partes.push('<div>(troco: R$ ' + esc(reaisDeCentavos(troco)) + ')</div>');
+      } else if(troco < 0){
+        // O cliente digitou um valor menor que o total — provavelmente
+        // errou. Sem este aviso a comanda ficava muda, e o entregador
+        // só descobria na porta, com o cliente na frente.
+        partes.push('<div class="forte">ATENCAO: valor informado e MENOR que o total.</div>');
+        partes.push('<div>Faltam R$ ' + esc(reaisDeCentavos(Math.abs(troco))) + ' — confirmar com o cliente.</div>');
+      }
+    }
+  }
+
+  if(p.observacoes){
+    partes.push('<div class="risco"></div>');
+    partes.push('<div class="forte">OBSERVACAO</div>');
+    partes.push('<div>' + esc(p.observacoes) + '</div>');
+  }
+
+  if(cfg.rodape){
+    partes.push('<div class="risco"></div>');
+    partes.push('<div class="centro">' + esc(cfg.rodape) + '</div>');
+  }
+
+  // O aviso é obrigatório e não é configurável de propósito.
+  partes.push('<div class="risco"></div>');
+  partes.push('<div class="centro pequeno">SEM VALOR FISCAL</div>');
+  partes.push('<div class="centro pequeno">Comanda de pedido - nao e cupom fiscal</div>');
+  partes.push('<div class="corte"></div>');
+
+  var uma = partes.join('');
+  var vias = cfg.vias > 1 ? new Array(cfg.vias + 1).join(uma) : uma;
+
+  return '<!doctype html><html><head><meta charset="utf-8"><title>Pedido ' + esc(p.numero) + '</title><style>' +
+    // @page com a largura exata do papel e margem zero: sem isso o
+    // navegador assume A4 e a comanda sai num canto de uma folha.
+    '@page{size:' + mm + 'mm auto;margin:0}' +
+    'html,body{margin:0;padding:0}' +
+    'body{width:' + mm + 'mm;font-family:"Courier New",monospace;font-size:' + (mm === 58 ? '11px' : '12px') + ';' +
+      'line-height:1.35;color:#000;background:#fff;padding:4mm 3mm}' +
+    // Térmica não imprime cinza: tudo preto puro, senão sai apagado.
+    '*{color:#000 !important}' +
+    '.centro{text-align:center}' +
+    '.forte{font-weight:bold}' +
+    '.grande{font-size:' + (mm === 58 ? '13px' : '15px') + '}' +
+    '.enorme{font-size:' + (mm === 58 ? '18px' : '22px') + ';letter-spacing:1px;margin:2px 0}' +
+    '.pequeno{font-size:' + (mm === 58 ? '9px' : '10px') + '}' +
+    '.par{display:flex;justify-content:space-between;gap:6px}' +
+    '.par span:last-child{white-space:nowrap}' +
+    '.risco{border-top:1px dashed #000;margin:5px 0}' +
+    '.espaco{height:5px}' +
+    // Espaço no fim para o papel passar da lâmina de corte.
+    '.corte{height:' + (mm === 58 ? '10mm' : '12mm') + '}' +
+    '@media print{.corte{page-break-after:always}}' +
+    '</style></head><body>' + vias + '</body></html>';
+}
+
+/**
+ * Manda para a impressora. iframe escondido em vez de janela nova
+ * porque bloqueador de pop-up derruba window.open em parte dos
+ * navegadores — e o lojista descobriria isso com o cliente esperando.
+ */
+function imprimirComanda(p){
+  var l = lojaCache || {};
+  var html = htmlDaComanda(p, {
+    largura:  larguraDaComanda(),
+    nomeLoja: l.nome_exibicao || (usuarioAtual && usuarioAtual.empresa) || 'Pedido',
+    endereco: l.endereco,
+    whatsapp: l.whatsapp,
+    cnpj:     l.impressao_cnpj,
+    rodape:   l.impressao_rodape,
+    vias:     l.impressao_vias || 1
+  });
+
+  var antigo = document.getElementById('frame-comanda');
+  if(antigo) antigo.remove();
+
+  var frame = document.createElement('iframe');
+  frame.id = 'frame-comanda';
+  frame.setAttribute('aria-hidden', 'true');
+  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+  document.body.appendChild(frame);
+
+  frame.onload = function(){
+    try {
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
+    } catch(e){
+      // Safari em iPad às vezes recusa imprimir de dentro de iframe.
+      // Abrir em aba nova é o plano B — o clique do usuário já
+      // aconteceu, então o pop-up passa.
+      var aba = window.open('', '_blank');
+      if(aba){ aba.document.write(html); aba.document.close(); aba.print(); }
+      else alert('Não foi possível abrir a impressão. Libere pop-ups para este site.');
+    }
+  };
+
+  var doc = frame.contentWindow.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+}
+
+// Busca só a configuração, sem mexer nas telas — usada pela fila de
+// pedidos para a comanda sair com o cabeçalho certo.
+function carregarConfigDaLojaParaImpressao(){
+  fetch(API_BASE + '/loja/config', { headers: cabecalhoAuth() })
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){ if(d && d.loja) lojaCache = d.loja; })
+    .catch(function(){});
+}
+
+/**
+ * Imprime uma comanda de exemplo, para o lojista acertar papel e
+ * margem antes do primeiro pedido de verdade chegar — e não descobrir
+ * que a impressora está errada com o cliente esperando.
+ */
+function testarComanda(){
+  // Lê a configuração da TELA, não a salva: assim dá para testar a
+  // largura nova antes de gravar.
+  lojaCache = Object.assign({}, lojaCache || {}, {
+    nome_exibicao: document.getElementById('lj-nome').value.trim(),
+    endereco: document.getElementById('lj-endereco').value.trim(),
+    whatsapp: document.getElementById('lj-whatsapp').value.trim(),
+    impressao_largura: document.getElementById('lj-largura').value,
+    impressao_vias: parseInt(document.getElementById('lj-vias').value, 10) || 1,
+    impressao_cnpj: document.getElementById('lj-cnpj').value.trim(),
+    impressao_rodape: document.getElementById('lj-rodape').value.trim()
+  });
+
+  imprimirComanda({
+    numero: 999,
+    created_at: new Date().toISOString(),
+    tipo: 'entrega',
+    cliente_nome: 'Cliente de Teste',
+    cliente_telefone: '(11) 98888-7777',
+    cliente_estabelecimento: 'Bar do Teste',
+    endereco: 'Rua Exemplo, 123 - Centro',
+    forma_pagamento: 'dinheiro',
+    troco_para_centavos: 5000,
+    observacoes: 'Comanda de teste — nenhum pedido foi criado.',
+    itens: [
+      { nome: 'Item de exemplo', quantidade: 2, preco_unitario_centavos: 1250, total_centavos: 2500 },
+      { nome: 'Outro item', quantidade: 1, preco_unitario_centavos: 900, total_centavos: 900 }
+    ],
+    subtotal_centavos: 3400,
+    taxa_centavos: 500,
+    total_centavos: 3900
+  });
+}
+
 // ── CONFIGURAÇÃO DA LOJA ──
 function carregarLoja(){
   if(!sessaoWorka || !sessaoWorka.token) return;
@@ -5098,6 +5391,14 @@ function preencherFormularioLoja(nomeEmpresa){
   valor('lj-endereco', l.endereco);
   valor('lj-taxa', l.taxa_entrega_centavos ? reaisDeCentavos(l.taxa_entrega_centavos) : '');
   valor('lj-minimo', l.pedido_minimo_centavos ? reaisDeCentavos(l.pedido_minimo_centavos) : '');
+
+  valor('lj-cnpj', l.impressao_cnpj);
+  valor('lj-rodape', l.impressao_rodape);
+  var selLarg = document.getElementById('lj-largura');
+  if(selLarg) selLarg.value = l.impressao_largura === '58' ? '58' : '80';
+  var selVias = document.getElementById('lj-vias');
+  if(selVias) selVias.value = String(l.impressao_vias || 1);
+  marca('lj-auto', l.impressao_auto);
 
   marca('lj-ativa', l.ativa);
   marca('lj-entrega', l.aceita_entrega !== false);
@@ -5181,7 +5482,12 @@ function salvarLoja(){
     formas_pagamento: ['dinheiro','pix','cartao'].filter(function(f){
       return document.getElementById('lj-pg-' + f).checked;
     }),
-    cargo_destino: document.getElementById('lj-cargo').value || null
+    cargo_destino: document.getElementById('lj-cargo').value || null,
+    impressao_largura: document.getElementById('lj-largura').value,
+    impressao_vias: parseInt(document.getElementById('lj-vias').value, 10) || 1,
+    impressao_cnpj: document.getElementById('lj-cnpj').value.trim(),
+    impressao_rodape: document.getElementById('lj-rodape').value.trim(),
+    impressao_auto: document.getElementById('lj-auto').checked
   };
 
   if(!payload.aceita_entrega && !payload.aceita_retirada){

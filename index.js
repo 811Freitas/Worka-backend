@@ -4407,6 +4407,14 @@ var server = http.createServer(async (req, res) => {
         horario:     SANITIZE.string(bodyL.horario || "", 120) || null,
         aviso:       SANITIZE.string(bodyL.aviso || "", 200) || null,
         cargo_destino: cargoDestino,
+        // Impressão da comanda. A largura fecha em 58/80 porque é o
+        // que muda quantos caracteres cabem por linha — texto livre
+        // aqui quebraria o layout do papel sem ninguém entender.
+        impressao_largura: bodyL.impressao_largura === "58" ? "58" : "80",
+        impressao_rodape:  SANITIZE.string(bodyL.impressao_rodape || "", 120) || null,
+        impressao_cnpj:    SANITIZE.string(bodyL.impressao_cnpj || "", 20) || null,
+        impressao_auto:    bodyL.impressao_auto === true,
+        impressao_vias:    SANITIZE.int(bodyL.impressao_vias, 1, 3) || 1,
         updated_at:  new Date().toISOString()
       };
 
