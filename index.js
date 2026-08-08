@@ -197,6 +197,248 @@ function requireAuth(req) {
 }
 
 // ════════════════════════════════════════
+// RAMOS DE NEGÓCIO
+// ════════════════════════════════════════
+//
+// O Workap nasceu pensando em mercearia: a tela de estoque se chama
+// "Validade de Produtos", a data de vencimento é obrigatória e as
+// categorias são Alimentos/Medicamentos/Limpeza. Isso deixa de fazer
+// sentido na primeira concessionária que assinar — carro não vence, e
+// "Cadastrar produto" não é como ninguém chama cadastrar um veículo.
+//
+// Este catálogo é a ÚNICA fonte de verdade sobre o que muda de um ramo
+// para outro. O app não tem cópia própria: busca em GET /ramos. Assim
+// um ramo novo entra aqui e aparece no site e no app sem edição em
+// três arquivos — que foi como o nome antigo da marca sobreviveu
+// escondido por meses.
+//
+// O que NÃO muda por ramo: ponto, tarefas, escala, folha, férias,
+// metas, chat. Isso é gestão de equipe e é igual em qualquer negócio.
+// O que muda é o vocabulário e o que se guarda de cada item.
+//
+// Cada ramo declara:
+//   item       — como o ramo chama o que guarda em estoque; `genero`
+//                existe porque "Todos os veículos" e "Todas as peças"
+//                concordam diferente, e a tela monta essas frases
+//   validade   — se o vencimento existe e é obrigatório
+//   categorias — o <select> de categoria da tela de cadastro
+//   campos     — campos extras, gravados em produtos_validade.atributos
+//   cargos     — cargos sugeridos quando a empresa ainda não criou nenhum
+var RAMOS = {
+  restaurante: {
+    nome: "Restaurante / Lanchonete",
+    icone: "i-utensils",
+    item: { singular: "insumo", plural: "insumos", genero: "m", pagina: "Estoque e Validade", cadastrar: "Cadastrar insumo" },
+    validade: "obrigatoria",
+    categorias: ["Carnes", "Hortifruti", "Laticínios", "Bebidas", "Congelados", "Secos e grãos", "Descartáveis", "Limpeza"],
+    campos: [
+      { chave: "fornecedor",  rotulo: "Fornecedor",            tipo: "texto" },
+      { chave: "armazenagem", rotulo: "Armazenagem",           tipo: "opcao", opcoes: ["Ambiente", "Refrigerado", "Congelado"] }
+    ],
+    cargos: ["Gerente", "Cozinheiro", "Auxiliar de cozinha", "Garçom", "Caixa", "Chapeiro"]
+  },
+
+  farmacia: {
+    nome: "Farmácia / Drogaria",
+    icone: "i-pill",
+    item: { singular: "medicamento", plural: "medicamentos", genero: "m", pagina: "Medicamentos e Validade", cadastrar: "Cadastrar medicamento" },
+    validade: "obrigatoria",
+    categorias: ["Medicamentos", "Genéricos", "Controlados", "Dermocosméticos", "Higiene", "Suplementos", "Perfumaria"],
+    campos: [
+      { chave: "principio_ativo", rotulo: "Princípio ativo", tipo: "texto" },
+      { chave: "tarja",           rotulo: "Tarja",           tipo: "opcao", opcoes: ["Sem tarja", "Tarja vermelha", "Tarja preta"] },
+      { chave: "registro_anvisa", rotulo: "Registro ANVISA", tipo: "texto" }
+    ],
+    cargos: ["Farmacêutico responsável", "Balconista", "Atendente", "Caixa", "Estoquista"]
+  },
+
+  loja_roupa: {
+    nome: "Loja de roupa / Calçados",
+    icone: "i-bag",
+    item: { singular: "peça", plural: "peças", genero: "f", pagina: "Estoque da Loja", cadastrar: "Cadastrar peça" },
+    // Roupa não vence. Deixar a data disponível mas opcional atende a
+    // quem quer marcar fim de coleção sem obrigar ninguém a inventar
+    // uma data para cadastrar uma calça.
+    validade: "opcional",
+    categorias: ["Camisetas", "Calças", "Vestidos", "Casacos", "Calçados", "Acessórios", "Íntimo", "Infantil"],
+    campos: [
+      { chave: "tamanho", rotulo: "Tamanho", tipo: "texto" },
+      { chave: "cor",     rotulo: "Cor",     tipo: "texto" },
+      { chave: "marca",   rotulo: "Marca",   tipo: "texto" },
+      { chave: "preco",   rotulo: "Preço de venda (R$)", tipo: "texto" }
+    ],
+    cargos: ["Gerente de loja", "Vendedor", "Caixa", "Estoquista", "Visual merchandiser"]
+  },
+
+  concessionaria: {
+    nome: "Concessionária / Revenda de veículos",
+    icone: "i-card",
+    item: { singular: "veículo", plural: "veículos", genero: "m", pagina: "Veículos", cadastrar: "Cadastrar veículo" },
+    validade: "nao_usa",
+    categorias: ["Carro novo", "Carro seminovo", "Moto", "Caminhão", "Utilitário", "Consignado"],
+    campos: [
+      { chave: "placa",  rotulo: "Placa",              tipo: "texto" },
+      { chave: "marca",  rotulo: "Marca e modelo",     tipo: "texto" },
+      { chave: "ano",    rotulo: "Ano",                tipo: "texto" },
+      { chave: "km",     rotulo: "Quilometragem",      tipo: "texto" },
+      { chave: "cor",    rotulo: "Cor",                tipo: "texto" },
+      { chave: "preco",  rotulo: "Preço de venda (R$)",tipo: "texto" }
+    ],
+    cargos: ["Gerente de vendas", "Consultor de vendas", "Avaliador", "Despachante", "Financeiro"]
+  },
+
+  oficina: {
+    nome: "Oficina mecânica / Auto center",
+    icone: "i-wrench",
+    item: { singular: "peça", plural: "peças", genero: "f", pagina: "Peças e Estoque", cadastrar: "Cadastrar peça" },
+    validade: "opcional",
+    categorias: ["Motor", "Suspensão", "Freios", "Elétrica", "Filtros", "Óleos e fluidos", "Pneus", "Acessórios"],
+    campos: [
+      { chave: "codigo",      rotulo: "Código da peça",      tipo: "texto" },
+      { chave: "aplicacao",   rotulo: "Aplicação (veículo)", tipo: "texto" },
+      { chave: "fornecedor",  rotulo: "Fornecedor",          tipo: "texto" }
+    ],
+    cargos: ["Gerente", "Mecânico", "Auxiliar de mecânico", "Eletricista automotivo", "Atendente"]
+  },
+
+  mercado: {
+    nome: "Mercado / Mercearia",
+    icone: "i-package",
+    item: { singular: "produto", plural: "produtos", genero: "m", pagina: "Validade de Produtos", cadastrar: "Cadastrar produto" },
+    validade: "obrigatoria",
+    categorias: ["Alimentos", "Bebidas", "Hortifruti", "Frios e laticínios", "Congelados", "Limpeza", "Higiene", "Padaria"],
+    campos: [
+      { chave: "fornecedor", rotulo: "Fornecedor", tipo: "texto" },
+      { chave: "corredor",   rotulo: "Corredor / Gôndola", tipo: "texto" }
+    ],
+    cargos: ["Gerente", "Repositor", "Operador de caixa", "Açougueiro", "Padeiro", "Estoquista"]
+  },
+
+  padaria: {
+    nome: "Padaria / Confeitaria",
+    icone: "i-coffee",
+    item: { singular: "produto", plural: "produtos", genero: "m", pagina: "Estoque e Validade", cadastrar: "Cadastrar produto" },
+    validade: "obrigatoria",
+    categorias: ["Farináceos", "Laticínios", "Recheios e coberturas", "Bebidas", "Frios", "Embalagens", "Limpeza"],
+    campos: [
+      { chave: "fornecedor",  rotulo: "Fornecedor",  tipo: "texto" },
+      { chave: "armazenagem", rotulo: "Armazenagem", tipo: "opcao", opcoes: ["Ambiente", "Refrigerado", "Congelado"] }
+    ],
+    cargos: ["Gerente", "Padeiro", "Confeiteiro", "Atendente", "Operador de caixa"]
+  },
+
+  salao: {
+    nome: "Salão de beleza / Barbearia",
+    icone: "i-scissors",
+    item: { singular: "produto", plural: "produtos", genero: "m", pagina: "Produtos e Validade", cadastrar: "Cadastrar produto" },
+    validade: "obrigatoria",
+    categorias: ["Coloração", "Tratamento", "Finalização", "Shampoo e condicionador", "Unhas", "Barba", "Descartáveis"],
+    campos: [
+      { chave: "marca",      rotulo: "Marca",       tipo: "texto" },
+      { chave: "fornecedor", rotulo: "Fornecedor",  tipo: "texto" }
+    ],
+    cargos: ["Gerente", "Cabeleireiro", "Barbeiro", "Manicure", "Esteticista", "Recepcionista"]
+  },
+
+  clinica: {
+    nome: "Clínica / Consultório",
+    icone: "i-hospital",
+    item: { singular: "insumo", plural: "insumos", genero: "m", pagina: "Insumos e Validade", cadastrar: "Cadastrar insumo" },
+    validade: "obrigatoria",
+    categorias: ["Medicamentos", "Materiais descartáveis", "Instrumental", "Higiene", "Escritório"],
+    campos: [
+      { chave: "lote_fabricante", rotulo: "Lote do fabricante", tipo: "texto" },
+      { chave: "registro_anvisa", rotulo: "Registro ANVISA",    tipo: "texto" }
+    ],
+    cargos: ["Responsável técnico", "Enfermeiro", "Técnico de enfermagem", "Recepcionista", "Auxiliar administrativo"]
+  },
+
+  petshop: {
+    nome: "Pet shop / Clínica veterinária",
+    icone: "i-support",
+    item: { singular: "produto", plural: "produtos", genero: "m", pagina: "Produtos e Validade", cadastrar: "Cadastrar produto" },
+    validade: "obrigatoria",
+    categorias: ["Ração", "Petiscos", "Medicamentos", "Higiene", "Acessórios", "Brinquedos"],
+    campos: [
+      { chave: "especie",    rotulo: "Espécie", tipo: "opcao", opcoes: ["Cães", "Gatos", "Aves", "Roedores", "Peixes", "Geral"] },
+      { chave: "fornecedor", rotulo: "Fornecedor", tipo: "texto" }
+    ],
+    cargos: ["Gerente", "Veterinário", "Banhista e tosador", "Atendente", "Caixa"]
+  },
+
+  academia: {
+    nome: "Academia / Estúdio",
+    icone: "i-zap",
+    item: { singular: "item", plural: "itens", genero: "m", pagina: "Equipamentos e Estoque", cadastrar: "Cadastrar item" },
+    validade: "opcional",
+    categorias: ["Equipamento de musculação", "Cardio", "Acessórios", "Suplementos", "Limpeza", "Uniformes"],
+    campos: [
+      { chave: "patrimonio",       rotulo: "Nº de patrimônio",     tipo: "texto" },
+      { chave: "ultima_manutencao", rotulo: "Última manutenção",   tipo: "texto" }
+    ],
+    cargos: ["Gerente", "Personal trainer", "Instrutor", "Recepcionista", "Auxiliar de limpeza"]
+  },
+
+  outro: {
+    nome: "Outro tipo de negócio",
+    icone: "i-building",
+    item: { singular: "item", plural: "itens", genero: "m", pagina: "Estoque", cadastrar: "Cadastrar item" },
+    validade: "opcional",
+    categorias: ["Geral", "Insumos", "Equipamentos", "Limpeza", "Escritório", "Outros"],
+    campos: [
+      { chave: "fornecedor", rotulo: "Fornecedor", tipo: "texto" }
+    ],
+    cargos: ["Gerente", "Supervisor", "Atendente", "Auxiliar"]
+  }
+};
+
+/**
+ * Devolve a configuração de um ramo, sempre com um objeto válido.
+ *
+ * Empresa antiga tem `ramo` em texto livre ("Padaria da esquina",
+ * "alimentação") porque o campo era digitado à mão e ninguém lia. Cair
+ * em "outro" nesses casos mostra o app genérico, que funciona — muito
+ * melhor que quebrar a tela de estoque de quem já é cliente.
+ */
+function ramoDaEmpresa(slug) {
+  var chave = typeof slug === "string" ? slug.trim().toLowerCase() : "";
+  return RAMOS[chave] ? chave : "outro";
+}
+
+function configDoRamo(slug) {
+  return RAMOS[ramoDaEmpresa(slug)];
+}
+
+/**
+ * Filtra os atributos enviados pelo cliente contra os campos que o
+ * ramo declara.
+ *
+ * Chave desconhecida é descartada em silêncio, não recusada: o app
+ * pode estar em cache com os campos de antes de uma mudança de ramo, e
+ * bloquear o cadastro inteiro por causa disso puniria o usuário por um
+ * problema que não é dele. O que importa é que nada fora do catálogo
+ * chegue ao banco.
+ */
+function filtrarAtributos(slugRamo, enviados) {
+  var limpo = {};
+  if (!enviados || typeof enviados !== "object" || Array.isArray(enviados)) return limpo;
+
+  configDoRamo(slugRamo).campos.forEach(function (campo) {
+    var valor = enviados[campo.chave];
+    if (typeof valor !== "string") return;
+    var texto = SANITIZE.string(valor, 80);
+    if (!texto) return;
+    // Campo de opção só aceita uma das opções declaradas: sem isso,
+    // "Armazenagem" viraria texto livre e nenhum relatório futuro
+    // conseguiria agrupar por ela.
+    if (campo.tipo === "opcao" && campo.opcoes.indexOf(texto) === -1) return;
+    limpo[campo.chave] = texto;
+  });
+
+  return limpo;
+}
+
+// ════════════════════════════════════════
 // RBAC — CONTROLE DE ACESSO BASEADO EM FUNÇÃO
 // ════════════════════════════════════════
 // Cada role carrega um conjunto fixo de permissões. O JWT nunca
@@ -1901,7 +2143,7 @@ var server = http.createServer(async (req, res) => {
         nome:                 v.data.nome,
         email:                v.data.email,
         senha_hash:           senhaHash,
-        ramo:                 SANITIZE.string(body.ramo || "", 80),
+        ramo:                 ramoDaEmpresa(body.ramo),
         team_id:              gerarTeamId(),
         status:               "trial",
         trial_fim:            trialFim,
@@ -1999,7 +2241,8 @@ var server = http.createServer(async (req, res) => {
 
       secLog("login_ok", { empresa_id: empresa.id });
       delete empresa.senha_hash;
-      return jsonOk(res, { token, empresa, trial: trialInfo });
+      empresa.ramo = ramoDaEmpresa(empresa.ramo);
+      return jsonOk(res, { token, empresa, trial: trialInfo, ramo: configDoRamo(empresa.ramo) });
     }
 
     // ── LOGIN FUNCIONÁRIO ────────────────────────────
@@ -2348,10 +2591,12 @@ var server = http.createServer(async (req, res) => {
       }
       secLog("login_ok", { empresa_id: empresaVer.id, via: "face_id" });
       delete empresaVer.senha_hash;
+      empresaVer.ramo = ramoDaEmpresa(empresaVer.ramo);
       return jsonOk(res, {
         token: jwtSign({ empresa_id: empresaVer.id, email: empresaVer.email, role: "dono" }),
         empresa: empresaVer,
-        trial: trialVer
+        trial: trialVer,
+        ramo: configDoRamo(empresaVer.ramo)
       });
     }
 
@@ -2425,10 +2670,12 @@ var server = http.createServer(async (req, res) => {
       }
       secLog("login_ok", { empresa_id: empresaConf.id, via: "novo_dispositivo" });
       delete empresaConf.senha_hash;
+      empresaConf.ramo = ramoDaEmpresa(empresaConf.ramo);
       return jsonOk(res, {
         token: jwtSign({ empresa_id: empresaConf.id, email: empresaConf.email, role: "dono" }),
         empresa: empresaConf,
-        trial: trialConf
+        trial: trialConf,
+        ramo: configDoRamo(empresaConf.ramo)
       });
     }
 
@@ -2517,8 +2764,15 @@ var server = http.createServer(async (req, res) => {
         var senhaHash = await hashSenha(senha);
         var trialFim  = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
+        // ramoDaEmpresa() normaliza: qualquer coisa fora do catálogo
+        // vira "outro". A landing prometia "escolha o segmento do seu
+        // negócio" desde sempre, mas o cadastro nunca enviou o campo e
+        // o app nunca leu — toda conta nascia sem ramo.
+        var ramoEscolhido = ramoDaEmpresa(body.ramo);
+
         var result = await DB.insert("empresas", {
           nome, email, senha_hash: senhaHash,
+          ramo: ramoEscolhido,
           team_id: gerarTeamId(), status: "trial",
           trial_fim: trialFim, aviso_trial_sent: false, aviso_expirado_sent: false
         }).catch(e => { secLog("erro_criar_empresa", { message: e.message }); return { body: [] }; });
@@ -2530,7 +2784,8 @@ var server = http.createServer(async (req, res) => {
             .catch(() => {});
           secLog("empresa_via_otp", { empresa_id: emp.id });
           delete emp.senha_hash;
-          return jsonOk(res, { ok: true, token, empresa: emp, trial_fim: trialFim });
+          emp.ramo = ramoDaEmpresa(emp.ramo);
+          return jsonOk(res, { ok: true, token, empresa: emp, trial_fim: trialFim, ramo: configDoRamo(emp.ramo) });
         }
 
         // Chegou aqui: o insert falhou por outro motivo (banco fora do ar,
@@ -2635,6 +2890,32 @@ var server = http.createServer(async (req, res) => {
         valor_original: centavosParaReais(checagem.valor_original_centavos),
         valor_final:    centavosParaReais(checagem.valor_final_centavos)
       });
+    }
+
+    // ── RAMOS DE NEGÓCIO (rota pública) ──────────────
+    //
+    // Pública porque o formulário de cadastro do site precisa montar o
+    // seletor de segmento antes de existir qualquer conta. Não expõe
+    // nada de ninguém: é o catálogo estático do produto, o mesmo para
+    // todo visitante.
+    //
+    // O app também lê daqui em vez de ter a lista duplicada no HTML —
+    // um ramo novo entra só no RAMOS do backend.
+    if (method === "GET" && path === "/ramos") {
+      var catalogo = Object.keys(RAMOS).map(function (slug) {
+        var r = RAMOS[slug];
+        return {
+          slug: slug,
+          nome: r.nome,
+          icone: r.icone,
+          item: r.item,
+          validade: r.validade,
+          categorias: r.categorias,
+          campos: r.campos,
+          cargos: r.cargos
+        };
+      });
+      return jsonOk(res, { ramos: catalogo });
     }
 
     // ── PIX — GERAR COBRANÇA (rota pública) ──────────
@@ -2830,7 +3111,11 @@ var server = http.createServer(async (req, res) => {
         meTrialInfo = { dias_restantes: meDias, expirado: meDias <= 0 };
       }
       delete meEmpresa.senha_hash;
-      return jsonOk(res, { empresa: meEmpresa, trial: meTrialInfo });
+      // Normaliza aqui também: contas criadas antes do catálogo têm
+      // texto livre em `ramo` ("alimentação", "Padaria da esquina") e o
+      // app precisa de um slug conhecido para escolher o vocabulário.
+      meEmpresa.ramo = ramoDaEmpresa(meEmpresa.ramo);
+      return jsonOk(res, { empresa: meEmpresa, trial: meTrialInfo, ramo: configDoRamo(meEmpresa.ramo) });
     }
 
     // ── MÉTRICAS DA PLATAFORMA (somente owner) ───────
@@ -3699,6 +3984,40 @@ var server = http.createServer(async (req, res) => {
       return jsonOk(res, historico.body);
     }
 
+    // ── RAMO DA EMPRESA ──────────────────────────────
+    // Trocar de ramo é operação de dono: muda o vocabulário e os
+    // campos que toda a equipe vê. Um gerente não decide isso.
+    if (method === "PUT" && path === "/empresa/ramo") {
+      if (authPayload.role !== "dono") {
+        secLog("permission_denied", { role: authPayload.role, action: "empresa:ramo" });
+        return jsonErr(res, "Só o dono da conta pode mudar o tipo de negócio", 403);
+      }
+      var rawRamo = await getBody(req);
+      var bodyRamo = parseBody(rawRamo);
+      if (!bodyRamo) return jsonErr(res, "Dados inválidos");
+
+      // Recusa slug desconhecido em vez de cair em "outro" em silêncio:
+      // aqui é uma escolha explícita de quem está mexendo na
+      // configuração, e virar "outro" sem avisar seria confuso.
+      if (!RAMOS[String(bodyRamo.ramo || "").trim().toLowerCase()]) {
+        return jsonErr(res, "Tipo de negócio desconhecido");
+      }
+      var novoRamo = ramoDaEmpresa(bodyRamo.ramo);
+
+      await supabase("PATCH", "empresas", {
+        query: `id=eq.${authPayload.empresa_id}`,
+        body: { ramo: novoRamo }
+      });
+      secLog("ramo_alterado", { empresa_id: authPayload.empresa_id, ramo: novoRamo });
+
+      // Os itens já cadastrados NÃO são apagados nem convertidos. Os
+      // atributos do ramo antigo continuam gravados e simplesmente
+      // deixam de ser exibidos — se a pessoa voltar ao ramo anterior,
+      // encontra tudo como estava. Apagar seria destruir o estoque de
+      // alguém por causa de um clique numa tela de configuração.
+      return jsonOk(res, { ok: true, ramo: novoRamo, config: configDoRamo(novoRamo) });
+    }
+
     // ── VALIDADE ─────────────────────────────────────
     if (method === "POST" && path === "/validade") {
       if (!hasPermission(authPayload, "validade:write")) {
@@ -3715,8 +4034,26 @@ var server = http.createServer(async (req, res) => {
       var nome = SANITIZE.string(body.nome, 200);
       if (!nome) return jsonErr(res, "Nome inválido");
 
-      var dataVenc = new Date(body.data_vencimento);
-      if (isNaN(dataVenc.getTime())) return jsonErr(res, "Data inválida");
+      // O ramo decide se a validade existe. Antes a data era sempre
+      // obrigatória e uma concessionária simplesmente não conseguia
+      // cadastrar um carro: a tela exigia uma data de vencimento para
+      // um veículo. Agora:
+      //   obrigatoria — farmácia, restaurante, mercado: segue exigida
+      //   opcional    — loja, oficina: aceita com ou sem
+      //   nao_usa     — concessionária: o campo é ignorado
+      var empRamo = await DB.select("empresas", `id=eq.${authPayload.empresa_id}&select=ramo`);
+      var slugRamo = ramoDaEmpresa(empRamo.body && empRamo.body[0] && empRamo.body[0].ramo);
+      var regraValidade = configDoRamo(slugRamo).validade;
+
+      var dataVencISO = null;
+      if (regraValidade !== "nao_usa" && body.data_vencimento) {
+        var dataVenc = new Date(body.data_vencimento);
+        if (isNaN(dataVenc.getTime())) return jsonErr(res, "Data inválida");
+        dataVencISO = dataVenc.toISOString().split("T")[0];
+      }
+      if (regraValidade === "obrigatoria" && !dataVencISO) {
+        return jsonErr(res, "Informe a data de vencimento.");
+      }
 
       // "status" não é definido aqui de propósito: o gatilho
       // trg_validade_status no banco calcula sozinho (normal/atencao/
@@ -3735,9 +4072,12 @@ var server = http.createServer(async (req, res) => {
         lote:             SANITIZE.string(body.lote || "", 50),
         categoria:        SANITIZE.string(body.categoria || "", 80),
         unidade:          SANITIZE.string(body.unidade || "unidades", 30),
-        data_vencimento:  dataVenc.toISOString().split("T")[0],
+        data_vencimento:  dataVencISO,
         quantidade:       SANITIZE.int(body.quantidade, 0, 999999) || 0,
         dias_aviso:       SANITIZE.int(body.dias_aviso, 1, 365) || 30,
+        // Só as chaves declaradas pelo ramo entram — o cliente não
+        // escolhe o que grava no jsonb.
+        atributos:        filtrarAtributos(slugRamo, body.atributos),
         foto:             fotoGrande,
         // Sem miniatura própria não vale cair para a foto grande: a
         // lista voltaria a trafegar a imagem inteira, que é exatamente
@@ -3759,7 +4099,7 @@ var server = http.createServer(async (req, res) => {
       // produtos fotografados transformaria esta listagem em vários MB
       // baixados no 4G a cada abertura da tela — a miniatura basta
       // para a lista, e a foto grande tem rota própria.
-      var COLUNAS_LISTA = "id,nome,lote,categoria,quantidade,unidade,data_vencimento,dias_aviso,status,created_at,foto_thumb";
+      var COLUNAS_LISTA = "id,nome,lote,categoria,quantidade,unidade,data_vencimento,dias_aviso,status,created_at,foto_thumb,atributos";
       var result = await DB.select("produtos_validade",
         `empresa_id=eq.${authPayload.empresa_id}&select=${COLUNAS_LISTA}&order=data_vencimento.asc`
       );
@@ -4245,7 +4585,23 @@ var server = http.createServer(async (req, res) => {
       }
       var cargos = await DB.select("cargos",
         `empresa_id=eq.${authPayload.empresa_id}&select=*&order=nivel.desc`);
-      return jsonOk(res, cargos.body || []);
+      var listaCargos = cargos.body || [];
+
+      // Empresa sem nenhum cargo recebe sugestões do próprio ramo —
+      // "Garçom, Cozinheiro, Chapeiro" para restaurante, "Consultor de
+      // vendas, Avaliador" para concessionária. A tela vazia com um
+      // botão "criar cargo" obriga o dono a inventar a estrutura da
+      // própria empresa do zero, que é justamente onde ele trava.
+      //
+      // Só sugestão: nada é criado sem ele clicar. A resposta continua
+      // sendo um array quando já existem cargos, para não quebrar o
+      // app antigo que espera exatamente isso.
+      if (listaCargos.length === 0) {
+        var empCargo = await DB.select("empresas", `id=eq.${authPayload.empresa_id}&select=ramo`).catch(() => ({ body: [] }));
+        var ramoCargo = ramoDaEmpresa(empCargo.body && empCargo.body[0] && empCargo.body[0].ramo);
+        return jsonOk(res, { cargos: [], sugestoes: configDoRamo(ramoCargo).cargos, ramo: ramoCargo });
+      }
+      return jsonOk(res, listaCargos);
     }
 
     if (method === "POST" && path === "/cargos") {

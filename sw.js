@@ -8,10 +8,11 @@
 // o sistema não tem. Login biométrico continua sendo uma feature em
 // aberto (exige WebAuthn + tabela de credenciais no banco).
 
-// Cache bumped para v11: marca nova (só o símbolo) e dashboard com
-// saudação. Sem trocar o nome do cache, quem já abriu o app continuaria
-// vendo o logo antigo e a tela sem as novidades.
-var CACHE = 'workap-v11';
+// Cache bumped para v12: o app se adapta ao ramo do negócio
+// (concessionária, farmácia, loja de roupa...) e a tela de cargos
+// virou real. Sem trocar o nome do cache, quem já abriu o app
+// continuaria vendo a versão de antes.
+var CACHE = 'workap-v12';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
@@ -71,15 +72,22 @@ self.addEventListener('activate', function(e) {
 });
 
 // Interceptar requisições — Network first, cache fallback
+//
+// Só mexe no que é DESTA origem, mais a folha de estilo das fontes que
+// entra no cache offline de propósito. Antes a regra era uma lista de
+// domínios a ignorar ("onrender.com", "supabase.co"...): funcionava por
+// coincidência, porque acertava o endereço do backend de hoje. No dia
+// em que a API mudar de domínio — ou for testada em outro endereço — o
+// service worker passa a interceptar e a CACHEAR respostas de API, e o
+// app começa a mostrar dados velhos sem ninguém entender por quê.
+//
+// Inverter a regra (só o que é meu) elimina a classe inteira do
+// problema: qualquer API, em qualquer domínio, passa direto.
 self.addEventListener('fetch', function(e) {
-  // Não interceptar requisições ao backend ou APIs externas
-  if (e.request.url.includes('onrender.com') ||
-      e.request.url.includes('api.resend.com') ||
-      e.request.url.includes('supabase.co') ||
-      e.request.url.includes('api.x.ai') ||
-      e.request.url.includes('maps.google.com')) {
-    return;
-  }
+  var mesmaOrigem = e.request.url.indexOf(self.location.origin) === 0;
+  var fonteDoCache = e.request.url.indexOf('https://fonts.googleapis.com/') === 0 ||
+                     e.request.url.indexOf('https://fonts.gstatic.com/') === 0;
+  if (!mesmaOrigem && !fonteDoCache) return;
 
   e.respondWith(
     fetch(e.request).then(function(response) {
