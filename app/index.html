@@ -688,7 +688,7 @@ tr:hover td{background:var(--g50)}
           <div class="stat-card-lbl">Tarefas hoje</div>
           <div class="stat-card-sub sub-yellow" id="stat-tarefas-hoje-sub">&nbsp;</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" id="stat-card-alertas">
           <div class="stat-card-icon" style="background:#fef2f2"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg></div>
           <div class="stat-card-num" id="stat-alertas">—</div>
           <div class="stat-card-lbl">Alertas validade</div>
@@ -730,7 +730,7 @@ tr:hover td{background:var(--g50)}
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" id="card-dashboard-validade">
         <div class="card-header">
           <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Alertas de validade urgentes</div>
           <button class="btn btn-sm btn-secondary" onclick="abrirPagina('validade')">Gerenciar</button>
@@ -857,7 +857,7 @@ tr:hover td{background:var(--g50)}
           <button class="btn btn-sm btn-danger" onclick="filtrarValidade('urgente')"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Urgente</button>
           <button class="btn btn-sm btn-secondary" onclick="filtrarValidade('todos')">Todos</button>
         </div>
-        <button class="btn btn-primary" onclick="abrirModal('modal-add-produto')">+ Cadastrar produto</button>
+        <button class="btn btn-primary" id="btn-cadastrar-item" onclick="abrirModal('modal-add-produto')">+ Cadastrar produto</button>
       </div>
 
       <div class="card" style="margin-bottom:16px" id="card-validade-urgentes">
@@ -868,10 +868,10 @@ tr:hover td{background:var(--g50)}
       </div>
 
       <div class="card">
-        <div class="card-header"><div class="card-title">Todos os produtos</div></div>
+        <div class="card-header"><div class="card-title" id="titulo-lista-itens">Todos os produtos</div></div>
         <div class="card-body" style="padding:0">
           <table>
-            <thead><tr><th>Produto</th><th>Lote</th><th>Vencimento</th><th>Qtd</th><th>Aviso</th><th>Status</th></tr></thead>
+            <thead><tr><th id="col-nome-item">Produto</th><th>Lote</th><th class="col-validade">Vencimento</th><th>Qtd</th><th class="col-validade">Aviso</th><th class="col-validade">Status</th></tr></thead>
             <tbody id="tabela-validade-todos"><tr><td colspan="6" style="padding:0"><div class="skel-row"><div style="flex:1"><div class="skel skel-text" style="width:40%"></div><div class="skel skel-text" style="width:55%"></div></div></div></td></tr></tbody>
           </table>
         </div>
@@ -880,66 +880,61 @@ tr:hover td{background:var(--g50)}
 
     <!-- CARGOS E PERMISSÕES -->
     <div class="page" id="pg-cargos">
+      <!-- Esta tela era uma maquete: quatro cartões fixos no HTML
+           (Dono, Gerente, Atendente, Estoquista) com interruptores que
+           mudavam de cor e não gravavam nada. A rota /cargos já existia
+           e nada no app chamava. Agora é real, e os cargos sugeridos
+           vêm do ramo da empresa. -->
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-        <div></div>
-        <button class="btn btn-primary" onclick="abrirModal('modal-add-cargo')">+ Novo cargo</button>
+        <div id="cargos-subtitulo" style="font-size:.85rem;color:var(--gray500)"></div>
+        <button class="btn btn-primary" onclick="abrirModalCargo()">+ Novo cargo</button>
       </div>
 
-      <div class="grid-2">
-        <div>
-          <div class="card" style="margin-bottom:14px">
-            <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-crown></use></svg> Dono</div><span class="badge badge-purple">Nível máximo</span></div>
-            <div class="card-body">
-              <p style="font-size:.82rem;color:var(--gray500);margin-bottom:12px">Acesso total e irrestrito. Não pode ser modificado.</p>
-              <div class="perm-row"><span class="perm-label">Ver faturamento</span><button class="toggle-sw on"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Aprovar funcionários</span><button class="toggle-sw on"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Criar e delegar tarefas</span><button class="toggle-sw on"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Editar identidade visual</span><button class="toggle-sw on"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Gerenciar ponto</span><button class="toggle-sw on"><div class="toggle-dot"></div></button></div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-header"><div class="card-title"><span class=dot style=background:#3b82f6></span> Gerente</div><button class="btn btn-sm btn-secondary">Editar</button></div>
-            <div class="card-body">
-              <div class="perm-row"><span class="perm-label">Ver faturamento</span><button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Aprovar funcionários</span><button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Criar e delegar tarefas</span><button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Editar identidade visual</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Gerenciar ponto</span><button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-            </div>
-          </div>
+      <!-- Sugestões do ramo: aparece só enquanto a empresa não tem
+           nenhum cargo. Tela vazia com um botão "criar" obriga o dono a
+           inventar a estrutura da própria empresa do zero, que é
+           exatamente onde ele trava. -->
+      <div class="card" id="card-cargos-sugestoes" style="display:none;margin-bottom:16px">
+        <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-star></use></svg> Cargos comuns no seu tipo de negócio</div></div>
+        <div class="card-body">
+          <p style="font-size:.82rem;color:var(--gray500);margin-bottom:12px">Clique para criar. Você ajusta as permissões depois — nada é criado sem você mandar.</p>
+          <div id="cargos-sugestoes" style="display:flex;flex-wrap:wrap;gap:8px"></div>
         </div>
+      </div>
 
-        <div>
-          <div class="card" style="margin-bottom:14px">
-            <div class="card-header"><div class="card-title"><span class=dot style=background:#f59e0b></span> Atendente</div><button class="btn btn-sm btn-secondary">Editar</button></div>
-            <div class="card-body">
-              <div class="perm-row"><span class="perm-label">Ver faturamento</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Aprovar funcionários</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Criar e delegar tarefas</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Editar identidade visual</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Gerenciar ponto</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-header"><div class="card-title"><span class=dot style=background:var(--g400,#25b251)></span> Estoquista</div><button class="btn btn-sm btn-secondary">Editar</button></div>
-            <div class="card-body">
-              <div class="perm-row"><span class="perm-label">Ver faturamento</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Aprovar funcionários</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Criar e delegar tarefas</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Editar identidade visual</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Gerenciar ponto</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-              <div class="perm-row"><span class="perm-label">Gerenciar validades</span><button class="toggle-sw on" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-            </div>
-          </div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-crown></use></svg> Dono</div><span class="badge badge-purple">Nível máximo</span></div>
+        <div class="card-body">
+          <p style="font-size:.82rem;color:var(--gray500);margin:0">Acesso total e irrestrito a tudo no sistema. É a sua conta, e não pode ser modificada nem removida.</p>
         </div>
+      </div>
+
+      <div id="lista-cargos" class="grid-2">
+        <div class="card"><div class="card-body"><div class="skel skel-text" style="width:40%"></div><div class="skel skel-text" style="width:70%"></div></div></div>
       </div>
     </div>
 
-    <!-- IDENTIDADE VISUAL -->
     <div class="page" id="pg-visual">
+      <!-- Tipo de negócio: decide o vocabulário ("veículo" vs
+           "medicamento"), quais campos cada item tem e se existe
+           validade. Fica aqui, junto do resto da configuração da
+           empresa, porque é escolhido uma vez e raramente revisitado. -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header">
+          <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-building></use></svg> Tipo de negócio</div>
+          <span class="badge badge-green" id="ramo-atual-badge">—</span>
+        </div>
+        <div class="card-body">
+          <p style="font-size:.82rem;color:var(--gray500);margin-bottom:14px">
+            O Workap se adapta ao seu segmento: muda o nome das telas, as categorias e os campos de cada item.
+            Trocar não apaga nada do que você já cadastrou.
+          </p>
+          <div class="field"><label>Segmento</label><select id="sel-ramo" onchange="mostrarPreviaRamo()"></select></div>
+          <div id="ramo-previa" style="font-size:.8rem;color:var(--gray500);background:var(--gray50);border-radius:var(--r);padding:12px;margin-bottom:12px"></div>
+          <button class="btn btn-primary" id="btn-salvar-ramo" onclick="salvarRamo()">Salvar tipo de negócio</button>
+        </div>
+      </div>
+
       <div class="grid-2">
         <div>
           <div class="card" style="margin-bottom:16px">
@@ -2125,23 +2120,31 @@ tr:hover td{background:var(--g50)}
 <!-- Modal add produto -->
 <div class="modal-overlay" id="modal-add-produto">
   <div class="modal">
-    <div class="modal-title">Cadastrar produto</div>
+    <div class="modal-title" id="modal-item-titulo">Cadastrar produto</div>
     <div id="add-produto-erro" style="display:none;background:#fef2f2;color:#dc2626;border-radius:8px;padding:10px 12px;font-size:.82rem;margin-bottom:10px"></div>
     <div class="form-grid">
-      <div class="field form-full"><label>Nome do produto</label><input id="ap-nome" placeholder="Ex: Leite integral"></div>
+      <div class="field form-full"><label id="label-nome-item">Nome do produto</label><input id="ap-nome" placeholder="Ex: Leite integral"></div>
       <div class="field"><label>Número do lote</label><input id="ap-lote" placeholder="Ex: #A203"></div>
-      <div class="field"><label>Data de vencimento</label><input id="ap-data" type="date"></div>
+      <!-- Validade some inteira nos ramos que não vencem (concessionária,
+           por exemplo). Um campo "vencimento" na ficha de um carro faz a
+           pessoa parar para pensar se está na tela certa. -->
+      <div class="field" id="bloco-validade"><label id="label-validade">Data de vencimento</label><input id="ap-data" type="date"></div>
       <div class="field"><label>Quantidade</label><input id="ap-quantidade" type="number" placeholder="0"></div>
       <div class="field"><label>Unidade</label><select id="ap-unidade"><option value="unidades">Unidades</option><option value="kg">Kg</option><option value="litros">Litros</option><option value="caixas">Caixas</option></select></div>
-      <div class="field"><label>Avisar com quantos dias de antecedência</label><select id="ap-dias-aviso"><option value="3">3 dias</option><option value="7">7 dias</option><option value="15">15 dias</option><option value="30" selected>30 dias</option><option value="60">60 dias</option></select></div>
-      <div class="field form-full"><label>Categoria</label><select id="ap-categoria"><option value="Alimentos">Alimentos</option><option value="Medicamentos">Medicamentos</option><option value="Cosméticos">Cosméticos</option><option value="Limpeza">Limpeza</option><option value="Outros">Outros</option></select></div>
+      <div class="field" id="bloco-dias-aviso"><label>Avisar com quantos dias de antecedência</label><select id="ap-dias-aviso"><option value="3">3 dias</option><option value="7">7 dias</option><option value="15">15 dias</option><option value="30" selected>30 dias</option><option value="60">60 dias</option></select></div>
+      <div class="field form-full"><label>Categoria</label><select id="ap-categoria"></select></div>
+
+      <!-- Campos do ramo: placa/ano/km na concessionária, tamanho/cor na
+           loja de roupa, princípio ativo/tarja na farmácia. Montados por
+           montarCamposDoRamo() a partir do catálogo do backend. -->
+      <div class="form-full" id="ap-campos-ramo" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px"></div>
 
       <!-- Foto do produto. `capture="environment"` faz o celular abrir
            direto a câmera traseira, que é como isso vai ser usado de
            verdade: alguém de pé na frente da prateleira. No computador
            o atributo é ignorado e vira seletor de arquivo. -->
       <div class="field form-full">
-        <label>Foto do produto <span style="color:var(--gray500);font-weight:400">(opcional)</span></label>
+        <label><span id="label-foto-item">Foto do produto</span> <span style="color:var(--gray500);font-weight:400">(opcional)</span></label>
         <div class="foto-produto-campo">
           <div class="foto-produto-preview" id="ap-foto-preview">
             <svg class=ico aria-hidden=true><use href=#i-camera></use></svg>
@@ -2150,7 +2153,7 @@ tr:hover td{background:var(--g50)}
             <input type="file" id="ap-foto-input" accept="image/*" capture="environment" style="display:none" onchange="selecionarFotoProduto(this)">
             <button type="button" class="btn btn-sm btn-secondary" onclick="document.getElementById('ap-foto-input').click()"><svg class=ico aria-hidden=true><use href=#i-camera></use></svg> Tirar foto</button>
             <button type="button" class="btn btn-sm btn-secondary" id="ap-foto-remover" style="display:none;margin-left:6px" onclick="removerFotoProduto()">Remover</button>
-            <div style="font-size:.74rem;color:var(--gray500);margin-top:7px" id="ap-foto-info">Ajuda a reconhecer o produto na prateleira sem ler o rótulo.</div>
+            <div style="font-size:.74rem;color:var(--gray500);margin-top:7px" id="ap-foto-info">Ajuda a reconhecer de relance, sem ler etiqueta.</div>
           </div>
         </div>
       </div>
@@ -2214,20 +2217,19 @@ tr:hover td{background:var(--g50)}
 <!-- Modal add cargo -->
 <div class="modal-overlay" id="modal-add-cargo">
   <div class="modal">
-    <div class="modal-title">Criar novo cargo</div>
-    <div class="field"><label>Nome do cargo</label><input placeholder="Ex: Supervisor, Motorista, Balconista..."></div>
+    <!-- Antes este modal não tinha id no campo de nome nem botão de
+         salvar: os interruptores mudavam de cor e o "Fechar" jogava
+         tudo fora. Agora grava de verdade em POST /cargos. -->
+    <div class="modal-title" id="modal-cargo-titulo">Criar novo cargo</div>
+    <div id="cargo-erro" style="display:none;background:#fef2f2;color:#dc2626;border-radius:8px;padding:10px 12px;font-size:.82rem;margin-bottom:10px"></div>
+    <div class="field"><label>Nome do cargo</label><input id="cargo-nome" maxlength="60" placeholder="Ex: Supervisor, Motorista, Balconista..."></div>
     <div class="divider"></div>
-    <div style="font-size:.82rem;font-weight:700;color:var(--gray700);margin-bottom:12px">Permissões</div>
-    <div class="perm-row"><span class="perm-label">Ver faturamento e dados financeiros</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-    <div class="perm-row"><span class="perm-label">Aprovar/recusar novos funcionários</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-    <div class="perm-row"><span class="perm-label">Criar, agendar e delegar tarefas</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-    <div class="perm-row"><span class="perm-label">Editar identidade visual do app</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-    <div class="perm-row"><span class="perm-label">Gerenciar e justificar pontos</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-    <div class="perm-row"><span class="perm-label">Gerenciar validade de produtos</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-    <div class="perm-row"><span class="perm-label">Ver relatórios e histórico</span><button class="toggle-sw off" onclick="togglePerm(this)"><div class="toggle-dot"></div></button></div>
-    
+    <div style="font-size:.82rem;font-weight:700;color:var(--gray700);margin-bottom:12px">O que este cargo pode fazer</div>
+    <div id="cargo-permissoes"></div>
+
     <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="fecharModal('modal-add-cargo')">Fechar</button>
+      <button class="btn btn-secondary" onclick="fecharModal('modal-add-cargo')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-salvar-cargo" onclick="salvarCargo()">Criar cargo</button>
     </div>
   </div>
 </div>
@@ -2398,7 +2400,7 @@ function setLoginTipo(tipo) {
  * salvo (DOMContentLoaded, via GET /me) — antes essa lógica estava
  * duplicada nos dois lugares.
  */
-function entrarComoDono(token, empresa, trial){
+function entrarComoDono(token, empresa, trial, ramoConfig){
   // sessaoWorka guarda o que o backend retornou (token + team_id +
   // trial) — sem isso, nenhuma chamada autenticada depois do login
   // (cadastrar funcionário, ver equipe real etc.) tem como saber
@@ -2452,6 +2454,9 @@ function entrarComoDono(token, empresa, trial){
     if(typeof carregarTarefasReais === 'function') carregarTarefasReais();
     if(typeof carregarDashboardReal === 'function') carregarDashboardReal();
   });
+  // O ramo tem que ser aplicado ANTES de carregar a lista de itens:
+  // é ele que decide os rótulos das colunas e se a validade aparece.
+  definirRamo(ramoConfig, empresa && empresa.ramo);
   carregarPontoReal();
   carregarValidadeReal();
   atualizarSaudacao();
@@ -2507,7 +2512,7 @@ function entrarComoOwner(token, email){
  * propriedade da empresa, não da pessoa, e verificarTrial() já trata
  * ausência de trial corretamente (early return).
  */
-function entrarComoFuncionario(token, funcionario, empresa){
+function entrarComoFuncionario(token, funcionario, empresa, ramoConfig){
   sessaoWorka = { token: token, teamId: empresa.team_id, empresaId: empresa.id, funcionarioId: funcionario.id, trial: null, nomeEmpresa: empresa.nome };
   localStorage.setItem('worka_token', token);
 
@@ -2542,6 +2547,7 @@ function entrarComoFuncionario(token, funcionario, empresa){
       nav.appendChild(el);
     }
   });
+  definirRamo(ramoConfig, empresa && empresa.ramo);
   abrirPagina('meu-painel');
   if(typeof iniciarRelogio === 'function') iniciarRelogio();
   atualizarSaudacao();
@@ -2709,7 +2715,7 @@ function fazerLogin() {
       if(res.data.is_owner){
         entrarComoOwner(res.data.token, emailVal);
       } else {
-        entrarComoDono(res.data.token, res.data.empresa, res.data.trial);
+        entrarComoDono(res.data.token, res.data.empresa, res.data.trial, res.data.ramo);
       }
     })
     .catch(function(){
@@ -2744,7 +2750,7 @@ function fazerLogin() {
         if(erroF2){ erroF2.textContent = res.data.error || 'Credenciais inválidas. Tente novamente.'; erroF2.style.display = 'block'; }
         return;
       }
-      entrarComoFuncionario(res.data.token, res.data.funcionario, res.data.empresa);
+      entrarComoFuncionario(res.data.token, res.data.funcionario, res.data.empresa, res.data.ramo);
     })
     .catch(function(){
       alert('Erro de conexão com o servidor. Tente novamente.');
@@ -2890,7 +2896,7 @@ function removerFotoProduto(){
   var botaoRemover = document.getElementById('ap-foto-remover');
   if(botaoRemover) botaoRemover.style.display = 'none';
   var info = document.getElementById('ap-foto-info');
-  if(info) info.textContent = 'Ajuda a reconhecer o produto na prateleira sem ler o rótulo.';
+  if(info) info.textContent = 'Ajuda a reconhecer de relance, sem ler etiqueta.';
 }
 
 /**
@@ -2929,15 +2935,25 @@ function salvarNovoProduto(){
   erroEl.style.display = 'none';
 
   if(!sessaoWorka || !sessaoWorka.token){
-    erroEl.textContent = 'Faça login para cadastrar produtos.';
+    erroEl.textContent = 'Faça login para cadastrar.';
     erroEl.style.display = 'block';
     return;
   }
 
   var nome = document.getElementById('ap-nome').value.trim();
   var dataVenc = document.getElementById('ap-data').value;
-  if(!nome || !dataVenc){
-    erroEl.textContent = 'Informe pelo menos o nome e a data de vencimento.';
+  var itemTxt = (ramoAtual.item && ramoAtual.item.singular) || 'item';
+
+  if(!nome){
+    erroEl.textContent = 'Informe o nome do ' + itemTxt + '.';
+    erroEl.style.display = 'block';
+    return;
+  }
+  // A data só é exigida onde ela existe. Antes era exigida sempre, o
+  // que impedia uma concessionária de cadastrar um carro: a tela pedia
+  // a data de vencimento de um veículo.
+  if(ramoAtual.validade === 'obrigatoria' && !dataVenc){
+    erroEl.textContent = 'Informe a data de vencimento.';
     erroEl.style.display = 'block';
     return;
   }
@@ -2945,7 +2961,10 @@ function salvarNovoProduto(){
   var payload = {
     nome: nome,
     lote: document.getElementById('ap-lote').value.trim(),
-    data_vencimento: dataVenc,
+    // Ramo que não usa validade manda null: o servidor ignora o campo,
+    // mas mandar string vazia viraria "data inválida".
+    data_vencimento: ramoAtual.validade === 'nao_usa' ? null : (dataVenc || null),
+    atributos: lerCamposDoRamo(),
     quantidade: document.getElementById('ap-quantidade').value || 0,
     unidade: document.getElementById('ap-unidade').value,
     dias_aviso: document.getElementById('ap-dias-aviso').value,
@@ -2979,6 +2998,7 @@ function salvarNovoProduto(){
     document.getElementById('ap-lote').value = '';
     document.getElementById('ap-data').value = '';
     document.getElementById('ap-quantidade').value = '';
+    limparCamposDoRamo();
     removerFotoProduto();
     fecharModal('modal-add-produto');
     if(typeof carregarValidadeReal === 'function') carregarValidadeReal();
@@ -3065,7 +3085,7 @@ function renderizarValidade(lista){
       var td0 = document.createElement('td');
       td0.colSpan = 6;
       td0.style.cssText = 'text-align:center;color:var(--gray500);padding:20px';
-      td0.textContent = 'Nenhum produto cadastrado ainda.';
+      td0.textContent = nenhumItem() + ' cadastrado ainda.';
       tr0.appendChild(td0); tbody.appendChild(tr0);
     } else {
       lista.forEach(function(p){
@@ -3075,23 +3095,56 @@ function renderizarValidade(lista){
         var caixa = document.createElement('div');
         caixa.style.cssText = 'display:flex;align-items:center;gap:10px';
         caixa.appendChild(miniatura(p));
-        var nomeEl = document.createElement('span');
+
+        var textos = document.createElement('div');
+        var nomeEl = document.createElement('div');
         nomeEl.textContent = p.nome;
-        caixa.appendChild(nomeEl);
+        textos.appendChild(nomeEl);
+        // Segunda linha com os campos do ramo — "ABC1D23 · 2022 ·
+        // 45.000 km" numa concessionária, "M · Azul · Hering" numa loja
+        // de roupa. É o que identifica o item de relance; sem isso, uma
+        // lista de dez "Camiseta básica" fica indistinguível.
+        var extras = resumoAtributos(p);
+        if(extras){
+          var sub = document.createElement('div');
+          sub.style.cssText = 'font-size:.74rem;color:var(--gray500);margin-top:2px';
+          sub.textContent = extras;
+          textos.appendChild(sub);
+        }
+        caixa.appendChild(textos);
         tdNome.appendChild(caixa);
         tr.appendChild(tdNome);
 
         tr.appendChild(celula(p.lote || '—'));
-        tr.appendChild(celula(new Date(p.data_vencimento+'T00:00:00').toLocaleDateString('pt-BR')));
+
+        var tdVenc = celula(p.data_vencimento
+          ? new Date(p.data_vencimento+'T00:00:00').toLocaleDateString('pt-BR')
+          : '—');
+        tdVenc.className = 'col-validade';
+        tr.appendChild(tdVenc);
+
         tr.appendChild(celula(p.quantidade + ' ' + (p.unidade || 'un')));
-        tr.appendChild(celula((p.dias_aviso || 30) + ' dias antes'));
+
+        var tdAviso = celula((p.dias_aviso || 30) + ' dias antes');
+        tdAviso.className = 'col-validade';
+        tr.appendChild(tdAviso);
 
         var tdStatus = document.createElement('td');
+        tdStatus.className = 'col-validade';
         var badge = document.createElement('span');
         badge.className = 'badge ' + (classePorStatus[p.status] || 'badge-green');
         badge.textContent = rotuloPorStatus[p.status] || 'Normal';
         tdStatus.appendChild(badge);
         tr.appendChild(tdStatus);
+
+        // Ramo sem validade não mostra essas colunas. Aplicado aqui
+        // também porque as linhas são criadas depois de
+        // aplicarRamoNaTela() ter passado pela tabela vazia.
+        if(ramoAtual.validade === 'nao_usa'){
+          tdVenc.style.display = 'none';
+          tdAviso.style.display = 'none';
+          tdStatus.style.display = 'none';
+        }
 
         tbody.appendChild(tr);
       });
@@ -3107,7 +3160,7 @@ function renderizarValidade(lista){
   if(urgentes.length === 0){
     var vazio = document.createElement('div');
     vazio.style.cssText = 'text-align:center;color:var(--gray500);padding:16px;font-size:.85rem';
-    escreverComIcones(vazio, 'Nenhum produto com vencimento urgente. <svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg>');
+    escreverComIcones(vazio, nenhumItem() + ' com vencimento urgente. <svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg>');
     container.appendChild(vazio);
     return;
   }
@@ -3135,7 +3188,9 @@ function renderizarValidade(lista){
     nomeDiv.textContent = p.nome + (p.lote ? ' — Lote ' + p.lote : '');
     var dataDiv = document.createElement('div');
     dataDiv.className = 'validade-data';
-    dataDiv.textContent = 'Vence: ' + d.venc.toLocaleDateString('pt-BR') + ' · Qtd: ' + p.quantidade + ' ' + (p.unidade || 'un');
+    var extrasCard = resumoAtributos(p);
+    dataDiv.textContent = 'Vence: ' + d.venc.toLocaleDateString('pt-BR') + ' · Qtd: ' + p.quantidade + ' ' + (p.unidade || 'un') +
+      (extrasCard ? ' · ' + extrasCard : '');
     info.appendChild(nomeDiv); info.appendChild(dataDiv);
     card.appendChild(info);
 
@@ -3747,7 +3802,7 @@ function abrirPagina(id) {
 
   var labels = {
     'dashboard':'Dashboard','funcionarios':'Funcionários','ponto':'Controle de Ponto',
-    'tarefas':'Tarefas','validade':'Validade de Produtos','cargos':'Cargos e Permissões',
+    'tarefas':'Tarefas','validade':(ramoAtual.item && ramoAtual.item.pagina) || 'Estoque','cargos':'Cargos e Permissões',
     'visual':'Identidade Visual','notificacoes':'Notificações',
     'owner':'Painel Owner Workap','meu-painel':'Meu Painel',
     'salarios':'Salários e Pagamentos','ausencias':'Ausências e Faltas',
@@ -3780,6 +3835,8 @@ function abrirPagina(id) {
   if(id==='metas'      && typeof carregarMetas         === 'function') carregarMetas();
   if(id==='escala'     && typeof carregarEscala      === 'function') carregarEscala();
   if(id==='relatorios' && typeof carregarRelatorios  === 'function') carregarRelatorios();
+  if(id==='cargos' && typeof carregarCargos === 'function') carregarCargos();
+  if(id==='visual' && typeof carregarSeletorRamo === 'function') carregarSeletorRamo();
   if(id==='owner' && typeof carregarPainelOwner === 'function') carregarPainelOwner();
   if(id==='validade' && typeof carregarValidadeReal === 'function') carregarValidadeReal();
   if(id==='dashboard' && typeof carregarDashboardReal === 'function') carregarDashboardReal();
@@ -4313,6 +4370,508 @@ function carregarVisualSalvo(){
 
 
 // ═══════════════════════════════════
+// RAMO DE NEGÓCIO
+// ═══════════════════════════════════
+//
+// O mesmo app atende restaurante, farmácia, loja de roupa e
+// concessionária. O que muda de um para outro é o vocabulário ("peça"
+// vs "veículo" vs "medicamento"), quais campos cada item tem e se a
+// validade existe. Nada disso está escrito aqui: o catálogo mora no
+// backend (RAMOS, em index.js) e chega junto do login — assim um ramo
+// novo entra em um lugar só, e não em três arquivos.
+//
+// Fallback deliberado para "outro": empresa antiga tem ramo em texto
+// livre e o app precisa abrir mesmo assim, com o vocabulário genérico.
+var ramoAtual = {
+  nome: 'Outro tipo de negócio',
+  item: { singular: 'item', plural: 'itens', pagina: 'Estoque', cadastrar: 'Cadastrar item' },
+  validade: 'opcional',
+  categorias: ['Geral', 'Outros'],
+  campos: [],
+  cargos: []
+};
+var ramoSlug = 'outro';
+var ramosCatalogo = [];   // catálogo completo, buscado só quando a tela de configuração precisa
+
+function definirRamo(config, slug){
+  if(config && config.item) ramoAtual = config;
+  if(slug) ramoSlug = slug;
+  aplicarRamoNaTela();
+}
+
+/**
+ * Reescreve os textos que dependem do ramo. Chamada no login e sempre
+ * que o ramo muda.
+ *
+ * Tudo com textContent/createElement: os rótulos vêm do servidor, e
+ * mesmo sendo conteúdo nosso, montar HTML a partir de resposta de rede
+ * é o hábito que abre buraco quando o dado vira editável um dia.
+ */
+function aplicarRamoNaTela(){
+  var item = ramoAtual.item || {};
+
+  // Menu lateral e título da página
+  var navItem = document.querySelector('.nav-item[data-page="validade"] span:last-child');
+  if(navItem) navItem.textContent = item.pagina || 'Estoque';
+  if(document.getElementById('pg-validade') && document.getElementById('pg-validade').classList.contains('active')){
+    escreverTexto('topbar-title', item.pagina || 'Estoque');
+  }
+
+  // Botões de cadastro
+  var btnCadastrar = document.getElementById('btn-cadastrar-item');
+  if(btnCadastrar) btnCadastrar.textContent = '+ ' + (item.cadastrar || 'Cadastrar item');
+  escreverTexto('modal-item-titulo', item.cadastrar || 'Cadastrar item');
+  escreverTexto('ap-btn-salvar', item.cadastrar || 'Cadastrar item');
+  escreverTexto('titulo-lista-itens', todosOs());
+  escreverTexto('label-nome-item', 'Nome ' + (item.genero === 'f' ? 'da ' : 'do ') + (item.singular || 'item'));
+  escreverTexto('col-nome-item', (item.singular || 'item').toUpperCase());
+  escreverTexto('label-foto-item', 'Foto ' + (item.genero === 'f' ? 'da ' : 'do ') + (item.singular || 'item'));
+
+  var campoNome = document.getElementById('ap-nome');
+  if(campoNome) campoNome.placeholder = 'Ex: ' + exemploDoRamo();
+
+  // Categorias do ramo
+  var selCategoria = document.getElementById('ap-categoria');
+  if(selCategoria){
+    var escolhida = selCategoria.value;
+    selCategoria.textContent = '';
+    (ramoAtual.categorias || []).forEach(function(cat){
+      var opt = document.createElement('option');
+      opt.value = cat; opt.textContent = cat;
+      selCategoria.appendChild(opt);
+    });
+    if(escolhida && (ramoAtual.categorias || []).indexOf(escolhida) >= 0) selCategoria.value = escolhida;
+  }
+
+  // Validade: obrigatória, opcional ou inexistente
+  var blocoValidade = document.getElementById('bloco-validade');
+  var blocoAviso    = document.getElementById('bloco-dias-aviso');
+  var mostraValidade = ramoAtual.validade !== 'nao_usa';
+  if(blocoValidade) blocoValidade.style.display = mostraValidade ? '' : 'none';
+  if(blocoAviso)    blocoAviso.style.display    = mostraValidade ? '' : 'none';
+  var rotuloValidade = document.getElementById('label-validade');
+  if(rotuloValidade){
+    rotuloValidade.textContent = ramoAtual.validade === 'obrigatoria'
+      ? 'Data de vencimento'
+      : 'Data de vencimento (opcional)';
+  }
+
+  // Colunas de validade na tabela e o card de alertas só aparecem
+  // para quem tem validade. Numa concessionária, uma coluna
+  // "Vencimento" sempre vazia é ruído puro.
+  document.querySelectorAll('.col-validade').forEach(function(el){
+    el.style.display = mostraValidade ? '' : 'none';
+  });
+  ['card-validade-urgentes', 'card-dashboard-validade', 'stat-card-alertas'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.style.display = mostraValidade ? '' : 'none';
+  });
+
+  montarCamposDoRamo();
+}
+
+// Concordância de gênero. "Todos os veículos" e "Todas as peças" não
+// se escrevem igual, e um app que erra isso na primeira tela passa a
+// impressão de coisa mal-acabada logo de cara.
+function todosOs(){
+  var i = ramoAtual.item || {};
+  return (i.genero === 'f' ? 'Todas as ' : 'Todos os ') + (i.plural || 'itens');
+}
+function nenhumItem(){
+  var i = ramoAtual.item || {};
+  return (i.genero === 'f' ? 'Nenhuma ' : 'Nenhum ') + (i.singular || 'item');
+}
+
+// Exemplo no placeholder do nome, para a pessoa entender o que se
+// espera ali sem ler manual nenhum.
+function exemploDoRamo(){
+  var exemplos = {
+    restaurante: 'Peito de frango congelado',
+    farmacia: 'Dipirona 500mg',
+    loja_roupa: 'Camiseta básica branca',
+    concessionaria: 'Onix 1.0 LT 2022',
+    oficina: 'Pastilha de freio dianteira',
+    mercado: 'Leite integral 1L',
+    padaria: 'Farinha de trigo 5kg',
+    salao: 'Coloração 7.0 louro médio',
+    clinica: 'Luva de procedimento M',
+    petshop: 'Ração adulto 15kg',
+    academia: 'Halter 10kg'
+  };
+  return exemplos[ramoSlug] || 'Nome do item';
+}
+
+/**
+ * Monta os campos extras do ramo no modal de cadastro — placa/ano/km
+ * para concessionária, tamanho/cor para loja de roupa, princípio
+ * ativo/tarja para farmácia.
+ */
+function montarCamposDoRamo(){
+  var caixa = document.getElementById('ap-campos-ramo');
+  if(!caixa) return;
+  caixa.textContent = '';
+
+  (ramoAtual.campos || []).forEach(function(campo){
+    var div = document.createElement('div');
+    div.className = 'field';
+
+    var lab = document.createElement('label');
+    lab.textContent = campo.rotulo;
+    div.appendChild(lab);
+
+    if(campo.tipo === 'opcao'){
+      var sel = document.createElement('select');
+      sel.id = 'ap-ramo-' + campo.chave;
+      sel.dataset.chave = campo.chave;
+      sel.className = 'campo-ramo';
+      var vazio = document.createElement('option');
+      vazio.value = ''; vazio.textContent = '—';
+      sel.appendChild(vazio);
+      (campo.opcoes || []).forEach(function(op){
+        var o = document.createElement('option');
+        o.value = op; o.textContent = op;
+        sel.appendChild(o);
+      });
+      div.appendChild(sel);
+    } else {
+      var inp = document.createElement('input');
+      inp.id = 'ap-ramo-' + campo.chave;
+      inp.dataset.chave = campo.chave;
+      inp.className = 'campo-ramo';
+      inp.maxLength = 80;
+      div.appendChild(inp);
+    }
+    caixa.appendChild(div);
+  });
+}
+
+// Lê os campos extras preenchidos. Campo vazio não vai no payload —
+// gravar string vazia encheria o jsonb de chaves sem valor.
+function lerCamposDoRamo(){
+  var out = {};
+  document.querySelectorAll('#ap-campos-ramo .campo-ramo').forEach(function(el){
+    var v = (el.value || '').trim();
+    if(v) out[el.dataset.chave] = v;
+  });
+  return out;
+}
+
+function limparCamposDoRamo(){
+  document.querySelectorAll('#ap-campos-ramo .campo-ramo').forEach(function(el){ el.value = ''; });
+}
+
+// Resumo dos atributos para a lista: "Placa ABC1D23 · 2022 · 45.000 km"
+function resumoAtributos(p){
+  if(!p || !p.atributos) return '';
+  var partes = [];
+  (ramoAtual.campos || []).forEach(function(campo){
+    var v = p.atributos[campo.chave];
+    if(v) partes.push(v);
+  });
+  return partes.join(' · ');
+}
+
+/**
+ * Preenche o seletor de tipo de negócio com o catálogo do servidor.
+ * Busca só quando a tela de configuração abre — a lista completa não
+ * interessa a quem nunca vai lá.
+ */
+function carregarSeletorRamo(){
+  var sel = document.getElementById('sel-ramo');
+  if(!sel) return;
+
+  function preencher(){
+    sel.textContent = '';
+    ramosCatalogo.forEach(function(r){
+      var o = document.createElement('option');
+      o.value = r.slug; o.textContent = r.nome;
+      sel.appendChild(o);
+    });
+    sel.value = ramoSlug;
+    escreverTexto('ramo-atual-badge', ramoAtual.nome || '—');
+    mostrarPreviaRamo();
+  }
+
+  if(ramosCatalogo.length){ preencher(); return; }
+
+  fetch(API_BASE + '/ramos')
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if(d && Array.isArray(d.ramos)) ramosCatalogo = d.ramos;
+      preencher();
+    })
+    .catch(function(){
+      escreverTexto('ramo-previa', 'Não foi possível carregar a lista de segmentos agora.');
+    });
+}
+
+// Mostra o que vai mudar ANTES de salvar. Trocar de ramo renomeia
+// telas inteiras; ver a consequência antes evita a troca por engano.
+function mostrarPreviaRamo(){
+  var sel = document.getElementById('sel-ramo');
+  var caixa = document.getElementById('ramo-previa');
+  if(!sel || !caixa) return;
+  var escolhido = ramosCatalogo.filter(function(r){ return r.slug === sel.value; })[0];
+  if(!escolhido){ caixa.textContent = ''; return; }
+
+  var validadeTxt = escolhido.validade === 'obrigatoria' ? 'com controle de validade'
+                  : escolhido.validade === 'opcional'    ? 'com validade opcional'
+                  : 'sem controle de validade';
+  var campos = (escolhido.campos || []).map(function(c){ return c.rotulo; }).join(', ');
+
+  caixa.textContent = 'A tela de estoque vira "' + escolhido.item.pagina + '", ' + validadeTxt + '.' +
+    (campos ? ' Cada ' + escolhido.item.singular + ' ganha: ' + campos + '.' : '');
+}
+
+function salvarRamo(){
+  var sel = document.getElementById('sel-ramo');
+  if(!sel || !sel.value) return;
+
+  var btn = document.getElementById('btn-salvar-ramo');
+  var textoOriginal = btn.textContent;
+  btn.textContent = 'Salvando...';
+  btn.disabled = true;
+
+  fetch(API_BASE + '/empresa/ramo', {
+    method: 'PUT',
+    headers: Object.assign({ 'Content-Type': 'application/json' }, cabecalhoAuth()),
+    body: JSON.stringify({ ramo: sel.value })
+  })
+  .then(function(r){ return r.json().then(function(d){ return { status: r.status, data: d }; }); })
+  .then(function(res){
+    btn.textContent = textoOriginal;
+    btn.disabled = false;
+    if(res.status !== 200){
+      alert(res.data.error || 'Não foi possível salvar o tipo de negócio.');
+      return;
+    }
+    definirRamo(res.data.config, res.data.ramo);
+    escreverTexto('ramo-atual-badge', ramoAtual.nome || '—');
+    // Recarrega o estoque: as colunas e o vocabulário mudaram, e a
+    // lista em tela ainda está com os rótulos do ramo anterior.
+    if(typeof carregarValidadeReal === 'function') carregarValidadeReal();
+    if(typeof carregarCargos === 'function') carregarCargos();
+    alert('Pronto. O app agora está configurado para: ' + (ramoAtual.nome || sel.value));
+  })
+  .catch(function(){
+    btn.textContent = textoOriginal;
+    btn.disabled = false;
+    alert('Erro de conexão. Tente novamente.');
+  });
+}
+
+// ═══════════════════════════════════
+// CARGOS E PERMISSÕES
+// ═══════════════════════════════════
+//
+// As permissões abaixo são exatamente as que o backend aceita
+// (PERMISSOES_CARGO em index.js). Qualquer outra chave é ignorada lá,
+// então mostrar aqui um interruptor que o servidor não conhece só
+// criaria a impressão de um controle que não existe.
+var PERMISSOES_CARGO = [
+  { chave: 'ver_faturamento',      rotulo: 'Ver faturamento e dados financeiros' },
+  { chave: 'aprovar_funcionarios', rotulo: 'Aprovar ou recusar novos funcionários' },
+  { chave: 'criar_tarefas',        rotulo: 'Criar, agendar e delegar tarefas' },
+  { chave: 'gerenciar_ponto',      rotulo: 'Gerenciar e justificar pontos' },
+  { chave: 'gerenciar_validade',   rotulo: 'Gerenciar o estoque' },
+  { chave: 'ver_relatorios',       rotulo: 'Ver relatórios e histórico' },
+  { chave: 'gerenciar_salarios',   rotulo: 'Ver e definir salários' },
+  { chave: 'editar_visual',        rotulo: 'Editar a identidade visual do app' },
+  { chave: 'acessar_api',          rotulo: 'Acessar a API / integrações' }
+];
+
+function carregarCargos(){
+  var lista = document.getElementById('lista-cargos');
+  if(!lista || !sessaoWorka || !sessaoWorka.token) return;
+
+  fetch(API_BASE + '/cargos', { headers: cabecalhoAuth() })
+  .then(function(r){ return r.ok ? r.json() : []; })
+  .then(function(d){
+    // A rota responde array quando já existem cargos e um objeto com
+    // sugestões quando não existe nenhum — os dois formatos tratados
+    // aqui para o app não quebrar em nenhum dos casos.
+    var cargos    = Array.isArray(d) ? d : (d.cargos || []);
+    var sugestoes = Array.isArray(d) ? []  : (d.sugestoes || []);
+
+    escreverTexto('cargos-subtitulo',
+      cargos.length === 0 ? 'Nenhum cargo criado ainda'
+      : cargos.length === 1 ? '1 cargo criado'
+      : cargos.length + ' cargos criados');
+
+    var caixaSug = document.getElementById('card-cargos-sugestoes');
+    var alvoSug  = document.getElementById('cargos-sugestoes');
+    if(caixaSug && alvoSug){
+      caixaSug.style.display = sugestoes.length ? '' : 'none';
+      alvoSug.textContent = '';
+      sugestoes.forEach(function(nome){
+        var b = document.createElement('button');
+        b.className = 'btn btn-sm btn-secondary';
+        b.textContent = '+ ' + nome;
+        b.onclick = function(){ abrirModalCargo(nome); };
+        alvoSug.appendChild(b);
+      });
+    }
+
+    lista.textContent = '';
+    if(cargos.length === 0){
+      var vazio = document.createElement('div');
+      vazio.className = 'card';
+      var corpo = document.createElement('div');
+      corpo.className = 'card-body empty-state';
+      var t = document.createElement('div');
+      t.style.cssText = 'font-weight:700;color:var(--gray700);margin-bottom:6px';
+      t.textContent = 'Nenhum cargo ainda';
+      var p2 = document.createElement('p');
+      p2.textContent = 'Cargos definem o que cada pessoa da equipe pode ver e fazer. Comece pelas sugestões acima.';
+      corpo.appendChild(t); corpo.appendChild(p2);
+      vazio.appendChild(corpo); lista.appendChild(vazio);
+      return;
+    }
+
+    cargos.forEach(function(c){
+      var card = document.createElement('div');
+      card.className = 'card';
+      card.style.marginBottom = '14px';
+
+      var cab = document.createElement('div');
+      cab.className = 'card-header';
+      var titulo = document.createElement('div');
+      titulo.className = 'card-title';
+      titulo.textContent = c.nome;              // digitado pelo dono: texto puro
+      var badge = document.createElement('span');
+      badge.className = 'badge badge-blue';
+      badge.textContent = 'Nível ' + (c.nivel || 1);
+      cab.appendChild(titulo); cab.appendChild(badge);
+      card.appendChild(cab);
+
+      var corpo = document.createElement('div');
+      corpo.className = 'card-body';
+
+      var ativas = PERMISSOES_CARGO.filter(function(p){ return c[p.chave] === true; });
+      if(ativas.length === 0){
+        var nenhuma = document.createElement('p');
+        nenhuma.style.cssText = 'font-size:.82rem;color:var(--gray500);margin:0';
+        nenhuma.textContent = 'Sem permissões extras — acessa só o próprio ponto e as próprias tarefas.';
+        corpo.appendChild(nenhuma);
+      } else {
+        ativas.forEach(function(p){
+          var linha = document.createElement('div');
+          linha.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--gray700);padding:4px 0';
+          escreverComIcones(linha, '<svg class=ico aria-hidden=true><use href=#i-check></use></svg>');
+          var txt = document.createElement('span');
+          txt.textContent = p.rotulo;
+          linha.appendChild(txt);
+          corpo.appendChild(linha);
+        });
+      }
+
+      var apagar = document.createElement('button');
+      apagar.className = 'btn btn-sm btn-secondary';
+      apagar.style.marginTop = '12px';
+      apagar.textContent = 'Excluir cargo';
+      apagar.onclick = function(){ excluirCargo(c.id, c.nome); };
+      corpo.appendChild(apagar);
+
+      card.appendChild(corpo);
+      lista.appendChild(card);
+    });
+  })
+  .catch(function(){
+    lista.textContent = '';
+    var erro = document.createElement('div');
+    erro.className = 'card';
+    var corpo = document.createElement('div');
+    corpo.className = 'card-body empty-state';
+    corpo.textContent = 'Não foi possível carregar os cargos agora.';
+    erro.appendChild(corpo); lista.appendChild(erro);
+  });
+}
+
+function abrirModalCargo(nomeSugerido){
+  var campo = document.getElementById('cargo-nome');
+  if(campo) campo.value = nomeSugerido || '';
+  var erro = document.getElementById('cargo-erro');
+  if(erro) erro.style.display = 'none';
+
+  var caixa = document.getElementById('cargo-permissoes');
+  if(caixa){
+    caixa.textContent = '';
+    PERMISSOES_CARGO.forEach(function(p){
+      var linha = document.createElement('div');
+      linha.className = 'perm-row';
+      var lab = document.createElement('span');
+      lab.className = 'perm-label';
+      lab.textContent = p.rotulo;
+      var sw = document.createElement('button');
+      sw.className = 'toggle-sw off';
+      sw.dataset.chave = p.chave;
+      sw.onclick = function(){ togglePerm(sw); };
+      var dot = document.createElement('div');
+      dot.className = 'toggle-dot';
+      sw.appendChild(dot);
+      linha.appendChild(lab); linha.appendChild(sw);
+      caixa.appendChild(linha);
+    });
+  }
+  abrirModal('modal-add-cargo');
+}
+
+function salvarCargo(){
+  var erro = document.getElementById('cargo-erro');
+  erro.style.display = 'none';
+
+  var nome = (document.getElementById('cargo-nome').value || '').trim();
+  if(!nome){
+    erro.textContent = 'Dê um nome ao cargo.';
+    erro.style.display = 'block';
+    return;
+  }
+
+  var payload = { nome: nome, nivel: 1 };
+  document.querySelectorAll('#cargo-permissoes .toggle-sw').forEach(function(sw){
+    payload[sw.dataset.chave] = sw.classList.contains('on');
+  });
+
+  var btn = document.getElementById('btn-salvar-cargo');
+  var textoOriginal = btn.textContent;
+  btn.textContent = 'Criando...';
+  btn.disabled = true;
+
+  fetch(API_BASE + '/cargos', {
+    method: 'POST',
+    headers: Object.assign({ 'Content-Type': 'application/json' }, cabecalhoAuth()),
+    body: JSON.stringify(payload)
+  })
+  .then(function(r){ return r.json().then(function(d){ return { status: r.status, data: d }; }); })
+  .then(function(res){
+    btn.textContent = textoOriginal;
+    btn.disabled = false;
+    if(res.status !== 201 && res.status !== 200){
+      erro.textContent = res.data.error || 'Não foi possível criar o cargo.';
+      erro.style.display = 'block';
+      return;
+    }
+    fecharModal('modal-add-cargo');
+    carregarCargos();
+  })
+  .catch(function(){
+    btn.textContent = textoOriginal;
+    btn.disabled = false;
+    erro.textContent = 'Erro de conexão. Tente novamente.';
+    erro.style.display = 'block';
+  });
+}
+
+function excluirCargo(id, nome){
+  if(!confirm('Excluir o cargo "' + nome + '"? Quem estiver nele fica sem cargo definido.')) return;
+  fetch(API_BASE + '/cargos/' + encodeURIComponent(id), {
+    method: 'DELETE', headers: cabecalhoAuth()
+  })
+  .then(function(){ carregarCargos(); })
+  .catch(function(){ alert('Não foi possível excluir agora.'); });
+}
+
+// ═══════════════════════════════════
 // SAUDAÇÃO DINÂMICA
 // ═══════════════════════════════════
 
@@ -4760,7 +5319,7 @@ async function entrarComFaceId(){
     document.getElementById('card-dispositivo').style.display = 'none';
     document.getElementById('card-login').style.display = 'block';
     if(resp.data.is_owner) entrarComoOwner(resp.data.token, resp.data.owner.email);
-    else entrarComoDono(resp.data.token, resp.data.empresa, resp.data.trial);
+    else entrarComoDono(resp.data.token, resp.data.empresa, resp.data.trial, resp.data.ramo);
 
   } catch(e) {
     if(btn){ btn.disabled = false; btn.innerHTML = textoBtn; }
@@ -4874,7 +5433,7 @@ function confirmarDispositivo(){
     if(res.data.is_owner){
       entrarComoOwner(res.data.token, emailOk);
     } else {
-      entrarComoDono(res.data.token, res.data.empresa, res.data.trial);
+      entrarComoDono(res.data.token, res.data.empresa, res.data.trial, res.data.ramo);
     }
   })
   .catch(function(){
@@ -4984,7 +5543,7 @@ function redefinirSenha(){
     // Backend já devolve o token — entra direto, sem pedir a senha
     // que a pessoa acabou de criar.
     voltarParaLogin();
-    entrarComoDono(res.data.token, res.data.empresa, res.data.trial);
+    entrarComoDono(res.data.token, res.data.empresa, res.data.trial, res.data.ramo);
   })
   .catch(function(){
     btn.disabled = false; btn.textContent = txt;
@@ -7823,7 +8382,7 @@ window.addEventListener('DOMContentLoaded', function(){
         localStorage.removeItem('worka_token');
         return;
       }
-      entrarComoDono(tokenSalvo, data.empresa, data.trial);
+      entrarComoDono(tokenSalvo, data.empresa, data.trial, data.ramo);
     })
     .catch(function(){
       // Falha de rede ao restaurar sessão — deixa a tela de login

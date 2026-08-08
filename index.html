@@ -1004,6 +1004,19 @@
           <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">WhatsApp / Telefone *</label>
           <input id="f-tel" type="tel" placeholder="(11) 98765-4321" maxlength="15" style="width:100%;padding:12px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'" oninput="mascaraTel(this)">
         </div>
+
+        <!-- Segmento. A seção "Como funciona" promete isto desde
+             sempre ("você escolhe o segmento do seu negócio"), mas o
+             formulário nunca coletou e o app nunca leu: toda conta
+             nascia sem ramo e via o vocabulário de mercearia. As
+             opções vêm de GET /ramos — a lista mora no backend. -->
+        <div style="grid-column:1/-1">
+          <label style="font-size:0.78rem;font-weight:600;color:#3a3d39;display:block;margin-bottom:5px;">Tipo de negócio *</label>
+          <select id="f-ramo" style="width:100%;padding:12px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;background:white;" onfocus="this.style.borderColor='#1e8a40'" onblur="this.style.borderColor='#eff0ef'">
+            <option value="">Carregando segmentos...</option>
+          </select>
+          <div id="f-ramo-dica" style="font-size:0.75rem;color:#6b7068;margin-top:6px;"></div>
+        </div>
       </div>
 
       <!-- Erro -->
@@ -1286,6 +1299,10 @@ function escreverComIcones(el, conteudo){
 function abrirCheckout() {
   document.getElementById('checkout-overlay').style.display = 'block';
   document.body.style.overflow = 'hidden';
+  carregarRamosNoCadastro();
+  // Quem passou pelo funil já escolheu: o campo vem preenchido.
+  var sel = document.getElementById('f-ramo');
+  if (sel && segmentoDoFunil) { sel.value = segmentoDoFunil; mostrarDicaDoRamo(); }
 }
 function fecharCheckout() {
   document.getElementById('checkout-overlay').style.display = 'none';
@@ -1712,6 +1729,58 @@ function escolherAssinarAgora(){
   });
 }
 
+// ═══════════════════════════════════
+// SEGMENTO DO NEGÓCIO
+// ═══════════════════════════════════
+// A lista vem do backend (GET /ramos) em vez de ficar escrita aqui:
+// é a mesma que o app usa para decidir vocabulário e campos, e manter
+// duas cópias garante que uma envelheça.
+var ramosDisponiveis = [];
+
+function ramoEscolhidoNoCadastro() {
+  var sel = document.getElementById('f-ramo');
+  return (sel && sel.value) || 'outro';
+}
+
+function carregarRamosNoCadastro() {
+  var sel = document.getElementById('f-ramo');
+  if (!sel || ramosDisponiveis.length) return;
+
+  fetch(API_BASE + '/ramos')
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      if (!d || !Array.isArray(d.ramos)) throw new Error('sem lista');
+      ramosDisponiveis = d.ramos;
+      sel.textContent = '';
+      var vazio = document.createElement('option');
+      vazio.value = ''; vazio.textContent = 'Selecione o seu segmento';
+      sel.appendChild(vazio);
+      ramosDisponiveis.forEach(function (r) {
+        var o = document.createElement('option');
+        o.value = r.slug; o.textContent = r.nome;
+        sel.appendChild(o);
+      });
+      sel.onchange = mostrarDicaDoRamo;
+    })
+    .catch(function () {
+      // Sem a lista, o cadastro NÃO trava: o campo some e a conta
+      // nasce como "outro", que mostra o app genérico. Perder uma
+      // venda porque um <select> não carregou seria bem pior.
+      var caixa = sel.parentElement;
+      if (caixa) caixa.style.display = 'none';
+    });
+}
+
+function mostrarDicaDoRamo() {
+  var sel = document.getElementById('f-ramo');
+  var dica = document.getElementById('f-ramo-dica');
+  if (!sel || !dica) return;
+  var r = ramosDisponiveis.filter(function (x) { return x.slug === sel.value; })[0];
+  if (!r) { dica.textContent = ''; return; }
+  dica.textContent = 'O app vai falar a sua língua: a tela de estoque vira "' + r.item.pagina +
+    '" e cada ' + r.item.singular + ' tem os campos do seu segmento.';
+}
+
 async function ativarTrialGratis() {
   intencaoAssinarDireto = false;
   var nome = ((document.getElementById('f-nome') || {}).value || '').trim();
@@ -1772,7 +1841,7 @@ async function confirmarTrialCodigo() {
     var r = await fetch(API_BASE + '/verificar-codigo', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, codigo, nome, senha })
+      body: JSON.stringify({ email, codigo, nome, senha, ramo: ramoEscolhidoNoCadastro() })
     });
     var data = await r.json();
 
@@ -2175,14 +2244,12 @@ document.getElementById('acesso-overlay').addEventListener('click',function(e){i
       <div style="font-size:2rem;margin-bottom:12px;"><svg class=ico aria-hidden=true><use href=#i-hand></use></svg></div>
       <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:12px;">Qual é o seu tipo de negócio?</h2>
       <p style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-bottom:28px;">Vamos personalizar a experiência do Workap para o seu segmento.</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div class="seg-card" onclick="escolherSegmento('Alimentação')"><svg class=ico aria-hidden=true><use href=#i-utensils></use></svg> Alimentação</div>
-        <div class="seg-card" onclick="escolherSegmento('Estética')"><svg class=ico aria-hidden=true><use href=#i-scissors></use></svg> Estética</div>
-        <div class="seg-card" onclick="escolherSegmento('Varejo')"><svg class=ico aria-hidden=true><use href=#i-bag></use></svg> Varejo</div>
-        <div class="seg-card" onclick="escolherSegmento('Oficina')"><svg class=ico aria-hidden=true><use href=#i-wrench></use></svg> Oficina</div>
-        <div class="seg-card" onclick="escolherSegmento('Clínica')"><svg class=ico aria-hidden=true><use href=#i-hospital></use></svg> Clínica</div>
-        <div class="seg-card" onclick="escolherSegmento('Outro')"><svg class=ico aria-hidden=true><use href=#i-building></use></svg> Outro</div>
-      </div>
+      <!-- Os cartões vêm de GET /ramos. Antes eram seis rótulos fixos
+           ("Alimentação", "Varejo"...) que só trocavam uma palavra na
+           frase do passo seguinte e não configuravam nada. Agora a
+           escolha aqui é a mesma que o app usa, e concessionária e
+           farmácia — que não existiam nesta lista — aparecem. -->
+      <div id="funil-segmentos" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;"></div>
     </div>
 
     <div id="funil-2" class="funil-step" style="display:none;">
@@ -2283,9 +2350,60 @@ document.getElementById('acesso-overlay').addEventListener('click',function(e){i
 <script>
 var passoAtual=1;
 var totalPassos=6;
-function abrirFunil(){document.getElementById("funil-overlay").style.display="block";document.body.style.overflow="hidden";irParaPasso(1);}
+function abrirFunil(){document.getElementById("funil-overlay").style.display="block";document.body.style.overflow="hidden";montarSegmentosDoFunil();carregarRamosNoCadastro();irParaPasso(1);}
 function fecharFunil(){document.getElementById("funil-overlay").style.display="none";document.body.style.overflow="";}
-function escolherSegmento(seg){document.getElementById("seg-nome").textContent=seg;irParaPasso(2);}
+// Guarda a escolha do funil para o formulário de cadastro já vir
+// preenchido — quem escolheu "Concessionária" no primeiro passo não
+// deve ter que escolher de novo três telas depois.
+var segmentoDoFunil = '';
+
+function escolherSegmento(slug, nome){
+  segmentoDoFunil = slug || '';
+  var el = document.getElementById("seg-nome");
+  if(el) el.textContent = nome || 'pequenos negócios';
+  var sel = document.getElementById('f-ramo');
+  if(sel && slug) sel.value = slug;
+  irParaPasso(2);
+}
+
+/**
+ * Monta os cartões de segmento do funil a partir do catálogo.
+ * Se a rede falhar, mostra um único cartão "Continuar" em vez de uma
+ * tela vazia: o funil não pode ficar intransponível porque uma lista
+ * de segmentos não carregou.
+ */
+function montarSegmentosDoFunil(){
+  var grade = document.getElementById('funil-segmentos');
+  if(!grade || grade.dataset.pronto === '1') return;
+
+  fetch(API_BASE + '/ramos')
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if(!d || !Array.isArray(d.ramos)) throw new Error('sem lista');
+      ramosDisponiveis = d.ramos;
+      grade.textContent = '';
+      d.ramos.forEach(function(r){
+        var card = document.createElement('div');
+        card.className = 'seg-card';
+        escreverComIcones(card, '<svg class=ico aria-hidden=true><use href=#' + r.icone + '></use></svg> ');
+        var txt = document.createElement('span');
+        txt.textContent = r.nome;
+        card.appendChild(txt);
+        card.onclick = function(){ escolherSegmento(r.slug, r.nome); };
+        grade.appendChild(card);
+      });
+      grade.dataset.pronto = '1';
+    })
+    .catch(function(){
+      grade.textContent = '';
+      var card = document.createElement('div');
+      card.className = 'seg-card';
+      card.style.gridColumn = '1/-1';
+      card.textContent = 'Continuar';
+      card.onclick = function(){ escolherSegmento('outro', 'pequenos negócios'); };
+      grade.appendChild(card);
+    });
+}
 function irParaPasso(n){
   document.querySelectorAll(".funil-step").forEach(function(el){el.style.display="none";});
   var el=document.getElementById("funil-"+n);
