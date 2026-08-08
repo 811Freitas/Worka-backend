@@ -2,7 +2,7 @@
   "name": "Workap — Gestão de Equipe",
   "short_name": "Workap",
   "description": "Sistema de gestão de equipe para micro e pequenas empresas",
-  "start_url": "worka-app.html",
+  "start_url": "app/",
   "display": "standalone",
   "background_color": "#0a2e1a",
   "theme_color": "#0a2e1a",
@@ -33,13 +33,13 @@
     {
       "name": "Bater Ponto",
       "short_name": "Ponto",
-      "url": "worka-app.html#ponto",
+      "url": "app/#ponto",
       "description": "Registrar entrada ou saída"
     },
     {
       "name": "Minhas Tarefas",
       "short_name": "Tarefas",
-      "url": "worka-app.html#tarefas",
+      "url": "app/#tarefas",
       "description": "Ver tarefas do dia"
     }
   ],

@@ -8,13 +8,14 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="Workap"/>
 <meta name="mobile-web-app-capable" content="yes"/>
-<link rel="manifest" href="manifest.json"/>
+<link rel="manifest" href="../manifest.json"/>
 <!-- Apontavam para icon-192.png e icon-512.png na raiz, arquivos que
      nunca existiram: o iPhone caía no ícone genérico (print da tela)
      ao adicionar o app à tela inicial, e as duas requisições davam 404. -->
-<link rel="apple-touch-icon" href="assets/apple-touch-icon.png"/>
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png"/>
-<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png"/>
+<link rel="icon" type="image/svg+xml" href="../assets/simbolo.svg"/>
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png"/>
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png"/>
+<link rel="icon" type="image/png" sizes="16x16" href="../assets/favicon-16.png"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Workap — Sistema de Gestão</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
@@ -92,7 +93,10 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{box-shadow:var(-
 /* Só o símbolo: a arte original tem a palavra "WORKA" desenhada
    dentro e mostraria o nome antigo. O nome vem logo abaixo, como
    texto — assim uma troca de marca não exige refazer imagem. */
-.login-logo-img{display:block;width:76px;height:76px;margin:0 auto 8px;border-radius:17px}
+/* O símbolo é ~2,4x mais largo que alto. Era 76x76 com border-radius,
+   medidas do logo antigo (quadrado arredondado); no símbolo novo isso
+   achatava a marca e arredondava um fundo que não existe mais. */
+.login-logo-img{display:block;width:120px;height:50px;margin:0 auto 10px}
 .login-logo-txt{font-family:var(--display);font-size:1.7rem;font-weight:800;color:var(--g600);text-align:center;margin-bottom:6px;letter-spacing:-.5px}
 .login-logo-txt span{color:var(--g400)}
 .login-sub{text-align:center;font-size:0.86rem;color:var(--gray500);margin-bottom:30px}
@@ -146,6 +150,43 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{box-shadow:var(-
 .notif-badge{position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 3px;background:var(--red);border-radius:50%;font-size:0.6rem;font-weight:700;color:white;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px white}
 .page{display:none;padding:26px;flex:1}
 .page.active{display:block;animation:fadeInUp var(--dur-slow) var(--ease-out) both}
+
+/* ── SAUDAÇÃO DO DASHBOARD ──
+   O primeiro bloco do dashboard: cumprimenta pelo nome, diz de qual
+   equipe a pessoa está cuidando e resume o dia numa frase. Antes o
+   dashboard abria direto nos quatro números, sem dizer de quem eram —
+   quem administra mais de uma empresa não tinha como saber em qual
+   tinha entrado sem olhar a barra lateral. */
+.hero{position:relative;overflow:hidden;background:linear-gradient(140deg,var(--g900) 0%,var(--g700) 60%,var(--g600) 100%);border-radius:var(--rxl);padding:26px 28px;color:#fff;margin-bottom:24px;box-shadow:var(--shadow-lg)}
+/* Marca-d'água com o símbolo da marca. aria-hidden no HTML: é
+   decoração, e leitor de tela anunciando "Workap" aqui só atrapalha. */
+.hero::after{content:'';position:absolute;right:-28px;top:50%;transform:translateY(-50%);width:230px;height:96px;background:url('../assets/simbolo.svg') no-repeat center/contain;opacity:.10;pointer-events:none}
+.hero-ola{font-family:var(--display);font-size:1.5rem;font-weight:800;letter-spacing:-.4px;line-height:1.2}
+.hero-equipe{font-size:.92rem;font-weight:600;color:rgba(255,255,255,.88);margin-top:6px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.hero-data{font-size:.78rem;color:rgba(255,255,255,.6);margin-top:3px}
+.hero-resumo{font-size:.84rem;color:rgba(255,255,255,.78);margin-top:14px;line-height:1.55;max-width:44ch}
+.hero-atalhos{display:flex;gap:9px;flex-wrap:wrap;margin-top:18px;position:relative;z-index:1}
+.hero-atalho{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.2);color:#fff;font-family:inherit;font-size:.81rem;font-weight:600;padding:9px 14px;border-radius:999px;cursor:pointer;transition:background var(--dur) var(--ease-out),transform var(--dur) var(--ease-out)}
+.hero-atalho:hover{background:rgba(255,255,255,.24);transform:translateY(-1px)}
+.hero-atalho .ico{width:15px;height:15px}
+@media(max-width:640px){
+  .hero{padding:22px 20px}
+  .hero-ola{font-size:1.25rem}
+  /* A marca-d'água some no celular: com a tela estreita ela ficava
+     atrás do texto e prejudicava a leitura. */
+  .hero::after{display:none}
+  .hero-resumo{max-width:none}
+}
+
+/* ── FOTO DO PRODUTO ── */
+.foto-produto-campo{display:flex;gap:14px;align-items:flex-start}
+.foto-produto-preview{width:78px;height:78px;flex-shrink:0;border-radius:var(--r);background:var(--gray50);border:1px dashed var(--gray300);display:flex;align-items:center;justify-content:center;color:var(--gray400);overflow:hidden}
+.foto-produto-preview img{width:100%;height:100%;object-fit:cover;display:block}
+.foto-produto-preview.tem-foto{border-style:solid;border-color:var(--g400)}
+/* Miniatura na lista e nos cards de alerta. Tamanho fixo para as
+   linhas da tabela não dançarem conforme a proporção de cada foto. */
+.produto-thumb{width:38px;height:38px;border-radius:9px;object-fit:cover;flex-shrink:0;background:var(--gray100);cursor:pointer}
+.validade-icon img.produto-thumb{width:100%;height:100%;border-radius:12px}
 
 /* ── CARDS ── */
 .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px;margin-bottom:24px}
@@ -457,7 +498,7 @@ tr:hover td{background:var(--g50)}
 ═══════════════════════════════════════════ -->
 <div id="tela-login">
   <div class="login-card" id="card-login">
-    <img class="login-logo-img" src="assets/logo-marca-192.png" alt="" width="76" height="76" />
+    <img class="login-logo-img" src="../assets/simbolo.svg" alt="" width="120" height="50" />
     <div class="login-logo-txt">Worka<span>p</span></div>
     <div class="login-sub">Gestão de equipe simplificada</div>
 
@@ -495,7 +536,7 @@ tr:hover td{background:var(--g50)}
 
   <!-- ── RECUPERAÇÃO DE SENHA ── -->
   <div class="login-card" id="card-recuperar" style="display:none">
-    <img class="login-logo-img" src="assets/logo-marca-192.png" alt="" width="76" height="76" />
+    <img class="login-logo-img" src="../assets/simbolo.svg" alt="" width="120" height="50" />
     <div class="login-logo-txt">Worka<span>p</span></div>
     <div class="login-sub" id="rec-subtitulo">Vamos redefinir sua senha</div>
 
@@ -525,7 +566,7 @@ tr:hover td{background:var(--g50)}
 
   <!-- ── CONFIRMAÇÃO DE APARELHO NOVO ── -->
   <div class="login-card" id="card-dispositivo" style="display:none">
-    <img class="login-logo-img" src="assets/logo-marca-192.png" alt="" width="76" height="76" />
+    <img class="login-logo-img" src="../assets/simbolo.svg" alt="" width="120" height="50" />
     <div class="login-logo-txt">Worka<span>p</span></div>
     <div class="login-sub">Confirme este aparelho</div>
 
@@ -615,6 +656,19 @@ tr:hover td{background:var(--g50)}
 
     <!-- DASHBOARD DONO -->
     <div class="page active" id="pg-dashboard">
+      <div class="hero">
+        <div class="hero-ola" id="hero-saudacao">Olá!</div>
+        <div class="hero-equipe"><svg class=ico aria-hidden=true><use href=#i-users></use></svg> <span id="hero-equipe">—</span></div>
+        <div class="hero-data" id="hero-data"></div>
+        <div class="hero-resumo" id="hero-resumo">Carregando o resumo do dia…</div>
+        <div class="hero-atalhos">
+          <button class="hero-atalho" onclick="abrirPagina('ponto')"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg> Bater ponto</button>
+          <button class="hero-atalho" onclick="abrirModal('modal-add-tarefa')"><svg class=ico aria-hidden=true><use href=#i-tasks></use></svg> Nova tarefa</button>
+          <button class="hero-atalho" onclick="abrirModal('modal-add-produto')"><svg class=ico aria-hidden=true><use href=#i-package></use></svg> Cadastrar produto</button>
+          <button class="hero-atalho" onclick="abrirPagina('mural')"><svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg> Avisar a equipe</button>
+        </div>
+      </div>
+
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-users></use></svg></div>
@@ -1819,8 +1873,12 @@ tr:hover td{background:var(--g50)}
     <!-- PAINEL FUNCIONÁRIO -->
     <div class="page" id="pg-meu-painel">
       <div class="ponto-card">
-        <div style="font-size:.85rem;color:rgba(255,255,255,.6)" id="saudacao-func">Bom dia!</div>
-        <div style="font-size:1rem;color:rgba(255,255,255,.8);margin:4px 0" id="func-data"></div>
+        <div style="font-family:var(--display);font-size:1.3rem;font-weight:800;letter-spacing:-.3px" id="saudacao-func">Olá!</div>
+        <!-- Nome da equipe: o funcionário que trabalha em mais de um
+             lugar precisa ver em qual empresa está batendo o ponto
+             antes de bater, não depois. -->
+        <div style="font-size:.86rem;color:rgba(255,255,255,.75);margin-top:5px;display:flex;align-items:center;justify-content:center;gap:6px"><svg class=ico aria-hidden=true><use href=#i-users></use></svg> <span id="func-equipe">—</span></div>
+        <div style="font-size:.82rem;color:rgba(255,255,255,.6);margin:6px 0 0" id="func-data"></div>
         <div class="ponto-time" id="func-relogio">00:00:00</div>
         <div class="ponto-btns">
           <button class="ponto-btn ponto-btn-entrada" onclick="baterPonto('entrada')"><svg class=ico aria-hidden=true><use href=#i-play></use></svg> Entrada</button>
@@ -1845,17 +1903,12 @@ tr:hover td{background:var(--g50)}
 
       <div class="card">
         <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg> Comunicados da empresa</div></div>
-        <div class="card-body">
-          <div style="padding:12px;background:var(--g50);border-radius:var(--r);border-left:3px solid var(--g400);margin-bottom:10px">
-            <div style="font-size:.82rem;font-weight:600;color:var(--g600)">Reunião de equipe</div>
-            <div style="font-size:.8rem;color:var(--gray700);margin-top:4px">Reunião obrigatória na segunda-feira às 08h antes da abertura. Presença confirmada com o gerente.</div>
-            <div style="font-size:.72rem;color:var(--gray500);margin-top:6px">Postado pelo Dono · hoje</div>
-          </div>
-          <div style="padding:12px;background:var(--gray50);border-radius:var(--r);border-left:3px solid var(--gray300)">
-            <div style="font-size:.82rem;font-weight:600;color:var(--gray700)">Novo protocolo de limpeza</div>
-            <div style="font-size:.8rem;color:var(--gray700);margin-top:4px">A partir de segunda, o checklist de limpeza deve ser fotografado ao final de cada turno.</div>
-            <div style="font-size:.72rem;color:var(--gray500);margin-top:6px">Postado pela Gerente · ontem</div>
-          </div>
+        <!-- Eram dois comunicados inventados, fixos no HTML ("Reunião de
+             equipe", "Novo protocolo de limpeza"), que apareciam para
+             todo funcionário de toda empresa. Agora vêm de
+             GET /comunicados, a mesma fonte do Mural. -->
+        <div class="card-body" id="meu-painel-comunicados">
+          <div class="skel-row"><div style="flex:1"><div class="skel skel-text" style="width:45%"></div><div class="skel skel-text" style="width:70%"></div></div></div>
         </div>
       </div>
     </div>
@@ -2082,10 +2135,40 @@ tr:hover td{background:var(--g50)}
       <div class="field"><label>Unidade</label><select id="ap-unidade"><option value="unidades">Unidades</option><option value="kg">Kg</option><option value="litros">Litros</option><option value="caixas">Caixas</option></select></div>
       <div class="field"><label>Avisar com quantos dias de antecedência</label><select id="ap-dias-aviso"><option value="3">3 dias</option><option value="7">7 dias</option><option value="15">15 dias</option><option value="30" selected>30 dias</option><option value="60">60 dias</option></select></div>
       <div class="field form-full"><label>Categoria</label><select id="ap-categoria"><option value="Alimentos">Alimentos</option><option value="Medicamentos">Medicamentos</option><option value="Cosméticos">Cosméticos</option><option value="Limpeza">Limpeza</option><option value="Outros">Outros</option></select></div>
+
+      <!-- Foto do produto. `capture="environment"` faz o celular abrir
+           direto a câmera traseira, que é como isso vai ser usado de
+           verdade: alguém de pé na frente da prateleira. No computador
+           o atributo é ignorado e vira seletor de arquivo. -->
+      <div class="field form-full">
+        <label>Foto do produto <span style="color:var(--gray500);font-weight:400">(opcional)</span></label>
+        <div class="foto-produto-campo">
+          <div class="foto-produto-preview" id="ap-foto-preview">
+            <svg class=ico aria-hidden=true><use href=#i-camera></use></svg>
+          </div>
+          <div style="flex:1;min-width:0">
+            <input type="file" id="ap-foto-input" accept="image/*" capture="environment" style="display:none" onchange="selecionarFotoProduto(this)">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="document.getElementById('ap-foto-input').click()"><svg class=ico aria-hidden=true><use href=#i-camera></use></svg> Tirar foto</button>
+            <button type="button" class="btn btn-sm btn-secondary" id="ap-foto-remover" style="display:none;margin-left:6px" onclick="removerFotoProduto()">Remover</button>
+            <div style="font-size:.74rem;color:var(--gray500);margin-top:7px" id="ap-foto-info">Ajuda a reconhecer o produto na prateleira sem ler o rótulo.</div>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="fecharModal('modal-add-produto')">Cancelar</button>
       <button id="ap-btn-salvar" class="btn btn-primary" onclick="salvarNovoProduto()">Cadastrar produto</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal ver foto do produto em tamanho cheio -->
+<div class="modal-overlay" id="modal-foto-produto">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-title" id="foto-produto-titulo">Foto do produto</div>
+    <div id="foto-produto-grande" style="text-align:center;color:var(--gray500);font-size:.85rem;min-height:80px">Carregando…</div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="fecharModal('modal-foto-produto')">Fechar</button>
     </div>
   </div>
 </div>
@@ -2340,7 +2423,10 @@ function entrarComoDono(token, empresa, trial){
   document.getElementById('app').style.display = 'block';
   document.getElementById('user-name-display').textContent = usuarioAtual.nome;
   document.getElementById('user-role-display').textContent = usuarioAtual.cargo;
-  document.getElementById('user-avatar-icon').textContent = usuarioAtual.avatar;
+  // Antes: .textContent no próprio círculo, que apagava o <img> da foto
+  // e o <span> da letra que vivem dentro dele — inicializarApp()
+  // procurava #foto-perfil-letra logo depois e não achava mais nada.
+  escreverTexto('foto-perfil-letra', usuarioAtual.avatar);
   document.getElementById('sidebar-company').textContent = usuarioAtual.empresa;
 
   var nav = document.getElementById('sidebar-nav');
@@ -2368,6 +2454,7 @@ function entrarComoDono(token, empresa, trial){
   });
   carregarPontoReal();
   carregarValidadeReal();
+  atualizarSaudacao();
   verificarTrial();
   if(typeof carregarVisualSalvo === 'function') carregarVisualSalvo();
 }
@@ -2390,7 +2477,10 @@ function entrarComoOwner(token, email){
   document.getElementById('app').style.display = 'block';
   document.getElementById('user-name-display').textContent = usuarioAtual.nome;
   document.getElementById('user-role-display').textContent = usuarioAtual.cargo;
-  document.getElementById('user-avatar-icon').textContent = usuarioAtual.avatar;
+  // Antes: .textContent no próprio círculo, que apagava o <img> da foto
+  // e o <span> da letra que vivem dentro dele — inicializarApp()
+  // procurava #foto-perfil-letra logo depois e não achava mais nada.
+  escreverTexto('foto-perfil-letra', usuarioAtual.avatar);
   document.getElementById('sidebar-appname').innerHTML = 'Worka<span style="color:var(--brand-accent)">p</span>';
   document.getElementById('sidebar-company').textContent = 'Workap — Admin Master';
 
@@ -2433,7 +2523,10 @@ function entrarComoFuncionario(token, funcionario, empresa){
   document.getElementById('app').style.display = 'block';
   document.getElementById('user-name-display').textContent = usuarioAtual.nome;
   document.getElementById('user-role-display').textContent = usuarioAtual.cargo;
-  document.getElementById('user-avatar-icon').textContent = usuarioAtual.avatar;
+  // Antes: .textContent no próprio círculo, que apagava o <img> da foto
+  // e o <span> da letra que vivem dentro dele — inicializarApp()
+  // procurava #foto-perfil-letra logo depois e não achava mais nada.
+  escreverTexto('foto-perfil-letra', usuarioAtual.avatar);
   document.getElementById('sidebar-company').textContent = usuarioAtual.empresa;
 
   var nav = document.getElementById('sidebar-nav');
@@ -2451,7 +2544,9 @@ function entrarComoFuncionario(token, funcionario, empresa){
   });
   abrirPagina('meu-painel');
   if(typeof iniciarRelogio === 'function') iniciarRelogio();
+  atualizarSaudacao();
   if(typeof carregarMeuPainelReal === 'function') carregarMeuPainelReal();
+  if(typeof carregarComunicadosMeuPainel === 'function') carregarComunicadosMeuPainel();
 }
 
 /**
@@ -2502,6 +2597,68 @@ function carregarMeuPainelReal(){
     }).join('');
   })
   .catch(function(){});
+}
+
+/**
+ * Comunicados reais no painel do funcionário. Antes esse card tinha
+ * dois avisos inventados escritos no HTML, iguais para toda empresa —
+ * a primeira coisa que um funcionário via ao entrar era um recado que
+ * o patrão dele nunca escreveu.
+ *
+ * Monta com createElement: título e mensagem são texto digitado pelo
+ * dono e, montados por innerHTML, um "<img onerror>" no comunicado
+ * rodaria na sessão de todo mundo da empresa.
+ */
+function carregarComunicadosMeuPainel(){
+  var caixa = document.getElementById('meu-painel-comunicados');
+  if(!caixa || !sessaoWorka || !sessaoWorka.token) return;
+
+  fetch(API_BASE + '/comunicados', { headers: cabecalhoAuth() })
+  .then(function(r){ return r.ok ? r.json() : []; })
+  .then(function(lista){
+    caixa.textContent = '';
+    if(!Array.isArray(lista) || !lista.length){
+      var vazio = document.createElement('div');
+      vazio.style.cssText = 'text-align:center;color:var(--gray500);padding:18px;font-size:.85rem';
+      vazio.textContent = 'Nenhum comunicado da empresa por enquanto.';
+      caixa.appendChild(vazio);
+      return;
+    }
+
+    lista.slice(0, 4).forEach(function(c, i){
+      var box = document.createElement('div');
+      // O mais recente ganha destaque verde; os demais ficam neutros,
+      // para o olho saber onde começar.
+      box.style.cssText = i === 0
+        ? 'padding:12px;background:var(--g50);border-radius:var(--r);border-left:3px solid var(--g400);margin-bottom:10px'
+        : 'padding:12px;background:var(--gray50);border-radius:var(--r);border-left:3px solid var(--gray300);margin-bottom:10px';
+
+      var tit = document.createElement('div');
+      tit.style.cssText = 'font-size:.82rem;font-weight:600;color:' + (i === 0 ? 'var(--g600)' : 'var(--gray700)');
+      tit.textContent = c.titulo || 'Comunicado';
+
+      var msg = document.createElement('div');
+      msg.style.cssText = 'font-size:.8rem;color:var(--gray700);margin-top:4px;white-space:pre-wrap';
+      msg.textContent = c.mensagem || '';
+
+      var pe = document.createElement('div');
+      pe.style.cssText = 'font-size:.72rem;color:var(--gray500);margin-top:6px';
+      pe.textContent = c.created_at
+        ? 'Publicado em ' + new Date(c.created_at).toLocaleDateString('pt-BR')
+        : '';
+
+      box.appendChild(tit); box.appendChild(msg);
+      if(pe.textContent) box.appendChild(pe);
+      caixa.appendChild(box);
+    });
+  })
+  .catch(function(){
+    caixa.textContent = '';
+    var erro = document.createElement('div');
+    erro.style.cssText = 'text-align:center;color:var(--gray500);padding:18px;font-size:.85rem';
+    erro.textContent = 'Não foi possível carregar os comunicados agora.';
+    caixa.appendChild(erro);
+  });
 }
 
 function fazerLogin() {
@@ -2609,6 +2766,164 @@ function abrirModalNovaTarefa(){
   abrirModal('modal-add-tarefa');
 }
 
+// ═══════════════════════════════════
+// FOTO DO PRODUTO DE VALIDADE
+// ═══════════════════════════════════
+// A foto escolhida fica aqui entre a seleção e o envio. Duas versões:
+// `grande` (~800px) para ver o rótulo, `mini` (96px) para a lista.
+var fotoProdutoPendente = { grande: null, mini: null };
+
+/**
+ * Reduz uma imagem no próprio navegador antes de enviar.
+ *
+ * Foto de celular hoje sai com 3 a 6 MB. Mandar isso para o servidor
+ * seria lento no 4G da loja, estouraria o limite de corpo da API e
+ * encheria o banco — e nada disso é necessário: para reconhecer um
+ * produto na prateleira, 800px bastam com folga.
+ *
+ * Devolve data URL JPEG. JPEG e não PNG de propósito: para foto, PNG
+ * fica várias vezes maior sem ganho visível.
+ */
+function reduzirImagem(arquivo, ladoMax, qualidade){
+  return new Promise(function(resolve, reject){
+    var leitor = new FileReader();
+    leitor.onerror = function(){ reject(new Error('Não foi possível ler o arquivo.')); };
+    leitor.onload = function(ev){
+      var img = new Image();
+      img.onerror = function(){ reject(new Error('Arquivo não é uma imagem válida.')); };
+      img.onload = function(){
+        var l = img.width, a = img.height;
+        var escala = Math.min(1, ladoMax / Math.max(l, a));
+        var canvas = document.createElement('canvas');
+        canvas.width  = Math.max(1, Math.round(l * escala));
+        canvas.height = Math.max(1, Math.round(a * escala));
+        var ctx = canvas.getContext('2d');
+        // Fundo branco antes de desenhar: PNG com transparência
+        // viraria fundo preto ao ser convertido para JPEG.
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', qualidade));
+      };
+      img.src = ev.target.result;
+    };
+    leitor.readAsDataURL(arquivo);
+  });
+}
+
+/**
+ * Recorta o centro em quadrado e reduz, para a miniatura da lista.
+ * Recortar em vez de espremer: produto achatado fica irreconhecível,
+ * e o centro da foto é onde a pessoa mirou.
+ */
+function miniaturaQuadrada(arquivo, lado, qualidade){
+  return new Promise(function(resolve, reject){
+    var leitor = new FileReader();
+    leitor.onerror = function(){ reject(new Error('Não foi possível ler o arquivo.')); };
+    leitor.onload = function(ev){
+      var img = new Image();
+      img.onerror = function(){ reject(new Error('Arquivo não é uma imagem válida.')); };
+      img.onload = function(){
+        var corte = Math.min(img.width, img.height);
+        var sx = (img.width  - corte) / 2;
+        var sy = (img.height - corte) / 2;
+        var canvas = document.createElement('canvas');
+        canvas.width = canvas.height = lado;
+        var ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, lado, lado);
+        ctx.drawImage(img, sx, sy, corte, corte, 0, 0, lado, lado);
+        resolve(canvas.toDataURL('image/jpeg', qualidade));
+      };
+      img.src = ev.target.result;
+    };
+    leitor.readAsDataURL(arquivo);
+  });
+}
+
+function selecionarFotoProduto(input){
+  var info = document.getElementById('ap-foto-info');
+  if(!input.files || !input.files[0]) return;
+  var arquivo = input.files[0];
+
+  if(info) info.textContent = 'Preparando a foto…';
+
+  Promise.all([
+    reduzirImagem(arquivo, 800, 0.72),
+    miniaturaQuadrada(arquivo, 96, 0.6)
+  ]).then(function(r){
+    fotoProdutoPendente.grande = r[0];
+    fotoProdutoPendente.mini   = r[1];
+
+    var alvo = document.getElementById('ap-foto-preview');
+    if(alvo){
+      alvo.textContent = '';
+      var prev = document.createElement('img');
+      prev.src = r[0];
+      prev.alt = '';
+      alvo.appendChild(prev);
+      alvo.classList.add('tem-foto');
+    }
+    var botaoRemover = document.getElementById('ap-foto-remover');
+    if(botaoRemover) botaoRemover.style.display = 'inline-flex';
+    // Mostra o tamanho final: o dono precisa saber que a foto foi
+    // reduzida, senão parece que o app "perdeu" a qualidade dele.
+    if(info) info.textContent = 'Foto pronta (' + Math.round(r[0].length / 1024) + ' KB depois de reduzida).';
+  }).catch(function(e){
+    removerFotoProduto();
+    if(info) info.textContent = e.message || 'Não foi possível usar essa imagem.';
+  });
+
+  // Limpa o input para que escolher o MESMO arquivo de novo dispare
+  // o change outra vez (o navegador não dispara se o valor não muda).
+  input.value = '';
+}
+
+function removerFotoProduto(){
+  fotoProdutoPendente = { grande: null, mini: null };
+  var alvo = document.getElementById('ap-foto-preview');
+  if(alvo){
+    alvo.textContent = '';
+    alvo.classList.remove('tem-foto');
+    escreverComIcones(alvo, '<svg class=ico aria-hidden=true><use href=#i-camera></use></svg>');
+  }
+  var botaoRemover = document.getElementById('ap-foto-remover');
+  if(botaoRemover) botaoRemover.style.display = 'none';
+  var info = document.getElementById('ap-foto-info');
+  if(info) info.textContent = 'Ajuda a reconhecer o produto na prateleira sem ler o rótulo.';
+}
+
+/**
+ * Abre a foto em tamanho cheio. A imagem grande não vem na listagem
+ * (só a miniatura), então é buscada aqui, sob demanda.
+ */
+function verFotoProduto(id, nome){
+  var modal = document.getElementById('modal-foto-produto');
+  var alvo  = document.getElementById('foto-produto-grande');
+  var tit   = document.getElementById('foto-produto-titulo');
+  if(!modal || !alvo) return;
+
+  if(tit) tit.textContent = nome || 'Foto do produto';
+  alvo.textContent = 'Carregando…';
+  abrirModal('modal-foto-produto');
+
+  fetch(API_BASE + '/validade/' + encodeURIComponent(id) + '/foto', { headers: cabecalhoAuth() })
+  .then(function(r){ return r.ok ? r.json() : null; })
+  .then(function(d){
+    alvo.textContent = '';
+    if(!d || !d.foto){
+      alvo.textContent = 'Este produto não tem foto.';
+      return;
+    }
+    var img = document.createElement('img');
+    img.src = d.foto;
+    img.alt = '';
+    img.style.cssText = 'max-width:100%;max-height:62vh;border-radius:var(--r);display:block;margin:0 auto';
+    alvo.appendChild(img);
+  })
+  .catch(function(){ alvo.textContent = 'Não foi possível carregar a foto.'; });
+}
+
 function salvarNovoProduto(){
   var erroEl = document.getElementById('add-produto-erro');
   erroEl.style.display = 'none';
@@ -2634,7 +2949,11 @@ function salvarNovoProduto(){
     quantidade: document.getElementById('ap-quantidade').value || 0,
     unidade: document.getElementById('ap-unidade').value,
     dias_aviso: document.getElementById('ap-dias-aviso').value,
-    categoria: document.getElementById('ap-categoria').value
+    categoria: document.getElementById('ap-categoria').value,
+    // Sempre presentes (null quando não há foto), para o backend não
+    // ter que distinguir "campo ausente" de "sem foto".
+    foto: fotoProdutoPendente.grande,
+    foto_thumb: fotoProdutoPendente.mini
   };
 
   var btn = document.getElementById('ap-btn-salvar');
@@ -2660,6 +2979,7 @@ function salvarNovoProduto(){
     document.getElementById('ap-lote').value = '';
     document.getElementById('ap-data').value = '';
     document.getElementById('ap-quantidade').value = '';
+    removerFotoProduto();
     fecharModal('modal-add-produto');
     if(typeof carregarValidadeReal === 'function') carregarValidadeReal();
   })
@@ -2698,49 +3018,145 @@ function carregarValidadeReal(){
 }
 
 function renderizarValidade(lista){
-  var badgePorStatus = {
-    normal:   '<span class="badge badge-green">Normal</span>',
-    atencao:  '<span class="badge badge-yellow">Atenção</span>',
-    urgente:  '<span class="badge badge-red">Urgente</span>',
-    vencido:  '<span class="badge badge-red">Vencido</span>'
+  var rotuloPorStatus = { normal:'Normal', atencao:'Atenção', urgente:'Urgente', vencido:'Vencido' };
+  var classePorStatus = { normal:'badge-green', atencao:'badge-yellow', urgente:'badge-red', vencido:'badge-red' };
+  var iconePorCategoria = {
+    Alimentos:'i-droplet', Medicamentos:'i-pill', 'Cosméticos':'i-droplet',
+    Limpeza:'i-droplet', Outros:'i-package'
   };
-  var iconePorCategoria = { Alimentos:'<svg class=ico aria-hidden=true><use href=#i-droplet></use></svg>', Medicamentos:'<svg class=ico aria-hidden=true><use href=#i-pill></use></svg>', Cosméticos:'<svg class=ico aria-hidden=true><use href=#i-droplet></use></svg>', Limpeza:'<svg class=ico aria-hidden=true><use href=#i-droplet></use></svg>', Outros:'<svg class=ico aria-hidden=true><use href=#i-package></use></svg>' };
 
-  // Tabela completa
+  function diasAte(dataISO){
+    var hoje = new Date(); hoje.setHours(0,0,0,0);
+    var venc = new Date(dataISO+'T00:00:00');
+    return { venc: venc, dias: Math.ceil((venc - hoje) / (1000*60*60*24)) };
+  }
+
+  /* Miniatura clicável quando o produto tem foto; ícone da categoria
+     quando não tem. Elemento, não string: nome de produto é digitado
+     pelo usuário e, montado por innerHTML, um nome com "<img onerror>"
+     rodaria script na sessão de quem abrisse a tela de validade. */
+  function miniatura(p, classe){
+    if(p.foto_thumb){
+      var img = document.createElement('img');
+      img.className = classe || 'produto-thumb';
+      img.src = p.foto_thumb;
+      img.alt = '';
+      img.title = 'Ver foto de ' + p.nome;
+      img.onclick = function(){ verFotoProduto(p.id, p.nome); };
+      return img;
+    }
+    var span = document.createElement('span');
+    escreverComIcones(span, '<svg class=ico aria-hidden=true><use href=#' + (iconePorCategoria[p.categoria] || 'i-package') + '></use></svg>');
+    return span;
+  }
+
+  function celula(texto){
+    var td = document.createElement('td');
+    td.textContent = texto;
+    return td;
+  }
+
+  // ── Tabela completa ──
   var tbody = document.getElementById('tabela-validade-todos');
   if(tbody){
+    tbody.textContent = '';
     if(lista.length === 0){
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gray500);padding:20px">Nenhum produto cadastrado ainda.</td></tr>';
+      var tr0 = document.createElement('tr');
+      var td0 = document.createElement('td');
+      td0.colSpan = 6;
+      td0.style.cssText = 'text-align:center;color:var(--gray500);padding:20px';
+      td0.textContent = 'Nenhum produto cadastrado ainda.';
+      tr0.appendChild(td0); tbody.appendChild(tr0);
     } else {
-      tbody.innerHTML = lista.map(function(p){
-        var dataFmt = new Date(p.data_vencimento+'T00:00:00').toLocaleDateString('pt-BR');
-        return '<tr><td>'+p.nome+'</td><td>'+(p.lote||'—')+'</td><td>'+dataFmt+'</td><td>'+p.quantidade+' '+(p.unidade||'un')+'</td><td>'+(p.dias_aviso||30)+' dias antes</td><td>'+(badgePorStatus[p.status]||badgePorStatus.normal)+'</td></tr>';
-      }).join('');
+      lista.forEach(function(p){
+        var tr = document.createElement('tr');
+
+        var tdNome = document.createElement('td');
+        var caixa = document.createElement('div');
+        caixa.style.cssText = 'display:flex;align-items:center;gap:10px';
+        caixa.appendChild(miniatura(p));
+        var nomeEl = document.createElement('span');
+        nomeEl.textContent = p.nome;
+        caixa.appendChild(nomeEl);
+        tdNome.appendChild(caixa);
+        tr.appendChild(tdNome);
+
+        tr.appendChild(celula(p.lote || '—'));
+        tr.appendChild(celula(new Date(p.data_vencimento+'T00:00:00').toLocaleDateString('pt-BR')));
+        tr.appendChild(celula(p.quantidade + ' ' + (p.unidade || 'un')));
+        tr.appendChild(celula((p.dias_aviso || 30) + ' dias antes'));
+
+        var tdStatus = document.createElement('td');
+        var badge = document.createElement('span');
+        badge.className = 'badge ' + (classePorStatus[p.status] || 'badge-green');
+        badge.textContent = rotuloPorStatus[p.status] || 'Normal';
+        tdStatus.appendChild(badge);
+        tr.appendChild(tdStatus);
+
+        tbody.appendChild(tr);
+      });
     }
   }
 
-  // Card de urgentes (status urgente ou vencido)
+  // ── Card de urgentes (urgente ou vencido) ──
   var urgentes = lista.filter(function(p){ return p.status === 'urgente' || p.status === 'vencido'; });
   var container = document.getElementById('lista-validade-urgentes');
-  if(container){
-    if(urgentes.length === 0){
-      container.innerHTML = '<div style="text-align:center;color:var(--gray500);padding:16px;font-size:.85rem">Nenhum produto com vencimento urgente. <svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg></div>';
-    } else {
-      container.innerHTML = urgentes.map(function(p){
-        var hoje = new Date(); hoje.setHours(0,0,0,0);
-        var venc = new Date(p.data_vencimento+'T00:00:00');
-        var dias = Math.ceil((venc - hoje) / (1000*60*60*24));
-        var diasTxt = dias < 0 ? 'Vencido há '+Math.abs(dias)+' dia(s)' : dias === 0 ? 'Vence hoje' : dias+' dia(s)';
-        var cor = p.status === 'vencido' ? 'var(--red)' : 'var(--red)';
-        var icone = iconePorCategoria[p.categoria] || '<svg class=ico aria-hidden=true><use href=#i-package></use></svg>';
-        return '<div class="validade-card" style="border-left:3px solid var(--red)">' +
-          '<div class="validade-icon" style="background:#fef2f2">'+icone+'</div>' +
-          '<div class="validade-info"><div class="validade-nome">'+p.nome+(p.lote?' — Lote '+p.lote:'')+'</div><div class="validade-data">Vence: '+venc.toLocaleDateString('pt-BR')+' · Qtd: '+p.quantidade+' '+(p.unidade||'un')+'</div></div>' +
-          '<div><div class="validade-dias" style="color:'+cor+'">'+diasTxt+'</div><button class="btn btn-sm btn-danger" style="margin-top:4px" onclick="criarTarefaValidade(\''+p.nome.replace(/'/g,"\\'")+'\')">Criar tarefa</button></div>' +
-        '</div>';
-      }).join('');
-    }
+  if(!container) return;
+  container.textContent = '';
+
+  if(urgentes.length === 0){
+    var vazio = document.createElement('div');
+    vazio.style.cssText = 'text-align:center;color:var(--gray500);padding:16px;font-size:.85rem';
+    escreverComIcones(vazio, 'Nenhum produto com vencimento urgente. <svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg>');
+    container.appendChild(vazio);
+    return;
   }
+
+  urgentes.forEach(function(p){
+    var d = diasAte(p.data_vencimento);
+    var diasTxt = d.dias < 0 ? 'Vencido há ' + Math.abs(d.dias) + ' dia(s)'
+                : d.dias === 0 ? 'Vence hoje'
+                : d.dias + ' dia(s)';
+
+    var card = document.createElement('div');
+    card.className = 'validade-card';
+    card.style.borderLeft = '3px solid var(--red)';
+
+    var icone = document.createElement('div');
+    icone.className = 'validade-icon';
+    icone.style.background = '#fef2f2';
+    icone.appendChild(miniatura(p));
+    card.appendChild(icone);
+
+    var info = document.createElement('div');
+    info.className = 'validade-info';
+    var nomeDiv = document.createElement('div');
+    nomeDiv.className = 'validade-nome';
+    nomeDiv.textContent = p.nome + (p.lote ? ' — Lote ' + p.lote : '');
+    var dataDiv = document.createElement('div');
+    dataDiv.className = 'validade-data';
+    dataDiv.textContent = 'Vence: ' + d.venc.toLocaleDateString('pt-BR') + ' · Qtd: ' + p.quantidade + ' ' + (p.unidade || 'un');
+    info.appendChild(nomeDiv); info.appendChild(dataDiv);
+    card.appendChild(info);
+
+    var lado = document.createElement('div');
+    var diasDiv = document.createElement('div');
+    diasDiv.className = 'validade-dias';
+    diasDiv.style.color = 'var(--red)';
+    diasDiv.textContent = diasTxt;
+    var botao = document.createElement('button');
+    botao.className = 'btn btn-sm btn-danger';
+    botao.style.marginTop = '4px';
+    botao.textContent = 'Criar tarefa';
+    /* onclick como função, não string: com string o nome do produto
+       era escapado na mão com replace(/'/g) — bastava uma aspa dupla
+       ou uma barra invertida para quebrar e virar código. */
+    botao.onclick = function(){ criarTarefaValidade(p.nome); };
+    lado.appendChild(diasDiv); lado.appendChild(botao);
+    card.appendChild(lado);
+
+    container.appendChild(card);
+  });
 }
 
 function filtrarValidade(tipo){
@@ -3160,6 +3576,9 @@ function carregarPontoReal(){
 function carregarDashboardReal(){
   if(!sessaoWorka || !sessaoWorka.token) return;
   var headers = { 'Authorization': 'Bearer ' + sessaoWorka.token };
+  // Antes do fetch: a saudação e o nome da equipe já são conhecidos e
+  // não precisam esperar a rede para aparecer.
+  if(typeof atualizarSaudacao === 'function') atualizarSaudacao();
 
   fetch(API_BASE + '/dashboard-data', { headers: headers })
   .then(function(r){ return r.json(); })
@@ -3175,22 +3594,67 @@ function carregarDashboardReal(){
     document.getElementById('stat-alertas').textContent = d.alertas.validades_urgentes;
     document.getElementById('stat-alertas-sub').textContent = d.alertas.validades_urgentes > 0 ? 'Ação necessária' : 'Tudo em dia';
 
+    // Mesma informação dos quatro cartões, dita em uma frase. Os
+    // números respondem "quanto"; a frase responde "e daí".
+    escreverTexto('hero-resumo', montarResumoDoDia(d));
+
+    // Montado com createElement: `p.nome` é digitado pelo usuário e,
+    // interpolado em innerHTML, um nome com "<img onerror>" rodaria
+    // script na sessão do dono já na primeira tela depois do login.
     var contAlertas = document.getElementById('dashboard-alertas-validade');
     if(contAlertas){
+      contAlertas.textContent = '';
       if(!d.alertas.produtos || d.alertas.produtos.length === 0){
-        contAlertas.innerHTML = '<div style="text-align:center;color:var(--gray500);padding:16px;font-size:.85rem">Nenhum produto com vencimento próximo. <svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg></div>';
+        var okDiv = document.createElement('div');
+        okDiv.style.cssText = 'text-align:center;color:var(--gray500);padding:16px;font-size:.85rem';
+        escreverComIcones(okDiv, 'Nenhum produto com vencimento próximo. <svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg>');
+        contAlertas.appendChild(okDiv);
       } else {
-        contAlertas.innerHTML = d.alertas.produtos.map(function(p){
+        d.alertas.produtos.forEach(function(p){
           var venc = new Date(p.vencimento+'T00:00:00');
           var hoje = new Date(); hoje.setHours(0,0,0,0);
           var dias = Math.ceil((venc - hoje) / (1000*60*60*24));
           var diasTxt = dias < 0 ? 'Vencido há '+Math.abs(dias)+' dia(s)' : dias === 0 ? 'Vence hoje' : dias+' dia(s)';
-          return '<div class="validade-card" style="border-left:3px solid var(--red);margin:0 16px 8px">' +
-            '<div class="validade-icon" style="background:#fef2f2"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg></div>' +
-            '<div class="validade-info"><div class="validade-nome">'+p.nome+'</div><div class="validade-data">Vence em '+venc.toLocaleDateString('pt-BR')+'</div></div>' +
-            '<div class="validade-dias" style="color:var(--red)">'+diasTxt+'</div>' +
-          '</div>';
-        }).join('');
+
+          var card = document.createElement('div');
+          card.className = 'validade-card';
+          card.style.cssText = 'border-left:3px solid var(--red);margin:0 16px 8px';
+
+          var ic = document.createElement('div');
+          ic.className = 'validade-icon';
+          ic.style.background = '#fef2f2';
+          if(p.foto_thumb){
+            var thumb = document.createElement('img');
+            thumb.className = 'produto-thumb';
+            thumb.src = p.foto_thumb;
+            thumb.alt = '';
+            thumb.title = 'Ver foto de ' + p.nome;
+            thumb.onclick = function(){ verFotoProduto(p.id, p.nome); };
+            ic.appendChild(thumb);
+          } else {
+            escreverComIcones(ic, '<svg class=ico aria-hidden=true><use href=#i-alert></use></svg>');
+          }
+          card.appendChild(ic);
+
+          var info = document.createElement('div');
+          info.className = 'validade-info';
+          var n = document.createElement('div');
+          n.className = 'validade-nome';
+          n.textContent = p.nome;
+          var dt = document.createElement('div');
+          dt.className = 'validade-data';
+          dt.textContent = 'Vence em ' + venc.toLocaleDateString('pt-BR');
+          info.appendChild(n); info.appendChild(dt);
+          card.appendChild(info);
+
+          var dd = document.createElement('div');
+          dd.className = 'validade-dias';
+          dd.style.color = 'var(--red)';
+          dd.textContent = diasTxt;
+          card.appendChild(dd);
+
+          contAlertas.appendChild(card);
+        });
       }
     }
   })
@@ -3320,7 +3784,11 @@ function abrirPagina(id) {
   if(id==='validade' && typeof carregarValidadeReal === 'function') carregarValidadeReal();
   if(id==='dashboard' && typeof carregarDashboardReal === 'function') carregarDashboardReal();
   if(id==='salarios' && typeof carregarSalariosReal === 'function') carregarSalariosReal();
-  if(id==='meu-painel' && typeof carregarMeuPainelReal === 'function') carregarMeuPainelReal();
+  if(id==='meu-painel'){
+    if(typeof carregarMeuPainelReal === 'function') carregarMeuPainelReal();
+    if(typeof carregarComunicadosMeuPainel === 'function') carregarComunicadosMeuPainel();
+    if(typeof atualizarSaudacao === 'function') atualizarSaudacao();
+  }
   if(id==='cupons' && typeof carregarCuponsReal === 'function') carregarCuponsReal();
   if(id==='comunicados' && typeof carregarComunicadosReal === 'function') carregarComunicadosReal();
   if(id==='ausencias'){
@@ -3423,9 +3891,15 @@ function iniciarRelogio() {
     var meses=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
     var ds=dias[now.getDay()]+', '+now.getDate()+' de '+meses[now.getMonth()];
     var el3=document.getElementById('ponto-data');
-    var el4=document.getElementById('func-data');
     if(el3)el3.textContent=ds;
-    if(el4)el4.textContent=ds;
+    // func-data é escrito por atualizarSaudacao(), em formato por
+    // extenso ("segunda-feira, 8 de agosto"); sobrescrever aqui com o
+    // formato curto faria os dois brigarem a cada segundo.
+
+    // A saudação só muda de faixa na virada da hora. Reescrever a cada
+    // segundo seria desperdício; uma vez por minuto basta e garante
+    // que quem deixa o app aberto veja "Boa noite" às 18h01.
+    if(now.getSeconds() === 0 && typeof atualizarSaudacao === 'function') atualizarSaudacao();
   }
   tick();
   setInterval(tick,1000);
@@ -3841,10 +4315,109 @@ function carregarVisualSalvo(){
 // ═══════════════════════════════════
 // SAUDAÇÃO DINÂMICA
 // ═══════════════════════════════════
+
+/**
+ * "Bom dia" / "Boa tarde" / "Boa noite" pelo relógio do aparelho.
+ *
+ * A madrugada é caso à parte de propósito: o público do Workap tem
+ * turno da noite (padaria, posto, segurança), e receber "Bom dia" às
+ * 3h da manhã é o tipo de detalhe que denuncia que o sistema não foi
+ * pensado para quem trabalha àquela hora.
+ */
+/** Escreve texto puro num elemento por id, ignorando id inexistente.
+ *  Existe em versão global porque as telas de saudação, dashboard e
+ *  painel do funcionário compartilham os mesmos campos — antes cada
+ *  função declarava a sua própria cópia local. */
+function escreverTexto(id, txt) {
+  var el = document.getElementById(id);
+  if (el) el.textContent = txt;
+}
+
+function faixaDoDia(agora) {
+  var h = (agora || new Date()).getHours();
+  if (h >= 5  && h < 12) return 'Bom dia';
+  if (h >= 12 && h < 18) return 'Boa tarde';
+  if (h >= 18 && h < 24) return 'Boa noite';
+  return 'Boa madrugada';
+}
+
 function saudacao(nome) {
-  var h = new Date().getHours();
-  var s = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
-  return s + ', ' + nome + '! <svg class=ico aria-hidden=true><use href=#i-hand></use></svg>';
+  var s = faixaDoDia();
+  return nome ? (s + ', ' + nome + '!') : (s + '!');
+}
+
+/**
+ * Primeiro nome, para a saudação. Empresa cadastrada como "Padaria do
+ * Zé Ltda" viraria "Olá, Padaria!" — por isso nome de empresa é usado
+ * inteiro, e só nome de pessoa é encurtado.
+ */
+function primeiroNome(nome) {
+  return String(nome || '').trim().split(/\s+/)[0] || '';
+}
+
+/**
+ * Preenche o cabeçalho de saudação nas duas telas iniciais (dashboard
+ * do dono e painel do funcionário). Chamada no login, ao abrir o
+ * dashboard e a cada minuto pelo relógio — sem isso, quem deixa o app
+ * aberto continuaria lendo "Bom dia" às 19h.
+ */
+function atualizarSaudacao() {
+  if (!usuarioAtual) return;
+  var agora = new Date();
+  var nomeEquipe = usuarioAtual.empresa || (sessaoWorka && sessaoWorka.nomeEmpresa) || '';
+
+  var dias  = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
+  var meses = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+  // Só a PRIMEIRA letra em maiúscula. O text-transform:capitalize do
+  // CSS capitalizava toda palavra e escrevia "Sábado, 8 De Agosto".
+  var dataTxt = dias[agora.getDay()] + ', ' + agora.getDate() + ' de ' + meses[agora.getMonth()];
+  dataTxt = dataTxt.charAt(0).toUpperCase() + dataTxt.slice(1);
+
+  // Dono/owner: o nome cadastrado é o da empresa, então a saudação usa
+  // o nome inteiro. Funcionário: só o primeiro nome.
+  var ehPessoa = usuarioAtual.tipo === 'funcionario';
+  var comoChamar = ehPessoa ? primeiroNome(usuarioAtual.nome) : usuarioAtual.nome;
+
+  escreverTexto('hero-saudacao', saudacao(comoChamar));
+  escreverTexto('hero-equipe',   nomeEquipe || 'Sua equipe');
+  escreverTexto('hero-data',     dataTxt);
+
+  escreverTexto('saudacao-func', saudacao(primeiroNome(usuarioAtual.nome)));
+  escreverTexto('func-equipe',   nomeEquipe || 'Sua equipe');
+}
+
+/**
+ * Frase de resumo do dia sob a saudação, montada a partir dos números
+ * que o dashboard já buscou. Texto, não mais números: "3 de 5 pessoas
+ * trabalhando agora" diz o que quatro cartões separados só sugerem.
+ */
+function montarResumoDoDia(d) {
+  var partes = [];
+
+  if (d && d.funcionarios) {
+    if (d.funcionarios.total === 0) {
+      partes.push('Sua equipe ainda está vazia — cadastre o primeiro funcionário para começar');
+    } else if (d.funcionarios.online_agora > 0) {
+      partes.push(d.funcionarios.online_agora + (d.funcionarios.online_agora === 1 ? ' pessoa trabalhando' : ' pessoas trabalhando') +
+                  ' agora, de ' + d.funcionarios.ativos + ' ativa' + (d.funcionarios.ativos === 1 ? '' : 's'));
+    } else {
+      partes.push('Ninguém com ponto aberto no momento');
+    }
+  }
+
+  if (d && d.tarefas && d.tarefas.abertas > 0) {
+    var t = d.tarefas.abertas + (d.tarefas.abertas === 1 ? ' tarefa em aberto' : ' tarefas em aberto');
+    if (d.tarefas.atrasadas > 0) t += ' (' + d.tarefas.atrasadas + ' atrasada' + (d.tarefas.atrasadas === 1 ? '' : 's') + ')';
+    partes.push(t);
+  }
+
+  if (d && d.alertas && d.alertas.validades_urgentes > 0) {
+    partes.push(d.alertas.validades_urgentes +
+      (d.alertas.validades_urgentes === 1 ? ' produto vencendo' : ' produtos vencendo'));
+  }
+
+  if (!partes.length) return 'Tudo em dia por aqui.';
+  return partes.join(' · ') + '.';
 }
 
 // ═══════════════════════════════════
@@ -7132,11 +7705,8 @@ async function salvarConfigFalta() {
 // INICIALIZAÇÃO
 // ═══════════════════════════════════
 function inicializarApp() {
-  // Saudação dinâmica
-  var saudEl = document.getElementById('saudacao-func');
-  if(saudEl && usuarioAtual) {
-    saudEl.textContent = saudacao(usuarioAtual.nome.split(' ')[0]);
-  }
+  // Saudação dinâmica (dashboard do dono e painel do funcionário)
+  if(typeof atualizarSaudacao === 'function') atualizarSaudacao();
   // Foto de perfil
   var letraEl = document.getElementById('foto-perfil-letra');
   if(letraEl && usuarioAtual) letraEl.textContent = usuarioAtual.avatar;
@@ -7168,7 +7738,7 @@ function verificarTrial() {
 function mostrarAvisoTrial(dias) {
   var aviso = document.createElement('div');
   aviso.style.cssText = 'position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:9000;background:#fffbeb;border:1.5px solid #f59e0b;border-radius:10px;padding:10px 16px;font-size:.78rem;color:#92400e;display:flex;align-items:center;gap:8px;max-width:360px;width:90%;box-shadow:0 4px 12px rgba(0,0,0,.1)';
-  aviso.innerHTML = '<svg class=ico aria-hidden=true><use href=#i-clock></use></svg> <span>Seu trial expira em <strong>' + dias + ' dia' + (dias > 1 ? 's' : '') + '</strong>. <a href="' + (window.location.href.replace(/worka-app\.html.*$/, '')) + '" style="color:#1e8a40;font-weight:700">Assinar agora <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></a></span><button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:#92400e;margin-left:auto"><svg class=ico aria-hidden=true><use href=#i-x></use></svg></button>';
+  aviso.innerHTML = '<svg class=ico aria-hidden=true><use href=#i-clock></use></svg> <span>Seu trial expira em <strong>' + dias + ' dia' + (dias > 1 ? 's' : '') + '</strong>. <a href="' + '../' + '" style="color:#1e8a40;font-weight:700">Assinar agora <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></a></span><button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:#92400e;margin-left:auto"><svg class=ico aria-hidden=true><use href=#i-x></use></svg></button>';
   document.body.appendChild(aviso);
   setTimeout(() => { if(aviso.parentElement) aviso.remove(); }, 8000);
 }
@@ -7304,7 +7874,7 @@ window.addEventListener('DOMContentLoaded', function(){
 // ═══════════════════════════════════
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
-    navigator.serviceWorker.register('sw.js').then(function(reg) {
+    navigator.serviceWorker.register('../sw.js').then(function(reg) {
       console.log('SW registrado:', reg.scope);
     }).catch(function(err) {
       console.log('SW falhou:', err);

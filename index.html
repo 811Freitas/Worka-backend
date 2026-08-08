@@ -6,8 +6,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Workap — Gestão de Equipe para Pequenas Empresas</title>
 
-  <!-- Ícone da aba e do atalho. O favicon usa só o símbolo (W + seta):
-       a palavra "WORKAP" da arte completa vira um borrão a 16px. -->
+  <!-- Ícone da aba e do atalho: só o símbolo, sem a palavra "workap"
+       da arte completa, que vira um borrão a 16px.
+       O SVG vem primeiro porque escala sem perda em tela retina; os
+       PNGs ficam como reserva para navegador que não aceita SVG em
+       favicon (Safari mais antigo) e para o atalho do iOS, que só
+       aceita PNG. Todos são gerados de assets/simbolo.svg. -->
+  <link rel="icon" type="image/svg+xml" href="assets/simbolo.svg" />
   <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png" />
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
@@ -136,12 +141,14 @@
       letter-spacing: -0.5px;
     }
     .nav-logo span { color: var(--green-400); }
+    /* O símbolo é ~2,4x mais largo que alto. Fixar largura E altura
+       iguais (era 36x36) achatava a marca; agora só a altura é fixa e
+       a largura acompanha, preservando a proporção. */
     .logo-marca {
-      width: 36px; height: 36px; display: block;
-      border-radius: 9px;
+      height: 30px; width: auto; display: block;
       flex-shrink: 0;
     }
-    nav.scrolled .logo-marca { width: 32px; height: 32px; }
+    nav.scrolled .logo-marca { height: 26px; }
     .nav-links { display: flex; gap: 32px; list-style: none; }
     .nav-links a {
       font-size: 0.875rem; font-weight: 500;
@@ -670,7 +677,7 @@
 <!-- NAV -->
 <nav>
   <div class="nav-logo">
-    <img class="logo-marca" src="assets/logo-marca-96.png" alt="Workap" width="36" height="36" />
+    <img class="logo-marca" src="assets/simbolo.svg" alt="Workap" width="72" height="30" />
     <span class="nav-logo-txt" style="color:inherit">Worka<span>p</span></span>
   </div>
   <ul class="nav-links">
@@ -1097,7 +1104,7 @@
         <div style="font-size:.78rem;color:#16622f;font-weight:600"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg> Trial expira em:</div>
         <div style="font-family:'Syne',sans-serif;font-size:1.8rem;font-weight:800;color:#1e8a40">7 dias</div>
       </div>
-      <a href="worka-app.html" style="display:block;width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;text-decoration:none;text-align:center">
+      <a href="app/" style="display:block;width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;text-decoration:none;text-align:center">
         Acessar o Workap <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>
       </a>
     </div>
@@ -1831,7 +1838,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
     <!-- Só o símbolo: a arte original tem a palavra "WORKA" desenhada
          dentro, e ela mostraria o nome antigo. O nome vem escrito
          abaixo, na tipografia do site, onde acompanha a marca. -->
-    <img src="assets/logo-marca-192.png" alt="" width="64" height="64" style="display:block;margin:0 auto 8px;width:64px;height:64px;border-radius:15px;" />
+    <img src="assets/simbolo.svg" alt="" width="106" height="44" style="display:block;margin:0 auto 8px;width:106px;height:44px" />
     <div style="font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;color:#16622f;text-align:center;letter-spacing:-.5px;margin-bottom:4px;">Worka<span style="color:#25b251">p</span></div>
     <div style="text-align:center;font-size:0.85rem;color:#6b7068;margin-bottom:24px;">Acesse sua conta ou crie uma nova</div>
 
@@ -1894,7 +1901,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
     <div style="text-align:center;margin-bottom:10px;">
       <!-- ?recuperar=1 abre o app já na tela de redefinição, em vez de
            só na tela de login pedindo pra clicar de novo. -->
-      <a href="worka-app.html?recuperar=1" style="color:#6b7068;font-size:0.78rem;text-decoration:underline;">Esqueci minha senha</a>
+      <a href="app/?recuperar=1" style="color:#6b7068;font-size:0.78rem;text-decoration:underline;">Esqueci minha senha</a>
     </div>
     <div style="text-align:center;font-size:0.78rem;color:#6b7068;">Não tem conta? <a href="#" onclick="fecharAcesso();abrirFunil();return false;" style="color:#1e8a40;font-weight:600;">Assinar por R$ 49,99/mês</a></div>
   </div>
@@ -2009,7 +2016,7 @@ function confirmarDispositivoSite(){
     localStorage.setItem('worka_token', res.data.token);
     loginPendenteSite = null;
     fecharAcesso();
-    window.location.href = 'worka-app.html';
+    window.location.href = 'app/';
   })
   .catch(function(){
     if(btn){ escreverComIcones(btn, 'Confirmar e entrar <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'); btn.disabled = false; }
@@ -2075,7 +2082,7 @@ function entrarNoApp(){
       }
       localStorage.setItem('worka_token', res.data.token);
       fecharAcesso();
-      window.location.href = 'worka-app.html';
+      window.location.href = 'app/';
     })
     .catch(function(){
       if(btnF){ escreverComIcones(btnF, 'Entrar no Workap <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'); btnF.disabled=false; }
@@ -2129,8 +2136,8 @@ function entrarNoApp(){
       // app abre no painel certo a partir do próprio token, então basta
       // não mandar o ?role=dono da empresa nesse caso.
       window.location.href = res.data.is_owner
-        ? 'worka-app.html'
-        : 'worka-app.html?role=dono&email='+encodeURIComponent(email);
+        ? 'app/'
+        : 'app/?role=dono&email='+encodeURIComponent(email);
     })
     .catch(function(){
       var erro=document.getElementById('acesso-erro');
@@ -2152,7 +2159,7 @@ document.getElementById('acesso-overlay').addEventListener('click',function(e){i
   <div style="position:sticky;top:0;z-index:10;background:#0a2e1a;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.1);">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
       <div style="display:flex;align-items:center;gap:8px;font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:#fff;">
-        <img src="assets/logo-marca-96.png" alt="" width="26" height="26" style="width:26px;height:26px;border-radius:7px;display:block" />
+        <img src="assets/simbolo.svg" alt="" width="53" height="22" style="width:53px;height:22px;display:block" />
         <span>Worka<span style="color:#3dd669">p</span></span>
       </div>
       <button onclick="fecharFunil()" style="background:rgba(255,255,255,0.1);border:none;color:white;width:32px;height:32px;border-radius:50%;font-size:1rem;cursor:pointer;"><svg class=ico aria-hidden=true><use href=#i-x></use></svg></button>
@@ -2302,7 +2309,7 @@ document.addEventListener("DOMContentLoaded",function(){
 <footer>
   <div class="footer-inner">
     <div class="footer-logo">
-      <img class="logo-marca" src="assets/logo-marca-96.png" alt="" width="32" height="32" style="width:32px;height:32px" />
+      <img class="logo-marca" src="assets/simbolo.svg" alt="" width="67" height="28" style="width:67px;height:28px" />
       <span style="color:inherit">Worka<span>p</span></span>
     </div>
     <div style="font-size:.85rem;color:var(--gray-500)">Gestão de equipe para quem tem negócio pra tocar.</div>

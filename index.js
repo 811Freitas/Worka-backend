@@ -143,6 +143,11 @@ var RATE_LIMITS = {
   // e-mails têm credencial cadastrada. Limite bem menor que o geral.
   "/webauthn/login/inicio": { max: 10, window: 10 * 60 * 1000 },
   "/webauthn/login/fim":    { max: 10, window: 10 * 60 * 1000 },
+  // Cadastro de produto aceita foto de até 400KB no corpo. No limite
+  // geral (100/min) uma única conta poderia empurrar 40MB por minuto.
+  // 60/10min ainda cobre folgado o cadastro em lote de um estoque
+  // inteiro, que é feito uma vez.
+  "/validade":       { max: 60,  window: 10 * 60 * 1000 },
   "default":         { max: 100, window: 60 * 1000 }       // 100/min geral
 };
 
@@ -363,6 +368,35 @@ var SANITIZE = {
   categoriaFinanceira: (v) => {
     var allowed = ["receita", "folha", "estoque", "despesa_fixa", "outro"];
     return allowed.includes(v) ? v : "outro"; // fallback seguro, não bloqueia o lançamento
+  },
+
+  /**
+   * Foto enviada pelo cliente como data URL.
+   *
+   * Devolve a string se for uma imagem válida, ou null (sem foto) em
+   * qualquer outro caso — nunca lança, para uma foto ruim não impedir
+   * o cadastro do produto em si.
+   *
+   * As três checagens existem por motivos diferentes:
+   *
+   * 1. Formato exato "data:image/<tipo>;base64,<base64>". Sem isso o
+   *    campo aceitaria "javascript:..." ou "data:text/html,<script>",
+   *    e a string vai direto para o src de um <img> — que no caso de
+   *    SVG chega a executar script na origem do app.
+   * 2. Só jpeg/png/webp. SVG fica de fora exatamente por isso: é XML
+   *    com <script> dentro, não uma imagem inerte.
+   * 3. Teto de tamanho. O navegador já reduz a imagem antes de
+   *    enviar, mas quem chama a API direto não reduz nada, e sem teto
+   *    uma linha do banco poderia guardar um arquivo de câmera
+   *    inteiro.
+   */
+  fotoDataUrl: (v, maxBytes) => {
+    if (typeof v !== "string" || v === "") return null;
+    var teto = maxBytes || 260 * 1024;
+    if (v.length > teto) return null;
+    var m = /^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(v);
+    if (!m) return null;
+    return v;
   }
 };
 
@@ -474,7 +508,7 @@ const DB = {
 // ════════════════════════════════════════
 // LOGS DE SEGURANÇA (sem dados sensíveis)
 // ════════════════════════════════════════
-// Eventos que aparecem na tela de Auditoria do dono (worka-app.html).
+// Eventos que aparecem na tela de Auditoria do dono (app/index.html).
 // A lista é deliberadamente curta: eventos técnicos (rate_limit_blocked,
 // server_error, auth_required) continuam só no console — o dono não
 // precisa ver isso, e gravar tudo encheria a tabela sem gerar valor.
@@ -1575,13 +1609,22 @@ function httpRequestExterno(urlObj, method, payload, headersExtra) {
   });
 }
 
-function getBody(req) {
+/**
+ * Lê o corpo da requisição com teto de tamanho.
+ *
+ * O limite é parâmetro (padrão 50KB) em vez de constante global: só
+ * as rotas que recebem foto precisam de folga, e subir o teto para
+ * todas daria a qualquer rota — inclusive login — a chance de segurar
+ * megabytes na memória do processo por requisição.
+ */
+function getBody(req, limiteBytes) {
+  var teto = limiteBytes || 50 * 1024;
   return new Promise((resolve, reject) => {
     var raw = "";
     var size = 0;
     req.on("data", c => {
       size += c.length;
-      if (size > 50 * 1024) { // limite 50KB
+      if (size > teto) {
         reject(new Error("Payload muito grande"));
         req.destroy();
         return;
@@ -1751,7 +1794,7 @@ async function verificarContasVencendo() {
         enviarPush(empresaPush, {
           title: diasRestantes < 0 ? "Conta vencida" : "Conta a pagar",
           body:  `${conta.descricao} — ${valorTexto} (${venceEm})`,
-          url:   "worka-app.html"
+          url:   "app/"
         }).catch(() => {});
       }
 
@@ -2013,7 +2056,7 @@ var server = http.createServer(async (req, res) => {
     // ── LOGIN OWNER (conta administrativa única da Workap) ───
     // Substitui a checagem anterior, que comparava email/senha em
     // texto plano dentro do JavaScript do frontend (worka.html e
-    // worka-app.html) — qualquer pessoa via "Ver código-fonte" via a
+    // app/index.html) — qualquer pessoa via "Ver código-fonte" via a
     // senha real. Agora a senha nunca sai do servidor: só o hash
     // bcrypt fica configurado (via OWNER_PASSWORD_HASH), a mesma
     // disciplina de todo o resto deste arquivo.
@@ -2758,7 +2801,7 @@ var server = http.createServer(async (req, res) => {
     // ── SESSÃO ATUAL (restaurar login a partir do token) ─────
     // Sem esta rota, o token salvo em localStorage pelo site (no
     // cadastro/login) nunca era aproveitado pelo app: toda vez que
-    // worka-app.html carregava, a pessoa caía na tela de login e
+    // o app carregava, a pessoa caía na tela de login e
     // precisava digitar email/senha de novo, mesmo já autenticada.
     if (method === "GET" && path === "/me") {
       // Owner da Workap: sessão válida, mas sem empresa vinculada — o
@@ -3112,7 +3155,7 @@ var server = http.createServer(async (req, res) => {
         }
         // Push é complementar: quem não tiver aparelho inscrito
         // simplesmente não recebe, sem afetar a contagem de e-mails.
-        enviarPush(emp.id, { title: tituloCom, body: mensagemCom.substring(0, 140), url: "worka-app.html" })
+        enviarPush(emp.id, { title: tituloCom, body: mensagemCom.substring(0, 140), url: "app/" })
           .catch(() => {});
       }
 
@@ -3534,7 +3577,7 @@ var server = http.createServer(async (req, res) => {
         enviarPush(authPayload.empresa_id, {
           title: "Nova tarefa atribuída",
           body: titulo,
-          url: "worka-app.html"
+          url: "app/"
         }, responsavelId).catch(() => {});
       }
 
@@ -3662,7 +3705,10 @@ var server = http.createServer(async (req, res) => {
         secLog("permission_denied", { role: authPayload.role, action: "validade:write" });
         return jsonErr(res, "Sem permissão para cadastrar produtos", 403);
       }
-      var raw = await getBody(req);
+      // 400KB de teto (contra os 50KB padrão): esta rota recebe a foto
+      // do produto embutida no JSON. Continua sendo um teto apertado —
+      // o navegador manda a imagem já reduzida para ~800px.
+      var raw = await getBody(req, 400 * 1024);
       var body = parseBody(raw);
       if (!body) return jsonErr(res, "Dados inválidos");
 
@@ -3676,6 +3722,13 @@ var server = http.createServer(async (req, res) => {
       // trg_validade_status no banco calcula sozinho (normal/atencao/
       // urgente/vencido) a partir de data_vencimento e dias_aviso,
       // toda vez que a linha é inserida ou atualizada.
+      // Foto é opcional: SANITIZE.fotoDataUrl devolve null para
+      // qualquer coisa que não seja uma imagem válida, e o produto é
+      // cadastrado assim mesmo. Recusar o cadastro inteiro por causa
+      // de uma foto faria a pessoa perder os dados já digitados.
+      var fotoGrande = SANITIZE.fotoDataUrl(body.foto, 260 * 1024);
+      var fotoMini   = SANITIZE.fotoDataUrl(body.foto_thumb, 24 * 1024);
+
       var result = await DB.insert("produtos_validade", {
         empresa_id:       authPayload.empresa_id,
         nome,
@@ -3684,17 +3737,84 @@ var server = http.createServer(async (req, res) => {
         unidade:          SANITIZE.string(body.unidade || "unidades", 30),
         data_vencimento:  dataVenc.toISOString().split("T")[0],
         quantidade:       SANITIZE.int(body.quantidade, 0, 999999) || 0,
-        dias_aviso:       SANITIZE.int(body.dias_aviso, 1, 365) || 30
+        dias_aviso:       SANITIZE.int(body.dias_aviso, 1, 365) || 30,
+        foto:             fotoGrande,
+        // Sem miniatura própria não vale cair para a foto grande: a
+        // lista voltaria a trafegar a imagem inteira, que é exatamente
+        // o que a separação em duas colunas evita.
+        foto_thumb:       fotoMini
       });
-      secLog("produto_cadastrado", { empresa_id: authPayload.empresa_id });
-      return jsonOk(res, { produto: result.body[0] }, 201);
+      secLog("produto_cadastrado", { empresa_id: authPayload.empresa_id, com_foto: !!fotoGrande });
+
+      // A resposta devolve o produto sem a foto grande: quem acabou de
+      // enviar a imagem já a tem na tela, e repeti-la só dobraria o
+      // tráfego do cadastro.
+      var criado = Object.assign({}, result.body[0]);
+      delete criado.foto;
+      return jsonOk(res, { produto: criado }, 201);
     }
 
     if (method === "GET" && path === "/validade") {
+      // `select` explícito para deixar `foto` de fora. Uma loja com 200
+      // produtos fotografados transformaria esta listagem em vários MB
+      // baixados no 4G a cada abertura da tela — a miniatura basta
+      // para a lista, e a foto grande tem rota própria.
+      var COLUNAS_LISTA = "id,nome,lote,categoria,quantidade,unidade,data_vencimento,dias_aviso,status,created_at,foto_thumb";
       var result = await DB.select("produtos_validade",
-        `empresa_id=eq.${authPayload.empresa_id}&order=data_vencimento.asc`
+        `empresa_id=eq.${authPayload.empresa_id}&select=${COLUNAS_LISTA}&order=data_vencimento.asc`
       );
       return jsonOk(res, result.body);
+    }
+
+    // Foto em tamanho cheio de um produto. Rota separada justamente
+    // para a listagem não pagar o preço da imagem.
+    if (method === "GET" && path.match(/^\/validade\/[\w-]+\/foto$/)) {
+      var idFoto = SANITIZE.uuid(path.split("/")[2]);
+      if (!idFoto) return jsonErr(res, "Produto inválido");
+
+      // O filtro por empresa_id vai na mesma consulta: sem ele, saber
+      // o id de um produto bastaria para ver a foto do estoque de
+      // outra empresa.
+      var prodFoto = await DB.select("produtos_validade",
+        `id=eq.${idFoto}&empresa_id=eq.${authPayload.empresa_id}&select=id,nome,foto`
+      );
+      if (!prodFoto.body || !prodFoto.body.length) return jsonErr(res, "Produto não encontrado", 404);
+      return jsonOk(res, { id: prodFoto.body[0].id, nome: prodFoto.body[0].nome, foto: prodFoto.body[0].foto || null });
+    }
+
+    // Trocar ou remover a foto de um produto já cadastrado. Foi o
+    // pedido mais provável logo depois de cadastrar: a primeira foto
+    // sai tremida e a pessoa quer refazer sem apagar o produto.
+    if (method === "PUT" && path.match(/^\/validade\/[\w-]+\/foto$/)) {
+      if (!hasPermission(authPayload, "validade:write")) {
+        secLog("permission_denied", { role: authPayload.role, action: "validade:write" });
+        return jsonErr(res, "Sem permissão para editar produtos", 403);
+      }
+      var idPut = SANITIZE.uuid(path.split("/")[2]);
+      if (!idPut) return jsonErr(res, "Produto inválido");
+
+      var rawFoto = await getBody(req, 400 * 1024);
+      var bodyFoto = parseBody(rawFoto);
+      if (!bodyFoto) return jsonErr(res, "Dados inválidos");
+
+      var existe = await DB.select("produtos_validade",
+        `id=eq.${idPut}&empresa_id=eq.${authPayload.empresa_id}&select=id`
+      );
+      if (!existe.body || !existe.body.length) return jsonErr(res, "Produto não encontrado", 404);
+
+      // body.foto === null é "remover a foto", diferente de campo
+      // ausente. Sem essa distinção não haveria como desfazer o envio
+      // de uma foto errada a não ser apagando o produto.
+      var novaGrande = bodyFoto.foto === null ? null : SANITIZE.fotoDataUrl(bodyFoto.foto, 260 * 1024);
+      var novaMini   = bodyFoto.foto === null ? null : SANITIZE.fotoDataUrl(bodyFoto.foto_thumb, 24 * 1024);
+      if (bodyFoto.foto !== null && !novaGrande) return jsonErr(res, "Imagem inválida ou grande demais");
+
+      await supabase("PATCH", "produtos_validade", {
+        query: `id=eq.${idPut}&empresa_id=eq.${authPayload.empresa_id}`,
+        body: { foto: novaGrande, foto_thumb: novaMini }
+      });
+      secLog("produto_foto_atualizada", { empresa_id: authPayload.empresa_id, removida: novaGrande === null });
+      return jsonOk(res, { ok: true, tem_foto: novaGrande !== null });
     }
 
     // ── AUSÊNCIAS ────────────────────────────────────
@@ -3781,7 +3901,7 @@ var server = http.createServer(async (req, res) => {
 
     // ── DASHBOARD — DADOS AGREGADOS REAIS ────────────
     // Substitui os números fixos que hoje estão hardcoded no HTML
-    // do worka-app.html. O frontend deve buscar isto ao carregar
+    // do app. O frontend deve buscar isto ao carregar
     // a tela de Dashboard em vez de exibir "8 funcionários" fixo.
     if (method === "GET" && path === "/dashboard-data") {
       var empresaId = authPayload.empresa_id;
@@ -3795,7 +3915,7 @@ var server = http.createServer(async (req, res) => {
         DB.select("registros_ponto", `empresa_id=eq.${empresaId}&horario=gte.${hoje}&select=funcionario_id,tipo`),
         DB.select("tarefas", `empresa_id=eq.${empresaId}&status=neq.concluida&select=id`),
         DB.select("tarefas", `empresa_id=eq.${empresaId}&status=eq.pendente&prazo=lt.${new Date().toISOString()}&select=id`),
-        DB.select("produtos_validade", `empresa_id=eq.${empresaId}&data_vencimento=lte.${new Date(Date.now()+3*24*60*60*1000).toISOString().split("T")[0]}&select=id,nome,data_vencimento`)
+        DB.select("produtos_validade", `empresa_id=eq.${empresaId}&data_vencimento=lte.${new Date(Date.now()+3*24*60*60*1000).toISOString().split("T")[0]}&select=id,nome,data_vencimento,foto_thumb`)
       ]);
 
       var totalFuncs   = (funcs.body || []).length;
@@ -3817,7 +3937,10 @@ var server = http.createServer(async (req, res) => {
         tarefas: { abertas: (tarefasAbertas.body || []).length, atrasadas: (tarefasAtrasadas.body || []).length },
         alertas: {
           validades_urgentes: (validadesUrgentes.body || []).length,
-          produtos: (validadesUrgentes.body || []).map(p => ({ nome: p.nome, vencimento: p.data_vencimento }))
+          // `foto_thumb` é a miniatura de ~4KB, nunca a foto grande: o
+          // dashboard é a primeira tela que carrega depois do login e
+          // não pode ficar pesado por causa de uma imagem.
+          produtos: (validadesUrgentes.body || []).map(p => ({ id: p.id, nome: p.nome, vencimento: p.data_vencimento, foto_thumb: p.foto_thumb || null }))
         },
         gerado_em: new Date().toISOString()
       });
@@ -3987,7 +4110,7 @@ var server = http.createServer(async (req, res) => {
       enviarPush(authPayload.empresa_id, {
         title: tituloMural,
         body:  msgMural.substring(0, 140),
-        url:   "worka-app.html"
+        url:   "app/"
       }).catch(() => {});
 
       secLog("comunicado_publicado", { empresa_id: authPayload.empresa_id, categoria: catMural });
@@ -4681,7 +4804,7 @@ var server = http.createServer(async (req, res) => {
       enviarPush(authPayload.empresa_id, {
         title: nomeRemetente,
         body:  textoMsg.substring(0, 120),
-        url:   "worka-app.html"
+        url:   "app/"
       }, destino || undefined).catch(() => {});
 
       return jsonOk(res, { mensagem: nova.body[0] }, 201);
