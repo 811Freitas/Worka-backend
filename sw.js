@@ -8,12 +8,11 @@
 // o sistema não tem. Login biométrico continua sendo uma feature em
 // aberto (exige WebAuthn + tabela de credenciais no banco).
 
-// Cache bumped para v10: entraram Chat, Férias/Folgas e Metas, além do
-// botão de desligar na lista de funcionários. Sem trocar o nome do
-// cache, quem já abriu o app continuaria vendo o app sem as telas novas.
-var CACHE = 'workap-v10';
-// Ícone das notificações push: só o símbolo. A arte original tem a
-// palavra "WORKA" desenhada dentro e mostraria o nome antigo.
+// Cache bumped para v11: marca nova (só o símbolo) e dashboard com
+// saudação. Sem trocar o nome do cache, quem já abriu o app continuaria
+// vendo o logo antigo e a tela sem as novidades.
+var CACHE = 'workap-v11';
+// Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
 // Caminhos RELATIVOS de propósito: o site agora é servido na raiz do
@@ -23,15 +22,21 @@ var NOTIFICATION_BADGE = 'assets/favicon-32.png';
 // 811freitas.github.io/Worka-backend/, sem precisar escolher um dos dois.
 // (worka.html virou index.html no repositório.)
 var ASSETS = [
-  'worka-app.html',
+  // O app agora mora em /app/ (arquivo app/index.html) para o endereço
+  // não terminar em ".html". Cacheado pelo endereço da PASTA, que é o
+  // que o navegador realmente pede — 'app/index.html' e 'app/' são
+  // chaves de cache diferentes.
+  'app/',
   // './' e 'index.html' são a MESMA página, mas endereços diferentes
   // para o cache. Quem abre workap.com.br pede './'; sem essa entrada,
   // a home não ficava disponível offline mesmo com o arquivo em cache.
   './',
   'index.html',
   'manifest.json',
-  'assets/logo-marca-192.png',
-  'assets/logo-marca-96.png',
+  // O símbolo virou SVG único: as páginas apontam para ele em vez de
+  // manter um PNG por tamanho. Os PNGs abaixo continuam porque
+  // notificação push e favicon de navegador antigo não aceitam SVG.
+  'assets/simbolo.svg',
   'assets/icon-192.png',
   'assets/favicon-32.png',
   'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Syne:wght@700;800&display=swap'
@@ -109,7 +114,7 @@ self.addEventListener('push', function(e) {
     icon: NOTIFICATION_ICON,
     badge: NOTIFICATION_BADGE,
     vibrate: [200, 100, 200],
-    data: { url: data.url || 'worka-app.html' },
+    data: { url: data.url || 'app/' },
     actions: [
       { action: 'open', title: 'Abrir' },
       { action: 'close', title: 'Fechar' }
@@ -122,7 +127,7 @@ self.addEventListener('push', function(e) {
 self.addEventListener('notificationclick', function(e) {
   e.notification.close();
   if (e.action === 'open' || !e.action) {
-    var url = e.notification.data.url || 'worka-app.html';
+    var url = e.notification.data.url || 'app/';
     e.waitUntil(clients.openWindow(url));
   }
 });
