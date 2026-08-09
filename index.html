@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://worka-backend-awng.onrender.com https://fonts.googleapis.com https://fonts.gstatic.com https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://worka-backend-awng.onrender.com;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://worka-backend-awng.onrender.com https://fonts.googleapis.com https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://worka-backend-awng.onrender.com;">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Workap — Gestão de Equipe para Pequenas Empresas</title>
 
@@ -1185,34 +1185,6 @@
       </div>
     </div>
     <!-- PASSO 2: QR Code PIX -->
-    <div id="step-pix" style="display:none;padding:28px;text-align:center;">
-      <div style="font-size:0.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1e8a40;margin-bottom:8px;">PIX gerado com sucesso!</div>
-      <p style="font-size:0.88rem;color:#6b7068;margin-bottom:20px;">Escaneie o QR Code ou copie o código PIX no seu banco</p>
-
-      <!-- QR Code -->
-      <div id="qrcode-container" style="display:flex;justify-content:center;margin-bottom:20px;">
-        <div id="qrcode" style="width:200px;height:200px;border:2px solid #eff0ef;border-radius:12px;display:flex;align-items:center;justify-content:center;"></div>
-      </div>
-
-      <!-- Status -->
-      <div id="pix-status" style="background:#fff3dc;border-radius:8px;padding:10px 14px;font-size:0.82rem;color:#b07d00;margin-bottom:16px;display:flex;align-items:center;gap:6px;justify-content:center;">
-        <span id="status-spinner" style="display:inline-block;animation:spin 1s linear infinite;"><svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg></span>
-        <span id="status-txt">Aguardando pagamento...</span>
-      </div>
-
-      <!-- Copiar código -->
-      <div style="background:#f7f8f7;border-radius:10px;padding:12px;margin-bottom:14px;">
-        <div style="font-size:0.72rem;color:#6b7068;margin-bottom:6px;text-align:left;">PIX Copia e Cola</div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <div id="pix-code-txt" style="font-size:0.72rem;color:#3a3d39;flex:1;word-break:break-all;text-align:left;line-height:1.4;max-height:60px;overflow:hidden;"></div>
-          <button onclick="copiarPix()" style="background:#1e8a40;color:white;border:none;padding:8px 14px;border-radius:8px;font-size:0.78rem;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;">Copiar</button>
-        </div>
-      </div>
-
-      <div style="font-size:0.75rem;color:#6b7068;"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg> O código expira em 15 minutos</div>
-    </div>
-
-    <!-- PASSO 3: Confirmação -->
     <div id="step-ok" style="display:none;padding:40px 28px;text-align:center;">
       <div style="width:72px;height:72px;background:#edfaf2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:2rem;"><svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg></div>
       <div style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:#16622f;margin-bottom:8px;">Pagamento confirmado!</div>
@@ -1239,10 +1211,8 @@
   #btn-gerar:hover { background: #25b251; }
 </style>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" onerror="console.warn('QRCode CDN falhou')"></script>
 <script>
 var API_BASE = "https://worka-backend-awng.onrender.com";
-var BACKEND_URL = API_BASE + "/pix"; // mantido por compatibilidade com o restante do arquivo que já usa BACKEND_URL para a rota de PIX
 var pollingInterval = null;
 var pollingTimeout  = null;
 
@@ -1422,7 +1392,6 @@ function abrirCheckout() {
 function fecharCheckout() {
   document.getElementById('checkout-overlay').style.display = 'none';
   document.body.style.overflow = '';
-  pararPolling();
   resetModal();
 }
 function resetModal() {
@@ -1521,7 +1490,7 @@ function aplicarCupom(){
   });
 }
 function mostrarStep(s) {
-  ['form','verify','pix','ok','trial','trial-verify','trial-ok'].forEach(id => {
+  ['form','verify','ok','trial','trial-verify','trial-ok'].forEach(id => {
     document.getElementById('step-'+id).style.display = (id === s ? 'block' : 'none');
   });
 }
@@ -1636,9 +1605,8 @@ async function confirmarCodigo() {
     // Código válido — o botão CONTINUA ocupado: gerar o PIX é outra ida
     // ao servidor, e devolver o botão aqui deixaria a pessoa clicar de
     // novo no meio da cobrança.
-    liberarConfirmar.texto('Verificado! Gerando pagamento...');
-    await gerarPixReal(liberarConfirmar);
-    liberarConfirmar();
+    liberarConfirmar.texto('Verificado! Abrindo pagamento...');
+    await irParaPagamento(liberarConfirmar);
   } catch(e) {
     erroEl.textContent = 'Erro de conexão: ' + e.message;
     erroEl.style.display = 'block';
@@ -1677,144 +1645,68 @@ function iniciarTimerReenvio() {
   }, 1000);
 }
 
-async function gerarPixReal(liberarDoChamador) {
-  var body = {
-    name: dadosFormulario.name,
-    document: dadosFormulario.document,
-    email: dadosFormulario.email,
-    phone: dadosFormulario.phone,
-    // Objeto com as chaves nomeadas, não a query string crua: é assim
-    // que o backend repassa a origem para a Utmify.
-    utm: origemGravada()
-  };
-  // Só o código vai para o servidor — nunca o valor com desconto.
-  // Quem calcula quanto cobrar é sempre o backend.
-  if (cupomAplicado) body.cupom = cupomAplicado;
-  // O plano também é decidido lá: mandar o slug e não o preço.
-  body.plano = planoEscolhido;
-
-  // O liberador vem de QUEM CHAMOU. Antes esta função pegava
-  // #btn-confirmar pelo id — botão do fluxo antigo, que nem está na
-  // tela no caminho vivo. Resultado: quando a cobrança falhava, ela
-  // reabilitava um botão invisível e o botão de verdade
-  // (#btn-trial-confirmar) ficava girando para sempre, sem jeito de
-  // tentar de novo. Justamente na hora de pagar.
+/**
+ * Manda o cliente para o Checkout da Stripe.
+ *
+ * Substitui o fluxo de PIX com QR na própria página. Três motivos além
+ * do pedido:
+ *
+ * - A cobrança passa a ser RECORRENTE. O PIX cobrava uma vez e nada
+ *   nunca mais cobrava: o cliente pagava R$ 49,99 e usava para sempre.
+ * - Nenhum dado de cartão passa por aqui. A página de pagamento é da
+ *   Stripe, então o problema de PCI sai inteiro deste projeto.
+ * - Some o polling de 5 em 5 segundos: quem confirma o pagamento é o
+ *   webhook, no servidor, que funciona mesmo se a pessoa fechar a aba
+ *   no meio.
+ *
+ * O valor não é enviado daqui de propósito — o servidor decide quanto
+ * cobrar a partir do plano. Mandar preço pelo navegador é o mesmo que
+ * deixar o cliente escolher quanto pagar.
+ */
+async function irParaPagamento(liberarDoChamador) {
   var liberar = typeof liberarDoChamador === 'function' ? liberarDoChamador : function () {};
-  var tentativas = 0;
-  var resposta = null;
-  var ultimoErro = '';
+  var email = ((document.getElementById('f-email') || {}).value || '').trim();
 
-  while (tentativas < 3) {
-    try {
-      var res = await fetch(BACKEND_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      if (res.ok) { resposta = await res.json(); break; }
+  try {
+    var r = await fetch(API_BASE + '/assinatura/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email, plano: planoEscolhido })
+    });
+    var dados = await r.json().catch(function () { return {}; });
 
-      if (res.status >= 400 && res.status < 500) {
-        // Erro do cliente (dados inválidos etc.) — não adianta tentar
-        // de novo com o mesmo body, mostra o erro e para.
-        var err = await res.json().catch(() => ({}));
-        mostrarErro('Erro ao gerar o pagamento: ' + (err.error || res.status));
-        liberar();
-        return;
-      }
-
-      // 5xx (ex: Render acordando de hibernação) — vale tentar de novo
-      ultimoErro = 'Servidor respondeu ' + res.status;
-    } catch(e) {
-      ultimoErro = 'Conexão: ' + e.message;
+    if (!r.ok || !dados.url) {
+      mostrarErro(dados.error || 'Não foi possível abrir o pagamento. Tente de novo.');
+      liberar();
+      return;
     }
-    tentativas++;
-    if (tentativas < 3) await sleep(Math.pow(2, tentativas - 1) * 1000);
-  }
-
-  if (!resposta || !resposta.pixCode) {
-    mostrarErro('Não foi possível gerar o pagamento. ' + (ultimoErro || 'Tente novamente.'));
+    // Não libera o botão antes de sair da página: soltar aqui deixaria
+    // clicar de novo e abrir duas sessões de cobrança.
+    window.location.href = dados.url;
+  } catch (e) {
+    mostrarErro('Erro de conexão ao abrir o pagamento. Tente de novo.');
     liberar();
-    return;
   }
-
-  // Exibir QR Code
-  var pixCode = resposta.pixCode;
-  var transactionId = resposta.transactionId;
-  document.getElementById('pix-code-txt').textContent = pixCode;
-  document.getElementById('qrcode').innerHTML = '';
-  if (typeof QRCode !== 'undefined') { new QRCode(document.getElementById('qrcode'), {
-    text: pixCode,
-    width: 196,
-    height: 196,
-    colorDark: '#0a2e1a',
-    colorLight: '#ffffff',
-    correctLevel: QRCode.CorrectLevel ? QRCode.CorrectLevel.M : 1
-  }); }
-
-  mostrarStep('pix');
-  iniciarPolling(transactionId);
 }
 
-// ── Polling de status ─────────────────────────────────────────
-function iniciarPolling(transactionId) {
-  pararPolling();
-  var emailCliente = dadosFormulario.email || '';
-  pollingInterval = setInterval(async () => {
-    try {
-      var res = await fetch(BACKEND_URL + '?transactionId=' + encodeURIComponent(transactionId) + '&email=' + encodeURIComponent(emailCliente));
-      if (!res.ok) return;
-      var data = await res.json();
-      if (data.status === 'COMPLETED') {
-        pararPolling();
-        mostrarStep('ok');
-      }
-    } catch(e) { /* falha de rede no polling: tenta de novo no próximo tick, não precisa logar */ }
-  }, 5000);
+// Volta da Stripe. O acesso quem libera é o webhook — esta tela só
+// conta ao cliente o que aconteceu, sem prometer nada que não sabe.
+function tratarRetornoDaStripe() {
+  var p = new URLSearchParams(window.location.search);
+  var resultado = p.get('assinatura');
+  if (!resultado) return;
 
-  // Timeout de 15 min
-  pollingTimeout = setTimeout(() => {
-    pararPolling();
-    document.getElementById('status-txt').textContent = 'PIX expirado. Feche e tente novamente.';
-    document.getElementById('pix-status').style.background = '#fef2f2';
-    document.getElementById('pix-status').style.color = '#dc2626';
-    escreverComIcones(document.getElementById('status-spinner'), '<svg class=ico aria-hidden=true><use href=#i-absent></use></svg>');
-    document.getElementById('status-spinner').style.animation = 'none';
-  }, 15 * 60 * 1000);
-}
-function pararPolling() {
-  if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
-  if (pollingTimeout)  { clearTimeout(pollingTimeout);  pollingTimeout  = null; }
-}
+  // Limpa o endereço para um F5 não repetir a mensagem.
+  history.replaceState(null, '', window.location.pathname);
 
-// ── Helpers ───────────────────────────────────────────────────
-// Mostra o erro na caixa do passo que está VISÍVEL agora.
-//
-// Antes escrevia sempre em #form-erro, que mora dentro de #step-form.
-// Só que a falha mais cara do checkout — não conseguir gerar o
-// pagamento — acontece com #step-trial-verify na tela. A mensagem ia
-// para um elemento escondido: o botão voltava ao normal e a pessoa
-// ficava olhando uma tela que não dizia nada, sem saber se tinha
-// falhado, se tinha dado certo, ou se era pra clicar de novo.
-function mostrarErro(msg) {
-  var visivel = null;
-  ['form', 'trial', 'trial-verify', 'verify', 'pix', 'ok', 'trial-ok'].forEach(function (p) {
-    var passo = document.getElementById('step-' + p);
-    if (!visivel && passo && getComputedStyle(passo).display !== 'none') visivel = passo;
-  });
-
-  var el = (visivel && visivel.querySelector('[id$="-erro"]')) || document.getElementById('form-erro');
-  if (!el) { alert(msg); return; }
-  el.textContent = msg;
-  el.style.display = 'block';
-}
-function copiarPix() {
-  var code = document.getElementById('pix-code-txt').textContent;
-  navigator.clipboard.writeText(code).then(() => {
-    var btn = event.target;
-    escreverComIcones(btn, 'Copiado! <svg class=ico aria-hidden=true><use href=#i-check></use></svg>');
-    btn.style.background = '#16622f';
-    setTimeout(() => { btn.textContent = 'Copiar'; btn.style.background = '#1e8a40'; }, 2000);
-  });
+  if (resultado === 'ok') {
+    abrirCheckout();
+    mostrarStep('ok');
+  } else if (resultado === 'cancelada') {
+    abrirCheckout();
+    mostrarStep('form');
+    mostrarErro('Pagamento não concluído. Seus dados continuam salvos — é só tentar de novo.');
+  }
 }
 
 /**
@@ -2125,8 +2017,8 @@ async function confirmarTrialCodigo() {
     dadosFormulario.phone = telEl ? telEl.value.trim() : '';
     // Continua ocupado: gerar a cobrança é outra ida ao servidor, com
     // até três tentativas. Soltar aqui deixaria clicar de novo no meio.
-    liberarVerif.texto('Gerando pagamento...');
-    await gerarPixReal(liberarVerif);
+    liberarVerif.texto('Abrindo pagamento...');
+    await irParaPagamento(liberarVerif);
     return;
   }
 
@@ -2765,6 +2657,7 @@ document.addEventListener("DOMContentLoaded",function(){
   // funil, com aviso na tela. Aqui só não pode virar erro solto.
   buscarRamos().catch(function(){});
   carregarPlanos();
+  tratarRetornoDaStripe();
 });
 </script>
 

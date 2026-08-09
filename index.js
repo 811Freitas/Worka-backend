@@ -64,7 +64,17 @@ const CONFIG = {
   // Formato: 'Nome <endereco@dominio>'. O domínio precisa estar
   // verificado no Resend, senão a API rejeita com 403.
   EMAIL_FROM:    env("EMAIL_FROM") || "Workap <onboarding@resend.dev>",
-  PIX_URL:       env("DUTTYFY_PIX_URL_ENCRYPTED"),
+  // Stripe. A chave secreta NUNCA vai para o navegador: com o Checkout
+  // hospedado o backend cria a sessão e devolve só a URL de redirect,
+  // então o front não precisa de chave nenhuma da Stripe.
+  STRIPE_KEY:            env("STRIPE_SECRET_KEY"),
+  // Segredo de assinatura do webhook (whsec_...). Sem ele qualquer um
+  // que descubra o endereço do webhook poderia postar "invoice.paid" e
+  // liberar acesso de graça — é a única coisa que separa um aviso da
+  // Stripe de um aviso forjado.
+  STRIPE_WEBHOOK_SECRET: env("STRIPE_WEBHOOK_SECRET"),
+  // Para onde a Stripe devolve o cliente depois do pagamento.
+  SITE_URL:              env("SITE_URL") || "https://workap.com.br",
   ENCRYPT_KEY:   env("ENCRYPT_SECRET"),
   VAPID_PUBLIC:  env("VAPID_PUBLIC_KEY"),
   VAPID_PRIVATE: env("VAPID_PRIVATE_KEY"),
@@ -171,7 +181,11 @@ var RATE_LIMITS = {
   "/enviar-codigo":  { max: 3,   window: 10 * 60 * 1000 }, // 3/10min — anti spam
   "/verificar-codigo":{ max: 5,  window: 10 * 60 * 1000 }, // 5/10min
   "/empresas":       { max: 10,  window: 60 * 60 * 1000 }, // 10/hora
-  "/pix":            { max: 10,  window: 60 * 60 * 1000 }, // 10/hora
+  "/assinatura/checkout": { max: 10, window: 60 * 60 * 1000 }, // 10/hora
+  // O webhook da Stripe NÃO entra aqui de propósito: quem chama é a
+  // Stripe, em rajada quando reenvia eventos atrasados. Barrar por IP
+  // faria o backend recusar avisos de pagamento — e um pagamento
+  // recusado no webhook é acesso que não abre para quem já pagou.
   "/recuperar-senha": { max: 3,  window: 15 * 60 * 1000 }, // 3/15min — anti spam de email
   "/redefinir-senha": { max: 5,  window: 15 * 60 * 1000 }, // 5/15min — anti brute force do código
   "/cupom/validar":  { max: 20,  window: 10 * 60 * 1000 }, // 20/10min — anti varredura de cupons
@@ -742,7 +756,7 @@ function supabase(method, table, options = {}) {
     "config_plataforma", "utmify_envios",
     "comunicados", "cargos", "config_faltas", "contas_pagar",
     "mensagens", "periodos_afastamento", "metas",
-    "config_jornada", "erros_plataforma"
+    "config_jornada", "erros_plataforma", "eventos_stripe"
   ];
   if (!ALLOWED_TABLES.includes(table)) {
     return Promise.reject(new Error(`Tabela não permitida: ${table}`));
@@ -1871,6 +1885,136 @@ function supabaseRpc(fn) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// STRIPE — assinatura recorrente
+// ═══════════════════════════════════════════════════════════
+//
+// Sem SDK, pelo mesmo motivo do Supabase e do Resend: o que este
+// projeto usa da API cabe em duas funções, e uma dependência a menos é
+// uma superfície a menos para auditar.
+//
+// A API da Stripe fala form-urlencoded, não JSON, e usa colchetes para
+// aninhar (line_items[0][price_data][currency]).
+
+function stripeEncode(obj, prefixo, saida) {
+  saida = saida || [];
+  for (var [k, v] of Object.entries(obj)) {
+    if (v === undefined || v === null) continue;
+    var chave = prefixo ? prefixo + "[" + k + "]" : k;
+    if (typeof v === "object") stripeEncode(v, chave, saida);
+    else saida.push(encodeURIComponent(chave) + "=" + encodeURIComponent(String(v)));
+  }
+  return saida;
+}
+
+function stripeRequest(metodo, caminho, params) {
+  return new Promise(function (resolve, reject) {
+    if (!CONFIG.STRIPE_KEY) return reject(new Error("Stripe não configurado (STRIPE_SECRET_KEY ausente)"));
+    var corpo = params ? stripeEncode(params).join("&") : "";
+    var headers = {
+      "Authorization":  "Bearer " + CONFIG.STRIPE_KEY,
+      "Content-Type":   "application/x-www-form-urlencoded",
+      "Stripe-Version": "2024-06-20"
+    };
+    if (corpo) headers["Content-Length"] = Buffer.byteLength(corpo);
+
+    var req = https.request({
+      hostname: "api.stripe.com", port: 443, path: "/v1" + caminho, method: metodo, headers: headers
+    }, function (res) {
+      var raw = "";
+      res.on("data", function (c) { raw += c; });
+      res.on("end", function () {
+        var json = null;
+        try { json = JSON.parse(raw); } catch (e) {}
+        if (res.statusCode >= 400) {
+          var msg = (json && json.error && json.error.message) || raw.slice(0, 200) || ("HTTP " + res.statusCode);
+          var erro = new Error("Stripe " + res.statusCode + ": " + msg);
+          erro.status = res.statusCode;
+          erro.codigo = json && json.error && json.error.code;
+          return reject(erro);
+        }
+        resolve(json || {});
+      });
+    });
+    req.on("error", reject);
+    req.setTimeout(15000, function () { req.destroy(new Error("Stripe: tempo esgotado")); });
+    req.end(corpo);
+  });
+}
+
+/**
+ * Confere que o webhook veio mesmo da Stripe.
+ *
+ * Sem isto, qualquer um que descubra o endereço posta um
+ * "invoice.paid" e ganha acesso vitalício de graça. A Stripe assina
+ * cada evento com HMAC-SHA256 sobre "timestamp.corpo_cru" — por isso o
+ * corpo precisa ser o texto ORIGINAL, byte a byte: reserializar o JSON
+ * muda espaços e ordem de chaves, e a assinatura deixa de bater.
+ */
+function stripeAssinaturaValida(corpoCru, cabecalhoAssinatura) {
+  if (!CONFIG.STRIPE_WEBHOOK_SECRET || !cabecalhoAssinatura) return false;
+
+  var partes = {};
+  String(cabecalhoAssinatura).split(",").forEach(function (p) {
+    var i = p.indexOf("=");
+    if (i > 0) {
+      var k = p.slice(0, i).trim();
+      // v1 pode aparecer mais de uma vez durante rotação de segredo.
+      if (k === "v1") (partes.v1 = partes.v1 || []).push(p.slice(i + 1).trim());
+      else partes[k] = p.slice(i + 1).trim();
+    }
+  });
+  if (!partes.t || !partes.v1 || !partes.v1.length) return false;
+
+  // Janela de 5 minutos contra reenvio de um evento antigo capturado.
+  var idade = Math.abs(Math.floor(Date.now() / 1000) - parseInt(partes.t, 10));
+  if (!isFinite(idade) || idade > 300) return false;
+
+  var esperado = crypto.createHmac("sha256", CONFIG.STRIPE_WEBHOOK_SECRET)
+    .update(partes.t + "." + corpoCru, "utf8").digest("hex");
+
+  // timingSafeEqual para a comparação não vazar, pelo tempo de resposta,
+  // quantos caracteres iniciais o atacante acertou.
+  var alvo = Buffer.from(esperado, "utf8");
+  return partes.v1.some(function (assinatura) {
+    var recebida = Buffer.from(assinatura, "utf8");
+    return recebida.length === alvo.length && crypto.timingSafeEqual(recebida, alvo);
+  });
+}
+
+// Aplica o estado da assinatura na empresa. Um lugar só, chamado por
+// todos os eventos: espalhar essa regra por cada handler é como as
+// bases de dados acabam com metade das contas num estado e metade no
+// outro.
+async function aplicarAssinatura(empresaId, assinatura) {
+  var fimSegundos = assinatura.current_period_end;
+  var mudancas = {
+    stripe_subscription_id: assinatura.id,
+    assinatura_ate:         fimSegundos ? new Date(fimSegundos * 1000).toISOString() : null,
+    cancelamento_agendado:  !!assinatura.cancel_at_period_end
+  };
+
+  // "active" e "trialing" liberam; "past_due" mantém o acesso até o fim
+  // do período já pago, porque a Stripe ainda vai tentar cobrar de novo
+  // — cortar na primeira falha derrubaria quem só teve um cartão
+  // recusado por limite momentâneo.
+  if (["active", "trialing", "past_due"].includes(assinatura.status)) {
+    mudancas.status = "ativa";
+  } else if (["canceled", "unpaid", "incomplete_expired"].includes(assinatura.status)) {
+    mudancas.status = "cancelada";
+  }
+
+  var itens = assinatura.items && assinatura.items.data && assinatura.items.data[0];
+  var planoMeta = (assinatura.metadata && assinatura.metadata.plano) ||
+                  (itens && itens.price && itens.price.metadata && itens.price.metadata.plano);
+  if (planoValido(planoMeta)) mudancas.plano = planoMeta;
+
+  await DB.update("empresas", "id=eq." + empresaId, mudancas);
+  secLog("assinatura_atualizada", {
+    empresa_id: empresaId, stripe_status: assinatura.status, ate: mudancas.assinatura_ate
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
 // TESTES DE API
 // ═══════════════════════════════════════════════════════════
 // As requisições vão para o PRÓPRIO servidor por HTTP, em 127.0.0.1.
@@ -2231,6 +2375,38 @@ async function verificarTrials() {
   }
 }
 setInterval(verificarTrials, 60 * 60 * 1000);
+
+/**
+ * Derruba quem passou do fim do período pago.
+ *
+ * Esta rotina não existia — e era exatamente o buraco do modelo
+ * antigo. Uma empresa virava `ativa` no primeiro pagamento e ficava
+ * assim para sempre, porque nada olhava para uma data de validade. Com
+ * a Stripe, `assinatura_ate` vem do current_period_end e é renovada a
+ * cada invoice paga; quem parar de pagar simplesmente deixa de ser
+ * renovado e cai aqui.
+ *
+ * A folga de 3 dias existe porque a Stripe repete a cobrança de um
+ * cartão recusado por alguns dias. Cortar no minuto seguinte ao
+ * vencimento derrubaria gente que vai pagar amanhã.
+ */
+async function verificarAssinaturasVencidas() {
+  try {
+    var limite = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    var vencidas = await DB.select("empresas",
+      "status=eq.ativa&assinatura_ate=not.is.null&assinatura_ate=lt." + limite + "&select=id,nome,email");
+
+    for (var emp of (vencidas.body || [])) {
+      await DB.update("empresas", "id=eq." + emp.id, { status: "inadimplente" });
+      secLog("assinatura_vencida", { empresa_id: emp.id });
+      enviarEmail(emp.email, "Sua assinatura do Workap venceu",
+        EMAIL_TEMPLATES.trialExpirado(emp.nome)).catch(function () {});
+    }
+  } catch (e) {
+    secLog("cron_error", { job: "assinaturas", message: e.message });
+  }
+}
+setInterval(verificarAssinaturasVencidas, 6 * 60 * 60 * 1000);
 
 // ════════════════════════════════════════
 // CRON — lembrete de contas a pagar
@@ -3237,169 +3413,228 @@ var server = http.createServer(async (req, res) => {
       return jsonOk(res, { ramos: catalogo });
     }
 
-    // ── PIX — GERAR COBRANÇA (rota pública) ──────────
-    // Chamada pelo formulário de assinatura do site institucional,
-    // antes de qualquer login existir — por isso fica na zona
-    // pública, junto de /enviar-codigo e /verificar-codigo. Estava
-    // antes posicionada depois do bloco JWT, o que fazia todo pedido
-    // de pagamento retornar 401 sempre, sem exceção.
-    if (method === "POST" && path === "/pix") {
-      if (!CONFIG.PIX_URL) return jsonErr(res, "PIX não configurado", 503);
+    // ── ASSINATURA — CRIAR SESSÃO DE PAGAMENTO ──────
+    //
+    // Rota pública: quem chama acabou de criar a conta e ainda não tem
+    // token. A empresa é achada pelo e-mail, e o valor NUNCA vem do
+    // navegador — sai de CONFIG.PLANOS, a mesma fonte que a vitrine usa.
+    if (method === "POST" && path === "/assinatura/checkout") {
+      if (!CONFIG.STRIPE_KEY) return jsonErr(res, "Pagamento não configurado", 503);
 
-      var raw = await getBody(req);
-      var body = parseBody(raw);
-      if (!body) return jsonErr(res, "Dados inválidos");
+      var rawAss = await getBody(req);
+      var bodyAss = parseBody(rawAss);
+      if (!bodyAss) return jsonErr(res, "Dados inválidos");
 
-      var email = SANITIZE.email(body.email);
-      var nome  = SANITIZE.string(body.name || "", 120);
-      var doc   = (body.document || "").replace(/\D/g, "").substring(0, 14);
-      var tel   = (body.phone || "").replace(/\D/g, "").substring(0, 11);
+      var emailAss = SANITIZE.email(bodyAss.email);
+      if (!emailAss) return jsonErr(res, "E-mail inválido");
 
-      if (!email || !nome) return jsonErr(res, "Dados inválidos");
+      var planoAss = planoValido(bodyAss.plano) ? bodyAss.plano : CONFIG.PLANO_PADRAO;
+      var infoPlano = CONFIG.PLANOS[planoAss];
 
-      var pixUrl = new URL(CONFIG.PIX_URL);
-      if (!pixUrl.hostname.includes("duttyfy") && !pixUrl.hostname.includes("workap")) {
-        secLog("ssrf_attempt", { hostname: pixUrl.hostname });
-        return jsonErr(res, "Configuração inválida", 500);
-      }
+      var buscaEmp = await DB.select("empresas",
+        "email=eq." + encodeURIComponent(emailAss) + "&select=id,nome,email,status,stripe_customer_id");
+      var empAss = buscaEmp.body && buscaEmp.body[0];
+      if (!empAss) return jsonErr(res, "Conta não encontrada. Conclua o cadastro antes de assinar.", 404);
+      if (empAss.status === "ativa") return jsonErr(res, "Esta conta já tem assinatura ativa.", 409);
 
-      // Cupom: o desconto é SEMPRE recalculado aqui no servidor a
-      // partir do código enviado. O valor final que o navegador
-      // mostrou é ignorado de propósito — se o cliente adulterasse o
-      // valor no JavaScript, ele pagaria o que quisesse.
-      // Plano escolhido no checkout. Vem do navegador, então é
-      // normalizado: um "plano": "gratis" inventado no DevTools cai no
-      // padrão pago, nunca em preço zero.
-      var planoEscolhido = planoValido(body.plano);
-      var valorCobrado = precoDoPlano(planoEscolhido);
-      var cupomAplicado = null;
-      if (body.cupom) {
-        var cupomCheck = await validarCupom(body.cupom, planoEscolhido);
-        if (cupomCheck.ok) {
-          valorCobrado = cupomCheck.valor_final_centavos;
-          cupomAplicado = cupomCheck;
-        }
-        // Cupom inválido não bloqueia a compra: cobra o valor cheio.
-        // Barrar a venda por causa de um código digitado errado seria
-        // perder o cliente na última etapa do funil.
-      }
-
-      var response = await httpRequestExterno(pixUrl, "POST", {
-        amount: valorCobrado,
-        customer: { name: nome, document: doc, email, phone: tel },
-        item: { title: "Plano Completo Workap", price: valorCobrado, quantity: 1 },
-        paymentMethod: "PIX"
-      });
-
-      if (response.status >= 400) return jsonErr(res, "Erro no processamento do pagamento", 502);
-
-      // Contabiliza o uso só depois que a cobrança foi realmente
-      // criada no gateway. Fire-and-forget: falhar aqui não pode
-      // derrubar um PIX que já foi gerado com sucesso.
-      if (cupomAplicado) {
-        supabase("PATCH", "cupons", {
-          query: `id=eq.${cupomAplicado.cupom.id}`,
-          body: { usos: (cupomAplicado.cupom.usos || 0) + 1 }
-        }).catch(e => secLog("cupom_incremento_falhou", { message: e.message }));
-        secLog("cupom_usado", { codigo: cupomAplicado.codigo, valor_final: valorCobrado });
-      }
-
-      // Utmify: avisa que a cobrança nasceu. Fire-and-forget de
-      // propósito — o PIX já foi gerado, e uma integração de marketing
-      // fora do ar não pode segurar a resposta nem derrubar a venda.
-      enviarUtmify({
-        orderId:       response.body.transactionId,
-        status:        "waiting_payment",
-        criadoEm:      Date.now(),
-        valorCentavos: valorCobrado,
-        cliente:       { nome: nome, email: email, telefone: tel || null, documento: doc || null, ip: ip },
-        utm:           body.utm
-      }).catch(e => secLog("utmify_erro", { message: e.message }));
-
-      secLog("pix_gerado", { email_hash: crypto.createHash("sha256").update(email).digest("hex").substring(0, 8), valor: valorCobrado });
-      return jsonOk(res, {
-        pixCode:       response.body.pixCode,
-        transactionId: response.body.transactionId,
-        status:        response.body.status,
-        valor_cobrado: centavosParaReais(valorCobrado),
-        cupom_aplicado: cupomAplicado ? cupomAplicado.codigo : null
-      });
-    }
-
-    // ── PIX — CONSULTAR STATUS (rota pública) ────────
-    // Implementação nova: esta rota nunca existiu no backend v5.
-    // O site fazia polling contra ela a cada 5s esperando confirmação
-    // de pagamento, mas como a rota não existia (404), o polling
-    // sempre falhava silenciosamente até o timeout de 15min mostrar
-    // "PIX expirado" — mesmo quando o cliente pagava de verdade.
-    // Existia uma versão em v2 do backend, perdida na reescrita de
-    // segurança sem ser portada; reimplementada aqui já com a
-    // ativação real da empresa quando o pagamento é confirmado.
-    if (method === "GET" && path === "/pix") {
-      if (!CONFIG.PIX_URL) return jsonErr(res, "PIX não configurado", 503);
-
-      var transactionId = url.searchParams.get("transactionId");
-      var emailConsulta  = SANITIZE.email(url.searchParams.get("email"));
-      if (!transactionId) return jsonErr(res, "transactionId obrigatório");
-
-      var pixUrl2 = new URL(CONFIG.PIX_URL);
-      if (!pixUrl2.hostname.includes("duttyfy") && !pixUrl2.hostname.includes("workap")) {
-        secLog("ssrf_attempt", { hostname: pixUrl2.hostname });
-        return jsonErr(res, "Configuração inválida", 500);
-      }
-      pixUrl2.searchParams.set("transactionId", transactionId);
-
-      var statusResp = await httpRequestExterno(pixUrl2, "GET");
-      if (statusResp.status >= 400) return jsonErr(res, "Erro ao consultar pagamento", 502);
-
-      var statusPix = statusResp.body && statusResp.body.status;
-
-      // Se aprovado e temos o email do cliente, ativa a assinatura de
-      // verdade: status=ativa, +30 dias de acesso, email de confirmação.
-      // Idempotente por natureza (o polling chama isto a cada 5s até
-      // parar) — o UPDATE roda de novo em cada chamada enquanto o
-      // status seguir "COMPLETED", mas isso é inofensivo (mesmos
-      // valores), não duplica cobrança nem envia e-mails em duplicidade
-      // graças ao filtro "status=neq.ativa" abaixo.
-      if (statusPix === "COMPLETED" && emailConsulta) {
-        var empresaPag = await DB.select("empresas", `email=eq.${encodeURIComponent(emailConsulta)}&status=neq.ativa&select=id,nome,email`);
-        if (empresaPag.body && empresaPag.body[0]) {
-          var empPag = empresaPag.body[0];
-          var novoFim = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-          await DB.update("empresas", `id=eq.${empPag.id}`, {
-            status: "ativa",
-            trial_fim: novoFim,
-            aviso_trial_sent: false,
-            aviso_expirado_sent: false
+      try {
+        // Reaproveita o cliente da Stripe se já existir: criar um novo a
+        // cada tentativa espalharia a mesma pessoa em vários cadastros e
+        // quebraria o histórico de cobrança dela.
+        var customerId = empAss.stripe_customer_id;
+        if (!customerId) {
+          var cliente = await stripeRequest("POST", "/customers", {
+            email: empAss.email,
+            name:  empAss.nome,
+            metadata: { empresa_id: empAss.id }
           });
-          enviarEmail(empPag.email, "✅ Pagamento confirmado — Workap", EMAIL_TEMPLATES.pagamentoConfirmado(empPag.nome, "49,99"))
-            .catch(() => {});
-          secLog("pagamento_confirmado", { empresa_id: empPag.id });
-
-          // Utmify: a venda virou receita. Este é o evento que casa o
-          // dinheiro com o anúncio — sem ele o painel de anúncios
-          // mostra cliques e nenhuma conversão.
-          enviarUtmify({
-            orderId:       transactionId,
-            status:        "paid",
-            criadoEm:      Date.now(),
-            pagoEm:        Date.now(),
-            valorCentavos: precoDoPlano(empPag.plano),
-            cliente:       { nome: empPag.nome, email: empPag.email, ip: ip },
-            utm:           null   // o rastreio já foi enviado na criação
-          }).catch(e => secLog("utmify_erro", { message: e.message }));
+          customerId = cliente.id;
+          await DB.update("empresas", "id=eq." + empAss.id, { stripe_customer_id: customerId });
         }
+
+        var sessao = await stripeRequest("POST", "/checkout/sessions", {
+          mode: "subscription",
+          customer: customerId,
+          // client_reference_id é como o webhook liga o pagamento à
+          // empresa sem confiar em nada que veio do navegador.
+          client_reference_id: empAss.id,
+          locale: "pt-BR",
+          allow_promotion_codes: "true",
+          success_url: CONFIG.SITE_URL + "/?assinatura=ok",
+          cancel_url:  CONFIG.SITE_URL + "/?assinatura=cancelada",
+          // price_data em vez de um Price criado no painel: o preço
+          // continua morando em CONFIG.PLANOS, fonte única. Preço em dois
+          // lugares é preço que um dia diverge.
+          line_items: {
+            0: {
+              quantity: 1,
+              price_data: {
+                currency: "brl",
+                unit_amount: infoPlano.centavos,
+                recurring: { interval: "month" },
+                product_data: { name: "Workap — " + infoPlano.nome, metadata: { plano: planoAss } }
+              }
+            }
+          },
+          subscription_data: { metadata: { empresa_id: empAss.id, plano: planoAss } },
+          metadata: { empresa_id: empAss.id, plano: planoAss }
+        });
+
+        secLog("checkout_criado", { empresa_id: empAss.id, plano: planoAss });
+        return jsonOk(res, { url: sessao.url });
+      } catch (e) {
+        registrarErro("pagamento", e.message, {
+          rota: "/assinatura/checkout", metodo: "POST", status: e.status || null,
+          empresa_id: empAss.id, detalhe: { plano: planoAss }
+        });
+        return jsonErr(res, "Não foi possível abrir o pagamento agora. Tente de novo em instantes.", 502);
+      }
+    }
+
+    // ── WEBHOOK DA STRIPE (rota pública, assinada) ──
+    //
+    // É por aqui que o dinheiro vira acesso. Fica antes do portão de
+    // JWT porque quem chama é a Stripe, que não tem token — a prova de
+    // identidade é a assinatura HMAC do corpo.
+    if (method === "POST" && path === "/webhook/stripe") {
+      var corpoCru = await getBody(req, 256 * 1024);
+      if (!stripeAssinaturaValida(corpoCru, req.headers["stripe-signature"])) {
+        secLog("webhook_stripe_assinatura_invalida", { ip });
+        return jsonErr(res, "Assinatura inválida", 400);
       }
 
-      return jsonOk(res, { status: statusPix });
+      var evento = parseBody(corpoCru);
+      if (!evento || !evento.id) return jsonErr(res, "Evento inválido");
+
+      // Idempotência pelo banco: a chave primária é o id do evento,
+      // então a duplicata é recusada pelo próprio Postgres. A Stripe
+      // reenvia quando não recebe 200 — e às vezes reenvia mesmo tendo
+      // recebido. Sem isto, um "invoice.paid" repetido somaria mais um
+      // mês de acesso de graça.
+      try {
+        await supabase("POST", "eventos_stripe", {
+          body: { id: evento.id, tipo: evento.type, payload: evento.data && evento.data.object ? { objeto: evento.data.object.id } : null },
+          prefer: "return=minimal"
+        });
+      } catch (e) {
+        secLog("webhook_stripe_repetido", { evento: evento.id, tipo: evento.type });
+        return jsonOk(res, { recebido: true, repetido: true });
+      }
+
+      try {
+        var obj = (evento.data && evento.data.object) || {};
+
+        if (evento.type === "checkout.session.completed") {
+          var empIdSess = obj.client_reference_id || (obj.metadata && obj.metadata.empresa_id);
+          if (empIdSess && obj.subscription) {
+            var assNova = await stripeRequest("GET", "/subscriptions/" + obj.subscription);
+            await aplicarAssinatura(empIdSess, assNova);
+
+            var empBoas = await DB.select("empresas", "id=eq." + empIdSess + "&select=nome,email,plano");
+            var eBoas = empBoas.body && empBoas.body[0];
+            if (eBoas) {
+              // O valor sai do que a Stripe COBROU, não do catálogo: com
+              // cupom aplicado no Checkout os dois divergem, e o e-mail
+              // tem que dizer o que saiu do cartão da pessoa.
+              var valorPago = typeof obj.amount_total === "number"
+                ? centavosParaReais(obj.amount_total)
+                : centavosParaReais(precoDoPlano(eBoas.plano));
+              enviarEmail(eBoas.email, "✅ Assinatura do Workap confirmada",
+                EMAIL_TEMPLATES.pagamentoConfirmado(eBoas.nome, "R$ " + valorPago)).catch(function () {});
+            }
+          }
+
+        } else if (evento.type === "invoice.paid" || evento.type === "invoice.payment_succeeded") {
+          // A renovação mensal cai aqui. É o evento que o fluxo antigo
+          // simplesmente não tinha — e por isso o mês 2 nunca chegava.
+          if (obj.subscription) {
+            var assRenov = await stripeRequest("GET", "/subscriptions/" + obj.subscription);
+            var empIdRenov = assRenov.metadata && assRenov.metadata.empresa_id;
+            if (!empIdRenov) {
+              var porCliente = await DB.select("empresas",
+                "stripe_customer_id=eq." + encodeURIComponent(obj.customer) + "&select=id");
+              empIdRenov = porCliente.body && porCliente.body[0] && porCliente.body[0].id;
+            }
+            if (empIdRenov) await aplicarAssinatura(empIdRenov, assRenov);
+          }
+
+        } else if (evento.type === "invoice.payment_failed") {
+          // Não corta o acesso: a Stripe ainda vai tentar de novo, e o
+          // período já pago continua valendo. Só avisa quem precisa agir.
+          var falhaCli = await DB.select("empresas",
+            "stripe_customer_id=eq." + encodeURIComponent(obj.customer) + "&select=id,nome,email");
+          var empFalha = falhaCli.body && falhaCli.body[0];
+          if (empFalha) {
+            secLog("pagamento_falhou", { empresa_id: empFalha.id });
+            registrarErro("pagamento", "Cobrança recusada pelo cartão do cliente", {
+              rota: "/webhook/stripe", empresa_id: empFalha.id,
+              detalhe: { tentativa: obj.attempt_count }
+            });
+          }
+
+        } else if (evento.type === "customer.subscription.updated" ||
+                   evento.type === "customer.subscription.deleted") {
+          var empIdSub = (obj.metadata && obj.metadata.empresa_id);
+          if (!empIdSub) {
+            var porSub = await DB.select("empresas",
+              "stripe_subscription_id=eq." + encodeURIComponent(obj.id) + "&select=id");
+            empIdSub = porSub.body && porSub.body[0] && porSub.body[0].id;
+          }
+          if (empIdSub) await aplicarAssinatura(empIdSub, obj);
+        }
+      } catch (e) {
+        registrarErro("pagamento", "Falha ao processar " + evento.type + ": " + e.message, {
+          rota: "/webhook/stripe", metodo: "POST", detalhe: { evento: evento.id }
+        });
+        // 500 de propósito: a Stripe reenvia, e reenviar é melhor do que
+        // um pagamento que entrou e um acesso que não abriu.
+        return jsonErr(res, "Falha ao processar evento", 500);
+      }
+
+      return jsonOk(res, { recebido: true });
     }
+
     // Rotas abaixo checam permissão específica via requirePermission()
     // em vez de só validar o token — isso é o que efetivamente
     // impede um funcionário comum de chamar rotas de dono/gerente.
+    //
+    // ATENÇÃO: esta é a fronteira entre o que é público e o que exige
+    // login. Tudo ACIMA é acessível sem token (cadastro, checkout,
+    // webhook da Stripe); tudo ABAIXO depende de authPayload existir.
+    // Apagar estas linhas não gera erro de sintaxe — gera 500 em todas
+    // as rotas autenticadas, de uma vez.
     var authPayload = requireAuth(req);
     if (!authPayload) {
       secLog("auth_required", { ip, path });
       return jsonErr(res, "Autenticação necessária", 401);
+    }
+
+    // ── PORTAL DE COBRANÇA (dono logado) ────────────
+    //
+    // Trocar cartão, ver recibo e cancelar viram problema seu no dia em
+    // que o primeiro cliente pedir. A Stripe hospeda essa tela inteira;
+    // aqui só se abre a porta para ela.
+    if (method === "POST" && path === "/assinatura/portal") {
+      if (!authPayload || authPayload.role !== "dono") {
+        return jsonErr(res, "Apenas o dono da empresa pode gerenciar a assinatura", 403);
+      }
+      var empPortal = await DB.select("empresas",
+        "id=eq." + authPayload.empresa_id + "&select=stripe_customer_id");
+      var cidPortal = empPortal.body && empPortal.body[0] && empPortal.body[0].stripe_customer_id;
+      if (!cidPortal) return jsonErr(res, "Esta conta ainda não tem assinatura.", 404);
+
+      try {
+        var portal = await stripeRequest("POST", "/billing_portal/sessions", {
+          customer: cidPortal,
+          return_url: CONFIG.SITE_URL + "/app/"
+        });
+        return jsonOk(res, { url: portal.url });
+      } catch (e) {
+        registrarErro("pagamento", e.message, {
+          rota: "/assinatura/portal", metodo: "POST", empresa_id: authPayload.empresa_id
+        });
+        return jsonErr(res, "Não foi possível abrir a gestão da assinatura agora.", 502);
+      }
     }
 
     // ── SESSÃO ATUAL (restaurar login a partir do token) ─────
@@ -3585,8 +3820,11 @@ var server = http.createServer(async (req, res) => {
                   "só entrega no e-mail dono da conta. Cliente novo NÃO consegue se cadastrar. " +
                   "Verifique um domínio em resend.com/domains e defina EMAIL_FROM."
                 : "Remetente: " + soOEndereco(CONFIG.EMAIL_FROM) },
-          { nome: "Pagamento PIX (Duttyfy)", ok: !!CONFIG.PIX_URL,
-            detalhe: CONFIG.PIX_URL ? "URL configurada" : "URL não configurada" },
+          { nome: "Pagamento (Stripe)",
+            ok: !!CONFIG.STRIPE_KEY && !!CONFIG.STRIPE_WEBHOOK_SECRET,
+            detalhe: !CONFIG.STRIPE_KEY ? "STRIPE_SECRET_KEY ausente"
+              : !CONFIG.STRIPE_WEBHOOK_SECRET ? "Chave ok, mas STRIPE_WEBHOOK_SECRET ausente — pagamento entra e o acesso NÃO abre"
+              : (String(CONFIG.STRIPE_KEY).startsWith("sk_test") ? "Modo TESTE — nenhuma cobrança é real" : "Modo produção") },
           { nome: "Notificações push (VAPID)", ok: !!CONFIG.VAPID_PUBLIC,
             detalhe: CONFIG.VAPID_PUBLIC ? "Chaves válidas" : "Chaves ausentes ou inválidas" },
           { nome: "Rastreio de origem (Utmify)", ok: cfgPlat.utmify_ativo === "1" && !!cfgPlat.utmify_token,
@@ -3836,8 +4074,24 @@ var server = http.createServer(async (req, res) => {
         "domínio próprio", soOEndereco(CONFIG.EMAIL_FROM), null);
 
       // ── Integrações que dependem de configuração ──
-      anotar("PIX configurado", "Integrações", !!CONFIG.PIX_URL, "URL definida",
-        CONFIG.PIX_URL ? "definida (cobrança real não é testada aqui)" : "DUTTYFY_PIX_URL_ENCRYPTED ausente", null);
+      // A chave da Stripe é testada de verdade, não só "está definida":
+      // uma chave revogada continua definida e só falha na hora da venda.
+      if (CONFIG.STRIPE_KEY) {
+        var t0stripe = Date.now();
+        var stripeOk = false, stripeDet = "";
+        try {
+          var conta = await stripeRequest("GET", "/balance");
+          stripeOk = true;
+          stripeDet = (String(CONFIG.STRIPE_KEY).startsWith("sk_test") ? "modo TESTE" : "modo produção") +
+                      " · moeda " + ((conta.available && conta.available[0] && conta.available[0].currency) || "?").toUpperCase();
+        } catch (e) { stripeDet = e.message.slice(0, 90); }
+        anotar("Chave da Stripe é válida", "Integrações", stripeOk, "aceita pela API", stripeDet, Date.now() - t0stripe);
+      } else {
+        anotar("Chave da Stripe é válida", "Integrações", false, "aceita pela API", "STRIPE_SECRET_KEY ausente", null);
+      }
+      anotar("Webhook da Stripe configurado", "Integrações", !!CONFIG.STRIPE_WEBHOOK_SECRET,
+        "STRIPE_WEBHOOK_SECRET definido",
+        CONFIG.STRIPE_WEBHOOK_SECRET ? "definido" : "ausente — pagamento entra e o acesso não abre", null);
       anotar("Notificações push configuradas", "Integrações", !!CONFIG.VAPID_PUBLIC && !!CONFIG.VAPID_PRIVATE,
         "par de chaves VAPID", CONFIG.VAPID_PUBLIC ? "chaves presentes" : "ausentes", null);
 
