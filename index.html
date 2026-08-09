@@ -1076,7 +1076,7 @@
         </div>
       </div>
 
-      <button onclick="escolherPlano()" id="btn-gerar" style="width:100%;margin-top:16px;background:#1e8a40;color:white;border:none;padding:15px;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:background .2s;display:flex;align-items:center;justify-content:center;gap:8px;">
+      <button onclick="continuarParaOferta()" id="btn-gerar" style="width:100%;margin-top:16px;background:#1e8a40;color:white;border:none;padding:15px;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:background .2s;display:flex;align-items:center;justify-content:center;gap:8px;">
         <span>Gerar PIX</span> <span style="font-size:1.1rem;"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></span>
       </button>
       <div style="font-size:0.75rem;color:#6b7068;text-align:center;margin-top:10px;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Pagamento 100% seguro via PIX</div>
@@ -1225,6 +1225,17 @@
 
 <style>
   @keyframes spin { to { transform: rotate(360deg); } }
+/* Botão ocupado: giro + trava de clique enquanto a rede não responde.
+   currentColor faz o giro herdar a cor do texto do botão, então serve
+   no botão verde cheio e no de contorno sem precisar de variante. */
+.btn-giro{width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;display:inline-block;vertical-align:-2px;margin-right:8px;animation:spin .65s linear infinite;flex-shrink:0}
+.btn-ocupado{cursor:progress;opacity:.9}
+.btn-ocupado:hover{transform:none;filter:none}
+/* Quem pediu menos movimento continua vendo que algo acontece — só que
+   devagar. Tirar a animação por completo devolveria o problema que este
+   giro existe para resolver. */
+@media (prefers-reduced-motion:reduce){.btn-giro{animation-duration:2.4s}}
+
   #btn-gerar:hover { background: #25b251; }
 </style>
 
@@ -1322,6 +1333,68 @@ function escreverComIcones(el, conteudo){
   if(pos < texto.length){
     el.appendChild(document.createTextNode(texto.slice(pos)));
   }
+}
+
+/**
+ * Marca um botão como ocupado enquanto uma ação de rede acontece, e
+ * devolve a função que o restaura exatamente como estava.
+ *
+ * Por que isto existe: o backend roda na Render no plano grátis, que
+ * desliga a instância depois de 15 minutos parada. A primeira chamada
+ * depois de uma pausa leva de 30 a 60 segundos. Um botão que só fica
+ * cinza durante um minuto é indistinguível de um botão quebrado — e
+ * quem está tentando pagar ou entrar na conta desiste, ou pior, clica
+ * de novo e dispara a ação duas vezes.
+ *
+ * O giro diz "está acontecendo". O aviso que entra depois de 5 segundos
+ * diz "está demorando, mas não travou", que é a informação que falta
+ * justamente no caso ruim.
+ *
+ * Restaura por NÓS, não por innerHTML: o projeto já tirou innerHTML de
+ * todo lugar por causa de XSS, e voltar com ele aqui — mesmo com
+ * conteúdo próprio — reabriria o caminho.
+ */
+function botaoOcupado(btn, texto) {
+  if (!btn || btn.dataset.ocupado === '1') return function () {};
+
+  var original = Array.prototype.slice.call(btn.childNodes);
+  var larguraAntes = btn.offsetWidth;
+
+  btn.dataset.ocupado = '1';
+  btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
+  btn.classList.add('btn-ocupado');
+  // Trava a largura para o botão não encolher e a tela não pular quando
+  // o rótulo curto ("Entrar") vira um rótulo longo ("Entrando...").
+  if (larguraAntes) btn.style.minWidth = larguraAntes + 'px';
+
+  btn.textContent = '';
+  var giro = document.createElement('span');
+  giro.className = 'btn-giro';
+  giro.setAttribute('aria-hidden', 'true');
+  var rotulo = document.createElement('span');
+  rotulo.textContent = texto || 'Aguarde...';
+  btn.appendChild(giro);
+  btn.appendChild(rotulo);
+
+  var avisoLento = setTimeout(function () {
+    rotulo.textContent = 'Ainda processando — o servidor está acordando';
+  }, 5000);
+  var avisoMuitoLento = setTimeout(function () {
+    rotulo.textContent = 'Quase lá, não feche a página';
+  }, 20000);
+
+  return function liberar() {
+    clearTimeout(avisoLento);
+    clearTimeout(avisoMuitoLento);
+    delete btn.dataset.ocupado;
+    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
+    btn.classList.remove('btn-ocupado');
+    btn.style.minWidth = '';
+    btn.textContent = '';
+    original.forEach(function (n) { btn.appendChild(n); });
+  };
 }
 
 // ── Abrir / fechar modal ──────────────────────────────────────
@@ -1492,8 +1565,7 @@ async function gerarPix() {
 
   erro.style.display = 'none';
   var btn = document.getElementById('btn-gerar');
-  btn.disabled = true;
-  btn.innerHTML = '<span style="animation:spin 1s linear infinite;display:inline-block;"><svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg></span> Enviando código...';
+  var liberarGerar = botaoOcupado(btn, 'Enviando código...');
 
   // Salvar dados
   dadosFormulario = { name: nome, document: doc, email: email, phone: tel };
@@ -1508,8 +1580,7 @@ async function gerarPix() {
     var data = await res.json();
     if (!res.ok) {
       mostrarErro('Erro ao enviar código: ' + (data.error || res.status));
-      btn.disabled = false;
-      btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></span>';
+      liberarGerar();
       return;
     }
     // Mostrar tela de verificação
@@ -1517,13 +1588,11 @@ async function gerarPix() {
     document.getElementById('f-codigo').value = '';
     document.getElementById('verify-erro').style.display = 'none';
     mostrarStep('verify');
-    btn.disabled = false;
-    btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></span>';
+    liberarGerar();
     iniciarTimerReenvio();
   } catch(e) {
     mostrarErro('Erro de conexão: ' + e.message);
-    btn.disabled = false;
-    btn.innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></span>';
+    liberarGerar();
   }
 }
 
@@ -1537,8 +1606,7 @@ async function confirmarCodigo() {
   }
   erroEl.style.display = 'none';
   var btn = document.getElementById('btn-confirmar');
-  btn.disabled = true;
-  escreverComIcones(btn, '<svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg> Verificando...');
+  var liberarConfirmar = botaoOcupado(btn, 'Verificando...');
 
   try {
     var res = await fetch(API_BASE + '/verificar-codigo', {
@@ -1550,18 +1618,20 @@ async function confirmarCodigo() {
     if (!res.ok) {
       erroEl.textContent = data.error || 'Código inválido.';
       erroEl.style.display = 'block';
-      btn.disabled = false;
-      escreverComIcones(btn, 'Confirmar código <svg class=ico aria-hidden=true><use href=#i-check></use></svg>');
+      liberarConfirmar();
       return;
     }
-    // Código válido — gerar PIX
-    escreverComIcones(btn, '<svg class=ico aria-hidden=true><use href=#i-check></use></svg> Verificado! Gerando PIX...');
+    // Código válido — o botão CONTINUA ocupado: gerar o PIX é outra ida
+    // ao servidor, e devolver o botão aqui deixaria a pessoa clicar de
+    // novo no meio da cobrança.
+    var rotuloPix = btn.querySelector('span:last-child');
+    if (rotuloPix) rotuloPix.textContent = 'Verificado! Gerando PIX...';
     await gerarPixReal();
+    liberarConfirmar();
   } catch(e) {
     erroEl.textContent = 'Erro de conexão: ' + e.message;
     erroEl.style.display = 'block';
-    btn.disabled = false;
-    escreverComIcones(btn, 'Confirmar código <svg class=ico aria-hidden=true><use href=#i-check></use></svg>');
+    liberarConfirmar();
   }
 }
 
@@ -1634,7 +1704,7 @@ async function gerarPixReal() {
         // de novo com o mesmo body, mostra o erro e para.
         var err = await res.json().catch(() => ({}));
         mostrarErro('Erro ao gerar PIX: ' + (err.error || res.status));
-        if (btn) { btn.disabled = false; escreverComIcones(btn, 'Confirmar código <svg class=ico aria-hidden=true><use href=#i-check></use></svg>'); }
+        liberarConfirmar();
         return;
       }
 
@@ -1649,7 +1719,7 @@ async function gerarPixReal() {
 
   if (!resposta || !resposta.pixCode) {
     mostrarErro('Não foi possível gerar o PIX. ' + (ultimoErro || 'Tente novamente.'));
-    if (btn) { btn.disabled = false; escreverComIcones(btn, 'Confirmar código <svg class=ico aria-hidden=true><use href=#i-check></use></svg>'); }
+    liberarConfirmar();
     return;
   }
 
@@ -1718,7 +1788,22 @@ function copiarPix() {
   });
 }
 
-function escolherPlano() {
+/**
+ * Envio do formulário de cadastro: leva da tela de dados para a oferta
+ * de 7 dias grátis.
+ *
+ * Chamava-se `escolherPlano()` — o MESMO nome do seletor de plano
+ * declarado mais abaixo neste arquivo. Em JavaScript a última
+ * declaração vence, então esta função inteira era código morto e o
+ * botão "Gerar PIX" acabava chamando o seletor de plano, que só
+ * reabria o checkout já aberto. Resultado: o cliente preenchia nome,
+ * CPF, e-mail e telefone, clicava em "Gerar PIX" e NADA acontecia —
+ * o caminho pago inteiro estava trancado nessa porta.
+ *
+ * Nada avisava: dois `function X()` no mesmo escopo não geram erro
+ * nem aviso no console. Só o nome novo impede que volte a acontecer.
+ */
+function continuarParaOferta() {
   var nome = ((document.getElementById('f-nome')||{}).value||'').trim();
   var email = ((document.getElementById('f-email')||{}).value||'').trim();
   if (!nome||!email){mostrarErro('Preencha nome e e-mail!');return;}
@@ -1743,7 +1828,7 @@ function escolherAssinarAgora(){
   if (emailEl) emailEl.textContent = email;
 
   var btn = document.getElementById('btn-trial');
-  if (btn) { escreverComIcones(btn, '<svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg> Enviando código...'); btn.disabled = true; }
+  var liberarEnvio = botaoOcupado(btn, 'Enviando código...');
 
   fetch(API_BASE + '/enviar-codigo', {
     method: 'POST',
@@ -1752,7 +1837,7 @@ function escolherAssinarAgora(){
   })
   .then(function(r){ return r.json(); })
   .then(function(data){
-    if (btn) { escreverComIcones(btn, '<svg class=ico aria-hidden=true><use href=#i-rocket></use></svg> Começar 7 dias grátis'); btn.disabled = false; }
+    liberarEnvio();
     if (!data.ok) { mostrarErro(data.error || 'Erro ao enviar código.'); return; }
     var camposPag = document.getElementById('trial-verify-pagamento-campos');
     if (camposPag) camposPag.style.display = 'block';
@@ -1761,7 +1846,7 @@ function escolherAssinarAgora(){
     mostrarStep('trial-verify');
   })
   .catch(function(){
-    if (btn) { escreverComIcones(btn, '<svg class=ico aria-hidden=true><use href=#i-rocket></use></svg> Começar 7 dias grátis'); btn.disabled = false; }
+    liberarEnvio();
     mostrarErro('Erro de conexão. Tente novamente.');
   });
 }
@@ -1910,7 +1995,7 @@ async function ativarTrialGratis() {
   var email = ((document.getElementById('f-email') || {}).value || '').trim();
   
   var btn = document.getElementById('btn-trial');
-  if (btn) { escreverComIcones(btn, '<svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg> Ativando...'); btn.disabled = true; }
+  var liberarTrial = botaoOcupado(btn, 'Ativando...');
   
   // Enviar email de verificação. O trial em si (data de início/fim)
   // é decidido e gravado só pelo backend, em empresas.trial_fim,
@@ -1925,7 +2010,7 @@ async function ativarTrialGratis() {
     var data = await r.json();
     if (!data.ok) throw new Error(data.error || 'Erro');
   } catch(e) {
-    if (btn) { escreverComIcones(btn, '<svg class=ico aria-hidden=true><use href=#i-rocket></use></svg> Começar 7 dias grátis'); btn.disabled = false; }
+    liberarTrial();
     var errEl = document.getElementById('trial-verify-erro');
     if (errEl) { errEl.style.display='block'; errEl.textContent = 'Erro: ' + e.message; }
     else alert('Erro: ' + e.message);
@@ -1958,7 +2043,7 @@ async function confirmarTrialCodigo() {
   }
 
   var btn = document.getElementById('btn-trial-confirmar');
-  if (btn) { escreverComIcones(btn, '<svg class=ico aria-hidden=true><use href=#i-hourglass></use></svg> Verificando...'); btn.disabled = true; }
+  var liberarVerif = botaoOcupado(btn, 'Verificando...');
 
   try {
     var r = await fetch(API_BASE + '/verificar-codigo', {
@@ -1974,7 +2059,7 @@ async function confirmarTrialCodigo() {
     // a pessoa saía sem conseguir logar depois. Agora mostramos a
     // mensagem certa com um caminho de saída (ir para o login).
     if (r.status === 409 && data.ja_cadastrado) {
-      if (btn) { escreverComIcones(btn, intencaoAssinarDireto ? 'Confirmar e continuar' : 'Confirmar e ativar trial <svg class=ico aria-hidden=true><use href=#i-check></use></svg>'); btn.disabled = false; }
+      liberarVerif();
       var erroDup = document.getElementById('trial-verify-erro');
       if (erroDup) {
         erroDup.innerHTML = 'Este e-mail já tem uma conta Workap. ' +
@@ -1992,7 +2077,7 @@ async function confirmarTrialCodigo() {
     // digitar aqui. Salva para o app já abrir logado.
     if (data.token) localStorage.setItem('worka_token', data.token);
   } catch(e) {
-    if (btn) { escreverComIcones(btn, intencaoAssinarDireto ? 'Confirmar e continuar' : 'Confirmar e ativar trial <svg class=ico aria-hidden=true><use href=#i-check></use></svg>'); btn.disabled = false; }
+    liberarVerif();
     var erroEl = document.getElementById('trial-verify-erro');
     if (erroEl) { erroEl.textContent = e.message; erroEl.style.display = 'block'; }
     else mostrarErro(e.message);
@@ -2184,7 +2269,7 @@ function confirmarDispositivoSite(){
   }
 
   var btn = document.getElementById('acesso-btn-entrar');
-  if(btn){ btn.textContent = 'Confirmando...'; btn.disabled = true; }
+  var liberarDisp = botaoOcupado(btn, 'Confirmando...');
 
   fetch(API_BASE + '/login/confirmar-dispositivo', {
     method:'POST',
@@ -2257,7 +2342,7 @@ function entrarNoApp(){
     }
 
     var btnF = document.getElementById('acesso-btn-entrar');
-    if(btnF){ btnF.textContent='Entrando...'; btnF.disabled=true; }
+    var liberarF = botaoOcupado(btnF, 'Entrando...');
 
     fetch(API_BASE + '/login/funcionario', {
       method:'POST',
@@ -2266,7 +2351,7 @@ function entrarNoApp(){
     })
     .then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }); })
     .then(function(res){
-      if(btnF){ escreverComIcones(btnF, 'Entrar no Workap <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'); btnF.disabled=false; }
+      liberarF();
       if(res.status !== 200 || !res.data.token){
         erroGeral.textContent = res.data.error || 'Não foi possível entrar. Confira o ID da equipe, e-mail e senha.';
         erroGeral.style.display = 'block';
@@ -2277,7 +2362,7 @@ function entrarNoApp(){
       window.location.href = 'app/';
     })
     .catch(function(){
-      if(btnF){ escreverComIcones(btnF, 'Entrar no Workap <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'); btnF.disabled=false; }
+      liberarF();
       erroGeral.textContent = 'Erro de conexão. Tente novamente.';
       erroGeral.style.display = 'block';
     });
@@ -2294,7 +2379,7 @@ function entrarNoApp(){
   // código-fonte"), que redirecionava fingindo login; removida.
   if(email&&senha){
     var btnEntrar = document.getElementById('acesso-btn-entrar');
-    if(btnEntrar){ btnEntrar.textContent='Entrando...'; btnEntrar.disabled=true; }
+    var liberarEntrar = botaoOcupado(btnEntrar, 'Entrando...');
     fetch(API_BASE + '/login/empresa', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -2304,7 +2389,7 @@ function entrarNoApp(){
     .then(function(res){
       // Aparelho novo: senha certa, falta o código enviado por e-mail.
       if(res.status === 200 && res.data.requer_codigo){
-        if(btnEntrar){ escreverComIcones(btnEntrar, 'Entrar no Workap <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'); btnEntrar.disabled=false; }
+        liberarEntrar();
         mostrarPassoDispositivo(res.data.email || email, senha, 'dono');
         return;
       }
@@ -2319,7 +2404,7 @@ function entrarNoApp(){
           erro.textContent = res.data.error || 'Email ou senha incorretos.';
         }
         erro.style.display='block';
-        if(btnEntrar){ escreverComIcones(btnEntrar, 'Entrar no Workap <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'); btnEntrar.disabled=false; }
+        liberarEntrar();
         return;
       }
       localStorage.setItem('worka_token', res.data.token);
