@@ -65,6 +65,17 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{box-shadow:var(-
 @keyframes slideInRight{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:translateX(0)}}
 @keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* Botão ocupado: giro + trava de clique enquanto a rede não responde.
+   currentColor faz o giro herdar a cor do texto do botão, então serve
+   no botão verde cheio e no de contorno sem precisar de variante. */
+.btn-giro{width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;display:inline-block;vertical-align:-2px;margin-right:8px;animation:spin .65s linear infinite;flex-shrink:0}
+.btn-ocupado{cursor:progress;opacity:.9}
+.btn-ocupado:hover{transform:none;filter:none}
+/* Quem pediu menos movimento continua vendo que algo acontece — só que
+   devagar. Tirar a animação por completo devolveria o problema que este
+   giro existe para resolver. */
+@media (prefers-reduced-motion:reduce){.btn-giro{animation-duration:2.4s}}
+
 @keyframes pulseGlow{0%,100%{opacity:1}50%{opacity:.55}}
 @keyframes popIn{0%{transform:scale(.9);opacity:0}70%{transform:scale(1.02)}100%{transform:scale(1);opacity:1}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}}
@@ -527,7 +538,7 @@ tr:hover td{background:var(--g50)}
 
 
     <div class="login-erro" id="login-erro">Credenciais inválidas. Tente novamente.</div>
-    <button class="btn-full" onclick="fazerLogin()">Entrar no Workap</button>
+    <button class="btn-full" id="btn-entrar-app" onclick="fazerLogin()">Entrar no Workap</button>
     <div style="text-align:center;margin-top:14px">
       <a href="#" id="link-esqueci-senha" onclick="abrirRecuperarSenha();return false;" style="color:var(--gray500);font-size:0.78rem;text-decoration:underline">Esqueci minha senha</a>
     </div>
@@ -2404,6 +2415,68 @@ function escreverComIcones(el, conteudo){
   }
 }
 
+/**
+ * Marca um botão como ocupado enquanto uma ação de rede acontece, e
+ * devolve a função que o restaura exatamente como estava.
+ *
+ * Por que isto existe: o backend roda na Render no plano grátis, que
+ * desliga a instância depois de 15 minutos parada. A primeira chamada
+ * depois de uma pausa leva de 30 a 60 segundos. Um botão que só fica
+ * cinza durante um minuto é indistinguível de um botão quebrado — e
+ * quem está tentando pagar ou entrar na conta desiste, ou pior, clica
+ * de novo e dispara a ação duas vezes.
+ *
+ * O giro diz "está acontecendo". O aviso que entra depois de 5 segundos
+ * diz "está demorando, mas não travou", que é a informação que falta
+ * justamente no caso ruim.
+ *
+ * Restaura por NÓS, não por innerHTML: o projeto já tirou innerHTML de
+ * todo lugar por causa de XSS, e voltar com ele aqui — mesmo com
+ * conteúdo próprio — reabriria o caminho.
+ */
+function botaoOcupado(btn, texto) {
+  if (!btn || btn.dataset.ocupado === '1') return function () {};
+
+  var original = Array.prototype.slice.call(btn.childNodes);
+  var larguraAntes = btn.offsetWidth;
+
+  btn.dataset.ocupado = '1';
+  btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
+  btn.classList.add('btn-ocupado');
+  // Trava a largura para o botão não encolher e a tela não pular quando
+  // o rótulo curto ("Entrar") vira um rótulo longo ("Entrando...").
+  if (larguraAntes) btn.style.minWidth = larguraAntes + 'px';
+
+  btn.textContent = '';
+  var giro = document.createElement('span');
+  giro.className = 'btn-giro';
+  giro.setAttribute('aria-hidden', 'true');
+  var rotulo = document.createElement('span');
+  rotulo.textContent = texto || 'Aguarde...';
+  btn.appendChild(giro);
+  btn.appendChild(rotulo);
+
+  var avisoLento = setTimeout(function () {
+    rotulo.textContent = 'Ainda processando — o servidor está acordando';
+  }, 5000);
+  var avisoMuitoLento = setTimeout(function () {
+    rotulo.textContent = 'Quase lá, não feche a página';
+  }, 20000);
+
+  return function liberar() {
+    clearTimeout(avisoLento);
+    clearTimeout(avisoMuitoLento);
+    delete btn.dataset.ocupado;
+    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
+    btn.classList.remove('btn-ocupado');
+    btn.style.minWidth = '';
+    btn.textContent = '';
+    original.forEach(function (n) { btn.appendChild(n); });
+  };
+}
+
 var menus = {
   dono: [
     {sec:'Principal'},
@@ -2788,6 +2861,11 @@ function fazerLogin() {
       return;
     }
 
+    // Sem isto o botão ficava mudo durante toda a chamada. Com a Render
+    // dormindo isso é quase um minuto de nada acontecendo — tempo de
+    // sobra para a pessoa achar que quebrou e clicar de novo.
+    var liberarLogin = botaoOcupado(document.getElementById('btn-entrar-app'), 'Entrando...');
+
     fetch(API_BASE + '/login/empresa', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -2796,6 +2874,7 @@ function fazerLogin() {
     .then(function(r){ return r.json().then(function(data){ return { status:r.status, data:data }; }); })
     .then(function(res){
       // Aparelho novo: senha certa, mas ainda falta o código do e-mail.
+      liberarLogin();
       if(res.status === 200 && res.data.requer_codigo){
         pedirCodigoDispositivo(res.data.email || emailVal, senhaVal, res.data.is_owner ? 'owner' : 'dono');
         return;
@@ -2814,6 +2893,7 @@ function fazerLogin() {
       }
     })
     .catch(function(){
+      liberarLogin();
       if(erroLogin){
         erroLogin.textContent = 'Erro de conexão com o servidor. Tente novamente.';
         erroLogin.style.display = 'block';
@@ -2833,6 +2913,8 @@ function fazerLogin() {
       return;
     }
 
+    var liberarLoginF = botaoOcupado(document.getElementById('btn-entrar-app'), 'Entrando...');
+
     fetch(API_BASE + '/login/funcionario', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -2840,6 +2922,7 @@ function fazerLogin() {
     })
     .then(function(r){ return r.json().then(function(data){ return { status:r.status, data:data }; }); })
     .then(function(res){
+      liberarLoginF();
       if(res.status !== 200 || !res.data.token){
         var erroF2 = document.getElementById('login-erro');
         if(erroF2){ erroF2.textContent = res.data.error || 'Credenciais inválidas. Tente novamente.'; erroF2.style.display = 'block'; }
@@ -2848,6 +2931,7 @@ function fazerLogin() {
       entrarComoFuncionario(res.data.token, res.data.funcionario, res.data.empresa, res.data.ramo);
     })
     .catch(function(){
+      liberarLoginF();
       alert('Erro de conexão com o servidor. Tente novamente.');
     });
     return;
