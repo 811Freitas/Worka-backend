@@ -106,14 +106,21 @@ const CONFIG = {
   // barrado pelo CORS: login, cadastro, PIX, tudo. Mantidas as duas
   // grafias porque o GitHub Pages segue servindo em 811freitas.github.io
   // e um eventual redirect pode chegar com qualquer uma delas.
+  // Os endereços de localhost só entram FORA de produção. Achado pela
+  // própria auditoria de segurança do painel: com eles na lista, uma
+  // página rodando no localhost da vítima podia chamar a API de
+  // produção com as credenciais dela — e o navegador deixaria, porque
+  // o servidor declara a origem como confiável. Em desenvolvimento não
+  // há credencial de valor em jogo, então lá continuam.
   ALLOWED_ORIGINS: [
     "https://811freitas.github.io",
     "https://workap.com.br",
     "https://www.workap.com.br",
-    "https://worka.com.br",
+    "https://worka.com.br"
+  ].concat(process.env.NODE_ENV === "production" ? [] : [
     "http://localhost:3000",
     "http://localhost:5500"
-  ]
+  ])
 };
 
 // Validar variáveis críticas na inicialização
@@ -735,7 +742,7 @@ function supabase(method, table, options = {}) {
     "config_plataforma", "utmify_envios",
     "comunicados", "cargos", "config_faltas", "contas_pagar",
     "mensagens", "periodos_afastamento", "metas",
-    "config_jornada"
+    "config_jornada", "erros_plataforma"
   ];
   if (!ALLOWED_TABLES.includes(table)) {
     return Promise.reject(new Error(`Tabela não permitida: ${table}`));
@@ -1778,6 +1785,143 @@ function classificarFalhaEmail(status, corpo) {
   // para um 403 — mas só quando o remetente é de fato o sandbox.
   if (status === 403 && emailEmModoTeste()) return FALHA_EMAIL.NAO_VERIFICADO;
   return FALHA_EMAIL.OUTRO;
+}
+
+// ═══════════════════════════════════════════════════════════
+// ERROS DA PLATAFORMA
+// ═══════════════════════════════════════════════════════════
+//
+// Antes, todo erro morria no console: sumia quando a Render reiniciava
+// e não aparecia em lugar nenhum do painel. Quem precisava saber que o
+// sistema estava quebrado teria que abrir o log de deploy — ou seja,
+// descobria pelo cliente reclamando.
+
+// Mesma lista do secLog: campo cujo nome cheira a segredo nunca é
+// gravado, nem dentro do `detalhe`.
+var CAMPOS_SECRETOS = ["senha", "password", "token", "jwt", "codigo", "pix_code", "secret", "key", "hash"];
+
+function limparDetalhe(obj) {
+  if (!obj || typeof obj !== "object") return null;
+  var limpo = {};
+  for (var [k, v] of Object.entries(obj)) {
+    limpo[k] = CAMPOS_SECRETOS.some(function (c) { return k.toLowerCase().includes(c); })
+      ? "[REDACTED]"
+      : (typeof v === "string" ? v.slice(0, 500) : v);
+  }
+  return limpo;
+}
+
+// Guarda para não entrar em laço: se o próprio banco cair, gravar o
+// erro no banco falha, o que geraria outro erro, que tentaria gravar...
+var gravandoErro = false;
+
+function registrarErro(tipo, mensagem, extra) {
+  extra = extra || {};
+  console.error("[ERRO:" + tipo + "] " + mensagem, JSON.stringify(limparDetalhe(extra) || {}));
+
+  if (gravandoErro) return;
+  gravandoErro = true;
+
+  // Fire-and-forget: registrar erro não pode atrasar a resposta da rota
+  // nem, muito menos, derrubá-la.
+  supabase("POST", "erros_plataforma", {
+    body: {
+      tipo:       String(tipo).slice(0, 40),
+      rota:       extra.rota   ? String(extra.rota).slice(0, 200) : null,
+      metodo:     extra.metodo ? String(extra.metodo).slice(0, 10) : null,
+      status:     typeof extra.status === "number" ? extra.status : null,
+      mensagem:   String(mensagem || "sem mensagem").slice(0, 1000),
+      detalhe:    limparDetalhe(extra.detalhe),
+      empresa_id: extra.empresa_id || null
+    },
+    prefer: "return=minimal"
+  })
+    .catch(function (e) { console.error("[ERRO] falhou ao gravar o erro:", e.message); })
+    .then(function () { gravandoErro = false; });
+}
+
+// Chamada de função no Postgres (RPC). O PostgREST não expõe o catálogo
+// do banco, então a auditoria de RLS mora numa função e vem por aqui.
+function supabaseRpc(fn) {
+  return new Promise(function (resolve, reject) {
+    var alvo = new URL(CONFIG.SUPABASE_URL);
+    var req = https.request({
+      hostname: alvo.hostname,
+      port: alvo.port || 443,
+      path: "/rest/v1/rpc/" + encodeURIComponent(fn),
+      method: "POST",
+      headers: {
+        "apikey":         CONFIG.SUPABASE_KEY,
+        "Authorization":  `Bearer ${CONFIG.SUPABASE_KEY}`,
+        "Content-Type":   "application/json",
+        "Content-Length": 2
+      }
+    }, function (res) {
+      var raw = "";
+      res.on("data", function (c) { raw += c; });
+      res.on("end", function () {
+        if (res.statusCode >= 400) return reject(new Error("RPC " + fn + ": " + res.statusCode + " " + raw.slice(0, 200)));
+        try { resolve(JSON.parse(raw)); } catch (e) { reject(new Error("RPC " + fn + ": resposta inválida")); }
+      });
+    });
+    req.on("error", reject);
+    req.setTimeout(8000, function () { req.destroy(new Error("RPC " + fn + ": tempo esgotado")); });
+    req.end("{}");
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// TESTES DE API
+// ═══════════════════════════════════════════════════════════
+// As requisições vão para o PRÓPRIO servidor por HTTP, em 127.0.0.1.
+// Chamar as funções internas direto testaria menos: passaria por fora
+// do roteamento, do CORS, do rate limit e do portão de autenticação —
+// que é justamente onde mora o tipo de bug que derruba venda.
+function chamarSeMesmo(metodo, caminho, corpo, cabecalhos) {
+  return new Promise(function (resolve) {
+    var t0 = Date.now();
+    var dados = corpo ? JSON.stringify(corpo) : null;
+    var headers = Object.assign({ "Content-Type": "application/json" }, cabecalhos || {});
+    if (dados) headers["Content-Length"] = Buffer.byteLength(dados);
+
+    var req = http.request({
+      hostname: "127.0.0.1", port: CONFIG.PORT, path: caminho, method: metodo, headers
+    }, function (r) {
+      var raw = "";
+      r.on("data", function (c) { raw += c; });
+      r.on("end", function () {
+        var json = null;
+        try { json = JSON.parse(raw); } catch (e) {}
+        resolve({ status: r.statusCode, json: json, ms: Date.now() - t0 });
+      });
+    });
+    req.on("error", function (e) { resolve({ status: 0, erro: e.message, ms: Date.now() - t0 }); });
+    req.setTimeout(10000, function () { req.destroy(); resolve({ status: 0, erro: "tempo esgotado", ms: Date.now() - t0 }); });
+    req.end(dados);
+  });
+}
+
+// Pergunta ao Resend se a chave vale e se algum domínio já verificou.
+// É a resposta que o painel mais precisa dar hoje, e evita ter que
+// abrir o site do Resend para saber.
+function consultarDominiosResend() {
+  return new Promise(function (resolve) {
+    var req = https.request({
+      hostname: "api.resend.com", port: 443, path: "/domains", method: "GET",
+      headers: { "Authorization": "Bearer " + CONFIG.RESEND_KEY }
+    }, function (r) {
+      var raw = "";
+      r.on("data", function (c) { raw += c; });
+      r.on("end", function () {
+        var json = null;
+        try { json = JSON.parse(raw); } catch (e) {}
+        resolve({ status: r.statusCode, json: json });
+      });
+    });
+    req.on("error", function (e) { resolve({ status: 0, erro: e.message }); });
+    req.setTimeout(10000, function () { req.destroy(); resolve({ status: 0, erro: "tempo esgotado" }); });
+    req.end();
+  });
 }
 
 function enviarEmail(para, assunto, html) {
@@ -2828,6 +2972,10 @@ var server = http.createServer(async (req, res) => {
         return jsonOk(res, { ok: true });
       } catch(e) {
         secLog("otp_email_error", { message: e.message, motivo: e.motivo });
+        registrarErro("email", e.message, {
+          rota: "/enviar-codigo", metodo: "POST", status: e.status || null,
+          detalhe: { motivo: e.motivo, remetente: soOEndereco(CONFIG.EMAIL_FROM) }
+        });
 
         // "Tente novamente" era a resposta para qualquer falha — inclusive
         // para a única que NUNCA se resolve tentando de novo: o remetente
@@ -3585,6 +3733,300 @@ var server = http.createServer(async (req, res) => {
     // A rota /logs existente filtra por empresa_id, que o token de
     // owner não carrega — para ele, precisa ser a atividade de todas
     // as empresas junta.
+    // ── TESTES DE API (somente owner) ────────────────
+    if (method === "POST" && path === "/owner/testes") {
+      if (!hasPermission(authPayload, "saas:write")) {
+        return jsonErr(res, "Apenas o owner da Workap pode rodar os testes", 403);
+      }
+
+      var testes = [];
+      function anotar(nome, grupo, passou, esperado, obtido, ms) {
+        testes.push({ nome: nome, grupo: grupo, passou: passou,
+                      esperado: esperado, obtido: obtido, ms: ms == null ? null : ms });
+      }
+
+      // ── Rotas públicas: o que todo visitante toca ──
+      var rSaude = await chamarSeMesmo("GET", "/health");
+      anotar("Servidor responde", "Rotas públicas", rSaude.status === 200, "200", String(rSaude.status || rSaude.erro), rSaude.ms);
+
+      var rRamos = await chamarSeMesmo("GET", "/ramos");
+      var temRamos = rRamos.status === 200 && rRamos.json && Array.isArray(rRamos.json.ramos) && rRamos.json.ramos.length > 0;
+      anotar("Lista de ramos (usada no quiz)", "Rotas públicas", temRamos,
+        "200 com lista", rRamos.status + (temRamos ? " · " + rRamos.json.ramos.length + " ramos" : " sem lista"), rRamos.ms);
+
+      var rPlanos = await chamarSeMesmo("GET", "/planos");
+      var temPlanos = rPlanos.status === 200 && rPlanos.json && Array.isArray(rPlanos.json.planos) && rPlanos.json.planos.length > 0;
+      anotar("Catálogo de planos (usado no preço)", "Rotas públicas", temPlanos,
+        "200 com planos", rPlanos.status + (temPlanos ? " · " + rPlanos.json.planos.map(function (p) { return p.nome; }).join(", ") : ""), rPlanos.ms);
+
+      // ── Portão de autenticação: rota privada SEM token tem que negar ──
+      var semToken = [
+        ["/empresa", "Dados da empresa"],
+        ["/funcionarios", "Lista de funcionários"],
+        ["/espelho-ponto", "Espelho de ponto"],
+        ["/owner/metricas", "Métricas da plataforma"]
+      ];
+      for (var par of semToken) {
+        var rr = await chamarSeMesmo("GET", par[0]);
+        anotar(par[1] + " exige login", "Autenticação", rr.status === 401 || rr.status === 403,
+          "401 ou 403", String(rr.status || rr.erro), rr.ms);
+      }
+
+      // Token adulterado precisa ser recusado: é a defesa contra alguém
+      // trocar o próprio papel de "funcionario" para "dono".
+      var tokenFalso = jwtSign({ empresa_id: "00000000-0000-0000-0000-000000000000", email: "x@x", role: "dono" });
+      var partes = tokenFalso.split(".");
+      var adulterado = partes[0] + "." + partes[1] + "." + "assinaturaerrada";
+      var rAdult = await chamarSeMesmo("GET", "/empresa", null, { "Authorization": "Bearer " + adulterado });
+      anotar("Token com assinatura trocada é recusado", "Autenticação", rAdult.status === 401,
+        "401", String(rAdult.status || rAdult.erro), rAdult.ms);
+
+      // ── Banco ──
+      var t0banco = Date.now();
+      var bancoOk = true, bancoDet = "";
+      try { await supabase("GET", "empresas", { query: "select=id&limit=1" }); bancoDet = (Date.now() - t0banco) + " ms"; }
+      catch (e) { bancoOk = false; bancoDet = e.message; }
+      anotar("Banco de dados responde", "Banco", bancoOk, "consulta em < 2s", bancoDet, Date.now() - t0banco);
+
+      // A allowlist de tabelas é a barreira contra um nome de tabela vir
+      // de fora e virar consulta. Testada de verdade, não presumida.
+      var barreiraOk = false, barreiraDet = "";
+      try { await supabase("GET", "pg_user", { query: "select=*" }); barreiraDet = "NÃO bloqueou"; }
+      catch (e) { barreiraOk = /não permitida/i.test(e.message); barreiraDet = e.message; }
+      anotar("Tabela fora da lista é bloqueada", "Banco", barreiraOk, "rejeitar", barreiraDet, null);
+
+      var rlsDet = "", rlsOk = false;
+      try {
+        var tabs = await supabaseRpc("auditoria_rls");
+        var ruins = tabs.filter(function (t) { return !t.rls_ativo || t.politicas_abertas > 0; });
+        rlsOk = ruins.length === 0;
+        rlsDet = rlsOk ? tabs.length + " tabelas protegidas" : ruins.map(function (t) { return t.tabela; }).join(", ");
+      } catch (e) { rlsDet = e.message; }
+      anotar("RLS ativo e sem política aberta", "Banco", rlsOk, "todas protegidas", rlsDet, null);
+
+      // ── Criptografia ──
+      var senhaTeste = "teste-" + crypto.randomBytes(6).toString("hex");
+      var hashTeste = bcrypt.hashSync(senhaTeste, 10);
+      anotar("Hash de senha confere", "Criptografia",
+        bcrypt.compareSync(senhaTeste, hashTeste) && !bcrypt.compareSync(senhaTeste + "x", hashTeste),
+        "aceita a certa e recusa a errada", "bcrypt " + CONFIG.BCRYPT_ROUNDS + " rounds", null);
+
+      var tk = jwtSign({ empresa_id: "teste", email: "t@t", role: "dono" });
+      var lido = jwtVerify(tk);
+      anotar("JWT assina e valida", "Criptografia", !!lido && lido.email === "t@t",
+        "payload de volta", lido ? "ok" : "não validou", null);
+
+      // ── E-mail: a pergunta que importa hoje ──
+      var rDom = await consultarDominiosResend();
+      if (rDom.status === 200) {
+        var dominios = (rDom.json && (rDom.json.data || rDom.json)) || [];
+        if (!Array.isArray(dominios)) dominios = [];
+        var verificados = dominios.filter(function (d) { return d.status === "verified"; });
+        anotar("Chave do Resend é válida", "E-mail", true, "200", "aceita pela API", null);
+        anotar("Domínio próprio verificado", "E-mail", verificados.length > 0,
+          "pelo menos 1 verificado",
+          dominios.length
+            ? dominios.map(function (d) { return d.name + " (" + d.status + ")"; }).join(", ")
+            : "nenhum domínio cadastrado no Resend", null);
+      } else {
+        anotar("Chave do Resend é válida", "E-mail", false, "200",
+          rDom.erro || ("HTTP " + rDom.status), null);
+      }
+      anotar("Remetente não é o sandbox", "E-mail", !emailEmModoTeste(),
+        "domínio próprio", soOEndereco(CONFIG.EMAIL_FROM), null);
+
+      // ── Integrações que dependem de configuração ──
+      anotar("PIX configurado", "Integrações", !!CONFIG.PIX_URL, "URL definida",
+        CONFIG.PIX_URL ? "definida (cobrança real não é testada aqui)" : "DUTTYFY_PIX_URL_ENCRYPTED ausente", null);
+      anotar("Notificações push configuradas", "Integrações", !!CONFIG.VAPID_PUBLIC && !!CONFIG.VAPID_PRIVATE,
+        "par de chaves VAPID", CONFIG.VAPID_PUBLIC ? "chaves presentes" : "ausentes", null);
+
+      var falharam = testes.filter(function (t) { return !t.passou; });
+      return jsonOk(res, {
+        rodado_em: new Date().toISOString(),
+        resumo: { total: testes.length, passaram: testes.length - falharam.length, falharam: falharam.length },
+        testes: testes,
+        // Dizer o que NÃO foi testado importa tanto quanto o resultado:
+        // sem isso, "20 de 20 passaram" soa como garantia de que a venda
+        // funciona — e a cobrança real nunca foi exercida.
+        nao_testado: [
+          "Cobrança PIX de verdade (exige gerar uma cobrança e pagar)",
+          "Entrega real de e-mail para um endereço de terceiro",
+          "Envio de notificação push para um aparelho"
+        ]
+      });
+    }
+
+    // ── AUDITORIA DE SEGURANÇA (somente owner) ───────
+    //
+    // Cada item aqui CONFERE alguma coisa de verdade. Nenhum devolve
+    // "seguro" fixo: um painel que sempre mostra verde é pior que
+    // nenhum painel, porque cria confiança sem lastro.
+    if (method === "GET" && path === "/owner/seguranca") {
+      if (!hasPermission(authPayload, "saas:read")) {
+        return jsonErr(res, "Apenas o owner da Workap pode ver isso", 403);
+      }
+
+      var itens = [];
+      function checar(id, titulo, nivel, ok, detalhe, comoResolver) {
+        itens.push({ id: id, titulo: titulo, nivel: nivel, ok: ok,
+                     detalhe: detalhe, como_resolver: ok ? null : comoResolver });
+      }
+
+      var producao = process.env.NODE_ENV === "production";
+
+      // 1. Remetente de e-mail — hoje é o que trava a venda.
+      checar("email_sandbox", "Remetente de e-mail próprio", "critico",
+        !emailEmModoTeste(),
+        "Remetente atual: " + soOEndereco(CONFIG.EMAIL_FROM),
+        "No sandbox o Resend só entrega no e-mail dono da conta, então nenhum cliente novo conclui o cadastro. Verifique o domínio em resend.com/domains e defina EMAIL_FROM.");
+
+      // 2. Segredo do JWT. Curto = token forjável por força bruta.
+      var tamSegredo = (CONFIG.JWT_SECRET || "").length;
+      checar("jwt_forte", "Segredo do JWT com tamanho seguro", "critico",
+        tamSegredo >= 32,
+        tamSegredo + " caracteres",
+        "Gere um segredo de 32+ caracteres aleatórios e troque JWT_SECRET na Render. Trocar desloga todo mundo, o que é aceitável.");
+
+      // 3. Conta de owner protegida por hash, nunca senha em texto.
+      checar("owner_hash", "Senha do owner guardada como hash", "alto",
+        !!CONFIG.OWNER_PASSWORD_HASH && CONFIG.OWNER_PASSWORD_HASH.startsWith("$2"),
+        CONFIG.OWNER_PASSWORD_HASH ? "Hash bcrypt configurado" : "OWNER_PASSWORD_HASH ausente",
+        "Sem o hash a rota /login/owner responde 503. Gere com bcryptjs e configure na Render.");
+
+      // 4. Chave de criptografia dos dados de pagamento.
+      checar("encrypt_key", "Chave de criptografia definida", "medio",
+        !!CONFIG.ENCRYPT_KEY,
+        CONFIG.ENCRYPT_KEY ? "Configurada" : "ENCRYPT_SECRET ausente",
+        "Defina ENCRYPT_SECRET na Render.");
+
+      // 5. Ambiente. Fora de produção o /health expõe status de serviços.
+      checar("ambiente", "Rodando como produção", "medio",
+        producao,
+        "NODE_ENV = " + (process.env.NODE_ENV || "não definido"),
+        "Defina NODE_ENV=production na Render. Fora disso o /health revela quais serviços estão configurados.");
+
+      // 6. CORS não pode aceitar localhost em produção.
+      var origensLocais = CONFIG.ALLOWED_ORIGINS.filter(function (o) { return /localhost|127\.0\.0\.1/.test(o); });
+      checar("cors", "CORS sem endereços locais", producao ? "alto" : "baixo",
+        !producao || origensLocais.length === 0,
+        origensLocais.length ? "Aceita: " + origensLocais.join(", ") : "Só domínios do Workap",
+        "Em produção, remova localhost da lista ALLOWED_ORIGINS: qualquer página local passaria a poder chamar a API com credenciais.");
+
+      // 7. Custo do bcrypt.
+      checar("bcrypt", "Custo do bcrypt em 12 ou mais", "medio",
+        CONFIG.BCRYPT_ROUNDS >= 12,
+        CONFIG.BCRYPT_ROUNDS + " rounds",
+        "Abaixo de 12 o hash fica barato de quebrar em GPU.");
+
+      // 8. Row Level Security, conferido no banco de verdade.
+      try {
+        var tabelas = await supabaseRpc("auditoria_rls");
+        var semRls   = tabelas.filter(function (t) { return !t.rls_ativo; });
+        var abertas  = tabelas.filter(function (t) { return t.politicas_abertas > 0; });
+
+        checar("rls_ativo", "RLS ligado em todas as tabelas", "critico",
+          semRls.length === 0,
+          semRls.length ? "Sem RLS: " + semRls.map(function (t) { return t.tabela; }).join(", ")
+                        : tabelas.length + " tabelas, todas com RLS",
+          "Sem RLS, quem obtiver a chave pública do Supabase lê a tabela inteira direto, sem passar pelo backend. Rode: alter table public.<tabela> enable row level security;");
+
+        checar("rls_politicas", "Nenhuma política concede acesso direto", "critico",
+          abertas.length === 0,
+          abertas.length ? "Política aberta em: " + abertas.map(function (t) { return t.tabela; }).join(", ")
+                         : "Todas as políticas são de negação",
+          "Este projeto acessa o banco só pelo backend com service key. Política que libera leitura direta abre um caminho paralelo que não passa por nenhuma verificação de permissão.");
+      } catch (e) {
+        checar("rls_ativo", "RLS ligado em todas as tabelas", "critico", false,
+          "Não consegui conferir: " + e.message,
+          "Rode a migração 014, que cria a função auditoria_rls() usada nesta checagem.");
+      }
+
+      // 9. Contas sem senha — conta sem hash é conta sem porta.
+      try {
+        var semSenha = await DB.select("empresas", "select=id&senha_hash=is.null&limit=50");
+        checar("contas_sem_senha", "Toda empresa tem senha definida", "alto",
+          (semSenha.body || []).length === 0,
+          (semSenha.body || []).length + " empresa(s) sem senha_hash",
+          "Conta sem hash de senha não consegue logar e pode indicar cadastro interrompido pela metade.");
+      } catch (e) { /* a checagem de banco abaixo já reporta indisponibilidade */ }
+
+      // 10. Códigos de verificação vencidos acumulando.
+      try {
+        var agoraIso = new Date().toISOString();
+        var otpVelhos = await DB.select("codigos_verificacao", "select=id&expira_em=lt." + agoraIso + "&limit=500");
+        var qtdOtp = (otpVelhos.body || []).length;
+        checar("otp_expirados", "Sem acúmulo de códigos expirados", "baixo",
+          qtdOtp < 200,
+          qtdOtp + " código(s) já vencido(s) na tabela",
+          "Não é falha de segurança por si, mas a tabela cresce sem parar. Vale uma limpeza periódica.");
+      } catch (e) { /* idem */ }
+
+      var criticosAbertos = itens.filter(function (i) { return !i.ok && i.nivel === "critico"; }).length;
+      var altosAbertos    = itens.filter(function (i) { return !i.ok && i.nivel === "alto"; }).length;
+
+      return jsonOk(res, {
+        verificado_em: new Date().toISOString(),
+        resumo: {
+          total: itens.length,
+          ok: itens.filter(function (i) { return i.ok; }).length,
+          criticos: criticosAbertos,
+          altos: altosAbertos
+        },
+        itens: itens,
+        // O sistema não tem como saber se uma credencial vazada foi
+        // trocada. Fingir que sabe seria pior do que dizer que não sabe.
+        nao_verificavel: [
+          "Se a RESEND_KEY e a senha do e-mail que já vazaram foram realmente rotacionadas",
+          "Se o PIX funciona ponta a ponta (exige uma cobrança real)",
+          "Se o certificado TLS está válido (a Render termina o TLS antes de chegar aqui)"
+        ]
+      });
+    }
+
+    // ── ERROS DA PLATAFORMA (somente owner) ──────────
+    if (method === "GET" && path === "/owner/erros") {
+      if (!hasPermission(authPayload, "saas:read")) {
+        return jsonErr(res, "Apenas o owner da Workap pode ver isso", 403);
+      }
+      var limErro  = SANITIZE.int(url.searchParams.get("limit"), 1, 200) || 50;
+      var tipoFilt = SANITIZE.string(url.searchParams.get("tipo") || "", 40);
+
+      var q = "order=ts.desc&limit=" + limErro;
+      if (tipoFilt) q += "&tipo=eq." + encodeURIComponent(tipoFilt);
+
+      var listaErros = await DB.select("erros_plataforma", q).catch(function () { return { body: [] }; });
+
+      // Contagem por tipo nas últimas 24h: é o que diz se algo está
+      // acontecendo AGORA. Uma lista de 50 linhas sem esse resumo
+      // esconde a diferença entre "um erro ontem" e "cem erros na
+      // última hora".
+      var desde24h = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+      var recentes = await DB.select("erros_plataforma",
+        "select=tipo&ts=gte." + desde24h + "&limit=1000"
+      ).catch(function () { return { body: [] }; });
+
+      var porTipo = {};
+      (recentes.body || []).forEach(function (e) { porTipo[e.tipo] = (porTipo[e.tipo] || 0) + 1; });
+
+      return jsonOk(res, {
+        erros: listaErros.body || [],
+        ultimas_24h: { total: (recentes.body || []).length, por_tipo: porTipo }
+      });
+    }
+
+    // ── LIMPAR ERROS (somente owner) ─────────────────
+    if (method === "DELETE" && path === "/owner/erros") {
+      if (!hasPermission(authPayload, "saas:write")) {
+        return jsonErr(res, "Apenas o owner da Workap pode fazer isso", 403);
+      }
+      // Só apaga o que já passou de 30 dias. Um botão que zera tudo
+      // apagaria justamente o erro que alguém está investigando.
+      var corte = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+      await DB.delete("erros_plataforma", "ts=lt." + corte);
+      return jsonOk(res, { ok: true, apagados_antes_de: corte });
+    }
+
     if (method === "GET" && path === "/owner/logs") {
       if (!hasPermission(authPayload, "saas:read")) {
         return jsonErr(res, "Apenas o owner da Workap pode ver isso", 403);
@@ -6014,6 +6456,13 @@ var server = http.createServer(async (req, res) => {
   } catch(e) {
     // Nunca expor stack trace em produção
     secLog("server_error", { path, message: e.message });
+    registrarErro("rota", e.message, {
+      rota: path, metodo: method, status: 500,
+      empresa_id: (authPayload && authPayload.empresa_id) || null,
+      // A stack fica só no banco, para o painel do owner. Nunca vai na
+      // resposta: é mapa da estrutura interna para quem provocou o erro.
+      detalhe: { stack: (e.stack || "").split("\n").slice(0, 4).join(" | ") }
+    });
     return jsonErr(res, "Erro interno do servidor", 500);
   }
 });
