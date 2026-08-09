@@ -1819,6 +1819,50 @@ function aplicarPlanoNaTela(){
 // duas cópias garante que uma envelheça.
 var ramosDisponiveis = [];
 
+// Uma única busca compartilhada pelo funil e pelo formulário.
+//
+// Antes cada um chamava GET /ramos por conta própria, e só no momento
+// em que a tela abria. O backend roda na Render no plano grátis, que
+// desliga a instância depois de 15 minutos parada e leva de 30 a 60
+// segundos para acordar — então o primeiro visitante depois de uma
+// pausa abria o funil e encontrava o passo 1 COMPLETAMENTE VAZIO: sem
+// cartão, sem "carregando", sem nada clicável. Parecia site quebrado,
+// e do ponto de vista de quem estava lá era mesmo.
+//
+// Três mudanças resolvem: a busca começa no carregamento da página (e
+// de quebra já acorda a Render antes de a pessoa clicar), o resultado
+// fica em cache para os dois consumidores, e existe um teto de espera
+// para o caso de a instância estar realmente fora.
+var buscaDeRamos = null;
+var RAMOS_TIMEOUT_MS = 12000;
+
+function buscarRamos() {
+  if (ramosDisponiveis.length) return Promise.resolve(ramosDisponiveis);
+  if (buscaDeRamos) return buscaDeRamos;
+
+  buscaDeRamos = new Promise(function (resolve, reject) {
+    var respondeu = false;
+    var relogio = setTimeout(function () {
+      if (!respondeu) { respondeu = true; buscaDeRamos = null; reject(new Error('demorou demais')); }
+    }, RAMOS_TIMEOUT_MS);
+
+    fetch(API_BASE + '/ramos')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (respondeu) return;
+        respondeu = true; clearTimeout(relogio);
+        if (!d || !Array.isArray(d.ramos) || !d.ramos.length) { buscaDeRamos = null; return reject(new Error('sem lista')); }
+        ramosDisponiveis = d.ramos;
+        resolve(ramosDisponiveis);
+      })
+      .catch(function (e) {
+        if (respondeu) return;
+        respondeu = true; clearTimeout(relogio); buscaDeRamos = null; reject(e);
+      });
+  });
+  return buscaDeRamos;
+}
+
 function ramoEscolhidoNoCadastro() {
   var sel = document.getElementById('f-ramo');
   return (sel && sel.value) || 'outro';
@@ -1826,18 +1870,15 @@ function ramoEscolhidoNoCadastro() {
 
 function carregarRamosNoCadastro() {
   var sel = document.getElementById('f-ramo');
-  if (!sel || ramosDisponiveis.length) return;
+  if (!sel) return;
 
-  fetch(API_BASE + '/ramos')
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (d) {
-      if (!d || !Array.isArray(d.ramos)) throw new Error('sem lista');
-      ramosDisponiveis = d.ramos;
+  buscarRamos()
+    .then(function (lista) {
       sel.textContent = '';
       var vazio = document.createElement('option');
       vazio.value = ''; vazio.textContent = 'Selecione o seu segmento';
       sel.appendChild(vazio);
-      ramosDisponiveis.forEach(function (r) {
+      lista.forEach(function (r) {
         var o = document.createElement('option');
         o.value = r.slug; o.textContent = r.nome;
         sel.appendChild(o);
@@ -2371,45 +2412,41 @@ document.getElementById('acesso-overlay').addEventListener('click',function(e){i
         <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:20px;"><div style="font-size:1.3rem;margin-bottom:8px;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg></div><div style="font-weight:700;color:#fff;margin-bottom:4px;">Hierarquia e permissões customizáveis</div><div style="font-size:0.82rem;color:rgba(255,255,255,0.6);">Crie os cargos que seu negócio precisa com permissões por checkbox.</div></div>
         <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:20px;"><div style="font-size:1.3rem;margin-bottom:8px;"><svg class=ico aria-hidden=true><use href=#i-phone></use></svg></div><div style="font-weight:700;color:#fff;margin-bottom:4px;">Entrada segura por ID único</div><div style="font-size:0.82rem;color:rgba(255,255,255,0.6);">Nenhum funcionário entra sem sua aprovação.</div></div>
       </div>
-      <button onclick="irParaPasso(5)" class="funil-btn">Ver depoimentos <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></button>
+      <button onclick="irParaPasso(5)" class="funil-btn">Como começo <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></button>
     </div>
 
+    <!-- Este passo mostrava três depoimentos — "Carla M. · Salão de
+         Beleza", "Roberto S. · Restaurante", "Ana P. · Clínica
+         Estética" — com nomes, frases e segmentos inventados. O Workap
+         ainda não tem nenhum cliente, então nenhuma daquelas frases foi
+         dita por ninguém. Isso é propaganda enganosa (CDC art. 37) e,
+         pior para o negócio, é o tipo de coisa que destrói a confiança
+         justamente de quem for conferir.
+         No lugar entra o que é verificável: como funcionam os 7 dias. -->
     <div id="funil-5" class="funil-step" style="display:none;">
-      <div style="font-size:2rem;margin-bottom:12px;"><svg class=ico aria-hidden=true><use href=#i-message></use></svg></div>
-      <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:20px;">Quem já usa, não volta atrás</h2>
-      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:28px;">
-        <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:18px;"><div style="font-size:0.85rem;color:rgba(255,255,255,0.85);margin-bottom:10px;">"Antes perdia horas tentando saber quem estava trabalhando. Hoje abro o Workap e vejo tudo."</div><div style="font-size:0.75rem;color:#3dd669;font-weight:600;">— Carla M. · Salão de Beleza</div></div>
-        <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:18px;"><div style="font-size:0.85rem;color:rgba(255,255,255,0.85);margin-bottom:10px;">"Meu estoque nunca mais venceu desde que ativei o alerta automático. Vale cada centavo."</div><div style="font-size:0.75rem;color:#3dd669;font-weight:600;">— Roberto S. · Restaurante</div></div>
-        <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:18px;"><div style="font-size:0.85rem;color:rgba(255,255,255,0.85);margin-bottom:10px;">"Customizei com as cores da minha empresa. Meus funcionários acham que mandei fazer um app!"</div><div style="font-size:0.75rem;color:#3dd669;font-weight:600;">— Ana P. · Clínica Estética</div></div>
+      <div style="font-size:2rem;margin-bottom:12px;"><svg class=ico aria-hidden=true><use href=#i-rocket></use></svg></div>
+      <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:12px;">Como começa</h2>
+      <p style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-bottom:24px;">7 dias para testar com a sua equipe de verdade. Sem cartão, sem fidelidade.</p>
+      <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:28px;">
+        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;"><svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg></span><div><strong>Você cria a conta em 1 minuto</strong><p>Nome, e-mail e senha. Nenhum dado de pagamento é pedido para testar.</p></div></div>
+        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;"><svg class=ico aria-hidden=true><use href=#i-key></use></svg></span><div><strong>Sua equipe entra pelo ID da empresa</strong><p>Você passa o código, cada um se cadastra — e ninguém entra sem a sua aprovação.</p></div></div>
+        <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg></span><div><strong>No 8º dia você decide</strong><p>Se não servir, é só não assinar. Não cobramos nada e não pedimos motivo.</p></div></div>
       </div>
-      <button onclick="irParaPasso(6)" class="funil-btn">Ver o preço <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></button>
+      <button onclick="irParaPasso(6)" class="funil-btn">Ver os planos <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></button>
     </div>
 
     <div id="funil-6" class="funil-step" style="display:none;">
       <div style="font-size:2rem;margin-bottom:12px;"><svg class=ico aria-hidden=true><use href=#i-target></use></svg></div>
-      <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:8px;">Tudo isso por menos de R$ 1 por dia</h2>
-      <p style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-bottom:24px;">Um plano único. Sem cobranças extras. Sem surpresas.</p>
-      <div style="background:white;border-radius:20px;padding:28px;margin-bottom:16px;text-align:center;">
-        <div style="font-size:0.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1e8a40;margin-bottom:8px;">Plano Completo</div>
-        <div style="font-family:'Syne',sans-serif;font-size:3rem;font-weight:800;color:#16622f;letter-spacing:-2px;">R$ 49,99</div>
-        <div style="font-size:0.85rem;color:#6b7068;margin-bottom:20px;">/mês · cancele quando quiser</div>
-        <div style="text-align:left;display:flex;flex-direction:column;gap:8px;margin-bottom:24px;">
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;"><svg class=ico aria-hidden=true><use href=#i-check></use></svg></span> Ponto digital em tempo real</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;"><svg class=ico aria-hidden=true><use href=#i-check></use></svg></span> Tarefas com foto/vídeo de comprovação</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;"><svg class=ico aria-hidden=true><use href=#i-check></use></svg></span> Alerta automático de validade</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;"><svg class=ico aria-hidden=true><use href=#i-check></use></svg></span> White Label completo</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;"><svg class=ico aria-hidden=true><use href=#i-check></use></svg></span> Hierarquia e permissões customizáveis</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;"><svg class=ico aria-hidden=true><use href=#i-check></use></svg></span> Integração via API</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;"><svg class=ico aria-hidden=true><use href=#i-check></use></svg></span> Localização no ponto via Google Maps</div>
-          <div style="font-size:0.875rem;color:#3a3d39;display:flex;gap:8px;"><span style="color:#1e8a40;font-weight:800;"><svg class=ico aria-hidden=true><use href=#i-check></use></svg></span> 7 dias grátis para testar</div>
-        </div>
-        <button onclick="fecharFunil();setTimeout(function(){escolherPlano(planoEscolhido);},300);" style="width:100%;background:#1e8a40;color:white;border:none;padding:16px;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Assinar agora — R$ 49,99/mês <svg class=ico aria-hidden=true><use href=#i-zap></use></svg></button>
-        <div style="font-size:0.75rem;color:#6b7068;margin-top:10px;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Pagamento 100% seguro via PIX</div>
-      </div>
-      <div style="background:rgba(255,200,0,0.1);border:1px solid rgba(255,200,0,0.3);border-radius:12px;padding:14px;text-align:center;">
-        <div style="font-size:0.82rem;color:#ffd966;font-weight:600;"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg> Oferta especial de lançamento</div>
-        <div style="font-size:0.75rem;color:rgba(255,255,255,0.6);margin-top:4px;">Garanta o preço de R$ 49,99 antes do reajuste</div>
-      </div>
+      <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:8px;">Escolha o seu plano</h2>
+      <p style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-bottom:24px;">Os dois começam com 7 dias grátis. Cancele quando quiser.</p>
+      <!-- Os cartões são montados por montarPlanosDoFunil() a partir de
+           GET /planos. Antes havia UM cartão com "R$ 49,99" digitado no
+           HTML e a frase "um plano único" — que deixou de ser verdade
+           quando nasceu o Pro. Além de mentir, o funil só sabia vender
+           o plano barato: o de R$ 89,90 não aparecia em lugar nenhum
+           para quem entrava por aqui. -->
+      <div id="funil-planos" style="display:flex;flex-direction:column;gap:14px;margin-bottom:16px;"></div>
+      <div style="font-size:0.75rem;color:rgba(255,255,255,0.55);text-align:center;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Pagamento via PIX · sem fidelidade</div>
     </div>
 
   </div>
@@ -2420,6 +2457,12 @@ document.getElementById('acesso-overlay').addEventListener('click',function(e){i
 .seg-card{background:rgba(255,255,255,0.08);border:1.5px solid rgba(255,255,255,0.15);border-radius:14px;padding:16px 12px;color:white;font-size:0.9rem;font-weight:600;text-align:center;cursor:pointer;transition:background .2s var(--ease),border-color .2s var(--ease),transform .15s var(--ease)}
 .seg-card:hover{border-color:rgba(61,214,105,.4);transform:translateY(-2px)}
 .seg-card:active{background:rgba(61,214,105,0.15);border-color:#3dd669}
+/* Placeholder enquanto a lista de segmentos não chega. Ocupa o mesmo
+   espaço do cartão real para a tela não pular quando os dados entram. */
+.seg-osso{cursor:default;min-height:52px;border-style:dashed;border-color:rgba(255,255,255,.10);background:rgba(255,255,255,.04);animation:segPulsa 1.4s ease-in-out infinite}
+.seg-osso:hover{transform:none;border-color:rgba(255,255,255,.10)}
+@keyframes segPulsa{0%,100%{opacity:.45}50%{opacity:.85}}
+@media (prefers-reduced-motion:reduce){.seg-osso{animation:none;opacity:.6}}
 .dor-card{background:rgba(255,255,255,0.07);border-radius:12px;padding:14px 16px;color:rgba(255,255,255,0.85);font-size:0.875rem;line-height:1.5}
 .sol-card{display:flex;gap:14px;align-items:flex-start;background:rgba(255,255,255,0.07);border-radius:14px;padding:16px}
 .sol-card strong{display:block;color:white;font-size:0.9rem;margin-bottom:4px}
@@ -2458,13 +2501,24 @@ function montarSegmentosDoFunil(){
   var grade = document.getElementById('funil-segmentos');
   if(!grade || grade.dataset.pronto === '1') return;
 
-  fetch(API_BASE + '/ramos')
-    .then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(d){
-      if(!d || !Array.isArray(d.ramos)) throw new Error('sem lista');
-      ramosDisponiveis = d.ramos;
+  // Esqueleto imediato. A tela branca de antes era o pior dos mundos:
+  // quem abria o funil com a Render dormindo não tinha como saber se
+  // estava carregando, se tinha quebrado, ou se era pra clicar em algo
+  // invisível. Seis retângulos pulsando dizem "vem aí" sem prometer
+  // nada, e ocupam exatamente o espaço que os cartões vão ocupar.
+  if (!grade.childNodes.length) {
+    for (var i = 0; i < 6; i++) {
+      var osso = document.createElement('div');
+      osso.className = 'seg-card seg-osso';
+      osso.setAttribute('aria-hidden', 'true');
+      grade.appendChild(osso);
+    }
+  }
+
+  buscarRamos()
+    .then(function(lista){
       grade.textContent = '';
-      d.ramos.forEach(function(r){
+      lista.forEach(function(r){
         var card = document.createElement('div');
         card.className = 'seg-card';
         escreverComIcones(card, '<svg class=ico aria-hidden=true><use href=#' + r.icone + '></use></svg> ');
@@ -2477,16 +2531,96 @@ function montarSegmentosDoFunil(){
       grade.dataset.pronto = '1';
     })
     .catch(function(){
+      // Falhou de verdade. O funil não pode ficar intransponível por
+      // causa de uma lista, mas também não vai fingir que está tudo
+      // bem: diz o que houve e deixa seguir. O ramo pode ser escolhido
+      // depois, no formulário de cadastro.
       grade.textContent = '';
+      var aviso = document.createElement('div');
+      aviso.style.cssText = 'grid-column:1/-1;font-size:0.8rem;color:rgba(255,255,255,0.55);margin-bottom:4px;text-align:center';
+      aviso.textContent = 'Não consegui carregar os segmentos agora. Dá para escolher depois, no cadastro.';
+      grade.appendChild(aviso);
+
       var card = document.createElement('div');
       card.className = 'seg-card';
       card.style.gridColumn = '1/-1';
-      card.textContent = 'Continuar';
+      card.textContent = 'Continuar mesmo assim';
       card.onclick = function(){ escolherSegmento('outro', 'pequenos negócios'); };
       grade.appendChild(card);
+
+      // Deixa tentar de novo: a Render pode ter acordado nesse meio-tempo.
+      var retry = document.createElement('div');
+      retry.style.cssText = 'grid-column:1/-1;text-align:center;font-size:0.78rem;color:#3dd669;cursor:pointer;padding:6px;text-decoration:underline';
+      retry.textContent = 'Tentar carregar de novo';
+      retry.onclick = function(){ grade.textContent = ''; montarSegmentosDoFunil(); };
+      grade.appendChild(retry);
     });
 }
+/**
+ * Monta os cartões de plano do último passo a partir de GET /planos.
+ * O preço nunca é escrito aqui: a vitrine e a cobrança têm que sair da
+ * mesma fonte, senão um dia divergem — e divergir entre o que o cliente
+ * leu e o que o PIX cobra é a pior forma de estrear uma relação.
+ */
+function montarPlanosDoFunil(){
+  var caixa = document.getElementById('funil-planos');
+  if(!caixa || caixa.dataset.pronto === '1') return;
+
+  carregarPlanos().then(function(){
+    if(!planosDisponiveis.length){
+      caixa.textContent = '';
+      var erro = document.createElement('div');
+      erro.style.cssText = 'background:rgba(255,255,255,.07);border-radius:14px;padding:20px;text-align:center;color:rgba(255,255,255,.75);font-size:.85rem';
+      erro.textContent = 'Não consegui carregar os preços agora.';
+      caixa.appendChild(erro);
+
+      var alt = document.createElement('button');
+      alt.className = 'funil-btn';
+      alt.style.marginTop = '12px';
+      alt.textContent = 'Começar os 7 dias grátis';
+      // O trial não depende do catálogo de preços — dá para seguir o
+      // cadastro mesmo com GET /planos fora. Perder a conta porque a
+      // vitrine não carregou seria trocar um problema pequeno por um caro.
+      alt.onclick = function(){ fecharFunil(); setTimeout(abrirCheckout, 300); };
+      caixa.appendChild(alt);
+      return;
+    }
+
+    caixa.textContent = '';
+    planosDisponiveis.forEach(function(p){
+      var card = document.createElement('div');
+      card.style.cssText = 'background:white;border-radius:18px;padding:22px;text-align:center';
+
+      var nome = document.createElement('div');
+      nome.style.cssText = 'font-size:.72rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1e8a40;margin-bottom:6px';
+      nome.textContent = p.nome;
+
+      var preco = document.createElement('div');
+      preco.style.cssText = "font-family:'Syne',sans-serif;font-size:2.4rem;font-weight:800;color:#16622f;letter-spacing:-1.5px;line-height:1.1";
+      preco.textContent = 'R$ ' + p.preco_reais;
+
+      var mes = document.createElement('div');
+      mes.style.cssText = 'font-size:.82rem;color:#6b7068;margin-bottom:14px';
+      mes.textContent = '/mês · cancele quando quiser';
+
+      var resumo = document.createElement('div');
+      resumo.style.cssText = 'font-size:.86rem;color:#3a3d39;line-height:1.55;margin-bottom:18px';
+      resumo.textContent = p.resumo || '';
+
+      var btn = document.createElement('button');
+      btn.style.cssText = "width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:12px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif";
+      btn.textContent = 'Assinar o ' + p.nome;
+      btn.onclick = function(){ fecharFunil(); setTimeout(function(){ escolherPlano(p.slug); }, 300); };
+
+      [nome, preco, mes, resumo, btn].forEach(function(e){ card.appendChild(e); });
+      caixa.appendChild(card);
+    });
+    caixa.dataset.pronto = '1';
+  });
+}
+
 function irParaPasso(n){
+  if(n === 6) montarPlanosDoFunil();
   document.querySelectorAll(".funil-step").forEach(function(el){el.style.display="none";});
   var el=document.getElementById("funil-"+n);
   if(el){el.style.display="block";}
@@ -2502,6 +2636,17 @@ document.addEventListener("DOMContentLoaded",function(){
       btn.onclick=function(e){e.preventDefault();abrirFunil();};
     }
   });
+
+  // Busca a lista assim que a página abre, muito antes de alguém
+  // clicar em "Testar grátis". Nas contas grátis da Render a primeira
+  // requisição depois de uma pausa acorda a instância e demora quase
+  // um minuto; pagar essa espera aqui, em segundo plano, é de graça
+  // para o visitante — ele está lendo a página. Pagar na hora do
+  // clique custava a tela vazia que parecia site quebrado.
+  // O catch é vazio de propósito: quem trata a falha é quem abre o
+  // funil, com aviso na tela. Aqui só não pode virar erro solto.
+  buscarRamos().catch(function(){});
+  carregarPlanos();
 });
 </script>
 
