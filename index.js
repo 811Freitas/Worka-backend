@@ -51,6 +51,19 @@ const CONFIG = {
   SUPABASE_URL:  env("SUPABASE_URL") || "https://vtkmqykwyilcdnigaxsr.supabase.co",
   SUPABASE_KEY:  env("SUPABASE_SERVICE_KEY"),
   RESEND_KEY:    env("RESEND_KEY"),
+  // Remetente dos e-mails. Era fixo em "onboarding@resend.dev", que é o
+  // endereço de SANDBOX do Resend: ele só entrega para o e-mail dono da
+  // conta. Na prática isso significava que nenhum cliente novo conseguia
+  // receber o código de verificação — ou seja, ninguém além do dono
+  // conseguia se cadastrar.
+  //
+  // Virou variável de ambiente para que, no minuto em que o domínio
+  // terminar de verificar no Resend, a troca seja um campo na Render e
+  // um restart — sem editar código nem esperar deploy.
+  //
+  // Formato: 'Nome <endereco@dominio>'. O domínio precisa estar
+  // verificado no Resend, senão a API rejeita com 403.
+  EMAIL_FROM:    env("EMAIL_FROM") || "Workap <onboarding@resend.dev>",
   PIX_URL:       env("DUTTYFY_PIX_URL_ENCRYPTED"),
   ENCRYPT_KEY:   env("ENCRYPT_SECRET"),
   VAPID_PUBLIC:  env("VAPID_PUBLIC_KEY"),
@@ -1721,10 +1734,56 @@ async function enviarPush(empresaId, payload, funcionarioId) {
 // ════════════════════════════════════════
 // EMAIL VIA RESEND
 // ════════════════════════════════════════
+// Endereço do remetente sem o nome: "Workap <x@y>" → "x@y".
+function soOEndereco(de) {
+  var m = /<([^>]+)>/.exec(de || "");
+  return (m ? m[1] : (de || "")).trim().toLowerCase();
+}
+
+// O remetente ainda é o sandbox do Resend? Enquanto for, a API só
+// entrega para o e-mail dono da conta e NENHUM cliente novo consegue
+// concluir o cadastro. Vale a pena o sistema saber disso sobre si mesmo:
+// é usado no diagnóstico do painel, no aviso de inicialização e na
+// mensagem de erro que o visitante lê.
+function emailEmModoTeste() {
+  return /@resend\.dev$/.test(soOEndereco(CONFIG.EMAIL_FROM));
+}
+
+// Traduz a falha do Resend em algo acionável.
+//
+// Antes isto era `reject(new Error("Resend " + statusCode))`: o corpo da
+// resposta — que é onde o Resend explica o que houve — ia para o lixo.
+// Um 403 de "domínio não verificado" e um 403 de "chave revogada" viravam
+// a mesma string, e quem estivesse depurando não tinha por onde começar.
+var FALHA_EMAIL = {
+  NAO_VERIFICADO: "nao_verificado", // sandbox ou domínio pendente
+  CHAVE:          "chave",          // chave inválida, revogada ou sem permissão
+  LIMITE:         "limite",         // cota/rate limit do plano
+  DESTINATARIO:   "destinatario",   // endereço recusado pelo Resend
+  OUTRO:          "outro"
+};
+
+function classificarFalhaEmail(status, corpo) {
+  var msg  = ((corpo && (corpo.message || corpo.name)) || "").toLowerCase();
+  if (status === 401 || /api key|unauthorized|restricted/.test(msg)) return FALHA_EMAIL.CHAVE;
+  if (status === 429 || /rate.?limit|too many|quota|daily/.test(msg))  return FALHA_EMAIL.LIMITE;
+  // O 403 do sandbox diz literalmente "you can only send testing emails
+  // to your own email address"; o de domínio pendente diz "domain is not
+  // verified". Os dois têm a mesma causa raiz e a mesma solução.
+  if (/only send testing emails|not verified|verify a domain|domain is not/.test(msg)) {
+    return FALHA_EMAIL.NAO_VERIFICADO;
+  }
+  if (/invalid.*(to|recipient|email)|recipient/.test(msg)) return FALHA_EMAIL.DESTINATARIO;
+  // Sem mensagem reconhecível, o sandbox é a explicação mais provável
+  // para um 403 — mas só quando o remetente é de fato o sandbox.
+  if (status === 403 && emailEmModoTeste()) return FALHA_EMAIL.NAO_VERIFICADO;
+  return FALHA_EMAIL.OUTRO;
+}
+
 function enviarEmail(para, assunto, html) {
   return new Promise((resolve, reject) => {
     var data = JSON.stringify({
-      from:    "Workap <onboarding@resend.dev>",
+      from:    CONFIG.EMAIL_FROM,
       to:      [para],
       subject: assunto,
       html
@@ -1742,8 +1801,19 @@ function enviarEmail(para, assunto, html) {
       var raw = "";
       res.on("data", c => raw += c);
       res.on("end", () => {
-        if (res.statusCode >= 400) return reject(new Error(`Resend ${res.statusCode}`));
-        resolve(JSON.parse(raw));
+        var corpo = null;
+        try { corpo = JSON.parse(raw); } catch (e) { /* resposta não-JSON */ }
+        if (res.statusCode >= 400) {
+          var motivo = classificarFalhaEmail(res.statusCode, corpo);
+          var texto  = (corpo && corpo.message) || raw.slice(0, 200) || "sem detalhe";
+          var erro   = new Error(`Resend ${res.statusCode}: ${texto}`);
+          // O código vai anexado para o chamador decidir o que dizer ao
+          // usuário sem precisar interpretar texto de novo.
+          erro.motivo = motivo;
+          erro.status = res.statusCode;
+          return reject(erro);
+        }
+        resolve(corpo || {});
       });
     });
     req.on("error", reject);
@@ -2757,7 +2827,29 @@ var server = http.createServer(async (req, res) => {
         await enviarEmail(email, "🔐 Seu código de verificação Workap", EMAIL_TEMPLATES.codigo(nome, codigo));
         return jsonOk(res, { ok: true });
       } catch(e) {
-        secLog("otp_email_error", { message: e.message });
+        secLog("otp_email_error", { message: e.message, motivo: e.motivo });
+
+        // "Tente novamente" era a resposta para qualquer falha — inclusive
+        // para a única que NUNCA se resolve tentando de novo: o remetente
+        // ainda ser o sandbox do Resend, que só entrega no e-mail dono da
+        // conta. O visitante ficava reenviando o código para sempre,
+        // achando que o problema era o e-mail dele.
+        //
+        // Sem detalhar a infraestrutura para um anônimo, mas sem mentir
+        // sobre de quem é a culpa nem mandar repetir o que não funciona.
+        if (e.motivo === FALHA_EMAIL.NAO_VERIFICADO || e.motivo === FALHA_EMAIL.CHAVE) {
+          console.error("[EMAIL] Cadastro bloqueado — envio indisponível:", e.message);
+          return jsonErr(res,
+            "Não conseguimos enviar e-mails no momento. O problema é nosso, " +
+            "não seu — tentar de novo não vai resolver. Já fomos avisados.", 503);
+        }
+        if (e.motivo === FALHA_EMAIL.LIMITE) {
+          return jsonErr(res,
+            "Muitos cadastros ao mesmo tempo. Aguarde alguns minutos e tente de novo.", 429);
+        }
+        if (e.motivo === FALHA_EMAIL.DESTINATARIO) {
+          return jsonErr(res, "Este endereço de e-mail foi recusado. Confira se está correto.", 400);
+        }
         return jsonErr(res, "Erro ao enviar código. Tente novamente.", 500);
       }
     }
@@ -3332,10 +3424,19 @@ var server = http.createServer(async (req, res) => {
         servicos: [
           { nome: "Banco de dados (Supabase)", ok: bancoOk,
             detalhe: bancoOk ? latenciaBanco + " ms" : (bancoErro || "sem resposta") },
-          { nome: "E-mail (Resend)", ok: !!CONFIG.RESEND_KEY,
-            detalhe: CONFIG.RESEND_KEY
-              ? "Remetente: onboarding@resend.dev — em modo de teste só entrega no e-mail dono da conta Resend"
-              : "Chave não configurada" },
+          // "ok" só quando o e-mail realmente funciona para cliente novo.
+          // Com o remetente de sandbox o serviço responde 200 e parece
+          // saudável, mas o cadastro está quebrado — um painel que
+          // mostrasse verde aqui estaria mentindo para o dono.
+          { nome: "E-mail (Resend)",
+            ok: !!CONFIG.RESEND_KEY && !emailEmModoTeste(),
+            detalhe: !CONFIG.RESEND_KEY
+              ? "Chave não configurada"
+              : emailEmModoTeste()
+                ? "Remetente " + soOEndereco(CONFIG.EMAIL_FROM) + " é o sandbox do Resend: " +
+                  "só entrega no e-mail dono da conta. Cliente novo NÃO consegue se cadastrar. " +
+                  "Verifique um domínio em resend.com/domains e defina EMAIL_FROM."
+                : "Remetente: " + soOEndereco(CONFIG.EMAIL_FROM) },
           { nome: "Pagamento PIX (Duttyfy)", ok: !!CONFIG.PIX_URL,
             detalhe: CONFIG.PIX_URL ? "URL configurada" : "URL não configurada" },
           { nome: "Notificações push (VAPID)", ok: !!CONFIG.VAPID_PUBLIC,
@@ -3366,7 +3467,8 @@ var server = http.createServer(async (req, res) => {
         preco_reais:      centavosParaReais(CONFIG.PLANOS.completo.centavos),
         preco_pro_reais:     centavosParaReais(CONFIG.PLANOS.pro.centavos),
         dias_trial:       7,
-        remetente_email:  "onboarding@resend.dev",
+        remetente_email:  soOEndereco(CONFIG.EMAIL_FROM),
+        remetente_sandbox: emailEmModoTeste(),
         owner_email:      authPayload.email,
         utmify_ativo:     cfgLida.utmify_ativo === "1",
         // Nunca devolve o token inteiro: quem já está logado não
@@ -5918,6 +6020,21 @@ var server = http.createServer(async (req, res) => {
 
 server.listen(CONFIG.PORT, () => {
   secLog("server_start", { port: CONFIG.PORT, env: process.env.NODE_ENV || "development" });
+
+  // Este aviso existe porque a falha é silenciosa e cara: o sistema sobe
+  // inteiro, responde tudo, e só o cadastro de cliente novo não funciona
+  // — sem erro em lugar nenhum até alguém tentar assinar. Melhor gritar
+  // no log de inicialização, toda vez, do que descobrir pela venda que
+  // não aconteceu.
+  if (emailEmModoTeste()) {
+    console.warn(
+      "\n[EMAIL] ATENÇÃO: remetente = " + soOEndereco(CONFIG.EMAIL_FROM) + " (sandbox do Resend).\n" +
+      "[EMAIL] Nesse modo o Resend só entrega no e-mail dono da conta.\n" +
+      "[EMAIL] NENHUM cliente novo consegue receber o código e concluir o cadastro.\n" +
+      "[EMAIL] Para resolver: verifique um domínio em resend.com/domains e defina\n" +
+      "[EMAIL] a variável de ambiente EMAIL_FROM (ex.: 'Workap <nao-responda@workap.com.br>').\n"
+    );
+  }
 });
 
 // Graceful shutdown
