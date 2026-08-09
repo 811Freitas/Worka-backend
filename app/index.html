@@ -1722,6 +1722,7 @@ tr:hover td{background:var(--g50)}
         <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('marketing')"><svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg> Marketing</button>
         <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('logs')"><svg class=ico aria-hidden=true><use href=#i-tasks></use></svg> Logs</button>
         <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('api')"><svg class=ico aria-hidden=true><use href=#i-plug></use></svg> API</button>
+        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('diagnostico')"><svg class=ico aria-hidden=true><use href=#i-shield></use></svg> Diagnóstico</button>
         <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('configuracoes')"><svg class=ico aria-hidden=true><use href=#i-tool></use></svg> Configurações</button>
       </div>
 
@@ -1894,6 +1895,63 @@ tr:hover td{background:var(--g50)}
             </table>
           </div>
         </div>
+      </div>
+
+      <!-- ABA: DIAGNÓSTICO — erros, testes de API e segurança.
+           Tudo aqui vem do servidor; nenhum número é escrito no HTML.
+           Um painel de segurança com valor fixo seria pior que nenhum,
+           porque cria confiança sem lastro. -->
+      <div id="owner-diagnostico" style="display:none">
+
+        <!-- ── SEGURANÇA ── -->
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-head">
+            <div>
+              <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-shield></use></svg> Pontos críticos de segurança</div>
+              <div class="card-sub" id="seg-resumo">Verificando...</div>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btn-seg-recarregar" onclick="carregarSeguranca()"><svg class=ico aria-hidden=true><use href=#i-refresh></use></svg> Verificar de novo</button>
+          </div>
+          <div class="card-body" id="seg-lista">—</div>
+          <div class="card-body" id="seg-naoverificavel" style="border-top:1px solid var(--gray200)"></div>
+        </div>
+
+        <!-- ── TESTES DE API ── -->
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-head">
+            <div>
+              <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-plug></use></svg> Testes de API</div>
+              <div class="card-sub" id="tst-resumo">Rode para conferir se as rotas respondem</div>
+            </div>
+            <button class="btn btn-primary btn-sm" id="btn-rodar-testes" onclick="rodarTestes()"><svg class=ico aria-hidden=true><use href=#i-play></use></svg> Rodar testes</button>
+          </div>
+          <div class="card-body" id="tst-lista" style="font-size:.86rem;color:var(--gray500)">
+            Os testes batem no servidor de verdade: rotas públicas, portão de login, banco, criptografia e integrações. Não geram cobrança nem enviam e-mail.
+          </div>
+          <div class="card-body" id="tst-naotestado" style="border-top:1px solid var(--gray200);display:none"></div>
+        </div>
+
+        <!-- ── ERROS ── -->
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Erros da plataforma</div>
+              <div class="card-sub" id="err-resumo">Carregando...</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <select id="err-filtro" class="input" style="width:auto;font-size:.8rem;padding:6px 10px" onchange="carregarErros()">
+                <option value="">Todos os tipos</option>
+                <option value="rota">Erro de rota (500)</option>
+                <option value="email">E-mail</option>
+                <option value="pix">PIX</option>
+                <option value="banco">Banco</option>
+              </select>
+              <button class="btn btn-secondary btn-sm" id="btn-err-recarregar" onclick="carregarErros()"><svg class=ico aria-hidden=true><use href=#i-refresh></use></svg></button>
+            </div>
+          </div>
+          <div class="card-body" id="err-lista">—</div>
+        </div>
+
       </div>
 
       <!-- ABA: CONFIGURAÇÕES -->
@@ -4049,14 +4107,266 @@ function toggleSidebar() {
 // ═══════════════════════════════════
 // OWNER FUNCTIONS
 // ═══════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// DIAGNÓSTICO DO OWNER — segurança, testes de API e erros
+// ═══════════════════════════════════════════════════════════
+// Tudo montado com createElement. Estas telas mostram mensagem de erro
+// vinda do servidor e de serviços externos (Resend, Postgres), que é
+// texto que ninguém controla — interpolar isso em innerHTML seria
+// entregar execução de script a quem conseguisse provocar o erro certo.
+
+var CORES_NIVEL = {
+  critico: { fundo: '#fef2f2', borda: '#dc2626', texto: '#991b1b', rotulo: 'CRÍTICO' },
+  alto:    { fundo: '#fff7ed', borda: '#ea580c', texto: '#9a3412', rotulo: 'ALTO'    },
+  medio:   { fundo: '#fffbeb', borda: '#d97706', texto: '#92400e', rotulo: 'MÉDIO'   },
+  baixo:   { fundo: '#f8fafc', borda: '#94a3b8', texto: '#475569', rotulo: 'BAIXO'   }
+};
+
+function linhaDiagnostico(opcoes) {
+  var linha = document.createElement('div');
+  linha.style.cssText = 'display:flex;gap:10px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--gray100)';
+
+  var marca = document.createElement('span');
+  marca.textContent = opcoes.ok ? '✓' : '✗';
+  marca.style.cssText = 'flex:none;width:18px;font-weight:800;font-size:.95rem;line-height:1.5;color:' +
+    (opcoes.ok ? 'var(--green600,#1e8a40)' : (opcoes.cor || '#dc2626'));
+
+  var meio = document.createElement('div');
+  meio.style.flex = '1';
+
+  var titulo = document.createElement('div');
+  titulo.style.cssText = 'font-weight:600;font-size:.9rem';
+  titulo.textContent = opcoes.titulo;
+  meio.appendChild(titulo);
+
+  if (opcoes.detalhe) {
+    var det = document.createElement('div');
+    det.style.cssText = 'font-size:.79rem;color:var(--gray500);margin-top:2px;word-break:break-word';
+    det.textContent = opcoes.detalhe;
+    meio.appendChild(det);
+  }
+  if (opcoes.comoResolver) {
+    var res = document.createElement('div');
+    res.style.cssText = 'font-size:.79rem;margin-top:6px;padding:8px 10px;border-radius:8px;line-height:1.5;background:' +
+      opcoes.fundo + ';color:' + opcoes.texto;
+    res.textContent = opcoes.comoResolver;
+    meio.appendChild(res);
+  }
+
+  linha.appendChild(marca);
+  linha.appendChild(meio);
+
+  if (opcoes.etiqueta) {
+    var et = document.createElement('span');
+    et.textContent = opcoes.etiqueta;
+    et.style.cssText = 'flex:none;font-size:.63rem;font-weight:800;letter-spacing:.05em;padding:3px 7px;border-radius:5px;' +
+      'background:' + opcoes.fundo + ';color:' + opcoes.texto;
+    linha.appendChild(et);
+  }
+  return linha;
+}
+
+// ── PONTOS CRÍTICOS DE SEGURANÇA ───────────────────────────
+async function carregarSeguranca() {
+  var lista = document.getElementById('seg-lista');
+  var resumo = document.getElementById('seg-resumo');
+  if (!lista) return;
+  var liberar = botaoOcupado(document.getElementById('btn-seg-recarregar'), 'Verificando...');
+
+  var d = null;
+  try {
+    var r = await fetch(API_BASE + '/owner/seguranca', { headers: cabecalhoOwner() });
+    if (r.ok) d = await r.json();
+  } catch (e) {}
+  liberar();
+
+  if (!d) {
+    resumo.textContent = 'Não consegui verificar agora.';
+    lista.textContent = 'Sem resposta do servidor. Tente de novo em instantes.';
+    return;
+  }
+
+  // Os problemas em aberto vêm primeiro, do mais grave para o menos —
+  // o que precisa de ação não pode estar embaixo de dez linhas verdes.
+  var ordem = { critico: 0, alto: 1, medio: 2, baixo: 3 };
+  var itens = d.itens.slice().sort(function (a, b) {
+    if (a.ok !== b.ok) return a.ok ? 1 : -1;
+    return ordem[a.nivel] - ordem[b.nivel];
+  });
+
+  resumo.textContent = d.resumo.criticos > 0
+    ? d.resumo.criticos + ' problema(s) crítico(s) em aberto de ' + d.resumo.total + ' verificações'
+    : d.resumo.altos > 0
+      ? 'Nenhum crítico. ' + d.resumo.altos + ' ponto(s) de atenção.'
+      : 'Todas as ' + d.resumo.total + ' verificações passaram.';
+  resumo.style.color = d.resumo.criticos > 0 ? '#dc2626' : (d.resumo.altos > 0 ? '#b45309' : '');
+
+  lista.textContent = '';
+  itens.forEach(function (i) {
+    var c = CORES_NIVEL[i.nivel] || CORES_NIVEL.baixo;
+    lista.appendChild(linhaDiagnostico({
+      ok: i.ok, titulo: i.titulo, detalhe: i.detalhe,
+      comoResolver: i.ok ? null : i.como_resolver,
+      etiqueta: i.ok ? null : c.rotulo,
+      fundo: c.fundo, texto: c.texto, cor: c.borda
+    }));
+  });
+
+  // O que o sistema NÃO consegue conferir sozinho. Omitir isso deixaria
+  // "tudo verde" parecer garantia completa, que é justamente a leitura
+  // errada — a chave que vazou continua fora do alcance de qualquer
+  // verificação automática.
+  var cxNao = document.getElementById('seg-naoverificavel');
+  cxNao.textContent = '';
+  var tit = document.createElement('div');
+  tit.style.cssText = 'font-size:.78rem;font-weight:700;color:var(--gray500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px';
+  tit.textContent = 'O sistema não consegue verificar sozinho';
+  cxNao.appendChild(tit);
+  var ul = document.createElement('ul');
+  ul.style.cssText = 'margin:0;padding-left:18px;font-size:.8rem;color:var(--gray500);line-height:1.65';
+  (d.nao_verificavel || []).forEach(function (t) {
+    var li = document.createElement('li'); li.textContent = t; ul.appendChild(li);
+  });
+  cxNao.appendChild(ul);
+}
+
+// ── TESTES DE API ──────────────────────────────────────────
+async function rodarTestes() {
+  var lista = document.getElementById('tst-lista');
+  var resumo = document.getElementById('tst-resumo');
+  var liberar = botaoOcupado(document.getElementById('btn-rodar-testes'), 'Rodando...');
+
+  var d = null;
+  try {
+    var r = await fetch(API_BASE + '/owner/testes', { method: 'POST', headers: cabecalhoOwner() });
+    if (r.ok) d = await r.json();
+  } catch (e) {}
+  liberar();
+
+  if (!d) {
+    resumo.textContent = 'Não consegui rodar os testes.';
+    lista.textContent = 'Sem resposta do servidor.';
+    return;
+  }
+
+  resumo.textContent = d.resumo.passaram + ' de ' + d.resumo.total + ' passaram' +
+    (d.resumo.falharam ? ' · ' + d.resumo.falharam + ' falharam' : '');
+  resumo.style.color = d.resumo.falharam ? '#dc2626' : 'var(--green600,#1e8a40)';
+
+  lista.textContent = '';
+  lista.style.color = '';
+  var grupoAtual = '';
+  d.testes.forEach(function (t) {
+    if (t.grupo !== grupoAtual) {
+      grupoAtual = t.grupo;
+      var h = document.createElement('div');
+      h.style.cssText = 'font-size:.7rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--gray500);margin:14px 0 2px';
+      h.textContent = grupoAtual;
+      lista.appendChild(h);
+    }
+    var det = String(t.obtido || '');
+    if (t.ms != null) det += '  ·  ' + t.ms + ' ms';
+    lista.appendChild(linhaDiagnostico({
+      ok: t.passou, titulo: t.nome, detalhe: det,
+      comoResolver: t.passou ? null : 'Esperado: ' + t.esperado,
+      fundo: '#fef2f2', texto: '#991b1b'
+    }));
+  });
+
+  // "17 de 17 passaram" soa como garantia de que a venda funciona. A
+  // cobrança real nunca foi exercida — dizer isso é parte do resultado.
+  var cxNao = document.getElementById('tst-naotestado');
+  cxNao.style.display = 'block';
+  cxNao.textContent = '';
+  var tt = document.createElement('div');
+  tt.style.cssText = 'font-size:.78rem;font-weight:700;color:var(--gray500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px';
+  tt.textContent = 'Não coberto por estes testes';
+  cxNao.appendChild(tt);
+  var ul2 = document.createElement('ul');
+  ul2.style.cssText = 'margin:0;padding-left:18px;font-size:.8rem;color:var(--gray500);line-height:1.65';
+  (d.nao_testado || []).forEach(function (t) {
+    var li = document.createElement('li'); li.textContent = t; ul2.appendChild(li);
+  });
+  cxNao.appendChild(ul2);
+}
+
+// ── ERROS DA PLATAFORMA ────────────────────────────────────
+var ETIQUETA_ERRO = {
+  rota:   { txt: 'ROTA 500', fundo: '#fef2f2', cor: '#991b1b' },
+  email:  { txt: 'E-MAIL',   fundo: '#fff7ed', cor: '#9a3412' },
+  pix:    { txt: 'PIX',      fundo: '#fefce8', cor: '#854d0e' },
+  banco:  { txt: 'BANCO',    fundo: '#eff6ff', cor: '#1e40af' },
+  externo:{ txt: 'EXTERNO',  fundo: '#f5f3ff', cor: '#5b21b6' }
+};
+
+async function carregarErros() {
+  var lista = document.getElementById('err-lista');
+  var resumo = document.getElementById('err-resumo');
+  if (!lista) return;
+  var filtro = (document.getElementById('err-filtro') || {}).value || '';
+
+  var d = null;
+  try {
+    var r = await fetch(API_BASE + '/owner/erros?limit=50' + (filtro ? '&tipo=' + encodeURIComponent(filtro) : ''),
+      { headers: cabecalhoOwner() });
+    if (r.ok) d = await r.json();
+  } catch (e) {}
+
+  if (!d) { resumo.textContent = 'Não consegui carregar.'; lista.textContent = 'Sem resposta do servidor.'; return; }
+
+  var porTipo = Object.keys(d.ultimas_24h.por_tipo || {})
+    .map(function (k) { return k + ': ' + d.ultimas_24h.por_tipo[k]; }).join(' · ');
+  resumo.textContent = d.ultimas_24h.total === 0
+    ? 'Nenhum erro nas últimas 24 horas.'
+    : d.ultimas_24h.total + ' erro(s) nas últimas 24h — ' + porTipo;
+  resumo.style.color = d.ultimas_24h.total > 0 ? '#dc2626' : '';
+
+  lista.textContent = '';
+  if (!d.erros.length) {
+    lista.style.color = 'var(--gray500)';
+    lista.style.fontSize = '.86rem';
+    lista.textContent = filtro
+      ? 'Nenhum erro deste tipo registrado.'
+      : 'Nenhum erro registrado. Erros de rota, falha de envio de e-mail e falha de PIX aparecem aqui automaticamente.';
+    return;
+  }
+  lista.style.color = '';
+
+  d.erros.forEach(function (e) {
+    var et = ETIQUETA_ERRO[e.tipo] || { txt: String(e.tipo).toUpperCase(), fundo: '#f8fafc', cor: '#475569' };
+    var quando = new Date(e.ts);
+    var contexto = quando.toLocaleString('pt-BR');
+    if (e.metodo || e.rota) contexto += '  ·  ' + (e.metodo || '') + ' ' + (e.rota || '');
+    if (e.status) contexto += '  ·  HTTP ' + e.status;
+
+    var linha = linhaDiagnostico({
+      ok: false, titulo: e.mensagem, detalhe: contexto,
+      etiqueta: et.txt, fundo: et.fundo, texto: et.cor, cor: et.cor
+    });
+    if (e.detalhe && e.detalhe.stack) {
+      var pre = document.createElement('div');
+      pre.style.cssText = 'font-family:ui-monospace,Menlo,monospace;font-size:.7rem;color:var(--gray500);margin-top:6px;white-space:pre-wrap;word-break:break-all';
+      pre.textContent = e.detalhe.stack;
+      linha.children[1].appendChild(pre);
+    }
+    lista.appendChild(linha);
+  });
+}
+
 function ownerTab(tab) {
   // Cada aba busca o que precisa só quando é aberta: carregar tudo de
   // uma vez faria 6 chamadas ao servidor para ver uma tela só.
   if(tab === 'plataforma'     && typeof carregarSaudePlataforma === 'function') carregarSaudePlataforma();
   if(tab === 'configuracoes'  && typeof carregarConfigOwner     === 'function') carregarConfigOwner();
+  // Segurança e erros carregam sozinhos ao abrir; os testes não, porque
+  // rodá-los faz chamadas de verdade — quem decide é o botão.
+  if(tab === 'diagnostico') {
+    if(typeof carregarSeguranca === 'function') carregarSeguranca();
+    if(typeof carregarErros     === 'function') carregarErros();
+  }
 
   // Esconder todas as abas
-  ['assinantes','financeiro','plataforma','suporte','marketing','logs','api','configuracoes'].forEach(function(t){
+  ['assinantes','financeiro','plataforma','suporte','marketing','logs','api','diagnostico','configuracoes'].forEach(function(t){
     var el = document.getElementById('owner-'+t);
     if(el) el.style.display = 'none';
   });
@@ -6815,7 +7125,14 @@ async function carregarPainelOwner(){
     metricas = m;
     if(m){
       escrever('ow-pagos', String(m.assinantes_pagos));
-      escrever('ow-pagos-sub', 'R$ ' + m.valor_plano_reais + ' cada');
+      // Mostrava "R$ " + m.valor_plano_reais, campo que o backend
+      // parou de mandar quando o plano único virou dois — e o painel
+      // exibia "R$ undefined cada" desde então. Com dois planos, o
+      // preço "cada" nem existe mais; o que informa é a divisão entre
+      // eles.
+      escrever('ow-pagos-sub', m.assinantes_pagos === 0
+        ? 'Nenhum assinante ainda'
+        : m.assinantes_completo + ' Completo · ' + m.assinantes_pro + ' Pro');
       escrever('ow-trial', String(m.assinantes_trial));
       escrever('ow-trial-sub', m.assinantes_trial === 1 ? 'Ainda não paga' : 'Ainda não pagam');
       escrever('ow-mrr', 'R$ ' + m.mrr_reais);
