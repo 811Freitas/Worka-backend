@@ -2522,7 +2522,7 @@ function botaoOcupado(btn, texto) {
     rotulo.textContent = 'Quase lá, não feche a página';
   }, 20000);
 
-  return function liberar() {
+  function liberar() {
     clearTimeout(avisoLento);
     clearTimeout(avisoMuitoLento);
     delete btn.dataset.ocupado;
@@ -2532,7 +2532,19 @@ function botaoOcupado(btn, texto) {
     btn.style.minWidth = '';
     btn.textContent = '';
     original.forEach(function (n) { btn.appendChild(n); });
+  }
+
+  // Troca a mensagem sem soltar o botão. Serve para etapa que continua
+  // ocupada mudando de assunto — "Verificando..." vira "Gerando
+  // pagamento..." sem abrir a porta para um segundo clique no meio de
+  // uma cobrança.
+  liberar.texto = function (novo) {
+    clearTimeout(avisoLento);
+    clearTimeout(avisoMuitoLento);
+    rotulo.textContent = novo;
   };
+
+  return liberar;
 }
 
 var menus = {
