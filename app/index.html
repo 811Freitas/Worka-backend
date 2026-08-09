@@ -1016,6 +1016,25 @@ tr:hover td{background:var(--g50)}
     </div>
 
     <div class="page" id="pg-visual">
+      <!-- Assinatura: trocar cartão, ver recibo e cancelar. A tela é
+           hospedada pela Stripe — este cartão só abre a porta. Sem ele
+           o cliente não teria por onde cancelar dentro do produto, o
+           que além de irritar é problema com o CDC. -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header">
+          <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-card></use></svg> Assinatura</div>
+          <span class="badge" id="assinatura-badge">—</span>
+        </div>
+        <div class="card-body">
+          <p style="font-size:.82rem;color:var(--gray500);margin-bottom:14px" id="assinatura-texto">
+            Trocar o cartão, baixar recibos ou cancelar.
+          </p>
+          <button class="btn btn-secondary" id="btn-assinatura" onclick="abrirGestaoAssinatura()">
+            <svg class=ico aria-hidden=true><use href=#i-link></use></svg> Gerenciar assinatura
+          </button>
+        </div>
+      </div>
+
       <!-- Tipo de negócio: decide o vocabulário ("veículo" vs
            "medicamento"), quais campos cada item tem e se existe
            validade. Fica aqui, junto do resto da configuração da
@@ -4363,6 +4382,33 @@ async function carregarErros() {
     }
     lista.appendChild(linha);
   });
+}
+
+/**
+ * Abre o portal de cobrança da Stripe.
+ *
+ * A sessão do portal é criada no servidor e expira rápido, então o
+ * endereço não pode ser guardado nem reaproveitado — por isso a busca
+ * acontece no clique, e não no carregamento da página.
+ */
+async function abrirGestaoAssinatura() {
+  var liberar = botaoOcupado(document.getElementById('btn-assinatura'), 'Abrindo...');
+  try {
+    var r = await fetch(API_BASE + '/assinatura/portal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token }
+    });
+    var d = await r.json().catch(function () { return {}; });
+    if (r.ok && d.url) { window.location.href = d.url; return; }
+    liberar();
+    // alert() e o padrao do resto deste arquivo para erro pontual —
+    // nao existe funcao de toast aqui, e inventar uma so para este
+    // botao deixaria duas linguagens de aviso convivendo.
+    alert(d.error || 'Não foi possível abrir a gestão da assinatura.');
+  } catch (e) {
+    liberar();
+    alert('Erro de conexão. Tente de novo.');
+  }
 }
 
 function ownerTab(tab) {
