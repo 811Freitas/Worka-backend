@@ -7117,7 +7117,21 @@ async function carregarConfigOwner(){
 
   escrever('owc-preco', 'R$ ' + c.preco_reais + '/mês');
   escrever('owc-trial', c.dias_trial + ' dias');
-  escrever('owc-remetente', c.remetente_email);
+  // Em sandbox o remetente sozinho não conta a história: o endereço
+  // aparece, parece configurado, e o dono não tem como saber que
+  // nenhum cliente novo consegue se cadastrar. O aviso vem junto.
+  var elRem = document.getElementById('owc-remetente');
+  if (elRem) {
+    elRem.textContent = c.remetente_email;
+    elRem.style.color = c.remetente_sandbox ? 'var(--danger, #d92d20)' : '';
+    if (c.remetente_sandbox) {
+      var aviso = document.createElement('div');
+      aviso.style.cssText = 'font-size:.72rem;line-height:1.4;margin-top:4px;font-weight:600';
+      aviso.textContent = 'Sandbox do Resend — só entrega no seu e-mail. ' +
+                          'Cliente novo não consegue se cadastrar.';
+      elRem.appendChild(aviso);
+    }
+  }
   escrever('owc-email', c.owner_email);
 
   var campoToken = document.getElementById('owc-utm-token');
