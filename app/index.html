@@ -878,188 +878,90 @@ tr:hover td{background:var(--g50)}
       </div>
     </div>
 
-    <!-- PEDIDOS -->
-    <div class="page" id="pg-pedidos">
-      <!-- Bloqueio por plano. O servidor recusa as rotas com 402 de
-           qualquer jeito; isto aqui é para a pessoa entender o porquê
-           em vez de ver uma tela quebrada. -->
-      <div class="card" id="pedidos-sem-plano" style="display:none">
+    <!-- ESPELHO DE PONTO (Plano Pro) -->
+    <div class="page" id="pg-espelho">
+      <div class="card" id="espelho-sem-plano" style="display:none">
         <div class="card-body empty-state">
-          <div style="font-weight:800;color:var(--gray700);margin-bottom:8px;font-size:1rem">Pedidos faz parte do Plano Pedidos</div>
-          <p style="max-width:460px;margin:0 auto 14px">
-            Sua loja online recebe pedidos pelo link e eles caem aqui, já
-            organizados e encaminhados para a equipe certa. Sem pagamento
-            online: o cliente paga na entrega ou na retirada.
+          <div style="font-weight:800;color:var(--gray700);margin-bottom:8px;font-size:1rem">O espelho de ponto faz parte do Plano Pro</div>
+          <p style="max-width:500px;margin:0 auto 14px">
+            Toda virada de mês alguém soma cartão de ponto na calculadora para
+            mandar ao contador. O Plano Pro entrega essa conta pronta: horas
+            trabalhadas, extras, faltas e banco de horas — com o espelho em PDF
+            para o funcionário assinar e a planilha para o escritório.
           </p>
-          <div id="pedidos-preco" style="font-weight:700;color:var(--g600)"></div>
+          <div id="espelho-preco" style="font-weight:700;color:var(--g600)"></div>
         </div>
       </div>
 
-      <div id="pedidos-conteudo" style="display:none">
+      <div id="espelho-conteudo" style="display:none">
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-body" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;min-width:150px">
+              <label>Mês de referência</label>
+              <input type="month" id="esp-mes" onchange="carregarEspelho()">
+            </div>
+            <div class="field" style="margin:0;flex:1;min-width:180px">
+              <label>Funcionário</label>
+              <select id="esp-funcionario" onchange="renderizarEspelho()"><option value="">Todos</option></select>
+            </div>
+            <button class="btn btn-secondary" onclick="exportarEspelhoCSV()"><svg class=ico aria-hidden=true><use href=#i-report></use></svg> Planilha do contador</button>
+            <button class="btn btn-primary" onclick="imprimirEspelho()"><svg class=ico aria-hidden=true><use href=#i-clipboard></use></svg> Imprimir para assinar</button>
+          </div>
+        </div>
+
         <div class="stats-grid">
-          <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2"><svg class=ico aria-hidden=true><use href=#i-bell></use></svg></div><div class="stat-card-num" id="ped-novos">—</div><div class="stat-card-lbl">Novos</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg></div><div class="stat-card-num" id="ped-andamento">—</div><div class="stat-card-lbl">Em andamento</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg></div><div class="stat-card-num" id="ped-entregues">—</div><div class="stat-card-lbl">Entregues hoje</div></div>
-          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb"><svg class=ico aria-hidden=true><use href=#i-money></use></svg></div><div class="stat-card-num" id="ped-valor">—</div><div class="stat-card-lbl">Vendido hoje</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#edfaf2"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg></div><div class="stat-card-num" id="esp-total-horas">—</div><div class="stat-card-lbl">Horas trabalhadas</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#eff6ff"><svg class=ico aria-hidden=true><use href=#i-arrow-up></use></svg></div><div class="stat-card-num" id="esp-extras">—</div><div class="stat-card-lbl">Horas extras</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2"><svg class=ico aria-hidden=true><use href=#i-absent></use></svg></div><div class="stat-card-num" id="esp-faltas">—</div><div class="stat-card-lbl">Faltas no mês</div></div>
+          <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg></div><div class="stat-card-num" id="esp-pendencias">—</div><div class="stat-card-lbl">Dias a conferir</div></div>
         </div>
 
-        <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap">
-          <button class="btn btn-sm btn-primary" onclick="filtrarPedidos('abertos')">Em aberto</button>
-          <button class="btn btn-sm btn-secondary" onclick="filtrarPedidos('entregue')">Entregues</button>
-          <button class="btn btn-sm btn-secondary" onclick="filtrarPedidos('cancelado')">Cancelados</button>
-          <button class="btn btn-sm btn-secondary" onclick="filtrarPedidos('todos')">Todos</button>
-        </div>
-
-        <div id="lista-pedidos"></div>
+        <div id="espelho-lista"></div>
       </div>
     </div>
 
-    <!-- MINHA LOJA -->
-    <div class="page" id="pg-loja">
-      <div class="card" id="loja-sem-plano" style="display:none">
+    <!-- JORNADA DE TRABALHO -->
+    <div class="page" id="pg-jornada">
+      <div class="card" id="jornada-sem-plano" style="display:none">
         <div class="card-body empty-state">
-          <div style="font-weight:800;color:var(--gray700);margin-bottom:8px;font-size:1rem">A loja online faz parte do Plano Pedidos</div>
-          <p style="max-width:480px;margin:0 auto 14px">
-            Você ganha um link para mandar no WhatsApp e nas redes. O cliente
-            escolhe, monta o carrinho e envia o pedido — sem pagar nada ali.
-            O pedido chega na fila da equipe que você escolher.
-          </p>
-          <div id="loja-preco" style="font-weight:700;color:var(--g600)"></div>
+          <div style="font-weight:800;color:var(--gray700);margin-bottom:8px;font-size:1rem">A jornada faz parte do Plano Pro</div>
+          <p style="max-width:460px;margin:0 auto 14px">É a jornada que transforma batida de ponto em hora extra, falta e banco de horas.</p>
+          <div id="jornada-preco" style="font-weight:700;color:var(--g600)"></div>
         </div>
       </div>
 
-      <div id="loja-conteudo" style="display:none">
+      <div id="jornada-conteudo" style="display:none">
         <div class="card" style="margin-bottom:16px">
-          <div class="card-header">
-            <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-share></use></svg> Link da sua loja</div>
-            <span class="badge" id="loja-status-badge">—</span>
-          </div>
+          <div class="card-header"><div class="card-title">Jornada padrão da empresa</div></div>
           <div class="card-body">
-            <div class="field">
-              <label>Endereço da loja</label>
-              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-                <span style="font-size:.85rem;color:var(--gray500)">workap.com.br/loja/?l=</span>
-                <input id="lj-slug" maxlength="40" placeholder="minha-loja" style="flex:1;min-width:150px" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9-]+/g,'-')">
+            <p style="font-size:.82rem;color:var(--gray500);margin-bottom:14px">
+              Vale para todo mundo. Depois você abre exceção só para quem tem horário diferente.
+            </p>
+            <div class="form-grid">
+              <div class="field"><label>Horas por dia</label><input id="jn-horas" inputmode="decimal" placeholder="8"></div>
+              <div class="field"><label>Tolerância (minutos)</label><input id="jn-tolerancia" type="number" min="0" max="60" placeholder="10"></div>
+              <div class="field"><label>Intervalo mínimo (minutos)</label><input id="jn-intervalo" type="number" min="0" max="240" placeholder="60"></div>
+              <div class="field form-full">
+                <label>Dias trabalhados</label>
+                <div id="jn-dias" style="display:flex;gap:8px;flex-wrap:wrap"></div>
               </div>
             </div>
-            <div id="loja-link-pronto" style="display:none;background:var(--g50);border-radius:var(--r);padding:12px;margin-bottom:12px">
-              <div style="font-size:.78rem;color:var(--gray500);margin-bottom:4px">Mande este link para os clientes</div>
-              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-                <code id="loja-link-txt" style="font-size:.82rem;word-break:break-all;flex:1"></code>
-                <button class="btn btn-sm btn-secondary" onclick="copiarLinkLoja()">Copiar</button>
-                <a class="btn btn-sm btn-secondary" id="loja-link-abrir" target="_blank" rel="noopener">Abrir</a>
-              </div>
+            <div style="font-size:.75rem;color:var(--gray500);margin:4px 0 12px">
+              A tolerância é a regra da CLT (art. 58, §1º): diferença de poucos minutos não vira extra nem atraso.
             </div>
-            <div class="field">
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-                <input type="checkbox" id="lj-ativa" style="width:auto"> Loja no ar (recebendo pedidos)
-              </label>
-            </div>
+            <button class="btn btn-primary" style="width:100%" onclick="salvarJornada(null)">Salvar jornada padrão</button>
           </div>
         </div>
-
-        <div class="grid-2">
-          <div class="card" style="margin-bottom:16px">
-            <div class="card-header"><div class="card-title">Como a loja aparece</div></div>
-            <div class="card-body">
-              <div class="field"><label>Nome exibido</label><input id="lj-nome" maxlength="80" placeholder="Padaria do Zé"></div>
-              <div class="field"><label>Descrição curta</label><textarea id="lj-descricao" rows="2" maxlength="300" placeholder="Pães, salgados e bolos feitos na hora"></textarea></div>
-              <div class="field"><label>Horário de funcionamento</label><input id="lj-horario" maxlength="120" placeholder="Seg a sáb, 7h às 19h"></div>
-              <div class="field"><label>Aviso no topo (opcional)</label><input id="lj-aviso" maxlength="200" placeholder="Hoje entregamos só até as 17h"></div>
-              <div class="field"><label>WhatsApp</label><input id="lj-whatsapp" maxlength="25" placeholder="(11) 98765-4321"></div>
-              <div class="field"><label>Endereço da loja</label><input id="lj-endereco" maxlength="250" placeholder="Rua das Flores, 100 — Centro"></div>
-            </div>
-          </div>
-
-          <div>
-            <div class="card" style="margin-bottom:16px">
-              <div class="card-header"><div class="card-title">Entrega e pagamento</div></div>
-              <div class="card-body">
-                <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="lj-entrega" style="width:auto" checked> Faço entrega</label></div>
-                <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="lj-retirada" style="width:auto" checked> Cliente pode retirar na loja</label></div>
-                <div class="field"><label>Taxa de entrega (R$)</label><input id="lj-taxa" inputmode="decimal" placeholder="0,00"></div>
-                <div class="field"><label>Pedido mínimo (R$)</label><input id="lj-minimo" inputmode="decimal" placeholder="0,00"></div>
-                <div class="field">
-                  <label>Formas de pagamento aceitas na entrega</label>
-                  <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:.85rem">
-                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="lj-pg-dinheiro" style="width:auto" checked> Dinheiro</label>
-                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="lj-pg-pix" style="width:auto" checked> PIX</label>
-                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="lj-pg-cartao" style="width:auto" checked> Cartão</label>
-                  </div>
-                  <div style="font-size:.74rem;color:var(--gray500);margin-top:7px">
-                    Serve para o entregador saber se leva troco ou maquininha. O Workap não processa pagamento.
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="card" style="margin-bottom:16px">
-              <div class="card-header"><div class="card-title"><svg class=ico aria-hidden=true><use href=#i-report></use></svg> Impressão da comanda</div></div>
-              <div class="card-body">
-                <div class="field">
-                  <label>Largura do papel</label>
-                  <select id="lj-largura">
-                    <option value="80">80mm (padrão de balcão)</option>
-                    <option value="58">58mm (pequena / portátil)</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label>Quantas vias por pedido</label>
-                  <select id="lj-vias">
-                    <option value="1">1 via</option>
-                    <option value="2">2 vias (cozinha + entrega)</option>
-                    <option value="3">3 vias</option>
-                  </select>
-                </div>
-                <div class="field"><label>CNPJ no cabeçalho (opcional)</label><input id="lj-cnpj" maxlength="20" placeholder="00.000.000/0001-00"></div>
-                <div class="field"><label>Mensagem no rodapé</label><input id="lj-rodape" maxlength="120" placeholder="Obrigado pela preferência!"></div>
-                <div class="field">
-                  <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-                    <input type="checkbox" id="lj-auto" style="width:auto"> Abrir a impressão ao aceitar o pedido
-                  </label>
-                </div>
-                <button class="btn btn-sm btn-secondary" style="width:100%" onclick="testarComanda()">Imprimir uma comanda de teste</button>
-                <!-- Aviso visível para o lojista, não só no papel: é a
-                     diferença entre organizar pedido e emitir documento
-                     fiscal, e confundir os dois é problema dele com o
-                     fisco, não nosso. -->
-                <div style="margin-top:12px;background:#fffbeb;border-left:3px solid #d97706;border-radius:var(--r);padding:11px 13px;font-size:.78rem;color:#7c4a03;line-height:1.5">
-                  <strong>Isto não é cupom fiscal.</strong> É a comanda do pedido — a mesma que o iFood imprime.
-                  Cupom fiscal (NFC-e ou SAT) exige Inscrição Estadual, certificado digital e autorização da SEFAZ do seu estado.
-                </div>
-              </div>
-            </div>
-
-            <div class="card">
-              <div class="card-header"><div class="card-title">Quem recebe os pedidos</div></div>
-              <div class="card-body">
-                <div class="field">
-                  <label>Cargo responsável</label>
-                  <select id="lj-cargo"></select>
-                </div>
-                <div style="font-size:.78rem;color:var(--gray500);line-height:1.5">
-                  Quem estiver neste cargo vê a fila de pedidos e recebe a
-                  notificação no celular. Sem cargo escolhido, só você vê.
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <button class="btn btn-primary" style="width:100%;margin:16px 0" onclick="salvarLoja()">Salvar configuração da loja</button>
 
         <div class="card">
           <div class="card-header">
-            <div class="card-title">O que está à venda</div>
-            <span class="badge badge-green" id="loja-qtd-itens">—</span>
+            <div class="card-title">Quem tem horário diferente</div>
+            <button class="btn btn-sm btn-secondary" onclick="abrirExcecaoJornada()">+ Abrir exceção</button>
           </div>
           <div class="card-body" style="padding:0">
-            <div style="padding:14px 16px;font-size:.8rem;color:var(--gray500);border-bottom:1px solid var(--gray100)">
-              Marque o que aparece na loja e defina o preço. Nada é publicado sem você marcar.
-            </div>
             <table>
-              <thead><tr><th>Item</th><th>Preço (R$)</th><th>Na loja</th></tr></thead>
-              <tbody id="lista-catalogo"></tbody>
+              <thead><tr><th>Funcionário</th><th>Jornada</th><th>Dias</th><th>Ação</th></tr></thead>
+              <tbody id="lista-excecoes-jornada"></tbody>
             </table>
           </div>
         </div>
@@ -2518,13 +2420,13 @@ var menus = {
     {id:'metas',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Metas'},
     {id:'financeiro',icon:'<svg class=ico aria-hidden=true><use href=#i-money></use></svg>',label:'Financeiro'},
     {id:'relatorios',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Relatórios'},
+    {id:'espelho',icon:'<svg class=ico aria-hidden=true><use href=#i-clipboard></use></svg>',label:'Espelho de Ponto'},
     {sec:'Recursos'},
     {id:'validade',icon:'<svg class=ico aria-hidden=true><use href=#i-alert></use></svg>',label:'Validade de Produtos'},
-    {id:'pedidos',icon:'<svg class=ico aria-hidden=true><use href=#i-bag></use></svg>',label:'Pedidos'},
-    {id:'loja',icon:'<svg class=ico aria-hidden=true><use href=#i-share></use></svg>',label:'Minha Loja'},
     {id:'mural',icon:'<svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg>',label:'Mural / Comunicados'},
     {id:'cargos',icon:'<svg class=ico aria-hidden=true><use href=#i-lock></use></svg>',label:'Cargos e Permissões'},
     {sec:'Configurações'},
+    {id:'jornada',icon:'<svg class=ico aria-hidden=true><use href=#i-clock></use></svg>',label:'Jornada de Trabalho'},
     {id:'visual',icon:'<svg class=ico aria-hidden=true><use href=#i-palette></use></svg>',label:'Identidade Visual'},
     {id:'notificacoes',icon:'<svg class=ico aria-hidden=true><use href=#i-bell></use></svg>',label:'Notificações'},
   ],
@@ -2533,10 +2435,10 @@ var menus = {
     {id:'meu-painel',icon:'<svg class=ico aria-hidden=true><use href=#i-home></use></svg>',label:'Início'},
     {id:'ponto',icon:'<svg class=ico aria-hidden=true><use href=#i-clock></use></svg>',label:'Meu Ponto'},
     {id:'tarefas',icon:'<svg class=ico aria-hidden=true><use href=#i-tasks></use></svg>',label:'Minhas Tarefas'},
-    {id:'pedidos',icon:'<svg class=ico aria-hidden=true><use href=#i-bag></use></svg>',label:'Pedidos'},
     {id:'chat',icon:'<svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg>',label:'Chat da Equipe'},
     {id:'ferias',icon:'<svg class=ico aria-hidden=true><use href=#i-calendar></use></svg>',label:'Minhas Férias'},
     {id:'metas',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Minhas Metas'},
+    {id:'espelho',icon:'<svg class=ico aria-hidden=true><use href=#i-clipboard></use></svg>',label:'Meu Espelho de Ponto'},
     {id:'mural',icon:'<svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg>',label:'Comunicados'},
     {id:'notificacoes',icon:'<svg class=ico aria-hidden=true><use href=#i-bell></use></svg>',label:'Notificações'},
   ],
@@ -2563,13 +2465,13 @@ var menus = {
     {id:'metas',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Metas'},
     {id:'financeiro',icon:'<svg class=ico aria-hidden=true><use href=#i-money></use></svg>',label:'Financeiro'},
     {id:'relatorios',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Relatórios'},
+    {id:'espelho',icon:'<svg class=ico aria-hidden=true><use href=#i-clipboard></use></svg>',label:'Espelho de Ponto'},
     {sec:'Recursos'},
     {id:'validade',icon:'<svg class=ico aria-hidden=true><use href=#i-alert></use></svg>',label:'Validade de Produtos'},
-    {id:'pedidos',icon:'<svg class=ico aria-hidden=true><use href=#i-bag></use></svg>',label:'Pedidos'},
-    {id:'loja',icon:'<svg class=ico aria-hidden=true><use href=#i-share></use></svg>',label:'Minha Loja'},
     {id:'mural',icon:'<svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg>',label:'Mural / Comunicados'},
     {id:'cargos',icon:'<svg class=ico aria-hidden=true><use href=#i-lock></use></svg>',label:'Cargos e Permissões'},
     {sec:'Configurações'},
+    {id:'jornada',icon:'<svg class=ico aria-hidden=true><use href=#i-clock></use></svg>',label:'Jornada de Trabalho'},
     {id:'visual',icon:'<svg class=ico aria-hidden=true><use href=#i-palette></use></svg>',label:'Identidade Visual'},
     {id:'notificacoes',icon:'<svg class=ico aria-hidden=true><use href=#i-bell></use></svg>',label:'Notificações'},
   ]
@@ -4002,7 +3904,7 @@ function abrirPagina(id) {
     'escala':'Escala de Trabalho','relatorios':'Relatórios','mural':'Mural / Comunicados',
     'financeiro':'Financeiro','chat':'Chat da Equipe','ferias':'Férias e Folgas','metas':'Metas',
     'cupons':'Cupons de Desconto','comunicados':'Enviar Comunicado',
-    'pedidos':'Pedidos','loja':'Minha Loja'
+    'espelho':'Espelho de Ponto','jornada':'Jornada de Trabalho'
   };
   document.getElementById('topbar-title').textContent = labels[id]||id;
 
@@ -4030,8 +3932,8 @@ function abrirPagina(id) {
   if(id==='escala'     && typeof carregarEscala      === 'function') carregarEscala();
   if(id==='relatorios' && typeof carregarRelatorios  === 'function') carregarRelatorios();
   if(id==='cargos' && typeof carregarCargos === 'function') carregarCargos();
-  if(id==='pedidos' && typeof carregarPedidos === 'function') carregarPedidos();
-  if(id==='loja'    && typeof carregarLoja    === 'function') carregarLoja();
+  if(id==='espelho' && typeof carregarEspelho === 'function') carregarEspelho();
+  if(id==='jornada' && typeof carregarJornada === 'function') carregarJornada();
   if(id==='visual' && typeof carregarSeletorRamo === 'function') carregarSeletorRamo();
   if(id==='owner' && typeof carregarPainelOwner === 'function') carregarPainelOwner();
   if(id==='validade' && typeof carregarValidadeReal === 'function') carregarValidadeReal();
@@ -4857,30 +4759,37 @@ function salvarRamo(){
 }
 
 // ═══════════════════════════════════
-// LOJA ONLINE E PEDIDOS
+// ESPELHO DE PONTO E JORNADA (Plano Pro)
 // ═══════════════════════════════════
 //
-// Venda sem pagamento: o cliente monta o carrinho numa página pública,
-// manda o pedido, e ele cai aqui já roteado para o cargo responsável.
-// O dinheiro é combinado direto entre loja e cliente na entrega — o
-// Workap organiza o pedido, não processa pagamento.
-var pedidosCache = [];
-var filtroPedidos = 'abertos';
-var lojaCache = null;
+// O que o dono faz hoje na virada do mês: abre o caderno de ponto,
+// soma na calculadora, digita numa planilha e manda para o contador.
+// Erra, refaz, leva uma tarde. Todo mês.
+//
+// O dado já está no banco — a equipe bate ponto todo dia. O que
+// faltava era transformar batida solta em conta fechada.
+var espelhoCache = null;
+var jornadasCache = [];
 
-function reaisDeCentavos(c){
-  return (Math.round(c || 0) / 100).toFixed(2).replace('.', ',');
+// Minutos → "8h30". Nunca hora decimal: "8,5h" na folha de ponto gera
+// discussão com o funcionário, e "8h30" não gera nenhuma.
+function horasDeMinutos(min){
+  if(min == null) return '—';
+  var neg = min < 0;
+  var m = Math.abs(Math.round(min));
+  var h = Math.floor(m / 60);
+  var r = m % 60;
+  return (neg ? '-' : '') + h + 'h' + (r ? String(r).padStart(2, '0') : '');
 }
-// "12,50" e "12.50" viram 1250. Centavos inteiros o caminho todo: em
-// ponto flutuante, somar preço item a item devolve totais como
-// 30,000000000000004.
-function centavosDeTexto(txt){
-  var limpo = String(txt || '').replace(/[^\d,.]/g, '').replace(/\.(?=.*[,.])/g, '').replace(',', '.');
-  var n = parseFloat(limpo);
-  return isNaN(n) ? 0 : Math.round(n * 100);
+function horaDoISO(iso){
+  if(!iso) return '—';
+  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+function mesAtualTexto(){
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
 }
 
-/** Mostra o bloco de "seu plano não inclui" e esconde o conteúdo. */
 function mostrarBloqueioPlano(prefixo, bloqueado){
   var semPlano = document.getElementById(prefixo + '-sem-plano');
   var conteudo = document.getElementById(prefixo + '-conteudo');
@@ -4893,717 +4802,508 @@ function mostrarBloqueioPlano(prefixo, bloqueado){
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){
         if(!d) return;
-        var p = (d.planos || []).filter(function(x){ return x.slug === 'pedidos'; })[0];
+        var p = (d.planos || []).filter(function(x){ return x.slug === 'pro'; })[0];
         if(p) escreverTexto(prefixo + '-preco', p.nome + ' — R$ ' + p.preco_reais + '/mês');
       })
       .catch(function(){});
   }
 }
 
-// ── FILA DE PEDIDOS ──
-function carregarPedidos(){
+function carregarEspelho(){
   if(!sessaoWorka || !sessaoWorka.token) return;
+  var campoMes = document.getElementById('esp-mes');
+  if(campoMes && !campoMes.value) campoMes.value = mesAtualTexto();
+  var mes = (campoMes && campoMes.value) || mesAtualTexto();
 
-  fetch(API_BASE + '/pedidos', { headers: cabecalhoAuth() })
+  fetch(API_BASE + '/espelho-ponto?mes=' + encodeURIComponent(mes), { headers: cabecalhoAuth() })
   .then(function(r){ return r.json().then(function(d){ return { status: r.status, d: d }; }); })
   .then(function(res){
     // 402 é "seu plano não inclui", diferente de 403 "você não pode".
-    // A tela oferece o caminho em vez de só dizer não.
-    if(res.status === 402){ mostrarBloqueioPlano('pedidos', true); return; }
-    mostrarBloqueioPlano('pedidos', false);
-    pedidosCache = Array.isArray(res.d) ? res.d : [];
-    renderizarPedidos();
-    // A comanda leva nome, endereço e rodapé da loja. Quem entra
-    // direto em Pedidos sem passar por "Minha Loja" imprimiria um
-    // papel sem cabeçalho — por isso a config é buscada aqui também.
-    if(!lojaCache) carregarConfigDaLojaParaImpressao();
+    if(res.status === 402){ mostrarBloqueioPlano('espelho', true); return; }
+    if(res.status !== 200) return;
+    mostrarBloqueioPlano('espelho', false);
+    espelhoCache = res.d;
+    montarFiltroFuncionarios();
+    renderizarEspelho();
   })
   .catch(function(){});
 }
 
-function filtrarPedidos(qual){
-  filtroPedidos = qual;
-  renderizarPedidos();
+function montarFiltroFuncionarios(){
+  var sel = document.getElementById('esp-funcionario');
+  if(!sel || !espelhoCache) return;
+  var escolhido = sel.value;
+  sel.textContent = '';
+  var todos = document.createElement('option');
+  todos.value = ''; todos.textContent = 'Todos os funcionários';
+  sel.appendChild(todos);
+  espelhoCache.espelhos.forEach(function(e){
+    var o = document.createElement('option');
+    o.value = e.funcionario_id; o.textContent = e.nome;
+    sel.appendChild(o);
+  });
+  if(escolhido) sel.value = escolhido;
 }
 
-function renderizarPedidos(){
-  var hoje = new Date(); hoje.setHours(0,0,0,0);
-  var novos = 0, andamento = 0, entreguesHoje = 0, valorHoje = 0;
+function espelhosVisiveis(){
+  if(!espelhoCache) return [];
+  var filtro = (document.getElementById('esp-funcionario') || {}).value || '';
+  return filtro
+    ? espelhoCache.espelhos.filter(function(e){ return e.funcionario_id === filtro; })
+    : espelhoCache.espelhos;
+}
 
-  pedidosCache.forEach(function(p){
-    if(p.status === 'novo') novos++;
-    if(p.status === 'aceito' || p.status === 'em_rota') andamento++;
-    if(p.status === 'entregue' && new Date(p.entregue_em || p.created_at) >= hoje){
-      entreguesHoje++;
-      valorHoje += p.total_centavos || 0;
-    }
-  });
-  escreverTexto('ped-novos', novos);
-  escreverTexto('ped-andamento', andamento);
-  escreverTexto('ped-entregues', entreguesHoje);
-  escreverTexto('ped-valor', 'R$ ' + reaisDeCentavos(valorHoje));
-
-  var lista = pedidosCache.filter(function(p){
-    if(filtroPedidos === 'abertos')   return ['novo','aceito','em_rota'].indexOf(p.status) >= 0;
-    if(filtroPedidos === 'entregue')  return p.status === 'entregue';
-    if(filtroPedidos === 'cancelado') return p.status === 'cancelado';
-    return true;
-  });
-
-  var caixa = document.getElementById('lista-pedidos');
+function renderizarEspelho(){
+  var lista = espelhosVisiveis();
+  var caixa = document.getElementById('espelho-lista');
   if(!caixa) return;
-  caixa.textContent = '';
 
+  var totMin = 0, totExtra = 0, totFalta = 0, totPend = 0;
+  lista.forEach(function(e){
+    totMin   += e.resumo.minutos_trabalhados;
+    totExtra += e.resumo.minutos_extras;
+    totFalta += e.resumo.dias_com_falta;
+    totPend  += e.resumo.dias_incompletos;
+  });
+  escreverTexto('esp-total-horas', horasDeMinutos(totMin));
+  escreverTexto('esp-extras',      horasDeMinutos(totExtra));
+  escreverTexto('esp-faltas',      totFalta);
+  escreverTexto('esp-pendencias',  totPend);
+
+  caixa.textContent = '';
   if(!lista.length){
     var vazio = document.createElement('div');
     vazio.className = 'card';
     var corpo = document.createElement('div');
     corpo.className = 'card-body empty-state';
-    var t = document.createElement('div');
-    t.style.cssText = 'font-weight:700;color:var(--gray700);margin-bottom:6px';
-    t.textContent = filtroPedidos === 'abertos' ? 'Nenhum pedido em aberto' : 'Nada por aqui';
-    var p2 = document.createElement('p');
-    p2.textContent = 'Os pedidos feitos pelo link da sua loja aparecem aqui automaticamente.';
-    corpo.appendChild(t); corpo.appendChild(p2);
+    corpo.textContent = 'Nenhum funcionário com registro neste mês.';
     vazio.appendChild(corpo); caixa.appendChild(vazio);
     return;
   }
 
-  var rotulos = { novo:'Novo', aceito:'Aceito', em_rota:'Saiu para entrega', entregue:'Entregue', cancelado:'Cancelado' };
-  var cores   = { novo:'badge-red', aceito:'badge-blue', em_rota:'badge-yellow', entregue:'badge-green', cancelado:'badge-red' };
+  var nomesDia = ['dom','seg','ter','qua','qui','sex','sáb'];
+  var coresSituacao = {
+    'trabalhado': 'badge-green', 'folga': 'badge-blue', 'falta': 'badge-red',
+    'falta justificada': 'badge-yellow', 'incompleto': 'badge-yellow',
+    'sem registro': 'badge-red', 'ferias': 'badge-blue', 'folga_extra': 'badge-blue',
+    'licenca': 'badge-blue', 'atestado': 'badge-yellow'
+  };
 
-  lista.forEach(function(p){
+  lista.forEach(function(e){
     var card = document.createElement('div');
     card.className = 'card';
-    card.style.marginBottom = '12px';
+    card.style.marginBottom = '16px';
 
     var cab = document.createElement('div');
     cab.className = 'card-header';
     var titulo = document.createElement('div');
     titulo.className = 'card-title';
-    titulo.textContent = 'Pedido #' + p.numero + ' · R$ ' + reaisDeCentavos(p.total_centavos);
+    titulo.textContent = e.nome;                 // digitado pelo usuário: texto puro
     var badge = document.createElement('span');
-    badge.className = 'badge ' + (cores[p.status] || 'badge-blue');
-    badge.textContent = rotulos[p.status] || p.status;
+    badge.className = 'badge ' + (e.resumo.saldo_minutos >= 0 ? 'badge-green' : 'badge-red');
+    badge.textContent = 'Saldo ' + horasDeMinutos(e.resumo.saldo_minutos);
     cab.appendChild(titulo); cab.appendChild(badge);
     card.appendChild(cab);
 
+    var resumo = document.createElement('div');
+    resumo.style.cssText = 'display:flex;gap:18px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--gray100);font-size:.82rem;color:var(--gray700)';
+    [
+      ['Trabalhadas', horasDeMinutos(e.resumo.minutos_trabalhados)],
+      ['Previstas',   horasDeMinutos(e.resumo.minutos_previstos)],
+      ['Extras',      horasDeMinutos(e.resumo.minutos_extras)],
+      ['Devidas',     horasDeMinutos(e.resumo.minutos_devidos)],
+      ['Dias úteis trabalhados', String(e.resumo.dias_trabalhados)],
+      ['Faltas',      String(e.resumo.dias_com_falta)]
+    ].forEach(function(par){
+      var bloco = document.createElement('div');
+      var rot = document.createElement('div');
+      rot.style.cssText = 'font-size:.72rem;color:var(--gray500)';
+      rot.textContent = par[0];
+      var val = document.createElement('div');
+      val.style.fontWeight = '700';
+      val.textContent = par[1];
+      bloco.appendChild(rot); bloco.appendChild(val);
+      resumo.appendChild(bloco);
+    });
+    card.appendChild(resumo);
+
     var corpo = document.createElement('div');
     corpo.className = 'card-body';
-
-    // Tudo com textContent: nome, endereço e observação são digitados
-    // por gente de fora da empresa, na internet aberta. É a entrada
-    // menos confiável do sistema inteiro.
-    function linha(rotulo, valor){
-      if(!valor) return;
-      var l = document.createElement('div');
-      l.style.cssText = 'font-size:.83rem;color:var(--gray700);padding:2px 0';
-      var b = document.createElement('strong');
-      b.textContent = rotulo + ': ';
-      l.appendChild(b);
-      l.appendChild(document.createTextNode(valor));
-      corpo.appendChild(l);
-    }
-
-    linha('Cliente', p.cliente_nome);
-    linha('Estabelecimento', p.cliente_estabelecimento);
-    linha('Telefone', p.cliente_telefone);
-    linha(p.tipo === 'retirada' ? 'Retirada' : 'Entrega em', p.tipo === 'retirada' ? 'Cliente busca na loja' : p.endereco);
-    var pagRotulo = { dinheiro:'Dinheiro', pix:'PIX', cartao:'Cartão' };
-    linha('Pagamento', p.forma_pagamento ? (pagRotulo[p.forma_pagamento] || p.forma_pagamento) +
-      (p.troco_para_centavos ? ' (troco para R$ ' + reaisDeCentavos(p.troco_para_centavos) + ')' : '') : null);
-    linha('Observação', p.observacoes);
-    linha('Recebido', new Date(p.created_at).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }));
-
-    var itensBox = document.createElement('div');
-    itensBox.style.cssText = 'margin-top:10px;padding-top:10px;border-top:1px solid var(--gray100)';
-    (p.itens || []).forEach(function(i){
-      var l = document.createElement('div');
-      l.style.cssText = 'display:flex;justify-content:space-between;font-size:.84rem;padding:3px 0';
-      l.appendChild(document.createTextNode(i.quantidade + '× ' + i.nome));
-      var v = document.createElement('span');
-      v.style.fontWeight = '600';
-      v.textContent = 'R$ ' + reaisDeCentavos(i.total_centavos);
-      l.appendChild(v);
-      itensBox.appendChild(l);
+    corpo.style.padding = '0';
+    var tabela = document.createElement('table');
+    var thead = document.createElement('thead');
+    var trh = document.createElement('tr');
+    ['Dia','Entrada','Intervalo','Retorno','Saída','Trabalhado','Saldo','Situação'].forEach(function(t){
+      var th = document.createElement('th'); th.textContent = t; trh.appendChild(th);
     });
-    if(p.taxa_centavos){
-      var lt = document.createElement('div');
-      lt.style.cssText = 'display:flex;justify-content:space-between;font-size:.84rem;padding:3px 0;color:var(--gray500)';
-      lt.appendChild(document.createTextNode('Taxa de entrega'));
-      var vt = document.createElement('span');
-      vt.textContent = 'R$ ' + reaisDeCentavos(p.taxa_centavos);
-      lt.appendChild(vt);
-      itensBox.appendChild(lt);
-    }
-    corpo.appendChild(itensBox);
+    thead.appendChild(trh); tabela.appendChild(thead);
 
-    // Só o próximo passo, não todos os botões de uma vez: numa fila de
-    // pedidos a pessoa está com pressa e com uma mão só.
-    var acoes = document.createElement('div');
-    acoes.style.cssText = 'display:flex;gap:8px;margin-top:14px;flex-wrap:wrap';
-    function botao(texto, classe, aoClicar){
-      var b = document.createElement('button');
-      b.className = 'btn btn-sm ' + classe;
-      b.textContent = texto;
-      b.onclick = aoClicar;
-      acoes.appendChild(b);
-    }
-    if(p.status === 'novo'){
-      botao('Aceitar pedido', 'btn-primary', function(){
-        // A impressão sai daqui, dentro do clique. Navegador nenhum
-        // deixa uma página imprimir sozinha; presa ao clique de
-        // "Aceitar", a comanda sai sem ninguém precisar lembrar.
-        if(lojaCache && lojaCache.impressao_auto) imprimirComanda(p);
-        moverPedido(p.id, 'aceito');
-      });
-      botao('Recusar', 'btn-secondary', function(){ cancelarPedido(p.id, p.numero); });
-    } else if(p.status === 'aceito'){
-      botao(p.tipo === 'retirada' ? 'Pronto para retirada' : 'Saiu para entrega', 'btn-primary', function(){ moverPedido(p.id, 'em_rota'); });
-      botao('Cancelar', 'btn-secondary', function(){ cancelarPedido(p.id, p.numero); });
-    } else if(p.status === 'em_rota'){
-      botao(p.tipo === 'retirada' ? 'Cliente retirou' : 'Entregue', 'btn-primary', function(){ moverPedido(p.id, 'entregue'); });
-    }
-    // Imprimir aparece em qualquer pedido que não foi cancelado — é
-    // comum precisar de uma segunda via depois, quando o papel some
-    // ou o entregador troca de rota.
-    if(p.status !== 'cancelado'){
-      botao('Imprimir comanda', 'btn-secondary', function(){ imprimirComanda(p); });
-    }
-    if(p.cliente_telefone && p.status !== 'cancelado'){
-      var zap = document.createElement('a');
-      zap.className = 'btn btn-sm btn-secondary';
-      zap.target = '_blank'; zap.rel = 'noopener';
-      zap.href = 'https://wa.me/55' + String(p.cliente_telefone).replace(/\D/g, '');
-      zap.textContent = 'Falar no WhatsApp';
-      acoes.appendChild(zap);
-    }
-    if(acoes.children.length) corpo.appendChild(acoes);
+    var tbody = document.createElement('tbody');
+    e.dias.forEach(function(d){
+      // Dia sem nada a mostrar (folga sem batida) é escondido: uma
+      // tabela de 31 linhas em que 12 são "folga" esconde o que
+      // importa.
+      if(d.situacao === 'folga' && !d.entrada) return;
 
-    if(p.status === 'cancelado' && p.motivo_cancelamento){
-      var mot = document.createElement('div');
-      mot.style.cssText = 'margin-top:10px;font-size:.8rem;color:var(--red)';
-      mot.textContent = 'Motivo: ' + p.motivo_cancelamento;
-      corpo.appendChild(mot);
-    }
+      var tr = document.createElement('tr');
+      function celula(txt, estilo){
+        var td = document.createElement('td');
+        td.textContent = txt;
+        if(estilo) td.style.cssText = estilo;
+        tr.appendChild(td);
+        return td;
+      }
+      var dia = new Date(d.data + 'T12:00:00');
+      celula(String(dia.getDate()).padStart(2,'0') + '/' + String(dia.getMonth()+1).padStart(2,'0') + ' ' + nomesDia[d.dia_semana]);
+      celula(horaDoISO(d.entrada));
+      celula(horaDoISO(d.intervalo));
+      celula(horaDoISO(d.retorno));
+      celula(horaDoISO(d.saida));
+      celula(horasDeMinutos(d.minutos_trabalhados));
+      celula(d.saldo_minutos == null ? '—' : horasDeMinutos(d.saldo_minutos),
+             d.saldo_minutos < 0 ? 'color:var(--red);font-weight:600' : (d.saldo_minutos > 0 ? 'color:var(--g600);font-weight:600' : ''));
 
+      var tdSit = document.createElement('td');
+      var b = document.createElement('span');
+      b.className = 'badge ' + (coresSituacao[d.situacao] || 'badge-blue');
+      b.textContent = d.situacao;
+      tdSit.appendChild(b);
+      if(d.alertas && d.alertas.length){
+        var av = document.createElement('div');
+        av.style.cssText = 'font-size:.72rem;color:var(--red);margin-top:3px';
+        av.textContent = d.alertas.join(' · ');
+        tdSit.appendChild(av);
+      }
+      tr.appendChild(tdSit);
+      tbody.appendChild(tr);
+    });
+    tabela.appendChild(tbody);
+    corpo.appendChild(tabela);
     card.appendChild(corpo);
     caixa.appendChild(card);
   });
 }
 
-function moverPedido(id, status, motivo){
-  fetch(API_BASE + '/pedidos/' + encodeURIComponent(id) + '/status', {
-    method: 'PUT',
-    headers: Object.assign({ 'Content-Type': 'application/json' }, cabecalhoAuth()),
-    body: JSON.stringify({ status: status, motivo: motivo || null })
-  })
-  .then(function(r){ return r.json().then(function(d){ return { status: r.status, d: d }; }); })
-  .then(function(res){
-    if(res.status !== 200){ alert(res.d.error || 'Não foi possível mover o pedido.'); return; }
-    carregarPedidos();
-  })
-  .catch(function(){ alert('Erro de conexão.'); });
-}
+/**
+ * Planilha para o contador. CSV com ponto e vírgula e BOM: é o que o
+ * Excel em português abre direto, com as colunas separadas. CSV com
+ * vírgula abre tudo numa coluna só, e sem BOM os acentos viram
+ * garatuja — os dois erros que fazem o contador pedir "manda de novo".
+ */
+function exportarEspelhoCSV(){
+  if(!espelhoCache) return;
+  var linhas = [];
+  linhas.push(['Funcionario','Data','Dia','Entrada','Intervalo','Retorno','Saida','Trabalhado','Previsto','Saldo','Situacao','Observacao'].join(';'));
 
-function cancelarPedido(id, numero){
-  var motivo = prompt('Cancelar o pedido #' + numero + '. Qual o motivo? (o cliente pode perguntar)');
-  if(motivo === null) return;
-  moverPedido(id, 'cancelado', motivo);
-}
+  var nomesDia = ['dom','seg','ter','qua','qui','sex','sab'];
+  espelhosVisiveis().forEach(function(e){
+    e.dias.forEach(function(d){
+      if(d.situacao === 'folga' && !d.entrada) return;
+      var dia = new Date(d.data + 'T12:00:00');
+      linhas.push([
+        e.nome,
+        String(dia.getDate()).padStart(2,'0') + '/' + String(dia.getMonth()+1).padStart(2,'0') + '/' + dia.getFullYear(),
+        nomesDia[d.dia_semana],
+        horaDoISO(d.entrada), horaDoISO(d.intervalo), horaDoISO(d.retorno), horaDoISO(d.saida),
+        horasDeMinutos(d.minutos_trabalhados),
+        horasDeMinutos(d.minutos_previstos),
+        d.saldo_minutos == null ? '' : horasDeMinutos(d.saldo_minutos),
+        d.situacao,
+        (d.alertas || []).join(' / ')
+      ].map(function(c){
+        // Ponto e vírgula dentro do texto quebraria a coluna.
+        return String(c == null ? '' : c).replace(/;/g, ',');
+      }).join(';'));
+    });
+    linhas.push([e.nome, 'TOTAL DO MES','','','','','',
+      horasDeMinutos(e.resumo.minutos_trabalhados),
+      horasDeMinutos(e.resumo.minutos_previstos),
+      horasDeMinutos(e.resumo.saldo_minutos),
+      e.resumo.dias_com_falta + ' falta(s)', ''].join(';'));
+    linhas.push('');
+  });
 
-// ── COMANDA PARA IMPRESSORA TÉRMICA ──
-//
-// O papel que sai na cozinha e vai junto com a entrega — exatamente o
-// que o iFood imprime.
-//
-// NÃO É CUPOM FISCAL, e o papel diz isso em letras claras. Cupom
-// fiscal (NFC-e ou SAT/CF-e) é documento regulado: exige Inscrição
-// Estadual, certificado digital e autorização da SEFAZ do estado. Isso
-// é integração com o fisco, não impressão — e um papel que se parece
-// com cupom fiscal sem ser cria problema para o lojista.
-//
-// A impressão sai por HTML + CSS de impressão, não por comandos
-// ESC/POS. ESC/POS via WebUSB exigiria permissão especial, não
-// funciona no iPhone e quebra a cada modelo de impressora; com o
-// driver do sistema, qualquer térmica que o computador enxerga
-// imprime.
-
-function larguraDaComanda(){
-  return (lojaCache && lojaCache.impressao_largura === '58') ? 58 : 80;
+  var conteudo = '﻿' + linhas.join('\r\n');
+  var blob = new Blob([conteudo], { type: 'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'espelho-ponto-' + espelhoCache.mes + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // Sem revoke o blob fica na memória da aba até a pessoa recarregar.
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
 }
 
 /**
- * Monta o HTML da comanda. Texto escapado à mão porque aqui o destino
- * é um documento novo, e nome e endereço vêm de gente de fora da
- * empresa, digitando na internet aberta.
+ * Espelho em papel, com linha de assinatura. É o documento que o
+ * funcionário confere e assina no fim do mês.
+ *
+ * Impressão por HTML + CSS num iframe: o navegador gera o PDF pelo
+ * "Salvar como PDF" da própria caixa de impressão, sem biblioteca de
+ * PDF nenhuma no meio.
  */
-function htmlDaComanda(p, cfg){
-  cfg = cfg || {};
-  var mm = cfg.largura === 58 ? 58 : 80;
-  // 58mm cabe ~32 caracteres em fonte monoespaçada; 80mm cabe ~48.
-  var colunas = mm === 58 ? 32 : 48;
+function imprimirEspelho(){
+  if(!espelhoCache) return;
+  var lista = espelhosVisiveis();
+  if(!lista.length) return;
 
   function esc(t){
     return String(t == null ? '' : t)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
-  function linhaDupla(esquerda, direita){
-    return '<div class="par"><span>' + esc(esquerda) + '</span><span>' + esc(direita) + '</span></div>';
-  }
+  var nomesDia = ['dom','seg','ter','qua','qui','sex','sáb'];
+  var partesMes = espelhoCache.mes.split('-');
+  var nomeMes = ['janeiro','fevereiro','março','abril','maio','junho','julho',
+                 'agosto','setembro','outubro','novembro','dezembro'][parseInt(partesMes[1],10)-1];
 
-  var criado = new Date(p.created_at);
-  var partes = [];
+  var paginas = lista.map(function(e){
+    var linhas = e.dias.filter(function(d){ return !(d.situacao === 'folga' && !d.entrada); }).map(function(d){
+      var dia = new Date(d.data + 'T12:00:00');
+      return '<tr>' +
+        '<td>' + String(dia.getDate()).padStart(2,'0') + '/' + String(dia.getMonth()+1).padStart(2,'0') + ' ' + nomesDia[d.dia_semana] + '</td>' +
+        '<td>' + esc(horaDoISO(d.entrada)) + '</td>' +
+        '<td>' + esc(horaDoISO(d.intervalo)) + '</td>' +
+        '<td>' + esc(horaDoISO(d.retorno)) + '</td>' +
+        '<td>' + esc(horaDoISO(d.saida)) + '</td>' +
+        '<td class="num">' + esc(horasDeMinutos(d.minutos_trabalhados)) + '</td>' +
+        '<td class="num">' + esc(d.saldo_minutos == null ? '—' : horasDeMinutos(d.saldo_minutos)) + '</td>' +
+        '<td>' + esc(d.situacao) + (d.alertas && d.alertas.length ? ' <span class="alerta">(' + esc(d.alertas.join('; ')) + ')</span>' : '') + '</td>' +
+      '</tr>';
+    }).join('');
 
-  partes.push('<div class="centro forte grande">' + esc(cfg.nomeLoja || 'Pedido') + '</div>');
-  if(cfg.cnpj)     partes.push('<div class="centro pequeno">CNPJ ' + esc(cfg.cnpj) + '</div>');
-  if(cfg.endereco) partes.push('<div class="centro pequeno">' + esc(cfg.endereco) + '</div>');
-  if(cfg.whatsapp) partes.push('<div class="centro pequeno">' + esc(cfg.whatsapp) + '</div>');
+    return '<section class="folha">' +
+      '<div class="cabecalho">' +
+        '<div><div class="empresa">' + esc(espelhoCache.empresa) + '</div>' +
+        '<div class="titulo">Espelho de ponto — ' + esc(nomeMes) + ' de ' + esc(partesMes[0]) + '</div></div>' +
+        '<div class="jornada">Jornada: ' + esc(horasDeMinutos(e.jornada.minutos_diarios)) + '/dia' +
+        '<br>Tolerância: ' + esc(e.jornada.tolerancia_minutos) + ' min</div>' +
+      '</div>' +
+      '<div class="funcionario">' + esc(e.nome) + '</div>' +
+      '<table><thead><tr><th>Dia</th><th>Entrada</th><th>Intervalo</th><th>Retorno</th><th>Saída</th><th>Trabalhado</th><th>Saldo</th><th>Situação</th></tr></thead>' +
+      '<tbody>' + linhas + '</tbody></table>' +
+      '<div class="totais">' +
+        '<span><b>Horas trabalhadas:</b> ' + esc(horasDeMinutos(e.resumo.minutos_trabalhados)) + '</span>' +
+        '<span><b>Previstas:</b> ' + esc(horasDeMinutos(e.resumo.minutos_previstos)) + '</span>' +
+        '<span><b>Extras:</b> ' + esc(horasDeMinutos(e.resumo.minutos_extras)) + '</span>' +
+        '<span><b>Devidas:</b> ' + esc(horasDeMinutos(e.resumo.minutos_devidos)) + '</span>' +
+        '<span><b>Faltas:</b> ' + esc(e.resumo.dias_com_falta) + '</span>' +
+      '</div>' +
+      // Duas assinaturas: é o que transforma o papel em documento
+      // conferido, não em relatório que o dono imprimiu sozinho.
+      '<div class="assinaturas">' +
+        '<div><div class="linha"></div>Assinatura do funcionário</div>' +
+        '<div><div class="linha"></div>Assinatura do responsável</div>' +
+      '</div>' +
+      '<div class="rodape">Gerado pelo Workap em ' + esc(new Date(espelhoCache.gerado_em).toLocaleString('pt-BR')) + '</div>' +
+    '</section>';
+  }).join('');
 
-  partes.push('<div class="risco"></div>');
-  partes.push('<div class="centro forte enorme">PEDIDO #' + esc(p.numero) + '</div>');
-  partes.push('<div class="centro pequeno">' +
-    esc(criado.toLocaleDateString('pt-BR')) + '  ' +
-    esc(criado.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })) + '</div>');
-  partes.push('<div class="centro forte">' + (p.tipo === 'retirada' ? 'RETIRADA NA LOJA' : 'ENTREGA') + '</div>');
+  var html = '<!doctype html><html><head><meta charset="utf-8"><title>Espelho de ponto</title><style>' +
+    '@page{size:A4 portrait;margin:12mm}' +
+    'body{font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#000;margin:0}' +
+    '.folha{page-break-after:always}' +
+    '.folha:last-child{page-break-after:auto}' +
+    '.cabecalho{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:8px}' +
+    '.empresa{font-size:15px;font-weight:bold}' +
+    '.titulo{font-size:11px;margin-top:2px}' +
+    '.jornada{font-size:9px;text-align:right;line-height:1.5}' +
+    '.funcionario{font-size:13px;font-weight:bold;margin-bottom:8px}' +
+    'table{width:100%;border-collapse:collapse}' +
+    'th,td{border:1px solid #999;padding:3px 5px;text-align:left}' +
+    'th{background:#eee;font-size:9px;text-transform:uppercase}' +
+    'td.num{text-align:right}' +
+    '.alerta{color:#b00}' +
+    '.totais{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;padding:7px 9px;border:1px solid #999;background:#f6f6f6}' +
+    '.assinaturas{display:flex;gap:40px;margin-top:34px;text-align:center;font-size:9px}' +
+    '.assinaturas>div{flex:1}' +
+    '.linha{border-top:1px solid #000;margin-bottom:4px}' +
+    '.rodape{margin-top:14px;font-size:8px;color:#666;text-align:center}' +
+    '</style></head><body>' + paginas + '</body></html>';
 
-  partes.push('<div class="risco"></div>');
-  partes.push('<div class="forte">CLIENTE</div>');
-  partes.push('<div>' + esc(p.cliente_nome) + '</div>');
-  if(p.cliente_estabelecimento) partes.push('<div>' + esc(p.cliente_estabelecimento) + '</div>');
-  partes.push('<div>' + esc(p.cliente_telefone) + '</div>');
-  if(p.tipo !== 'retirada' && p.endereco){
-    partes.push('<div class="espaco"></div>');
-    partes.push('<div class="forte">ENDERECO</div>');
-    partes.push('<div>' + esc(p.endereco) + '</div>');
-  }
-
-  partes.push('<div class="risco"></div>');
-  partes.push('<div class="forte">ITENS</div>');
-  (p.itens || []).forEach(function(i){
-    partes.push('<div>' + esc(i.quantidade + 'x ' + i.nome) + '</div>');
-    partes.push(linhaDupla('   ' + reaisDeCentavos(i.preco_unitario_centavos) + ' cada',
-                           'R$ ' + reaisDeCentavos(i.total_centavos)));
-  });
-
-  partes.push('<div class="risco"></div>');
-  partes.push(linhaDupla('Subtotal', 'R$ ' + reaisDeCentavos(p.subtotal_centavos)));
-  if(p.taxa_centavos) partes.push(linhaDupla('Taxa de entrega', 'R$ ' + reaisDeCentavos(p.taxa_centavos)));
-  partes.push('<div class="par forte grande"><span>TOTAL</span><span>R$ ' + esc(reaisDeCentavos(p.total_centavos)) + '</span></div>');
-
-  var rotuloPg = { dinheiro: 'DINHEIRO', pix: 'PIX', cartao: 'CARTAO' };
-  if(p.forma_pagamento){
-    partes.push('<div class="espaco"></div>');
-    partes.push('<div class="forte">PAGAR NA ' + (p.tipo === 'retirada' ? 'RETIRADA' : 'ENTREGA') + ': ' +
-      esc(rotuloPg[p.forma_pagamento] || p.forma_pagamento) + '</div>');
-    if(p.troco_para_centavos){
-      var troco = p.troco_para_centavos - p.total_centavos;
-      partes.push('<div class="forte">LEVAR TROCO PARA R$ ' + esc(reaisDeCentavos(p.troco_para_centavos)) + '</div>');
-      // O troco calculado evita a conta de cabeça na porta do cliente,
-      // que é onde o entregador erra e o dinheiro falta no fim do dia.
-      if(troco > 0){
-        partes.push('<div>(troco: R$ ' + esc(reaisDeCentavos(troco)) + ')</div>');
-      } else if(troco < 0){
-        // O cliente digitou um valor menor que o total — provavelmente
-        // errou. Sem este aviso a comanda ficava muda, e o entregador
-        // só descobria na porta, com o cliente na frente.
-        partes.push('<div class="forte">ATENCAO: valor informado e MENOR que o total.</div>');
-        partes.push('<div>Faltam R$ ' + esc(reaisDeCentavos(Math.abs(troco))) + ' — confirmar com o cliente.</div>');
-      }
-    }
-  }
-
-  if(p.observacoes){
-    partes.push('<div class="risco"></div>');
-    partes.push('<div class="forte">OBSERVACAO</div>');
-    partes.push('<div>' + esc(p.observacoes) + '</div>');
-  }
-
-  if(cfg.rodape){
-    partes.push('<div class="risco"></div>');
-    partes.push('<div class="centro">' + esc(cfg.rodape) + '</div>');
-  }
-
-  // O aviso é obrigatório e não é configurável de propósito.
-  partes.push('<div class="risco"></div>');
-  partes.push('<div class="centro pequeno">SEM VALOR FISCAL</div>');
-  partes.push('<div class="centro pequeno">Comanda de pedido - nao e cupom fiscal</div>');
-  partes.push('<div class="corte"></div>');
-
-  var uma = partes.join('');
-  var vias = cfg.vias > 1 ? new Array(cfg.vias + 1).join(uma) : uma;
-
-  return '<!doctype html><html><head><meta charset="utf-8"><title>Pedido ' + esc(p.numero) + '</title><style>' +
-    // @page com a largura exata do papel e margem zero: sem isso o
-    // navegador assume A4 e a comanda sai num canto de uma folha.
-    '@page{size:' + mm + 'mm auto;margin:0}' +
-    'html,body{margin:0;padding:0}' +
-    'body{width:' + mm + 'mm;font-family:"Courier New",monospace;font-size:' + (mm === 58 ? '11px' : '12px') + ';' +
-      'line-height:1.35;color:#000;background:#fff;padding:4mm 3mm}' +
-    // Térmica não imprime cinza: tudo preto puro, senão sai apagado.
-    '*{color:#000 !important}' +
-    '.centro{text-align:center}' +
-    '.forte{font-weight:bold}' +
-    '.grande{font-size:' + (mm === 58 ? '13px' : '15px') + '}' +
-    '.enorme{font-size:' + (mm === 58 ? '18px' : '22px') + ';letter-spacing:1px;margin:2px 0}' +
-    '.pequeno{font-size:' + (mm === 58 ? '9px' : '10px') + '}' +
-    '.par{display:flex;justify-content:space-between;gap:6px}' +
-    '.par span:last-child{white-space:nowrap}' +
-    '.risco{border-top:1px dashed #000;margin:5px 0}' +
-    '.espaco{height:5px}' +
-    // Espaço no fim para o papel passar da lâmina de corte.
-    '.corte{height:' + (mm === 58 ? '10mm' : '12mm') + '}' +
-    '@media print{.corte{page-break-after:always}}' +
-    '</style></head><body>' + vias + '</body></html>';
-}
-
-/**
- * Manda para a impressora. iframe escondido em vez de janela nova
- * porque bloqueador de pop-up derruba window.open em parte dos
- * navegadores — e o lojista descobriria isso com o cliente esperando.
- */
-function imprimirComanda(p){
-  var l = lojaCache || {};
-  var html = htmlDaComanda(p, {
-    largura:  larguraDaComanda(),
-    nomeLoja: l.nome_exibicao || (usuarioAtual && usuarioAtual.empresa) || 'Pedido',
-    endereco: l.endereco,
-    whatsapp: l.whatsapp,
-    cnpj:     l.impressao_cnpj,
-    rodape:   l.impressao_rodape,
-    vias:     l.impressao_vias || 1
-  });
-
-  var antigo = document.getElementById('frame-comanda');
+  var antigo = document.getElementById('frame-espelho');
   if(antigo) antigo.remove();
-
   var frame = document.createElement('iframe');
-  frame.id = 'frame-comanda';
+  frame.id = 'frame-espelho';
   frame.setAttribute('aria-hidden', 'true');
   frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
   document.body.appendChild(frame);
-
   frame.onload = function(){
-    try {
-      frame.contentWindow.focus();
-      frame.contentWindow.print();
-    } catch(e){
-      // Safari em iPad às vezes recusa imprimir de dentro de iframe.
-      // Abrir em aba nova é o plano B — o clique do usuário já
-      // aconteceu, então o pop-up passa.
+    try { frame.contentWindow.focus(); frame.contentWindow.print(); }
+    catch(e){
+      // Safari em iPad recusa imprimir de dentro de iframe. Aba nova é
+      // o plano B — o clique do usuário já aconteceu, o pop-up passa.
       var aba = window.open('', '_blank');
       if(aba){ aba.document.write(html); aba.document.close(); aba.print(); }
       else alert('Não foi possível abrir a impressão. Libere pop-ups para este site.');
     }
   };
-
   var doc = frame.contentWindow.document;
-  doc.open();
-  doc.write(html);
-  doc.close();
+  doc.open(); doc.write(html); doc.close();
 }
 
-// Busca só a configuração, sem mexer nas telas — usada pela fila de
-// pedidos para a comanda sair com o cabeçalho certo.
-function carregarConfigDaLojaParaImpressao(){
-  fetch(API_BASE + '/loja/config', { headers: cabecalhoAuth() })
-    .then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(d){ if(d && d.loja) lojaCache = d.loja; })
-    .catch(function(){});
-}
+// ── JORNADA ──
+// Nome próprio (DIAS_JORNADA, não DIAS_SEMANA): a tela de Escala já
+// tem um DIAS_SEMANA no mesmo escopo global, e duas declarações `var`
+// com o mesmo nome não dão erro — a última em ordem de arquivo vence,
+// em silêncio. Foi exatamente isso que fez os botões dos dias virem
+// todos desmarcados, sem nenhum erro no console.
+var DIAS_JORNADA = [
+  { n: 1, r: 'Seg' }, { n: 2, r: 'Ter' }, { n: 3, r: 'Qua' }, { n: 4, r: 'Qui' },
+  { n: 5, r: 'Sex' }, { n: 6, r: 'Sáb' }, { n: 0, r: 'Dom' }
+];
 
-/**
- * Imprime uma comanda de exemplo, para o lojista acertar papel e
- * margem antes do primeiro pedido de verdade chegar — e não descobrir
- * que a impressora está errada com o cliente esperando.
- */
-function testarComanda(){
-  // Lê a configuração da TELA, não a salva: assim dá para testar a
-  // largura nova antes de gravar.
-  lojaCache = Object.assign({}, lojaCache || {}, {
-    nome_exibicao: document.getElementById('lj-nome').value.trim(),
-    endereco: document.getElementById('lj-endereco').value.trim(),
-    whatsapp: document.getElementById('lj-whatsapp').value.trim(),
-    impressao_largura: document.getElementById('lj-largura').value,
-    impressao_vias: parseInt(document.getElementById('lj-vias').value, 10) || 1,
-    impressao_cnpj: document.getElementById('lj-cnpj').value.trim(),
-    impressao_rodape: document.getElementById('lj-rodape').value.trim()
-  });
-
-  imprimirComanda({
-    numero: 999,
-    created_at: new Date().toISOString(),
-    tipo: 'entrega',
-    cliente_nome: 'Cliente de Teste',
-    cliente_telefone: '(11) 98888-7777',
-    cliente_estabelecimento: 'Bar do Teste',
-    endereco: 'Rua Exemplo, 123 - Centro',
-    forma_pagamento: 'dinheiro',
-    troco_para_centavos: 5000,
-    observacoes: 'Comanda de teste — nenhum pedido foi criado.',
-    itens: [
-      { nome: 'Item de exemplo', quantidade: 2, preco_unitario_centavos: 1250, total_centavos: 2500 },
-      { nome: 'Outro item', quantidade: 1, preco_unitario_centavos: 900, total_centavos: 900 }
-    ],
-    subtotal_centavos: 3400,
-    taxa_centavos: 500,
-    total_centavos: 3900
-  });
-}
-
-// ── CONFIGURAÇÃO DA LOJA ──
-function carregarLoja(){
+function carregarJornada(){
   if(!sessaoWorka || !sessaoWorka.token) return;
-
-  fetch(API_BASE + '/loja/config', { headers: cabecalhoAuth() })
+  fetch(API_BASE + '/jornada', { headers: cabecalhoAuth() })
   .then(function(r){ return r.json().then(function(d){ return { status: r.status, d: d }; }); })
   .then(function(res){
-    if(res.status === 402){ mostrarBloqueioPlano('loja', true); return; }
+    if(res.status === 402){ mostrarBloqueioPlano('jornada', true); return; }
     if(res.status !== 200) return;
-    mostrarBloqueioPlano('loja', false);
-
-    lojaCache = res.d.loja;
-    preencherFormularioLoja(res.d.empresa_nome);
-    carregarCargosDaLoja();
-    carregarCatalogo();
+    mostrarBloqueioPlano('jornada', false);
+    jornadasCache = Array.isArray(res.d) ? res.d : [];
+    montarFormularioJornada();
+    listarExcecoesJornada();
   })
   .catch(function(){});
 }
 
-function preencherFormularioLoja(nomeEmpresa){
-  var l = lojaCache || {};
-  function valor(id, v){ var el = document.getElementById(id); if(el) el.value = v == null ? '' : v; }
-  function marca(id, v){ var el = document.getElementById(id); if(el) el.checked = !!v; }
+function montarFormularioJornada(){
+  var padrao = jornadasCache.filter(function(j){ return !j.funcionario_id; })[0] || {};
+  var horas = document.getElementById('jn-horas');
+  if(horas) horas.value = padrao.minutos_diarios ? (padrao.minutos_diarios / 60).toString().replace('.', ',') : '8';
+  var tol = document.getElementById('jn-tolerancia');
+  if(tol) tol.value = padrao.tolerancia_minutos != null ? padrao.tolerancia_minutos : 10;
+  var inter = document.getElementById('jn-intervalo');
+  if(inter) inter.value = padrao.intervalo_minimo_minutos != null ? padrao.intervalo_minimo_minutos : 60;
 
-  // Sugestão de endereço a partir do nome da empresa, para quem nunca
-  // pensou num slug não travar na primeira tela.
-  var sugestao = String(nomeEmpresa || 'minha-loja').toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').substring(0, 40);
-
-  valor('lj-slug', l.slug || sugestao);
-  valor('lj-nome', l.nome_exibicao || nomeEmpresa || '');
-  valor('lj-descricao', l.descricao);
-  valor('lj-horario', l.horario);
-  valor('lj-aviso', l.aviso);
-  valor('lj-whatsapp', l.whatsapp);
-  valor('lj-endereco', l.endereco);
-  valor('lj-taxa', l.taxa_entrega_centavos ? reaisDeCentavos(l.taxa_entrega_centavos) : '');
-  valor('lj-minimo', l.pedido_minimo_centavos ? reaisDeCentavos(l.pedido_minimo_centavos) : '');
-
-  valor('lj-cnpj', l.impressao_cnpj);
-  valor('lj-rodape', l.impressao_rodape);
-  var selLarg = document.getElementById('lj-largura');
-  if(selLarg) selLarg.value = l.impressao_largura === '58' ? '58' : '80';
-  var selVias = document.getElementById('lj-vias');
-  if(selVias) selVias.value = String(l.impressao_vias || 1);
-  marca('lj-auto', l.impressao_auto);
-
-  marca('lj-ativa', l.ativa);
-  marca('lj-entrega', l.aceita_entrega !== false);
-  marca('lj-retirada', l.aceita_retirada !== false);
-  var formas = l.formas_pagamento || ['dinheiro','pix','cartao'];
-  marca('lj-pg-dinheiro', formas.indexOf('dinheiro') >= 0);
-  marca('lj-pg-pix', formas.indexOf('pix') >= 0);
-  marca('lj-pg-cartao', formas.indexOf('cartao') >= 0);
-
-  var badge = document.getElementById('loja-status-badge');
-  if(badge){
-    badge.textContent = l.ativa ? 'No ar' : 'Desligada';
-    badge.className = 'badge ' + (l.ativa ? 'badge-green' : 'badge-yellow');
-  }
-  atualizarLinkLoja();
+  var marcados = padrao.dias_semana || [1,2,3,4,5];
+  var caixa = document.getElementById('jn-dias');
+  if(!caixa) return;
+  caixa.textContent = '';
+  DIAS_JORNADA.forEach(function(d){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn btn-sm ' + (marcados.indexOf(d.n) >= 0 ? 'btn-primary' : 'btn-secondary');
+    b.dataset.dia = d.n;
+    b.textContent = d.r;
+    b.onclick = function(){
+      var ligado = b.classList.contains('btn-primary');
+      b.className = 'btn btn-sm ' + (ligado ? 'btn-secondary' : 'btn-primary');
+    };
+    caixa.appendChild(b);
+  });
 }
 
-function atualizarLinkLoja(){
-  var slug = (document.getElementById('lj-slug') || {}).value || '';
-  var pronto = document.getElementById('loja-link-pronto');
-  if(!pronto) return;
-  if(!lojaCache || !lojaCache.slug){ pronto.style.display = 'none'; return; }
-
-  // Link montado a partir do endereço atual: em produção sai
-  // workap.com.br/loja/, e em qualquer outro ambiente sai o de lá —
-  // sem domínio escrito no código para envelhecer.
-  var base = location.origin + location.pathname.replace(/app\/?$/, '');
-  var url = base + 'loja/?l=' + encodeURIComponent(lojaCache.slug);
-  escreverTexto('loja-link-txt', url);
-  var abrir = document.getElementById('loja-link-abrir');
-  if(abrir) abrir.href = url;
-  pronto.style.display = 'block';
+function diasMarcados(){
+  return Array.prototype.filter.call(document.querySelectorAll('#jn-dias button'), function(b){
+    return b.classList.contains('btn-primary');
+  }).map(function(b){ return parseInt(b.dataset.dia, 10); });
 }
 
-function copiarLinkLoja(){
-  var txt = (document.getElementById('loja-link-txt') || {}).textContent || '';
-  if(!txt) return;
-  if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(txt).then(function(){ alert('Link copiado! Cole no WhatsApp ou na bio.'); });
-  } else {
-    // Safari antigo e contexto sem HTTPS não têm clipboard API.
-    prompt('Copie o link da sua loja:', txt);
-  }
-}
+function salvarJornada(funcionarioId){
+  var txtHoras = (document.getElementById('jn-horas').value || '').replace(',', '.');
+  var minutos = Math.round(parseFloat(txtHoras) * 60);
+  if(!minutos || isNaN(minutos)){ alert('Informe quantas horas por dia.'); return; }
+  var dias = diasMarcados();
+  if(!dias.length){ alert('Marque pelo menos um dia da semana.'); return; }
 
-function carregarCargosDaLoja(){
-  var sel = document.getElementById('lj-cargo');
-  if(!sel) return;
-  fetch(API_BASE + '/cargos', { headers: cabecalhoAuth() })
-  .then(function(r){ return r.ok ? r.json() : []; })
-  .then(function(d){
-    var cargos = Array.isArray(d) ? d : (d.cargos || []);
-    sel.textContent = '';
-    var nenhum = document.createElement('option');
-    nenhum.value = ''; nenhum.textContent = 'Só eu (dono) vejo os pedidos';
-    sel.appendChild(nenhum);
-    cargos.forEach(function(c){
-      var o = document.createElement('option');
-      o.value = c.id; o.textContent = c.nome;
-      sel.appendChild(o);
-    });
-    if(lojaCache && lojaCache.cargo_destino) sel.value = lojaCache.cargo_destino;
-  })
-  .catch(function(){});
-}
-
-function salvarLoja(){
-  var payload = {
-    slug: (document.getElementById('lj-slug').value || '').trim(),
-    ativa: document.getElementById('lj-ativa').checked,
-    nome_exibicao: document.getElementById('lj-nome').value.trim(),
-    descricao: document.getElementById('lj-descricao').value.trim(),
-    horario: document.getElementById('lj-horario').value.trim(),
-    aviso: document.getElementById('lj-aviso').value.trim(),
-    whatsapp: document.getElementById('lj-whatsapp').value.trim(),
-    endereco: document.getElementById('lj-endereco').value.trim(),
-    taxa_entrega_centavos: centavosDeTexto(document.getElementById('lj-taxa').value),
-    pedido_minimo_centavos: centavosDeTexto(document.getElementById('lj-minimo').value),
-    aceita_entrega: document.getElementById('lj-entrega').checked,
-    aceita_retirada: document.getElementById('lj-retirada').checked,
-    formas_pagamento: ['dinheiro','pix','cartao'].filter(function(f){
-      return document.getElementById('lj-pg-' + f).checked;
-    }),
-    cargo_destino: document.getElementById('lj-cargo').value || null,
-    impressao_largura: document.getElementById('lj-largura').value,
-    impressao_vias: parseInt(document.getElementById('lj-vias').value, 10) || 1,
-    impressao_cnpj: document.getElementById('lj-cnpj').value.trim(),
-    impressao_rodape: document.getElementById('lj-rodape').value.trim(),
-    impressao_auto: document.getElementById('lj-auto').checked
-  };
-
-  if(!payload.aceita_entrega && !payload.aceita_retirada){
-    alert('A loja precisa aceitar entrega ou retirada — senão não há como o cliente receber o pedido.');
-    return;
-  }
-
-  fetch(API_BASE + '/loja/config', {
+  fetch(API_BASE + '/jornada', {
     method: 'PUT',
     headers: Object.assign({ 'Content-Type': 'application/json' }, cabecalhoAuth()),
-    body: JSON.stringify(payload)
+    body: JSON.stringify({
+      funcionario_id: funcionarioId || null,
+      minutos_diarios: minutos,
+      dias_semana: dias,
+      tolerancia_minutos: parseInt(document.getElementById('jn-tolerancia').value, 10) || 0,
+      intervalo_minimo_minutos: parseInt(document.getElementById('jn-intervalo').value, 10) || 0
+    })
   })
   .then(function(r){ return r.json().then(function(d){ return { status: r.status, d: d }; }); })
   .then(function(res){
     if(res.status !== 200){ alert(res.d.error || 'Não foi possível salvar.'); return; }
-    lojaCache = res.d.loja;
-    preencherFormularioLoja(null);
-    alert(payload.ativa ? 'Loja salva e no ar. Copie o link e mande para os clientes.' : 'Loja salva. Ligue "Loja no ar" quando quiser começar a receber pedidos.');
+    carregarJornada();
+    alert('Jornada salva. O espelho de ponto já usa ela no próximo cálculo.');
   })
   .catch(function(){ alert('Erro de conexão.'); });
 }
 
-// ── O QUE ESTÁ À VENDA ──
-function carregarCatalogo(){
-  var corpo = document.getElementById('lista-catalogo');
+function listarExcecoesJornada(){
+  var corpo = document.getElementById('lista-excecoes-jornada');
   if(!corpo) return;
+  var excecoes = jornadasCache.filter(function(j){ return !!j.funcionario_id; });
+  corpo.textContent = '';
 
-  fetch(API_BASE + '/validade', { headers: cabecalhoAuth() })
-  .then(function(r){ return r.ok ? r.json() : []; })
-  .then(function(lista){
-    corpo.textContent = '';
-    if(!Array.isArray(lista) || !lista.length){
-      var tr = document.createElement('tr');
-      var td = document.createElement('td');
-      td.colSpan = 3;
-      td.style.cssText = 'text-align:center;color:var(--gray500);padding:20px';
-      td.textContent = 'Cadastre itens no estoque para colocá-los à venda.';
-      tr.appendChild(td); corpo.appendChild(tr);
-      escreverTexto('loja-qtd-itens', '0 na loja');
-      return;
-    }
+  if(!excecoes.length){
+    var tr = document.createElement('tr');
+    var td = document.createElement('td');
+    td.colSpan = 4;
+    td.style.cssText = 'text-align:center;color:var(--gray500);padding:18px';
+    td.textContent = 'Todo mundo segue a jornada padrão.';
+    tr.appendChild(td); corpo.appendChild(tr);
+    return;
+  }
 
-    var naLoja = 0;
-    lista.forEach(function(item){
-      if(item.no_catalogo) naLoja++;
-      var tr = document.createElement('tr');
+  var nomes = {};
+  funcionariosCache.forEach(function(f){ nomes[f.id] = f.nome; });
+  var rotDia = {}; DIAS_JORNADA.forEach(function(d){ rotDia[d.n] = d.r; });
 
-      var tdNome = document.createElement('td');
-      var caixa = document.createElement('div');
-      caixa.style.cssText = 'display:flex;align-items:center;gap:10px';
-      if(item.foto_thumb){
-        var img = document.createElement('img');
-        img.className = 'produto-thumb';
-        img.src = item.foto_thumb; img.alt = '';
-        caixa.appendChild(img);
-      }
-      caixa.appendChild(document.createTextNode(item.nome));
-      tdNome.appendChild(caixa);
-      tr.appendChild(tdNome);
-
-      var tdPreco = document.createElement('td');
-      var inp = document.createElement('input');
-      inp.inputMode = 'decimal';
-      inp.style.cssText = 'width:100px;padding:7px 10px;border:1.5px solid var(--gray100);border-radius:8px;font-family:inherit';
-      inp.value = item.preco_centavos ? reaisDeCentavos(item.preco_centavos) : '';
-      inp.placeholder = '0,00';
-      tdPreco.appendChild(inp);
-      tr.appendChild(tdPreco);
-
-      var tdSw = document.createElement('td');
-      var sw = document.createElement('button');
-      sw.className = 'toggle-sw ' + (item.no_catalogo ? 'on' : 'off');
-      var dot = document.createElement('div');
-      dot.className = 'toggle-dot';
-      sw.appendChild(dot);
-      sw.onclick = function(){
-        var ligando = !sw.classList.contains('on');
-        var centavos = centavosDeTexto(inp.value);
-        if(ligando && !centavos){
-          alert('Defina o preço antes de colocar na loja.');
-          inp.focus();
-          return;
-        }
-        salvarItemCatalogo(item.id, centavos, ligando, sw);
-      };
-      // Sair do campo de preço já grava, se o item estiver publicado —
-      // senão a pessoa muda o preço, sai da tela e o cliente continua
-      // comprando pelo valor antigo.
-      inp.onblur = function(){
-        var centavos = centavosDeTexto(inp.value);
-        if(!centavos) return;
-        if(centavos === item.preco_centavos) return;
-        salvarItemCatalogo(item.id, centavos, sw.classList.contains('on'), sw);
-        item.preco_centavos = centavos;
-      };
-      tdSw.appendChild(sw);
-      tr.appendChild(tdSw);
-
-      corpo.appendChild(tr);
-    });
-    escreverTexto('loja-qtd-itens', naLoja + (naLoja === 1 ? ' item na loja' : ' itens na loja'));
-  })
-  .catch(function(){});
+  excecoes.forEach(function(j){
+    var tr = document.createElement('tr');
+    function td(txt){ var c = document.createElement('td'); c.textContent = txt; tr.appendChild(c); return c; }
+    td(nomes[j.funcionario_id] || 'Funcionário');
+    td(horasDeMinutos(j.minutos_diarios) + '/dia');
+    td((j.dias_semana || []).map(function(d){ return rotDia[d] || d; }).join(', '));
+    var acao = document.createElement('td');
+    var b = document.createElement('button');
+    b.className = 'btn btn-sm btn-secondary';
+    b.textContent = 'Voltar ao padrão';
+    b.onclick = function(){
+      if(!confirm('Remover a exceção? ' + (nomes[j.funcionario_id] || 'A pessoa') + ' volta à jornada padrão da empresa.')) return;
+      fetch(API_BASE + '/jornada/' + encodeURIComponent(j.id), { method: 'DELETE', headers: cabecalhoAuth() })
+        .then(function(){ carregarJornada(); })
+        .catch(function(){ alert('Não foi possível remover.'); });
+    };
+    acao.appendChild(b); tr.appendChild(acao);
+    corpo.appendChild(tr);
+  });
 }
 
-function salvarItemCatalogo(id, centavos, noCatalogo, sw){
-  fetch(API_BASE + '/validade/' + encodeURIComponent(id) + '/catalogo', {
+function abrirExcecaoJornada(){
+  if(!funcionariosCache.length){
+    alert('Cadastre funcionários antes de abrir exceção de jornada.');
+    return;
+  }
+  var opcoes = funcionariosCache.map(function(f, i){ return (i + 1) + ' - ' + f.nome; }).join('\n');
+  var escolha = prompt('Para quem é a jornada diferente?\n\n' + opcoes + '\n\nDigite o número:');
+  if(escolha === null) return;
+  var idx = parseInt(escolha, 10) - 1;
+  var func = funcionariosCache[idx];
+  if(!func){ alert('Número inválido.'); return; }
+
+  var horas = prompt('Quantas horas por dia para ' + func.nome + '? (ex: 6 ou 4,5)');
+  if(horas === null) return;
+  var minutos = Math.round(parseFloat(String(horas).replace(',', '.')) * 60);
+  if(!minutos || isNaN(minutos)){ alert('Valor inválido.'); return; }
+
+  // Os dias e a tolerância vêm da jornada padrão que está na tela —
+  // exceção quase sempre muda só a carga horária, não os dias.
+  fetch(API_BASE + '/jornada', {
     method: 'PUT',
     headers: Object.assign({ 'Content-Type': 'application/json' }, cabecalhoAuth()),
-    body: JSON.stringify({ preco_centavos: centavos, no_catalogo: noCatalogo })
+    body: JSON.stringify({
+      funcionario_id: func.id,
+      minutos_diarios: minutos,
+      dias_semana: diasMarcados(),
+      tolerancia_minutos: parseInt(document.getElementById('jn-tolerancia').value, 10) || 0,
+      intervalo_minimo_minutos: parseInt(document.getElementById('jn-intervalo').value, 10) || 0
+    })
   })
   .then(function(r){ return r.json().then(function(d){ return { status: r.status, d: d }; }); })
   .then(function(res){
     if(res.status !== 200){ alert(res.d.error || 'Não foi possível salvar.'); return; }
-    if(sw) sw.className = 'toggle-sw ' + (noCatalogo ? 'on' : 'off');
-    carregarCatalogo();
+    carregarJornada();
   })
   .catch(function(){ alert('Erro de conexão.'); });
 }

@@ -8,11 +8,11 @@
 // o sistema não tem. Login biométrico continua sendo uma feature em
 // aberto (exige WebAuthn + tabela de credenciais no banco).
 
-// Cache bumped para v13: entraram a loja online (venda sem pagamento,
-// com carrinho que vira pedido para a equipe) e o segundo plano. Sem
-// trocar o nome do cache, quem já abriu o app continuaria vendo a
-// versão de antes.
-var CACHE = 'workap-v13';
+// Cache bumped para v14: a loja online saiu do produto e o plano de
+// cima passou a ser o espelho de ponto e os relatórios do contador.
+// Sem trocar o nome do cache, quem já abriu o app continuaria vendo os
+// menus antigos apontando para telas que não existem mais.
+var CACHE = 'workap-v14';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
@@ -28,9 +28,6 @@ var ASSETS = [
   // que o navegador realmente pede — 'app/index.html' e 'app/' são
   // chaves de cache diferentes.
   'app/',
-  // A vitrine pública também entra no cache: quem abre o link da loja
-  // muitas vezes está na rua, em rede ruim.
-  'loja/',
   // './' e 'index.html' são a MESMA página, mas endereços diferentes
   // para o cache. Quem abre workap.com.br pede './'; sem essa entrada,
   // a home não ficava disponível offline mesmo com o arquivo em cache.

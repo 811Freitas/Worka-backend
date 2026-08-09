@@ -78,10 +78,10 @@ const CONFIG = {
       centavos: 4999,
       resumo: "Ponto, tarefas, estoque, escala, folha, metas e chat."
     },
-    pedidos: {
-      nome: "Plano Pedidos",
+    pro: {
+      nome: "Plano Pro",
       centavos: 8990,
-      resumo: "Tudo do Completo + loja online com carrinho e fila de pedidos para a equipe."
+      resumo: "Tudo do Completo + espelho de ponto, banco de horas e relatórios prontos para o contador."
     }
   },
   // Plano padrão de quem se cadastra sem escolher.
@@ -165,12 +165,6 @@ var RATE_LIMITS = {
   // 60/10min ainda cobre folgado o cadastro em lote de um estoque
   // inteiro, que é feito uma vez.
   "/validade":       { max: 60,  window: 10 * 60 * 1000 },
-  // Loja pública: qualquer um na internet alcança. A vitrine é barata
-  // e pode ser vista muitas vezes; enviar pedido é caro (grava linha e
-  // dispara push), então tem teto bem menor — um cliente de verdade
-  // manda um pedido, não vinte por minuto.
-  "/loja":           { max: 120, window: 60 * 1000 },
-  "/loja/pedido":    { max: 8,   window: 10 * 60 * 1000 },
   "default":         { max: 100, window: 60 * 1000 }       // 100/min geral
 };
 
@@ -447,12 +441,16 @@ function precoDoPlano(nome) {
 }
 
 /**
- * A loja online e a fila de pedidos são o que separa os dois planos.
- * Checado no servidor em toda rota do módulo — esconder o menu no app
- * é conveniência visual, não controle de acesso.
+ * O que separa os dois planos hoje: espelho de ponto, banco de horas e
+ * os relatórios do contador. Checado no servidor em toda rota do
+ * módulo — esconder o menu no app é conveniência visual, não controle
+ * de acesso.
+ *
+ * Função separada, e não `plano === "pro"` espalhado pelas rotas, para
+ * mudar de faixa um dia significar editar um lugar só.
  */
-function planoTemPedidos(nome) {
-  return planoValido(nome) === "pedidos";
+function planoAvancado(nome) {
+  return planoValido(nome) === "pro";
 }
 
 /**
@@ -491,7 +489,7 @@ function filtrarAtributos(slugRamo, enviados) {
 // carrega permissões — apenas o role — para que revogar/alterar
 // acesso não exija invalidar tokens já emitidos além do necessário.
 var PERMISSOES_DONO = [
-  "loja:read", "loja:write", "pedidos:read", "pedidos:write",
+  "espelho:read",
   "funcionarios:read", "funcionarios:write", "funcionarios:delete",
   "salarios:read", "salarios:write",
   "financeiro:read", "financeiro:write",
@@ -525,8 +523,7 @@ var ROLE_PERMISSIONS = {
     "chat:usar",
     "afastamentos:read", "afastamentos:write",
     "metas:read", "metas:write",
-    "loja:read",                 // vê a configuração da loja, quem edita é o dono
-    "pedidos:read", "pedidos:write",
+    "espelho:read",              // gerente fecha o ponto do mês junto com o dono
     "logs:read"
   ]),
   funcionario: new Set([
@@ -538,10 +535,10 @@ var ROLE_PERMISSIONS = {
     "chat:usar",         // conversa com a equipe
     "afastamentos:read", // vê as próprias férias/folgas — filtro na rota
     "metas:read",        // acompanha as metas atribuídas a si
-    // Entregador/atendente precisa ver e mover os pedidos do próprio
-    // cargo. A rota filtra pelo cargo dele — a permissão sozinha não
-    // mostra a fila inteira da empresa.
-    "pedidos:read", "pedidos:write"
+    // O funcionário vê o PRÓPRIO espelho de ponto — é o documento que
+    // ele assina no fim do mês, e esconder dele seria esconder a conta
+    // das próprias horas. A rota força o filtro pelo id dele.
+    "espelho:read"
   ]),
   // Dono da Workap (não do cliente). Recebe as mesmas permissões de um
   // "dono" — para navegar por todas as telas do produto — MAIS as
@@ -725,7 +722,7 @@ function supabase(method, table, options = {}) {
     "config_plataforma", "utmify_envios",
     "comunicados", "cargos", "config_faltas", "contas_pagar",
     "mensagens", "periodos_afastamento", "metas",
-    "loja_config", "pedidos"
+    "config_jornada"
   ];
   if (!ALLOWED_TABLES.includes(table)) {
     return Promise.reject(new Error(`Tabela não permitida: ${table}`));
@@ -2135,14 +2132,7 @@ var server = http.createServer(async (req, res) => {
   if (method === "OPTIONS") { res.writeHead(204); return res.end(); }
 
   // ── Rate limiting global ──
-  // A loja pública tem o slug no meio do caminho (/loja/padaria-do-ze),
-  // então o limite não pode ser buscado pelo path exato. Enviar pedido
-  // e ver a vitrine têm tetos diferentes de propósito.
-  var chaveLimite = path.startsWith("/login") ? "/login"
-    : /^\/loja\/[\w-]+\/pedido$/.test(path) ? "/loja/pedido"
-    : /^\/loja\//.test(path) ? "/loja"
-    : (RATE_LIMITS[path] ? path : "default");
-  var rl = checkRateLimit(ip, chaveLimite);
+  var rl = checkRateLimit(ip, path.startsWith("/login") ? "/login" : (RATE_LIMITS[path] ? path : "default"));
   if (rl.blocked) {
     secLog("rate_limit_blocked", { ip, path });
     res.setHeader("Retry-After", rl.retryAfter);
@@ -2962,214 +2952,6 @@ var server = http.createServer(async (req, res) => {
       });
     }
 
-    // ══════════════════════════════════════════════
-    // LOJA ONLINE — VITRINE E PEDIDO (rotas públicas)
-    // ══════════════════════════════════════════════
-    //
-    // Aqui NÃO se cobra nada. O cliente monta o carrinho, manda o
-    // pedido e paga na entrega ou na retirada. Sem gateway, sem dado
-    // de cartão, sem estorno — e sem a responsabilidade que vem junto.
-    //
-    // Públicas de propósito: quem compra não tem conta no Workap. Em
-    // troca, tudo que entra por aqui é tratado como hostil.
-
-    // Nomes que a própria API usa depois de /loja/. Sem esta lista, a
-    // rota pública abaixo engole GET /loja/config — que é a rota
-    // AUTENTICADA de configuração — e o lojista recebe 404 tentando
-    // abrir a própria loja. Foi exatamente o que aconteceu.
-    var SLUGS_RESERVADOS = ["config", "pedido", "pedidos", "admin", "api", "app", "novo"];
-
-    // Vitrine: dados da loja + itens marcados para o catálogo.
-    if (method === "GET" && path.match(/^\/loja\/[\w-]{2,60}$/) &&
-        SLUGS_RESERVADOS.indexOf(String(path.split("/")[2] || "").toLowerCase()) === -1) {
-      var slugLoja = String(path.split("/")[2] || "").toLowerCase();
-
-      var lojaRes = await DB.select("loja_config", `slug=eq.${encodeURIComponent(slugLoja)}&select=*`);
-      var loja = lojaRes.body && lojaRes.body[0];
-      // 404 igual para "não existe" e "está desligada": responder
-      // diferente transformaria a rota numa forma de descobrir quais
-      // lojas existem no sistema.
-      if (!loja || !loja.ativa) return jsonErr(res, "Loja não encontrada", 404);
-
-      var empLoja = await DB.select("empresas", `id=eq.${loja.empresa_id}&select=id,nome,plano,status,cor_botao,cor_destaque`);
-      var donoLoja = empLoja.body && empLoja.body[0];
-      // Plano vencido ou downgrade derrubam a vitrine. Sem esta
-      // checagem, uma loja continuaria no ar depois de a assinatura
-      // acabar — vendendo de graça pelo nosso servidor.
-      if (!donoLoja || !planoTemPedidos(donoLoja.plano)) return jsonErr(res, "Loja não encontrada", 404);
-      if (donoLoja.status === "cancelada" || donoLoja.status === "suspensa") {
-        return jsonErr(res, "Loja temporariamente indisponível", 404);
-      }
-
-      // Só o que é do catálogo, e só as colunas que o público pode
-      // ver. Fornecedor, custo e quantidade em estoque ficam de fora —
-      // é informação interna do lojista, não da vitrine.
-      var itensLoja = await DB.select("produtos_validade",
-        `empresa_id=eq.${loja.empresa_id}&no_catalogo=is.true&preco_centavos=not.is.null&select=id,nome,descricao,categoria,unidade,preco_centavos,foto_thumb&order=categoria.asc,nome.asc`
-      );
-
-      return jsonOk(res, {
-        loja: {
-          slug:            loja.slug,
-          nome:            loja.nome_exibicao || donoLoja.nome,
-          descricao:       loja.descricao || null,
-          whatsapp:        loja.whatsapp || null,
-          endereco:        loja.endereco || null,
-          horario:         loja.horario || null,
-          aviso:           loja.aviso || null,
-          taxa_entrega_centavos:  loja.taxa_entrega_centavos || 0,
-          pedido_minimo_centavos: loja.pedido_minimo_centavos || 0,
-          aceita_entrega:  loja.aceita_entrega !== false,
-          aceita_retirada: loja.aceita_retirada !== false,
-          formas_pagamento: loja.formas_pagamento || ["dinheiro"],
-          cor_botao:       donoLoja.cor_botao || "#1e8a40",
-          cor_destaque:    donoLoja.cor_destaque || "#3dd669"
-        },
-        itens: (itensLoja.body || []).map(function (i) {
-          return {
-            id: i.id, nome: i.nome, descricao: i.descricao || null,
-            categoria: i.categoria || "Outros", unidade: i.unidade || "unidade",
-            preco_centavos: i.preco_centavos, foto: i.foto_thumb || null
-          };
-        })
-      });
-    }
-
-    // Enviar pedido. Cria a linha em `pedidos` e avisa a equipe.
-    if (method === "POST" && path.match(/^\/loja\/[\w-]{2,60}\/pedido$/)) {
-      var slugPed = String(path.split("/")[2] || "").toLowerCase();
-      var rawPed = await getBody(req);
-      var bodyPed = parseBody(rawPed);
-      if (!bodyPed) return jsonErr(res, "Dados inválidos");
-
-      var lojaP = await DB.select("loja_config", `slug=eq.${encodeURIComponent(slugPed)}&select=*`);
-      var cfgLoja = lojaP.body && lojaP.body[0];
-      if (!cfgLoja || !cfgLoja.ativa) return jsonErr(res, "Loja não encontrada", 404);
-
-      var empPed = await DB.select("empresas", `id=eq.${cfgLoja.empresa_id}&select=id,nome,plano,status`);
-      var donoPed = empPed.body && empPed.body[0];
-      if (!donoPed || !planoTemPedidos(donoPed.plano)) return jsonErr(res, "Loja não encontrada", 404);
-
-      var nomeCli = SANITIZE.string(bodyPed.cliente_nome, 120);
-      var telCli  = SANITIZE.string(bodyPed.cliente_telefone, 25);
-      if (!nomeCli) return jsonErr(res, "Informe seu nome.");
-      if (!telCli || telCli.replace(/\D/g, "").length < 10) {
-        return jsonErr(res, "Informe um telefone válido com DDD.");
-      }
-
-      var tipoPed = bodyPed.tipo === "retirada" ? "retirada" : "entrega";
-      if (tipoPed === "entrega" && cfgLoja.aceita_entrega === false) {
-        return jsonErr(res, "Esta loja não faz entrega no momento.");
-      }
-      if (tipoPed === "retirada" && cfgLoja.aceita_retirada === false) {
-        return jsonErr(res, "Esta loja não aceita retirada no momento.");
-      }
-      var enderecoPed = SANITIZE.string(bodyPed.endereco || "", 250);
-      if (tipoPed === "entrega" && !enderecoPed) {
-        return jsonErr(res, "Informe o endereço de entrega.");
-      }
-
-      var formasOk = cfgLoja.formas_pagamento || ["dinheiro"];
-      var formaPed = SANITIZE.string(bodyPed.forma_pagamento || "", 20).toLowerCase();
-      if (formaPed && formasOk.indexOf(formaPed) === -1) {
-        return jsonErr(res, "Forma de pagamento não aceita por esta loja.");
-      }
-
-      // ── O carrinho ──
-      // O navegador manda APENAS id e quantidade. Nome, preço e
-      // subtotal são buscados e calculados aqui. Aceitar o preço que
-      // vem do cliente seria deixar qualquer um comprar um item de
-      // R$ 300 por R$ 1 mexendo no DevTools.
-      var carrinho = Array.isArray(bodyPed.itens) ? bodyPed.itens.slice(0, 60) : [];
-      if (!carrinho.length) return jsonErr(res, "Seu carrinho está vazio.");
-
-      var idsPedidos = carrinho.map(function (i) { return SANITIZE.uuid(i && i.id); }).filter(Boolean);
-      if (!idsPedidos.length) return jsonErr(res, "Seu carrinho está vazio.");
-
-      var disponiveis = await DB.select("produtos_validade",
-        `empresa_id=eq.${cfgLoja.empresa_id}&no_catalogo=is.true&id=in.(${idsPedidos.join(",")})&select=id,nome,unidade,preco_centavos`
-      );
-      var porId = {};
-      (disponiveis.body || []).forEach(function (i) { porId[i.id] = i; });
-
-      var itensFinais = [];
-      var subtotal = 0;
-      carrinho.forEach(function (linha) {
-        var id = SANITIZE.uuid(linha && linha.id);
-        var prod = id && porId[id];
-        // Item que saiu do catálogo entre abrir a página e enviar o
-        // pedido é ignorado em silêncio: o pedido segue com o resto,
-        // em vez de o cliente perder tudo que montou.
-        if (!prod || prod.preco_centavos == null) return;
-        var qtd = SANITIZE.int(linha.quantidade, 1, 999) || 1;
-        var totalLinha = prod.preco_centavos * qtd;
-        subtotal += totalLinha;
-        itensFinais.push({
-          id: prod.id, nome: prod.nome, unidade: prod.unidade || "unidade",
-          quantidade: qtd, preco_unitario_centavos: prod.preco_centavos,
-          total_centavos: totalLinha
-        });
-      });
-
-      if (!itensFinais.length) {
-        return jsonErr(res, "Os itens do seu carrinho não estão mais disponíveis. Atualize a página.");
-      }
-      if (cfgLoja.pedido_minimo_centavos && subtotal < cfgLoja.pedido_minimo_centavos) {
-        return jsonErr(res, `O pedido mínimo desta loja é R$ ${centavosParaReais(cfgLoja.pedido_minimo_centavos)}.`);
-      }
-
-      var taxaPed = tipoPed === "entrega" ? (cfgLoja.taxa_entrega_centavos || 0) : 0;
-      var totalPed = subtotal + taxaPed;
-
-      // Número sequencial por empresa. Lido e incrementado na hora;
-      // duas lojas diferentes podem ter o pedido 47 sem conflito, por
-      // causa da chave única (empresa_id, numero).
-      var ultimoPed = await DB.select("pedidos",
-        `empresa_id=eq.${cfgLoja.empresa_id}&select=numero&order=numero.desc&limit=1`
-      ).catch(() => ({ body: [] }));
-      var proximoNumero = ((ultimoPed.body && ultimoPed.body[0] && ultimoPed.body[0].numero) || 0) + 1;
-
-      var novoPedido = await DB.insert("pedidos", {
-        empresa_id:  cfgLoja.empresa_id,
-        numero:      proximoNumero,
-        cliente_nome: nomeCli,
-        cliente_telefone: telCli,
-        cliente_estabelecimento: SANITIZE.string(bodyPed.cliente_estabelecimento || "", 120) || null,
-        tipo:        tipoPed,
-        endereco:    enderecoPed || null,
-        forma_pagamento: formaPed || null,
-        troco_para_centavos: SANITIZE.int(bodyPed.troco_para_centavos, 0, 10000000),
-        observacoes: SANITIZE.string(bodyPed.observacoes || "", 400) || null,
-        itens:       itensFinais,
-        subtotal_centavos: subtotal,
-        taxa_centavos:     taxaPed,
-        total_centavos:    totalPed,
-        status:      "novo",
-        cargo_destino: cfgLoja.cargo_destino || null
-      });
-
-      var pedidoCriado = novoPedido.body && novoPedido.body[0];
-      secLog("pedido_recebido", { empresa_id: cfgLoja.empresa_id, numero: proximoNumero, total: totalPed });
-
-      // Notificação para a equipe. Falha aqui não derruba o pedido: o
-      // pedido já está gravado e aparece na fila do app de qualquer
-      // jeito — o push é atalho, não o canal.
-      enviarPush(cfgLoja.empresa_id, {
-        title: "Pedido novo #" + proximoNumero,
-        body:  nomeCli + " · R$ " + centavosParaReais(totalPed) + " · " + (tipoPed === "entrega" ? "entrega" : "retirada"),
-        url:   "app/"
-      }).catch(function () {});
-
-      return jsonOk(res, {
-        ok: true,
-        numero: proximoNumero,
-        id: pedidoCriado && pedidoCriado.id,
-        total_reais: centavosParaReais(totalPed),
-        taxa_reais: centavosParaReais(taxaPed),
-        subtotal_reais: centavosParaReais(subtotal)
-      }, 201);
-    }
-
     // ── PLANOS (rota pública) ────────────────────────
     // O site monta os cartões de preço a partir daqui, em vez de ter
     // os valores escritos no HTML. Preço em dois lugares é preço que
@@ -3458,7 +3240,7 @@ var server = http.createServer(async (req, res) => {
       // apareceria como receita subestimada, o tipo que ninguém
       // percebe porque o número continua "parecendo certo".
       var mrrCentavos = 0;
-      var porPlano = { completo: 0, pedidos: 0 };
+      var porPlano = { completo: 0, pro: 0 };
       lista.forEach(function (e) {
         if (e.status !== "ativa") return;
         var p = planoValido(e.plano);
@@ -3478,7 +3260,7 @@ var server = http.createServer(async (req, res) => {
         mrr_centavos:         mrrCentavos,
         mrr_reais:            centavosParaReais(mrrCentavos),
         assinantes_completo:  porPlano.completo || 0,
-        assinantes_pedidos:   porPlano.pedidos || 0,
+        assinantes_pro:       porPlano.pro || 0,
         planos: Object.keys(CONFIG.PLANOS).map(function (k) {
           return { slug: k, nome: CONFIG.PLANOS[k].nome, preco_reais: centavosParaReais(CONFIG.PLANOS[k].centavos) };
         })
@@ -3582,7 +3364,7 @@ var server = http.createServer(async (req, res) => {
         // mostrados como leitura, para o painel não fingir que um campo
         // editável muda alguma coisa.
         preco_reais:      centavosParaReais(CONFIG.PLANOS.completo.centavos),
-        preco_pedidos_reais: centavosParaReais(CONFIG.PLANOS.pedidos.centavos),
+        preco_pro_reais:     centavosParaReais(CONFIG.PLANOS.pro.centavos),
         dias_trial:       7,
         remetente_email:  "onboarding@resend.dev",
         owner_email:      authPayload.email,
@@ -4308,249 +4090,6 @@ var server = http.createServer(async (req, res) => {
       return jsonOk(res, historico.body);
     }
 
-    // ══════════════════════════════════════════════
-    // MINHA LOJA E PEDIDOS (autenticado)
-    // ══════════════════════════════════════════════
-
-    /**
-     * Carrega a empresa e barra quem não tem o plano de pedidos.
-     * Checado no servidor em toda rota do módulo: esconder o menu no
-     * app é conveniência visual, não controle de acesso — qualquer um
-     * chamaria a rota direto.
-     *
-     * 402 (Payment Required) em vez de 403: o app distingue "você não
-     * pode" de "seu plano não inclui" e oferece a troca de plano em
-     * vez de mostrar um erro sem saída.
-     */
-    async function exigirPlanoPedidos() {
-      var e = await DB.select("empresas", `id=eq.${authPayload.empresa_id}&select=id,nome,plano`);
-      var emp = e.body && e.body[0];
-      if (!emp || !planoTemPedidos(emp.plano)) return null;
-      return emp;
-    }
-
-    if (method === "GET" && path === "/loja/config") {
-      if (!hasPermission(authPayload, "loja:read")) {
-        return jsonErr(res, "Sem permissão para ver a loja", 403);
-      }
-      var empLojaCfg = await exigirPlanoPedidos();
-      if (!empLojaCfg) {
-        return jsonErr(res, "A loja online faz parte do Plano Pedidos.", 402);
-      }
-      var cfgL = await DB.select("loja_config", `empresa_id=eq.${authPayload.empresa_id}&select=*`);
-      return jsonOk(res, { loja: (cfgL.body && cfgL.body[0]) || null, empresa_nome: empLojaCfg.nome });
-    }
-
-    if (method === "PUT" && path === "/loja/config") {
-      if (authPayload.role !== "dono") {
-        secLog("permission_denied", { role: authPayload.role, action: "loja:write" });
-        return jsonErr(res, "Só o dono da conta pode configurar a loja", 403);
-      }
-      var empSalvarLoja = await exigirPlanoPedidos();
-      if (!empSalvarLoja) return jsonErr(res, "A loja online faz parte do Plano Pedidos.", 402);
-
-      var rawL = await getBody(req);
-      var bodyL = parseBody(rawL);
-      if (!bodyL) return jsonErr(res, "Dados inválidos");
-
-      // O slug vira endereço público. Só letras minúsculas, números e
-      // hífen: acento e espaço quebram o link quando alguém cola no
-      // WhatsApp, e maiúscula faz duas lojas parecerem a mesma.
-      var slugPedido = String(bodyL.slug || "").toLowerCase().trim()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").substring(0, 40);
-      if (slugPedido.length < 3) {
-        return jsonErr(res, "O endereço da loja precisa de pelo menos 3 letras.");
-      }
-      // Registrar uma loja chamada "config" faria o endereço dela
-      // colidir com uma rota da própria API — a loja simplesmente não
-      // abriria, e ninguém entenderia por quê.
-      if (["config", "pedido", "pedidos", "admin", "api", "app", "novo"].indexOf(slugPedido) >= 0) {
-        return jsonErr(res, "Esse endereço é reservado pelo sistema. Escolha outro.");
-      }
-
-      var donoSlug = await DB.select("loja_config", `slug=eq.${encodeURIComponent(slugPedido)}&select=empresa_id`);
-      if (donoSlug.body && donoSlug.body[0] && donoSlug.body[0].empresa_id !== authPayload.empresa_id) {
-        return jsonErr(res, "Esse endereço já está em uso por outra loja. Escolha outro.", 409);
-      }
-
-      // Só as formas que o sistema conhece. Texto livre aqui viraria
-      // "pix, cartao, fiado, permuta" e nenhuma tela conseguiria
-      // desenhar isso.
-      var FORMAS = ["dinheiro", "pix", "cartao"];
-      var formasEnviadas = Array.isArray(bodyL.formas_pagamento) ? bodyL.formas_pagamento : [];
-      var formasLimpas = FORMAS.filter(function (f) { return formasEnviadas.indexOf(f) >= 0; });
-      if (!formasLimpas.length) formasLimpas = ["dinheiro"];
-
-      // Cargo de destino tem que ser um cargo DESTA empresa. Sem esta
-      // checagem, o id de um cargo de outra empresa entraria aqui e os
-      // pedidos ficariam roteados para o vazio.
-      var cargoDestino = SANITIZE.uuid(bodyL.cargo_destino);
-      if (cargoDestino) {
-        var cargoOk = await DB.select("cargos", `id=eq.${cargoDestino}&empresa_id=eq.${authPayload.empresa_id}&select=id`);
-        if (!cargoOk.body || !cargoOk.body[0]) cargoDestino = null;
-      }
-
-      var corpoLoja = {
-        empresa_id:  authPayload.empresa_id,
-        slug:        slugPedido,
-        ativa:       bodyL.ativa === true,
-        nome_exibicao: SANITIZE.string(bodyL.nome_exibicao || "", 80) || null,
-        descricao:   SANITIZE.string(bodyL.descricao || "", 300) || null,
-        whatsapp:    SANITIZE.string(bodyL.whatsapp || "", 25) || null,
-        endereco:    SANITIZE.string(bodyL.endereco || "", 250) || null,
-        taxa_entrega_centavos:  SANITIZE.int(bodyL.taxa_entrega_centavos, 0, 100000) || 0,
-        pedido_minimo_centavos: SANITIZE.int(bodyL.pedido_minimo_centavos, 0, 10000000) || 0,
-        aceita_entrega:  bodyL.aceita_entrega !== false,
-        aceita_retirada: bodyL.aceita_retirada !== false,
-        formas_pagamento: formasLimpas,
-        horario:     SANITIZE.string(bodyL.horario || "", 120) || null,
-        aviso:       SANITIZE.string(bodyL.aviso || "", 200) || null,
-        cargo_destino: cargoDestino,
-        // Impressão da comanda. A largura fecha em 58/80 porque é o
-        // que muda quantos caracteres cabem por linha — texto livre
-        // aqui quebraria o layout do papel sem ninguém entender.
-        impressao_largura: bodyL.impressao_largura === "58" ? "58" : "80",
-        impressao_rodape:  SANITIZE.string(bodyL.impressao_rodape || "", 120) || null,
-        impressao_cnpj:    SANITIZE.string(bodyL.impressao_cnpj || "", 20) || null,
-        impressao_auto:    bodyL.impressao_auto === true,
-        impressao_vias:    SANITIZE.int(bodyL.impressao_vias, 1, 3) || 1,
-        updated_at:  new Date().toISOString()
-      };
-
-      var jaTem = await DB.select("loja_config", `empresa_id=eq.${authPayload.empresa_id}&select=empresa_id`);
-      if (jaTem.body && jaTem.body[0]) {
-        await supabase("PATCH", "loja_config", {
-          query: `empresa_id=eq.${authPayload.empresa_id}`, body: corpoLoja
-        });
-      } else {
-        await DB.insert("loja_config", corpoLoja);
-      }
-      secLog("loja_configurada", { empresa_id: authPayload.empresa_id, ativa: corpoLoja.ativa });
-      return jsonOk(res, { ok: true, loja: corpoLoja });
-    }
-
-    // Preço e visibilidade de um item na vitrine.
-    if (method === "PUT" && path.match(/^\/validade\/[\w-]+\/catalogo$/)) {
-      if (!hasPermission(authPayload, "validade:write")) {
-        return jsonErr(res, "Sem permissão para editar itens", 403);
-      }
-      var idCat = SANITIZE.uuid(path.split("/")[2]);
-      if (!idCat) return jsonErr(res, "Item inválido");
-
-      var rawCat = await getBody(req);
-      var bodyCat = parseBody(rawCat);
-      if (!bodyCat) return jsonErr(res, "Dados inválidos");
-
-      var existeCat = await DB.select("produtos_validade",
-        `id=eq.${idCat}&empresa_id=eq.${authPayload.empresa_id}&select=id`);
-      if (!existeCat.body || !existeCat.body[0]) return jsonErr(res, "Item não encontrado", 404);
-
-      var precoCat = SANITIZE.int(bodyCat.preco_centavos, 0, 100000000);
-      var noCatalogo = bodyCat.no_catalogo === true;
-      // Publicar sem preço deixaria o item na vitrine sem como ser
-      // comprado — e o cliente descobriria isso só no carrinho.
-      if (noCatalogo && !precoCat) {
-        return jsonErr(res, "Defina o preço antes de colocar na loja.");
-      }
-
-      await supabase("PATCH", "produtos_validade", {
-        query: `id=eq.${idCat}&empresa_id=eq.${authPayload.empresa_id}`,
-        body: {
-          preco_centavos: precoCat,
-          no_catalogo:    noCatalogo,
-          descricao:      SANITIZE.string(bodyCat.descricao || "", 300) || null
-        }
-      });
-      return jsonOk(res, { ok: true, no_catalogo: noCatalogo, preco_centavos: precoCat });
-    }
-
-    // Fila de pedidos.
-    if (method === "GET" && path === "/pedidos") {
-      if (!hasPermission(authPayload, "pedidos:read")) {
-        return jsonErr(res, "Sem permissão para ver pedidos", 403);
-      }
-      var empPedidos = await exigirPlanoPedidos();
-      if (!empPedidos) return jsonErr(res, "Os pedidos fazem parte do Plano Pedidos.", 402);
-
-      var filtroStatus = SANITIZE.string(url.searchParams.get("status") || "", 20);
-      var query = `empresa_id=eq.${authPayload.empresa_id}&select=*&order=created_at.desc&limit=200`;
-      if (["novo", "aceito", "em_rota", "entregue", "cancelado"].indexOf(filtroStatus) >= 0) {
-        query = `empresa_id=eq.${authPayload.empresa_id}&status=eq.${filtroStatus}&select=*&order=created_at.desc&limit=200`;
-      }
-      var listaPed = await DB.select("pedidos", query);
-      var pedidos = listaPed.body || [];
-
-      // Funcionário vê só a fila do próprio cargo. Um entregador não
-      // precisa — nem deve — ver o endereço e o telefone de todos os
-      // clientes da empresa, só dos pedidos que são dele.
-      if (authPayload.role === "funcionario") {
-        var euPed = await DB.select("funcionarios",
-          `id=eq.${authPayload.funcionario_id}&empresa_id=eq.${authPayload.empresa_id}&select=cargo_id`
-        ).catch(() => ({ body: [] }));
-        var meuCargo = (euPed.body && euPed.body[0] && euPed.body[0].cargo_id) || null;
-        pedidos = pedidos.filter(function (p) {
-          // Pedido sem cargo de destino é da casa: aparece para todos
-          // que têm acesso a pedidos, senão ficaria invisível até
-          // alguém configurar a loja.
-          return !p.cargo_destino || p.cargo_destino === meuCargo;
-        });
-      }
-
-      return jsonOk(res, pedidos);
-    }
-
-    if (method === "PUT" && path.match(/^\/pedidos\/[\w-]+\/status$/)) {
-      if (!hasPermission(authPayload, "pedidos:write")) {
-        return jsonErr(res, "Sem permissão para mover pedidos", 403);
-      }
-      var empMove = await exigirPlanoPedidos();
-      if (!empMove) return jsonErr(res, "Os pedidos fazem parte do Plano Pedidos.", 402);
-
-      var idPed = SANITIZE.uuid(path.split("/")[2]);
-      if (!idPed) return jsonErr(res, "Pedido inválido");
-
-      var rawMove = await getBody(req);
-      var bodyMove = parseBody(rawMove);
-      if (!bodyMove) return jsonErr(res, "Dados inválidos");
-
-      var novoStatus = SANITIZE.string(bodyMove.status || "", 20);
-      var VALIDOS = ["novo", "aceito", "em_rota", "entregue", "cancelado"];
-      if (VALIDOS.indexOf(novoStatus) === -1) return jsonErr(res, "Status inválido");
-
-      var atual = await DB.select("pedidos",
-        `id=eq.${idPed}&empresa_id=eq.${authPayload.empresa_id}&select=*`);
-      var pedido = atual.body && atual.body[0];
-      if (!pedido) return jsonErr(res, "Pedido não encontrado", 404);
-
-      // Pedido entregue não volta atrás. Reabrir um pedido concluído
-      // apagaria a hora da entrega, que é o registro de quem cumpriu.
-      if (pedido.status === "entregue" && novoStatus !== "entregue") {
-        return jsonErr(res, "Este pedido já foi entregue.", 409);
-      }
-      if (pedido.status === "cancelado" && novoStatus !== "cancelado") {
-        return jsonErr(res, "Este pedido foi cancelado.", 409);
-      }
-
-      var mudanca = { status: novoStatus };
-      if (novoStatus === "aceito"   && !pedido.aceito_em)   mudanca.aceito_em = new Date().toISOString();
-      if (novoStatus === "entregue" && !pedido.entregue_em) mudanca.entregue_em = new Date().toISOString();
-      if (novoStatus === "cancelado") {
-        mudanca.motivo_cancelamento = SANITIZE.string(bodyMove.motivo || "", 200) || null;
-      }
-      // Quem assumiu o pedido fica registrado — é o que responde "quem
-      // levou" quando o cliente liga reclamando.
-      if (authPayload.role === "funcionario" && !pedido.funcionario_id && novoStatus !== "novo") {
-        mudanca.funcionario_id = authPayload.funcionario_id || null;
-      }
-
-      await supabase("PATCH", "pedidos", {
-        query: `id=eq.${idPed}&empresa_id=eq.${authPayload.empresa_id}`, body: mudanca
-      });
-      secLog("pedido_movido", { empresa_id: authPayload.empresa_id, numero: pedido.numero, status: novoStatus });
-      return jsonOk(res, { ok: true, status: novoStatus });
-    }
-
     // ── RAMO DA EMPRESA ──────────────────────────────
     // Trocar de ramo é operação de dono: muda o vocabulário e os
     // campos que toda a equipe vê. Um gerente não decide isso.
@@ -4666,13 +4205,7 @@ var server = http.createServer(async (req, res) => {
       // produtos fotografados transformaria esta listagem em vários MB
       // baixados no 4G a cada abertura da tela — a miniatura basta
       // para a lista, e a foto grande tem rota própria.
-      // `preco_centavos`, `no_catalogo` e `descricao` entram na lista
-      // porque a tela "Minha Loja" precisa mostrar o preço atual e se o
-      // item já está publicado. Sem eles, a tela abria com todos os
-      // preços em branco e todas as chaves desligadas, mesmo para item
-      // que já estava à venda — e quem salvasse por cima tiraria o
-      // próprio produto do ar sem perceber.
-      var COLUNAS_LISTA = "id,nome,lote,categoria,quantidade,unidade,data_vencimento,dias_aviso,status,created_at,foto_thumb,atributos,preco_centavos,no_catalogo,descricao";
+      var COLUNAS_LISTA = "id,nome,lote,categoria,quantidade,unidade,data_vencimento,dias_aviso,status,created_at,foto_thumb,atributos";
       var result = await DB.select("produtos_validade",
         `empresa_id=eq.${authPayload.empresa_id}&select=${COLUNAS_LISTA}&order=data_vencimento.asc`
       );
@@ -5319,6 +4852,376 @@ var server = http.createServer(async (req, res) => {
     // ════════════════════════════════════════
     // A tela dizia "em desenvolvimento". Os dados sempre estiveram
     // lá — ponto, tarefas, ausências e folha —, faltava juntar.
+    // ══════════════════════════════════════════════
+    // ESPELHO DE PONTO E FECHAMENTO DO MÊS (Plano Pro)
+    // ══════════════════════════════════════════════
+    //
+    // O que o dono faz hoje na virada do mês: abre o caderno de ponto,
+    // soma na calculadora, digita numa planilha e manda para o
+    // contador. Erra, refaz, e leva uma tarde. Todo mês.
+    //
+    // O dado já está no banco — a equipe bate ponto todo dia. Falta só
+    // transformar batida solta em conta fechada, e é isso que este
+    // módulo faz.
+
+    /**
+     * Jornada de um funcionário: a linha específica dele, ou a padrão
+     * da empresa, ou o fallback 8h/dia de segunda a sexta.
+     *
+     * Sem jornada não existe hora extra, falta nem banco de horas —
+     * só um monte de horário registrado. É ela que dá sentido ao resto.
+     */
+    function jornadaDe(configs, funcionarioId) {
+      var especifica = configs.filter(function (c) { return c.funcionario_id === funcionarioId; })[0];
+      var padrao     = configs.filter(function (c) { return !c.funcionario_id; })[0];
+      var j = especifica || padrao || {};
+      return {
+        minutos_diarios:    j.minutos_diarios != null ? j.minutos_diarios : 480,
+        dias_semana:        j.dias_semana || [1, 2, 3, 4, 5],
+        tolerancia_minutos: j.tolerancia_minutos != null ? j.tolerancia_minutos : 10,
+        intervalo_minimo:   j.intervalo_minimo_minutos != null ? j.intervalo_minimo_minutos : 60,
+        especifica:         !!especifica
+      };
+    }
+
+    /**
+     * Fecha um dia de trabalho a partir das batidas daquele dia.
+     *
+     * O par que conta é entrada→saída, descontando intervalo→retorno.
+     * Casos que acontecem de verdade e precisam de resposta:
+     *
+     * - Esqueceu de bater a saída: o dia fica INCOMPLETO e não entra
+     *   na soma. Chutar um horário de saída seria inventar hora
+     *   trabalhada num documento que o funcionário vai assinar.
+     * - Bateu intervalo e esqueceu o retorno: mesma coisa — o intervalo
+     *   é ignorado e o dia vai marcado para conferência.
+     * - Bateu entrada duas vezes: vale a primeira; a saída vale a
+     *   última. É o comportamento que bate com a realidade de quem
+     *   aperta o botão sem certeza se registrou.
+     */
+    function fecharDia(batidas, jornada, ehDiaUtil) {
+      var porTipo = { entrada: [], intervalo: [], retorno: [], saida: [] };
+      batidas.forEach(function (b) {
+        if (porTipo[b.tipo]) porTipo[b.tipo].push(new Date(b.horario));
+      });
+      Object.keys(porTipo).forEach(function (t) {
+        porTipo[t].sort(function (a, b) { return a - b; });
+      });
+
+      var entrada = porTipo.entrada[0] || null;
+      var saida   = porTipo.saida.length ? porTipo.saida[porTipo.saida.length - 1] : null;
+      var inicioIntervalo = porTipo.intervalo[0] || null;
+      var fimIntervalo    = porTipo.retorno.length ? porTipo.retorno[porTipo.retorno.length - 1] : null;
+
+      var alertas = [];
+      if (batidas.length && !entrada) alertas.push("sem registro de entrada");
+      if (entrada && !saida)          alertas.push("sem registro de saída");
+      if (inicioIntervalo && !fimIntervalo) alertas.push("intervalo sem retorno");
+
+      var minutosIntervalo = 0;
+      if (inicioIntervalo && fimIntervalo && fimIntervalo > inicioIntervalo) {
+        minutosIntervalo = Math.round((fimIntervalo - inicioIntervalo) / 60000);
+        if (minutosIntervalo < jornada.intervalo_minimo) {
+          // Intervalo abaixo do mínimo é irregularidade trabalhista,
+          // não detalhe: aparece no espelho para o dono corrigir antes
+          // que vire reclamação.
+          alertas.push("intervalo de " + minutosIntervalo + "min (mínimo " + jornada.intervalo_minimo + ")");
+        }
+      }
+
+      var minutosTrabalhados = null;
+      if (entrada && saida && saida > entrada) {
+        minutosTrabalhados = Math.round((saida - entrada) / 60000) - minutosIntervalo;
+        if (minutosTrabalhados < 0) minutosTrabalhados = 0;
+      }
+
+      var previstos = ehDiaUtil ? jornada.minutos_diarios : 0;
+      var saldo = null;
+      if (minutosTrabalhados != null) {
+        saldo = minutosTrabalhados - previstos;
+        // Tolerância legal (CLT art. 58, §1º): diferença pequena não
+        // vira extra nem atraso. Sem isto, quem chega 3 minutos mais
+        // cedo todo dia acumularia "hora extra" que ninguém combinou.
+        if (Math.abs(saldo) <= jornada.tolerancia_minutos) saldo = 0;
+      }
+
+      return {
+        entrada:  entrada ? entrada.toISOString() : null,
+        intervalo: inicioIntervalo ? inicioIntervalo.toISOString() : null,
+        retorno:  fimIntervalo ? fimIntervalo.toISOString() : null,
+        saida:    saida ? saida.toISOString() : null,
+        minutos_intervalo: minutosIntervalo,
+        minutos_trabalhados: minutosTrabalhados,
+        minutos_previstos: previstos,
+        saldo_minutos: saldo,
+        incompleto: batidas.length > 0 && minutosTrabalhados == null,
+        alertas: alertas
+      };
+    }
+
+    if (method === "GET" && path === "/espelho-ponto") {
+      if (!hasPermission(authPayload, "espelho:read")) {
+        return jsonErr(res, "Sem permissão para ver o espelho de ponto", 403);
+      }
+
+      var empEsp = await DB.select("empresas", `id=eq.${authPayload.empresa_id}&select=id,nome,plano`);
+      var donoEsp = empEsp.body && empEsp.body[0];
+      if (!donoEsp || !planoAvancado(donoEsp.plano)) {
+        return jsonErr(res, "O espelho de ponto faz parte do Plano Pro.", 402);
+      }
+
+      // Mês no formato AAAA-MM. Sem mês, o mês corrente.
+      var mesTxt = String(url.searchParams.get("mes") || "").trim();
+      var agoraEsp = new Date();
+      var ano = agoraEsp.getFullYear(), mes = agoraEsp.getMonth();
+      var m = /^(\d{4})-(\d{2})$/.exec(mesTxt);
+      if (m) {
+        ano = parseInt(m[1], 10);
+        mes = parseInt(m[2], 10) - 1;
+        if (isNaN(ano) || ano < 2020 || ano > 2100 || mes < 0 || mes > 11) {
+          return jsonErr(res, "Mês inválido.");
+        }
+      }
+
+      // Limites do mês em UTC. O ponto é gravado com timestamptz, e
+      // comparar em UTC evita o registro das 23h do dia 31 cair no mês
+      // seguinte por causa do fuso.
+      var inicioMes = new Date(Date.UTC(ano, mes, 1, 0, 0, 0));
+      var fimMes    = new Date(Date.UTC(ano, mes + 1, 1, 0, 0, 0));
+
+      var filtroFunc = SANITIZE.uuid(url.searchParams.get("funcionario_id"));
+      // Funcionário só vê o próprio espelho — é o documento que ele
+      // assina, e o do colega não é da conta dele.
+      if (authPayload.role === "funcionario") filtroFunc = authPayload.funcionario_id || null;
+
+      var [pontosEsp, funcsEsp, jornadasEsp, ausEsp, afastEsp] = await Promise.all([
+        DB.select("registros_ponto",
+          `empresa_id=eq.${authPayload.empresa_id}&horario=gte.${inicioMes.toISOString()}&horario=lt.${fimMes.toISOString()}&select=funcionario_id,tipo,horario&order=horario.asc`
+        ).catch(() => ({ body: [] })),
+        DB.select("funcionarios",
+          `empresa_id=eq.${authPayload.empresa_id}&select=id,nome,cargo_id,status,salario_base,desligado_em&order=nome.asc`
+        ).catch(() => ({ body: [] })),
+        DB.select("config_jornada",
+          `empresa_id=eq.${authPayload.empresa_id}&select=*`
+        ).catch(() => ({ body: [] })),
+        DB.select("ausencias",
+          `empresa_id=eq.${authPayload.empresa_id}&data=gte.${inicioMes.toISOString().substring(0,10)}&data=lt.${fimMes.toISOString().substring(0,10)}&select=funcionario_id,data,tipo,justificada`
+        ).catch(() => ({ body: [] })),
+        DB.select("periodos_afastamento",
+          `empresa_id=eq.${authPayload.empresa_id}&select=funcionario_id,tipo,data_inicio,data_fim`
+        ).catch(() => ({ body: [] }))
+      ]);
+
+      var listaFuncsEsp = (funcsEsp.body || []).filter(function (f) {
+        if (filtroFunc) return f.id === filtroFunc;
+        // Quem foi desligado no meio do mês CONTINUA no espelho: as
+        // horas dele até o desligamento entram na rescisão, e sumir
+        // com a pessoa da lista é justamente perder esse cálculo.
+        if (f.status === "ativo") return true;
+        return f.desligado_em && new Date(f.desligado_em) >= inicioMes;
+      });
+
+      var configs = jornadasEsp.body || [];
+      var todasBatidas = pontosEsp.body || [];
+      var ausencias = ausEsp.body || [];
+      var afastamentos = afastEsp.body || [];
+
+      // Agrupa as batidas por funcionário e por dia local (pt-BR).
+      var porFuncDia = {};
+      todasBatidas.forEach(function (b) {
+        var chaveFunc = b.funcionario_id || "dono";
+        var dia = new Date(b.horario).toISOString().substring(0, 10);
+        porFuncDia[chaveFunc] = porFuncDia[chaveFunc] || {};
+        (porFuncDia[chaveFunc][dia] = porFuncDia[chaveFunc][dia] || []).push(b);
+      });
+
+      var diasNoMes = new Date(Date.UTC(ano, mes + 1, 0)).getUTCDate();
+
+      var espelhos = listaFuncsEsp.map(function (f) {
+        var jornada = jornadaDe(configs, f.id);
+        var dias = [];
+        var totalTrabalhado = 0, totalPrevisto = 0, totalSaldo = 0;
+        var diasComFalta = 0, diasIncompletos = 0, diasTrabalhados = 0;
+        // Somadas separadas, dia a dia. Se a pessoa fez +2h na terça e
+        // -2h na quarta, o líquido é zero — mas ela FEZ 2 horas extras,
+        // e sem acordo de compensação isso se paga. O líquido serve ao
+        // banco de horas; o bruto, à folha.
+        var extrasBrutos = 0, devidosBrutos = 0;
+
+        for (var d = 1; d <= diasNoMes; d++) {
+          var data = new Date(Date.UTC(ano, mes, d));
+          var iso = data.toISOString().substring(0, 10);
+          var diaSemana = data.getUTCDay();
+          var ehUtil = jornada.dias_semana.indexOf(diaSemana) >= 0;
+
+          // Férias, folga e licença zeram o previsto do dia: cobrar
+          // jornada de quem está de férias geraria falta fantasma.
+          var afastado = afastamentos.filter(function (a) {
+            return a.funcionario_id === f.id && iso >= a.data_inicio && iso <= a.data_fim;
+          })[0];
+
+          var batidasDoDia = (porFuncDia[f.id] || {})[iso] || [];
+          var fechado = fecharDia(batidasDoDia, jornada, ehUtil && !afastado);
+
+          var ausenciaDoDia = ausencias.filter(function (a) {
+            return a.funcionario_id === f.id && String(a.data).substring(0, 10) === iso;
+          })[0];
+
+          // A ordem importa: quem BATEU PONTO trabalhou, mesmo que o dia
+          // não fosse útil. Antes o "folga" vinha antes de olhar as
+          // batidas, e quem era chamado num sábado tinha o dia rotulado
+          // como folga — com as horas sumindo do total do mês. Justo o
+          // oposto do que o funcionário espera ver no espelho.
+          var situacao = batidasDoDia.length > 0
+            ? (fechado.incompleto ? "incompleto" : "trabalhado")
+            : afastado ? afastado.tipo
+            : ausenciaDoDia ? (ausenciaDoDia.justificada ? "falta justificada" : "falta")
+            : !ehUtil ? "folga"
+            : "sem registro";
+
+          if (situacao === "trabalhado") {
+            diasTrabalhados++;
+            totalTrabalhado += fechado.minutos_trabalhados || 0;
+            totalPrevisto   += fechado.minutos_previstos;
+            totalSaldo      += fechado.saldo_minutos || 0;
+            if (fechado.saldo_minutos > 0) extrasBrutos  += fechado.saldo_minutos;
+            if (fechado.saldo_minutos < 0) devidosBrutos += -fechado.saldo_minutos;
+          } else if (situacao === "incompleto") {
+            diasIncompletos++;
+            totalPrevisto += fechado.minutos_previstos;
+          } else if (situacao === "falta" || situacao === "sem registro") {
+            // Dia útil sem batida nenhuma conta como falta, e o
+            // previsto entra no total — é assim que o saldo negativo
+            // do mês aparece em vez de sumir.
+            if (ehUtil && !afastado) {
+              diasComFalta++;
+              totalPrevisto += jornada.minutos_diarios;
+              totalSaldo    -= jornada.minutos_diarios;
+              devidosBrutos += jornada.minutos_diarios;
+            }
+          }
+
+          dias.push({
+            data: iso,
+            dia_semana: diaSemana,
+            situacao: situacao,
+            entrada: fechado.entrada, intervalo: fechado.intervalo,
+            retorno: fechado.retorno, saida: fechado.saida,
+            minutos_trabalhados: fechado.minutos_trabalhados,
+            minutos_previstos: fechado.minutos_previstos,
+            saldo_minutos: fechado.saldo_minutos,
+            alertas: fechado.alertas
+          });
+        }
+
+        return {
+          funcionario_id: f.id,
+          nome: f.nome,
+          salario_base: f.salario_base || null,
+          desligado_em: f.desligado_em || null,
+          jornada: jornada,
+          dias: dias,
+          resumo: {
+            dias_trabalhados: diasTrabalhados,
+            dias_com_falta: diasComFalta,
+            dias_incompletos: diasIncompletos,
+            minutos_trabalhados: totalTrabalhado,
+            minutos_previstos: totalPrevisto,
+            saldo_minutos: totalSaldo,
+            // Extras e devidas separadas, não um número só: "saldo
+            // -120" não diz se a pessoa fez 2h a menos ou fez 8h extra
+            // e faltou um dia, e isso muda o que o dono faz a seguir.
+            minutos_extras: extrasBrutos,
+            minutos_devidos: devidosBrutos
+          }
+        };
+      });
+
+      return jsonOk(res, {
+        empresa: donoEsp.nome,
+        mes: String(ano) + "-" + String(mes + 1).padStart(2, "0"),
+        dias_no_mes: diasNoMes,
+        gerado_em: new Date().toISOString(),
+        espelhos: espelhos
+      });
+    }
+
+    // ── JORNADA DE TRABALHO ──────────────────────────
+    if (method === "GET" && path === "/jornada") {
+      if (!hasPermission(authPayload, "espelho:read")) {
+        return jsonErr(res, "Sem permissão", 403);
+      }
+      var jr = await DB.select("config_jornada", `empresa_id=eq.${authPayload.empresa_id}&select=*`);
+      return jsonOk(res, jr.body || []);
+    }
+
+    if (method === "PUT" && path === "/jornada") {
+      // Jornada define hora extra e falta de todo mundo. É decisão de
+      // dono, não de gerente.
+      if (authPayload.role !== "dono") {
+        secLog("permission_denied", { role: authPayload.role, action: "jornada:write" });
+        return jsonErr(res, "Só o dono da conta pode definir a jornada", 403);
+      }
+      var rawJ = await getBody(req);
+      var bodyJ = parseBody(rawJ);
+      if (!bodyJ) return jsonErr(res, "Dados inválidos");
+
+      var funcJornada = SANITIZE.uuid(bodyJ.funcionario_id);
+      if (funcJornada) {
+        var existeFunc = await DB.select("funcionarios",
+          `id=eq.${funcJornada}&empresa_id=eq.${authPayload.empresa_id}&select=id`);
+        if (!existeFunc.body || !existeFunc.body[0]) return jsonErr(res, "Funcionário não encontrado", 404);
+      }
+
+      // 1 a 1440 minutos: menos que isso não é jornada e mais que isso
+      // não cabe num dia.
+      var minutos = SANITIZE.int(bodyJ.minutos_diarios, 1, 1440);
+      if (!minutos) return jsonErr(res, "Informe quantas horas por dia.");
+
+      var dias = Array.isArray(bodyJ.dias_semana)
+        ? bodyJ.dias_semana.map(function (d) { return parseInt(d, 10); })
+            .filter(function (d) { return d >= 0 && d <= 6; })
+        : [];
+      // Sem dia nenhum marcado, todo dia vira folga e o espelho fecha
+      // zerado — o que parece "funcionou" e não é.
+      if (!dias.length) return jsonErr(res, "Marque pelo menos um dia da semana.");
+
+      var corpoJ = {
+        empresa_id:     authPayload.empresa_id,
+        funcionario_id: funcJornada,
+        minutos_diarios: minutos,
+        dias_semana:     Array.from(new Set(dias)).sort(),
+        tolerancia_minutos: SANITIZE.int(bodyJ.tolerancia_minutos, 0, 60),
+        intervalo_minimo_minutos: SANITIZE.int(bodyJ.intervalo_minimo_minutos, 0, 240),
+        updated_at: new Date().toISOString()
+      };
+      if (corpoJ.tolerancia_minutos == null) corpoJ.tolerancia_minutos = 10;
+      if (corpoJ.intervalo_minimo_minutos == null) corpoJ.intervalo_minimo_minutos = 60;
+
+      var filtroExiste = funcJornada
+        ? `empresa_id=eq.${authPayload.empresa_id}&funcionario_id=eq.${funcJornada}`
+        : `empresa_id=eq.${authPayload.empresa_id}&funcionario_id=is.null`;
+      var jaExisteJ = await DB.select("config_jornada", filtroExiste + "&select=id");
+
+      if (jaExisteJ.body && jaExisteJ.body[0]) {
+        await supabase("PATCH", "config_jornada", { query: filtroExiste, body: corpoJ });
+      } else {
+        await DB.insert("config_jornada", corpoJ);
+      }
+      secLog("jornada_definida", { empresa_id: authPayload.empresa_id, funcionario: funcJornada ? "especifica" : "padrao" });
+      return jsonOk(res, { ok: true, jornada: corpoJ });
+    }
+
+    if (method === "DELETE" && path.match(/^\/jornada\/[\w-]+$/)) {
+      if (authPayload.role !== "dono") return jsonErr(res, "Só o dono da conta pode fazer isso", 403);
+      var idJdel = SANITIZE.uuid(path.split("/")[2]);
+      if (!idJdel) return jsonErr(res, "Registro inválido");
+      // Apagar a exceção faz o funcionário voltar à jornada padrão da
+      // empresa — não o deixa sem jornada.
+      await DB.delete("config_jornada", `id=eq.${idJdel}&empresa_id=eq.${authPayload.empresa_id}&funcionario_id=not.is.null`);
+      return jsonOk(res, { ok: true });
+    }
+
     if (method === "GET" && path === "/relatorios") {
       if (!hasPermission(authPayload, "ponto:read")) {
         return jsonErr(res, "Sem permissão para ver relatórios", 403);
