@@ -1077,7 +1077,7 @@
       </div>
 
       <button onclick="continuarParaOferta()" id="btn-gerar" style="width:100%;margin-top:16px;background:#1e8a40;color:white;border:none;padding:15px;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:background .2s;display:flex;align-items:center;justify-content:center;gap:8px;">
-        <span>Gerar PIX</span> <span style="font-size:1.1rem;"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></span>
+        <span>Gerar pagamento</span> <span style="font-size:1.1rem;"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></span>
       </button>
       <div style="font-size:0.75rem;color:#6b7068;text-align:center;margin-top:10px;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Pagamento 100% seguro via PIX</div>
     </div>
@@ -1384,7 +1384,7 @@ function botaoOcupado(btn, texto) {
     rotulo.textContent = 'Quase lá, não feche a página';
   }, 20000);
 
-  return function liberar() {
+  function liberar() {
     clearTimeout(avisoLento);
     clearTimeout(avisoMuitoLento);
     delete btn.dataset.ocupado;
@@ -1394,7 +1394,19 @@ function botaoOcupado(btn, texto) {
     btn.style.minWidth = '';
     btn.textContent = '';
     original.forEach(function (n) { btn.appendChild(n); });
+  }
+
+  // Troca a mensagem sem soltar o botão. Serve para etapa que continua
+  // ocupada mudando de assunto — "Verificando..." vira "Gerando
+  // pagamento..." sem abrir a porta para um segundo clique no meio de
+  // uma cobrança.
+  liberar.texto = function (novo) {
+    clearTimeout(avisoLento);
+    clearTimeout(avisoMuitoLento);
+    rotulo.textContent = novo;
   };
+
+  return liberar;
 }
 
 // ── Abrir / fechar modal ──────────────────────────────────────
@@ -1422,7 +1434,7 @@ function resetModal() {
   document.getElementById('f-tel').value   = '';
   document.getElementById('qrcode').innerHTML = '';
   document.getElementById('btn-gerar').disabled = false;
-  document.getElementById('btn-gerar').innerHTML = '<span>Gerar PIX</span> <span style="font-size:1.1rem;"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></span>';
+  document.getElementById('btn-gerar').innerHTML = '<span>Gerar pagamento</span> <span style="font-size:1.1rem;"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></span>';
   limparCupom();
 }
 
@@ -1546,7 +1558,7 @@ function mascaraTel(el) {
 // ── Somente dígitos ───────────────────────────────────────────
 function apenasDigitos(s) { return s.replace(/\D/g,''); }
 
-// ── Gerar PIX ─────────────────────────────────────────────────
+// ── Gerar pagamento ─────────────────────────────────────────────────
 // Dados globais do formulário
 var dadosFormulario = {};
 
@@ -1624,9 +1636,8 @@ async function confirmarCodigo() {
     // Código válido — o botão CONTINUA ocupado: gerar o PIX é outra ida
     // ao servidor, e devolver o botão aqui deixaria a pessoa clicar de
     // novo no meio da cobrança.
-    var rotuloPix = btn.querySelector('span:last-child');
-    if (rotuloPix) rotuloPix.textContent = 'Verificado! Gerando PIX...';
-    await gerarPixReal();
+    liberarConfirmar.texto('Verificado! Gerando pagamento...');
+    await gerarPixReal(liberarConfirmar);
     liberarConfirmar();
   } catch(e) {
     erroEl.textContent = 'Erro de conexão: ' + e.message;
@@ -1666,7 +1677,7 @@ function iniciarTimerReenvio() {
   }, 1000);
 }
 
-async function gerarPixReal() {
+async function gerarPixReal(liberarDoChamador) {
   var body = {
     name: dadosFormulario.name,
     document: dadosFormulario.document,
@@ -1682,10 +1693,13 @@ async function gerarPixReal() {
   // O plano também é decidido lá: mandar o slug e não o preço.
   body.plano = planoEscolhido;
 
-  // btn era referenciado mas nunca declarado nesta função — pega o
-  // botão de confirmar código, que é quem chama gerarPixReal() e
-  // precisa ser reabilitado se a chamada falhar.
-  var btn = document.getElementById('btn-confirmar');
+  // O liberador vem de QUEM CHAMOU. Antes esta função pegava
+  // #btn-confirmar pelo id — botão do fluxo antigo, que nem está na
+  // tela no caminho vivo. Resultado: quando a cobrança falhava, ela
+  // reabilitava um botão invisível e o botão de verdade
+  // (#btn-trial-confirmar) ficava girando para sempre, sem jeito de
+  // tentar de novo. Justamente na hora de pagar.
+  var liberar = typeof liberarDoChamador === 'function' ? liberarDoChamador : function () {};
   var tentativas = 0;
   var resposta = null;
   var ultimoErro = '';
@@ -1703,8 +1717,8 @@ async function gerarPixReal() {
         // Erro do cliente (dados inválidos etc.) — não adianta tentar
         // de novo com o mesmo body, mostra o erro e para.
         var err = await res.json().catch(() => ({}));
-        mostrarErro('Erro ao gerar PIX: ' + (err.error || res.status));
-        liberarConfirmar();
+        mostrarErro('Erro ao gerar o pagamento: ' + (err.error || res.status));
+        liberar();
         return;
       }
 
@@ -1718,8 +1732,8 @@ async function gerarPixReal() {
   }
 
   if (!resposta || !resposta.pixCode) {
-    mostrarErro('Não foi possível gerar o PIX. ' + (ultimoErro || 'Tente novamente.'));
-    liberarConfirmar();
+    mostrarErro('Não foi possível gerar o pagamento. ' + (ultimoErro || 'Tente novamente.'));
+    liberar();
     return;
   }
 
@@ -1773,8 +1787,23 @@ function pararPolling() {
 }
 
 // ── Helpers ───────────────────────────────────────────────────
+// Mostra o erro na caixa do passo que está VISÍVEL agora.
+//
+// Antes escrevia sempre em #form-erro, que mora dentro de #step-form.
+// Só que a falha mais cara do checkout — não conseguir gerar o
+// pagamento — acontece com #step-trial-verify na tela. A mensagem ia
+// para um elemento escondido: o botão voltava ao normal e a pessoa
+// ficava olhando uma tela que não dizia nada, sem saber se tinha
+// falhado, se tinha dado certo, ou se era pra clicar de novo.
 function mostrarErro(msg) {
-  var el = document.getElementById('form-erro');
+  var visivel = null;
+  ['form', 'trial', 'trial-verify', 'verify', 'pix', 'ok', 'trial-ok'].forEach(function (p) {
+    var passo = document.getElementById('step-' + p);
+    if (!visivel && passo && getComputedStyle(passo).display !== 'none') visivel = passo;
+  });
+
+  var el = (visivel && visivel.querySelector('[id$="-erro"]')) || document.getElementById('form-erro');
+  if (!el) { alert(msg); return; }
   el.textContent = msg;
   el.style.display = 'block';
 }
@@ -1795,9 +1824,10 @@ function copiarPix() {
  * Chamava-se `escolherPlano()` — o MESMO nome do seletor de plano
  * declarado mais abaixo neste arquivo. Em JavaScript a última
  * declaração vence, então esta função inteira era código morto e o
- * botão "Gerar PIX" acabava chamando o seletor de plano, que só
+ * botão de gerar pagamento (então rotulado "Gerar PIX") acabava
+ * chamando o seletor de plano, que só
  * reabria o checkout já aberto. Resultado: o cliente preenchia nome,
- * CPF, e-mail e telefone, clicava em "Gerar PIX" e NADA acontecia —
+ * CPF, e-mail e telefone, clicava nele e NADA acontecia —
  * o caminho pago inteiro estava trancado nessa porta.
  *
  * Nada avisava: dois `function X()` no mesmo escopo não geram erro
@@ -2093,7 +2123,10 @@ async function confirmarTrialCodigo() {
     var telEl = document.getElementById('trial-tel');
     dadosFormulario.document = docEl ? docEl.value.trim() : '';
     dadosFormulario.phone = telEl ? telEl.value.trim() : '';
-    await gerarPixReal();
+    // Continua ocupado: gerar a cobrança é outra ida ao servidor, com
+    // até três tentativas. Soltar aqui deixaria clicar de novo no meio.
+    liberarVerif.texto('Gerando pagamento...');
+    await gerarPixReal(liberarVerif);
     return;
   }
 
