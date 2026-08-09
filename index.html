@@ -940,8 +940,8 @@
     <h2 class="section-title" style="text-align:center">Dois planos. Sem pegadinha.</h2>
     <p class="section-sub" style="margin:0 auto 48px;text-align:center">Sem cobrança por funcionalidade, sem surpresas no boleto. Os dois começam com 7 dias grátis.</p>
 
-    <!-- Dois planos lado a lado. O de Pedidos vem em destaque porque é
-         o que resolve o problema mais caro: pedido perdido no WhatsApp. -->
+    <!-- Dois planos lado a lado. O Pro vem em destaque porque resolve
+         o problema mais caro do mês: somar cartão de ponto na mão. -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:24px;max-width:820px;margin:0 auto;text-align:left;align-items:start">
 
       <div class="pricing-card reveal" style="margin:0">
@@ -963,29 +963,29 @@
       </div>
 
       <div class="pricing-card reveal" style="margin:0;border:2px solid var(--green-500);position:relative">
-        <div style="position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:var(--green-500);color:#fff;font-size:.68rem;font-weight:800;letter-spacing:.5px;text-transform:uppercase;padding:5px 14px;border-radius:999px;white-space:nowrap">Vende por você</div>
-        <div style="font-size:.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--green-500)">Plano Pedidos</div>
+        <div style="position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:var(--green-500);color:#fff;font-size:.68rem;font-weight:800;letter-spacing:.5px;text-transform:uppercase;padding:5px 14px;border-radius:999px;white-space:nowrap">Sem dor de cabeça no fim do mês</div>
+        <div style="font-size:.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--green-500)">Plano Pro</div>
         <div class="price-amount">R$ 89,90</div>
         <div class="price-period">por mês · assinatura recorrente</div>
         <ul class="price-features">
           <li><strong>Tudo do Plano Completo</strong>, mais:</li>
-          <li>Loja online com link próprio para mandar no WhatsApp</li>
-          <li>Carrinho com foto, preço e categoria dos seus itens</li>
-          <li>Pedido cai direto na fila da equipe, já organizado</li>
-          <li>Você escolhe qual cargo recebe (entrega, cozinha, balcão)</li>
-          <li>Entrega ou retirada, com taxa e pedido mínimo</li>
-          <li>Notificação no celular a cada pedido novo</li>
-          <li>Cliente informa o estabelecimento dele (venda para empresa)</li>
+          <li>Espelho de ponto do mês em PDF, pronto para assinar</li>
+          <li>Horas trabalhadas, extras e faltas calculadas sozinhas</li>
+          <li>Banco de horas com saldo acumulado por pessoa</li>
+          <li>Planilha para o contador em um clique</li>
+          <li>Jornada e tolerância configuráveis por funcionário</li>
+          <li>Cada funcionário confere o próprio espelho antes de assinar</li>
+          <li>Fechamento do mês em minutos, não em uma tarde</li>
         </ul>
-        <a href="#" onclick="escolherPlano('pedidos');return false;" class="btn-block">Começar grátis</a>
-        <p class="price-note">Sem taxa por pedido · o pagamento é combinado direto com o cliente</p>
+        <a href="#" onclick="escolherPlano('pro');return false;" class="btn-block">Começar grátis</a>
+        <p class="price-note">O que você manda hoje para o contador, pronto e conferido</p>
       </div>
     </div>
 
     <p style="max-width:620px;margin:26px auto 0;font-size:.84rem;color:var(--gray-600);line-height:1.7;text-align:center">
-      <strong>O Workap não processa pagamento.</strong> Seu cliente monta o carrinho e envia o pedido;
-      o dinheiro é combinado direto com você, na entrega ou na retirada. Sem taxa por venda,
-      sem esperar repasse, sem estorno.
+      Toda virada de mês alguém soma cartão de ponto na mão para mandar ao contador.
+      O <strong>Plano Pro</strong> entrega essa conta pronta: as horas já somadas, o espelho
+      em PDF para o funcionário assinar e a planilha para o escritório de contabilidade.
     </p>
   </div>
 </section>
@@ -1371,7 +1371,7 @@ function limparCupom(){
   var preco = document.getElementById('resumo-preco');
   // Preço cheio DO PLANO ESCOLHIDO. Antes era o valor fixo do plano
   // único; com dois planos, resetar para 49,99 mostraria o preço
-  // errado a quem escolheu o de Pedidos.
+  // errado a quem escolheu o Pro.
   var pAtual = planoAtual();
   if(preco) preco.textContent = pAtual ? ('R$ ' + pAtual.preco_reais) : 'R$ 49,99';
   var sub = document.getElementById('resumo-subtitulo');
@@ -1788,7 +1788,7 @@ function carregarPlanos(){
 }
 
 function escolherPlano(slug){
-  planoEscolhido = slug === 'pedidos' ? 'pedidos' : 'completo';
+  planoEscolhido = slug === 'pro' ? 'pro' : 'completo';
   carregarPlanos().then(function(){
     aplicarPlanoNaTela();
     abrirCheckout();
