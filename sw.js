@@ -8,6 +8,7 @@
 // o sistema não tem. Login biométrico continua sendo uma feature em
 // aberto (exige WebAuthn + tabela de credenciais no banco).
 
+// v16: entrou a Central de Suporte (menu e telas novas no app).
 // v15: o pagamento saiu do PIX na própria página e passou para a
 // Stripe. Sem trocar o nome do cache, quem já tinha visitado o site
 // continuava recebendo o HTML antigo — com a tela de QR Code e um botão
@@ -17,7 +18,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v15';
+var CACHE = 'workap-v16';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';

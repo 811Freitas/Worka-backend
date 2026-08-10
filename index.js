@@ -184,6 +184,7 @@ var RATE_LIMITS = {
   "/verificar-codigo":{ max: 5,  window: 10 * 60 * 1000 }, // 5/10min
   "/empresas":       { max: 10,  window: 60 * 60 * 1000 }, // 10/hora
   "/assinatura/checkout": { max: 10, window: 60 * 60 * 1000 }, // 10/hora
+  "/suporte/chamados":    { max: 20, window: 60 * 60 * 1000 }, // 20/hora — suporte, não canal de spam
   // O webhook da Stripe NÃO entra aqui de propósito: quem chama é a
   // Stripe, em rajada quando reenvia eventos atrasados. Barrar por IP
   // faria o backend recusar avisos de pagamento — e um pagamento
@@ -526,6 +527,7 @@ function filtrarAtributos(slugRamo, enviados) {
 // acesso não exija invalidar tokens já emitidos além do necessário.
 var PERMISSOES_DONO = [
   "espelho:read",
+  "suporte:usar",      // abre chamado com a Workap e acompanha a resposta
   "funcionarios:read", "funcionarios:write", "funcionarios:delete",
   "salarios:read", "salarios:write",
   "financeiro:read", "financeiro:write",
@@ -560,6 +562,7 @@ var ROLE_PERMISSIONS = {
     "afastamentos:read", "afastamentos:write",
     "metas:read", "metas:write",
     "espelho:read",              // gerente fecha o ponto do mês junto com o dono
+    "suporte:usar",              // quem opera é quem esbarra no problema
     "logs:read"
   ]),
   funcionario: new Set([
@@ -758,7 +761,8 @@ function supabase(method, table, options = {}) {
     "config_plataforma", "utmify_envios",
     "comunicados", "cargos", "config_faltas", "contas_pagar",
     "mensagens", "periodos_afastamento", "metas",
-    "config_jornada", "erros_plataforma", "eventos_stripe"
+    "config_jornada", "erros_plataforma", "eventos_stripe",
+    "chamados", "chamado_mensagens"
   ];
   if (!ALLOWED_TABLES.includes(table)) {
     return Promise.reject(new Error(`Tabela não permitida: ${table}`));
@@ -2133,6 +2137,35 @@ function emailBase(conteudo) {
 }
 
 var EMAIL_TEMPLATES = {
+  // ── SUPORTE ──────────────────────────────────────
+  // Sem estes dois o chamado ficaria só no banco: o dono não saberia
+  // que foi respondido e o owner não saberia que alguém pediu ajuda.
+  // Suporte que depende de alguém lembrar de abrir a tela não é suporte.
+  chamadoRespondido: (nome, assunto, trecho) => emailBase(`
+    <h2 style="text-align:center;margin:0 0 8px;color:#0a2e1a;font-size:22px;font-weight:800">Respondemos seu chamado</h2>
+    <p style="color:#5a6b5a;text-align:center;margin:0 0 24px">Olá, <strong>${SANITIZE.string(nome)}</strong>!</p>
+    <div style="background:#f7f9f7;border-radius:16px;padding:24px">
+      <div style="font-size:13px;color:#5a6b5a;margin-bottom:6px">Assunto</div>
+      <div style="font-weight:700;color:#0a2e1a;margin-bottom:16px">${SANITIZE.string(assunto)}</div>
+      <div style="font-size:13px;color:#5a6b5a;margin-bottom:6px">Resposta</div>
+      <div style="color:#3a3d39;line-height:1.6;white-space:pre-wrap">${SANITIZE.string(trecho)}</div>
+    </div>
+    <p style="color:#5a6b5a;text-align:center;font-size:13px;margin:20px 0 0">Abra o Workap em Suporte para responder.</p>
+  `),
+
+  chamadoNovoParaOwner: (empresa, autor, assunto, categoria, mensagem) => emailBase(`
+    <h2 style="text-align:center;margin:0 0 8px;color:#0a2e1a;font-size:22px;font-weight:800">Novo chamado de suporte</h2>
+    <div style="background:#f7f9f7;border-radius:16px;padding:24px">
+      <div style="font-size:13px;color:#5a6b5a">Empresa</div>
+      <div style="font-weight:700;color:#0a2e1a;margin-bottom:12px">${SANITIZE.string(empresa)}</div>
+      <div style="font-size:13px;color:#5a6b5a">Quem escreveu</div>
+      <div style="color:#3a3d39;margin-bottom:12px">${SANITIZE.string(autor)}</div>
+      <div style="font-size:13px;color:#5a6b5a">Assunto (${SANITIZE.string(categoria)})</div>
+      <div style="font-weight:700;color:#0a2e1a;margin-bottom:12px">${SANITIZE.string(assunto)}</div>
+      <div style="color:#3a3d39;line-height:1.6;white-space:pre-wrap">${SANITIZE.string(mensagem)}</div>
+    </div>
+  `),
+
   codigo: (nome, codigo) => emailBase(`
     <h2 style="margin:0 0 8px;color:#0a2e1a;font-size:22px;font-weight:800">Seu código de verificação 🔐</h2>
     <p style="color:#5a6b5a;font-size:15px;margin:0 0 28px;line-height:1.6">Olá, <strong>${SANITIZE.string(nome)}</strong>! Use o código abaixo para confirmar seu acesso.</p>
@@ -3637,6 +3670,235 @@ var server = http.createServer(async (req, res) => {
         });
         return jsonErr(res, "Não foi possível abrir a gestão da assinatura agora.", 502);
       }
+    }
+
+    // ═══════════════════════════════════════════════
+    // CENTRAL DE SUPORTE
+    // ═══════════════════════════════════════════════
+    // O cliente fala com a Workap por aqui. O chamado chega com
+    // empresa, plano e histórico junto — o que um link de WhatsApp não
+    // entrega: lá chega "oi, não tá funcionando" de um número que
+    // ninguém sabe de quem é.
+
+    var CATEGORIAS_CHAMADO = ["duvida", "problema", "sugestao", "cobranca"];
+    var STATUS_CHAMADO     = ["aberto", "respondido", "resolvido", "fechado"];
+
+    // ── ABRIR CHAMADO ────────────────────────────────
+    if (method === "POST" && path === "/suporte/chamados") {
+      if (!hasPermission(authPayload, "suporte:usar")) {
+        return jsonErr(res, "Sem permissão para abrir chamado", 403);
+      }
+      var rawCh = await getBody(req);
+      var bodyCh = parseBody(rawCh);
+      if (!bodyCh) return jsonErr(res, "Dados inválidos");
+
+      var assuntoCh  = SANITIZE.string(bodyCh.assunto || "", 140);
+      var mensagemCh = SANITIZE.string(bodyCh.mensagem || "", 4000);
+      if (!assuntoCh || assuntoCh.length < 3)  return jsonErr(res, "Escreva um assunto.");
+      if (!mensagemCh || mensagemCh.length < 10) return jsonErr(res, "Descreva o que está acontecendo com um pouco mais de detalhe.");
+
+      var catCh = CATEGORIAS_CHAMADO.includes(bodyCh.categoria) ? bodyCh.categoria : "duvida";
+
+      // Quem é o autor sai do TOKEN, nunca do corpo: senão qualquer um
+      // abriria chamado se passando por outra pessoa.
+      var autorNome = "Dono", autorEmail = "", funcIdCh = null;
+      var empCh = await DB.select("empresas", "id=eq." + authPayload.empresa_id + "&select=id,nome,email,plano,status");
+      var empresaCh = empCh.body && empCh.body[0];
+      if (!empresaCh) return jsonErr(res, "Empresa não encontrada", 404);
+
+      if (authPayload.role === "dono") {
+        autorNome = empresaCh.nome; autorEmail = empresaCh.email;
+      } else {
+        var fCh = await DB.select("funcionarios", "id=eq." + authPayload.funcionario_id + "&select=id,nome,email");
+        var funcCh = fCh.body && fCh.body[0];
+        if (funcCh) { autorNome = funcCh.nome; autorEmail = funcCh.email; funcIdCh = funcCh.id; }
+      }
+
+      var novoCh = await DB.insert("chamados", {
+        empresa_id: authPayload.empresa_id,
+        funcionario_id: funcIdCh,
+        autor_nome: autorNome,
+        autor_email: autorEmail,
+        assunto: assuntoCh,
+        categoria: catCh,
+        status: "aberto",
+        prioridade: bodyCh.prioridade === "urgente" ? "urgente" : "normal"
+      });
+      var chamadoCriado = novoCh.body && novoCh.body[0];
+      if (!chamadoCriado) return jsonErr(res, "Não foi possível abrir o chamado", 500);
+
+      await DB.insert("chamado_mensagens", {
+        chamado_id: chamadoCriado.id,
+        autor_tipo: "cliente",
+        autor_nome: autorNome,
+        mensagem: mensagemCh
+      });
+
+      secLog("chamado_aberto", { empresa_id: authPayload.empresa_id, categoria: catCh });
+
+      // Avisa o owner. Sem isto o chamado espera alguém lembrar de
+      // abrir a tela — o que, na prática, é o mesmo que não existir.
+      if (CONFIG.OWNER_EMAIL) {
+        enviarEmail(CONFIG.OWNER_EMAIL,
+          "🎧 Novo chamado: " + assuntoCh,
+          EMAIL_TEMPLATES.chamadoNovoParaOwner(empresaCh.nome, autorNome + " <" + autorEmail + ">", assuntoCh, catCh, mensagemCh)
+        ).catch(function (e) {
+          registrarErro("email", "Falha ao avisar o owner de chamado novo: " + e.message,
+            { rota: "/suporte/chamados", empresa_id: authPayload.empresa_id });
+        });
+      }
+
+      return jsonOk(res, { ok: true, chamado: chamadoCriado });
+    }
+
+    // ── MEUS CHAMADOS ────────────────────────────────
+    if (method === "GET" && path === "/suporte/chamados") {
+      if (!hasPermission(authPayload, "suporte:usar")) {
+        return jsonErr(res, "Sem permissão", 403);
+      }
+      var listaCh = await DB.select("chamados",
+        "empresa_id=eq." + authPayload.empresa_id + "&order=updated_at.desc&limit=100");
+      return jsonOk(res, listaCh.body || []);
+    }
+
+    // ── CONVERSA DE UM CHAMADO ───────────────────────
+    if (method === "GET" && path.startsWith("/suporte/chamados/")) {
+      var idVer = path.split("/")[3];
+      if (!SANITIZE.uuid(idVer)) return jsonErr(res, "Chamado inválido");
+
+      var ehOwnerVer = hasPermission(authPayload, "saas:read");
+      if (!ehOwnerVer && !hasPermission(authPayload, "suporte:usar")) {
+        return jsonErr(res, "Sem permissão", 403);
+      }
+
+      // O owner vê qualquer chamado; o cliente, só os da própria
+      // empresa. O filtro vai na CONSULTA, não numa checagem depois:
+      // assim não existe caminho em que a linha errada é lida.
+      var filtroVer = "id=eq." + idVer + (ehOwnerVer ? "" : "&empresa_id=eq." + authPayload.empresa_id);
+      var chVer = await DB.select("chamados", filtroVer + "&select=*");
+      var chamadoVer = chVer.body && chVer.body[0];
+      if (!chamadoVer) return jsonErr(res, "Chamado não encontrado", 404);
+
+      var msgsVer = await DB.select("chamado_mensagens",
+        "chamado_id=eq." + idVer + "&order=created_at.asc&limit=200");
+
+      // Abrir o chamado marca como lido — a bolinha do menu some.
+      if (!ehOwnerVer && !chamadoVer.lido_pelo_dono) {
+        await DB.update("chamados", "id=eq." + idVer, { lido_pelo_dono: true });
+        chamadoVer.lido_pelo_dono = true;
+      }
+
+      return jsonOk(res, { chamado: chamadoVer, mensagens: msgsVer.body || [] });
+    }
+
+    // ── RESPONDER ────────────────────────────────────
+    if (method === "POST" && /^\/suporte\/chamados\/[^/]+\/mensagens$/.test(path)) {
+      var idResp = path.split("/")[3];
+      if (!SANITIZE.uuid(idResp)) return jsonErr(res, "Chamado inválido");
+
+      var ehOwnerResp = hasPermission(authPayload, "saas:write");
+      if (!ehOwnerResp && !hasPermission(authPayload, "suporte:usar")) {
+        return jsonErr(res, "Sem permissão", 403);
+      }
+
+      var rawResp = await getBody(req);
+      var bodyResp = parseBody(rawResp);
+      var textoResp = bodyResp ? SANITIZE.string(bodyResp.mensagem || "", 4000) : "";
+      if (!textoResp || textoResp.length < 2) return jsonErr(res, "Escreva a mensagem.");
+
+      var filtroResp = "id=eq." + idResp + (ehOwnerResp ? "" : "&empresa_id=eq." + authPayload.empresa_id);
+      var chResp = await DB.select("chamados", filtroResp + "&select=*");
+      var chamadoResp = chResp.body && chResp.body[0];
+      if (!chamadoResp) return jsonErr(res, "Chamado não encontrado", 404);
+      if (chamadoResp.status === "fechado") return jsonErr(res, "Este chamado está fechado.", 409);
+
+      var nomeResp = ehOwnerResp ? "Suporte Workap" : chamadoResp.autor_nome;
+
+      await DB.insert("chamado_mensagens", {
+        chamado_id: idResp,
+        autor_tipo: ehOwnerResp ? "suporte" : "cliente",
+        autor_nome: nomeResp,
+        mensagem: textoResp
+      });
+
+      await DB.update("chamados", "id=eq." + idResp, {
+        // Resposta do suporte devolve a bola ao cliente; resposta do
+        // cliente devolve ao suporte. O status conta de quem é a vez.
+        status: ehOwnerResp ? "respondido" : "aberto",
+        lido_pelo_dono: !ehOwnerResp,
+        updated_at: new Date().toISOString()
+      });
+
+      if (ehOwnerResp && chamadoResp.autor_email) {
+        enviarEmail(chamadoResp.autor_email,
+          "💬 Respondemos: " + chamadoResp.assunto,
+          EMAIL_TEMPLATES.chamadoRespondido(chamadoResp.autor_nome, chamadoResp.assunto, textoResp)
+        ).catch(function (e) {
+          registrarErro("email", "Falha ao avisar o cliente da resposta: " + e.message,
+            { rota: "/suporte/chamados/:id/mensagens", empresa_id: chamadoResp.empresa_id });
+        });
+      }
+
+      secLog("chamado_respondido", { empresa_id: chamadoResp.empresa_id, por: ehOwnerResp ? "suporte" : "cliente" });
+      return jsonOk(res, { ok: true });
+    }
+
+    // ── MUDAR STATUS ─────────────────────────────────
+    if (method === "PUT" && path.startsWith("/suporte/chamados/")) {
+      var idSt = path.split("/")[3];
+      if (!SANITIZE.uuid(idSt)) return jsonErr(res, "Chamado inválido");
+
+      var rawSt = await getBody(req);
+      var bodySt = parseBody(rawSt);
+      var novoStatus = bodySt && STATUS_CHAMADO.includes(bodySt.status) ? bodySt.status : null;
+      if (!novoStatus) return jsonErr(res, "Status inválido");
+
+      var ehOwnerSt = hasPermission(authPayload, "saas:write");
+      // O cliente pode dar por resolvido o próprio chamado, mas só o
+      // suporte fecha: fechar impede resposta, e isso não pode ser um
+      // clique acidental de quem ainda precisa de ajuda.
+      if (!ehOwnerSt) {
+        if (!hasPermission(authPayload, "suporte:usar")) return jsonErr(res, "Sem permissão", 403);
+        if (novoStatus !== "resolvido") return jsonErr(res, "Você pode marcar como resolvido; fechar é com o suporte.", 403);
+      }
+
+      var filtroSt = "id=eq." + idSt + (ehOwnerSt ? "" : "&empresa_id=eq." + authPayload.empresa_id);
+      var chSt = await DB.select("chamados", filtroSt + "&select=id");
+      if (!(chSt.body && chSt.body[0])) return jsonErr(res, "Chamado não encontrado", 404);
+
+      await DB.update("chamados", "id=eq." + idSt, { status: novoStatus, updated_at: new Date().toISOString() });
+      return jsonOk(res, { ok: true, status: novoStatus });
+    }
+
+    // ── FILA DO SUPORTE (somente owner) ──────────────
+    if (method === "GET" && path === "/owner/chamados") {
+      if (!hasPermission(authPayload, "saas:read")) {
+        return jsonErr(res, "Apenas o owner da Workap pode ver isso", 403);
+      }
+      var filtroFila = SANITIZE.string(url.searchParams.get("status") || "", 20);
+      var qFila = "order=updated_at.desc&limit=100";
+      if (STATUS_CHAMADO.includes(filtroFila)) qFila += "&status=eq." + filtroFila;
+
+      var fila = await DB.select("chamados", qFila).catch(function () { return { body: [] }; });
+      var listaFila = fila.body || [];
+
+      // Nome da empresa junto: uma fila que só mostra uuid obriga o
+      // suporte a abrir cada chamado para saber de quem é.
+      var idsEmp = Array.from(new Set(listaFila.map(function (c) { return c.empresa_id; }))).filter(Boolean);
+      var nomes = {};
+      if (idsEmp.length) {
+        var empsFila = await DB.select("empresas",
+          "id=in.(" + idsEmp.join(",") + ")&select=id,nome,plano,status").catch(function () { return { body: [] }; });
+        (empsFila.body || []).forEach(function (e) { nomes[e.id] = e; });
+      }
+      listaFila.forEach(function (c) {
+        var e = nomes[c.empresa_id];
+        c.empresa_nome  = e ? e.nome : "(empresa removida)";
+        c.empresa_plano = e ? e.plano : null;
+      });
+
+      var abertos = listaFila.filter(function (c) { return c.status === "aberto"; }).length;
+      return jsonOk(res, { chamados: listaFila, abertos: abertos });
     }
 
     // ── SESSÃO ATUAL (restaurar login a partir do token) ─────

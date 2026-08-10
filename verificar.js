@@ -85,6 +85,36 @@ if (!/var\s+authPayload\s*=\s*requireAuth\(req\)/.test(backend)) {
                  "Sem ele, toda rota autenticada responde 500.");
 }
 
+// ── 2b. Nome declarado duas vezes no mesmo arquivo ──────────────────
+//
+// Dois `var X` no mesmo escopo não geram erro nem aviso: o segundo
+// simplesmente vence, e o primeiro vira lixo silencioso. Mordeu três
+// vezes nesta base — DIAS_SEMANA no espelho de ponto, escolherPlano no
+// checkout (que deixou o botão de pagar sem fazer nada) e ROTULO_STATUS
+// no suporte.
+//
+// A checagem é boba de propósito: só olha declarações na coluna zero,
+// que é como este projeto escreve tudo que é de escopo global. Não
+// tenta entender escopo aninhado, porque aí voltaria a precisar de um
+// parser — e o erro que importa é justamente o do topo do arquivo.
+paginas.concat(["index.js"]).forEach(function (rel) {
+  var texto = fs.readFileSync(path.join(RAIZ, rel), "utf8");
+  var vistos = {};
+  var re = /^(?:var|let|const|function)\s+([A-Za-z_$][\w$]*)/gm, m;
+  while ((m = re.exec(texto))) {
+    var nome = m[1];
+    var linha = texto.slice(0, m.index).split("\n").length;
+    (vistos[nome] = vistos[nome] || []).push(linha);
+  }
+  Object.keys(vistos).forEach(function (nome) {
+    if (vistos[nome].length > 1) {
+      problemas.push(rel + " — `" + nome + "` é declarado " + vistos[nome].length +
+                     " vezes no escopo do arquivo (linhas " + vistos[nome].join(", ") +
+                     "). A última vence e as anteriores viram código morto, sem nenhum aviso.");
+    }
+  });
+});
+
 // ── 3. Versão do cache do service worker ────────────────────────────
 var sw = fs.readFileSync(path.join(RAIZ, "sw.js"), "utf8");
 var versao = /var CACHE = ['"]workap-v(\d+)['"]/.exec(sw);
