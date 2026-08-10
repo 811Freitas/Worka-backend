@@ -1868,14 +1868,44 @@ tr:hover td{background:var(--g50)}
 
       <!-- ABA: SUPORTE -->
       <div id="owner-suporte" style="display:none">
-        <!-- Havia 4 tickets de exemplo com botão "Responder" que não
-             respondia nada. Não existe tabela de tickets no banco nem
-             rota de suporte no backend: a tela inteira era maquete. -->
+        <!-- Fila real de chamados. A maquete que existia aqui (4 tickets
+             de exemplo com botão que não respondia nada) saiu quando
+             ficou claro que não havia tabela nem rota por trás. -->
         <div class="card">
-          <div class="card-body empty-state">
-            <div class="icon"><svg class=ico aria-hidden=true><use href=#i-support></use></svg></div>
-            <div style="font-weight:700;color:var(--gray700);margin-bottom:6px">Central de suporte ainda não existe</div>
-            <p>Não há sistema de chamados no Workap hoje. Enquanto isso, o contato dos clientes está na aba Assinantes, e dá para falar com todos de uma vez em "Enviar Comunicado".</p>
+          <div class="card-head">
+            <div>
+              <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-support></use></svg> Fila de chamados</div>
+              <div class="card-sub" id="fila-resumo">Carregando...</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <select id="fila-filtro" class="input" style="width:auto;font-size:.8rem;padding:6px 10px" onchange="carregarFilaSuporte()">
+                <option value="">Todos</option>
+                <option value="aberto">Aguardando resposta</option>
+                <option value="respondido">Respondidos</option>
+                <option value="resolvido">Resolvidos</option>
+                <option value="fechado">Fechados</option>
+              </select>
+              <button class="btn btn-secondary btn-sm" onclick="carregarFilaSuporte()"><svg class=ico aria-hidden=true><use href=#i-refresh></use></svg></button>
+            </div>
+          </div>
+          <div class="card-body" id="fila-lista">—</div>
+        </div>
+
+        <div class="card" id="fila-conversa-card" style="display:none;margin-top:16px">
+          <div class="card-head">
+            <div>
+              <div class="card-title" id="fila-assunto">—</div>
+              <div class="card-sub" id="fila-info">—</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-secondary btn-sm" onclick="mudarStatusChamado('resolvido')">Resolvido</button>
+              <button class="btn btn-secondary btn-sm" onclick="mudarStatusChamado('fechado')">Fechar</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="fila-mensagens" style="max-height:420px;overflow-y:auto;margin-bottom:14px"></div>
+            <div class="field"><textarea id="fila-resposta" rows="4" maxlength="4000" placeholder="Resposta para o cliente — ele recebe por e-mail também."></textarea></div>
+            <button class="btn btn-primary" id="btn-fila-responder" onclick="responderComoSuporte()">Enviar resposta</button>
           </div>
         </div>
       </div>
@@ -2044,6 +2074,81 @@ tr:hover td{background:var(--g50)}
     <!-- FIM PAINEL OWNER -->
 
     <!-- PAINEL FUNCIONÁRIO -->
+    <div class="page" id="pg-suporte">
+      <!-- Falar com a Workap. O chamado sai daqui com empresa, plano e
+           histórico junto — o que um link de WhatsApp não entrega. -->
+      <div class="grid-2">
+        <div>
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+              <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-support></use></svg> Abrir chamado</div>
+            </div>
+            <div class="card-body">
+              <div class="field">
+                <label>Sobre o que é?</label>
+                <select id="ch-categoria">
+                  <option value="duvida">Dúvida — não sei como fazer algo</option>
+                  <option value="problema">Problema — algo não está funcionando</option>
+                  <option value="sugestao">Sugestão — ideia de melhoria</option>
+                  <option value="cobranca">Cobrança — assinatura, nota, pagamento</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Assunto</label>
+                <input id="ch-assunto" type="text" maxlength="140" placeholder="Ex: O ponto do João não aparece no espelho">
+              </div>
+              <div class="field">
+                <label>O que está acontecendo?</label>
+                <textarea id="ch-mensagem" rows="6" maxlength="4000" placeholder="Conte com detalhe. Se for um problema, diga o que você fez antes de dar errado e o que apareceu na tela."></textarea>
+              </div>
+              <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;margin-bottom:14px;cursor:pointer">
+                <input type="checkbox" id="ch-urgente" style="width:auto;margin:0">
+                É urgente — está impedindo minha equipe de trabalhar
+              </label>
+              <div id="ch-erro" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 12px;font-size:.82rem;color:#dc2626;margin-bottom:12px"></div>
+              <button class="btn btn-primary" id="btn-abrir-chamado" onclick="abrirChamado()">
+                <svg class=ico aria-hidden=true><use href=#i-share></use></svg> Enviar chamado
+              </button>
+              <p style="font-size:.78rem;color:var(--gray500);margin:12px 0 0">
+                Respondemos por aqui e avisamos no seu e-mail.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-inbox></use></svg> Meus chamados</div>
+              <button class="btn btn-secondary btn-sm" onclick="carregarChamados()"><svg class=ico aria-hidden=true><use href=#i-refresh></use></svg></button>
+            </div>
+            <div class="card-body" id="ch-lista">Carregando...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Conversa do chamado escolhido -->
+      <div class="card" id="ch-conversa-card" style="display:none;margin-top:16px">
+        <div class="card-header">
+          <div>
+            <div class="card-title" id="ch-conv-assunto">—</div>
+            <div class="card-sub" id="ch-conv-info">—</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-secondary btn-sm" id="btn-ch-resolvido" onclick="marcarChamadoResolvido()">Marcar resolvido</button>
+            <button class="btn btn-secondary btn-sm" onclick="fecharConversaChamado()">Voltar</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="ch-mensagens" style="max-height:420px;overflow-y:auto;margin-bottom:14px"></div>
+          <div id="ch-responder-area">
+            <div class="field"><textarea id="ch-resposta" rows="3" maxlength="4000" placeholder="Escreva sua resposta..."></textarea></div>
+            <button class="btn btn-primary" id="btn-ch-responder" onclick="responderChamado()">Responder</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="page" id="pg-meu-painel">
       <div class="ponto-card">
         <div style="font-family:var(--display);font-size:1.3rem;font-weight:800;letter-spacing:-.3px" id="saudacao-func">Olá!</div>
@@ -2591,6 +2696,7 @@ var menus = {
     {id:'jornada',icon:'<svg class=ico aria-hidden=true><use href=#i-clock></use></svg>',label:'Jornada de Trabalho'},
     {id:'visual',icon:'<svg class=ico aria-hidden=true><use href=#i-palette></use></svg>',label:'Identidade Visual'},
     {id:'notificacoes',icon:'<svg class=ico aria-hidden=true><use href=#i-bell></use></svg>',label:'Notificações'},
+    {id:'suporte',icon:'<svg class=ico aria-hidden=true><use href=#i-support></use></svg>',label:'Suporte'},
   ],
   funcionario: [
     {sec:'Meu espaço'},
@@ -2603,6 +2709,7 @@ var menus = {
     {id:'espelho',icon:'<svg class=ico aria-hidden=true><use href=#i-clipboard></use></svg>',label:'Meu Espelho de Ponto'},
     {id:'mural',icon:'<svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg>',label:'Comunicados'},
     {id:'notificacoes',icon:'<svg class=ico aria-hidden=true><use href=#i-bell></use></svg>',label:'Notificações'},
+    {id:'suporte',icon:'<svg class=ico aria-hidden=true><use href=#i-support></use></svg>',label:'Suporte'},
   ],
   // O owner da Workap vê o produto inteiro (mesmos itens do dono) mais
   // a seção administrativa da plataforma. Os dados das telas de dono
@@ -4077,11 +4184,13 @@ function abrirPagina(id) {
     'escala':'Escala de Trabalho','relatorios':'Relatórios','mural':'Mural / Comunicados',
     'financeiro':'Financeiro','chat':'Chat da Equipe','ferias':'Férias e Folgas','metas':'Metas',
     'cupons':'Cupons de Desconto','comunicados':'Enviar Comunicado',
-    'espelho':'Espelho de Ponto','jornada':'Jornada de Trabalho'
+    'espelho':'Espelho de Ponto','jornada':'Jornada de Trabalho',
+    'suporte':'Suporte'
   };
   document.getElementById('topbar-title').textContent = labels[id]||id;
 
   if(id==='notificacoes' && typeof renderizarEstadoNotificacoes === 'function') renderizarEstadoNotificacoes();
+  if(id==='suporte' && typeof carregarChamados === 'function') carregarChamados();
   if(id==='funcionarios' && typeof carregarFuncionariosReais === 'function') carregarFuncionariosReais();
   if(id==='ponto' && typeof carregarPontoReal === 'function') carregarPontoReal();
   if(id==='ponto' && typeof carregarHistoricoPonto === 'function') carregarHistoricoPonto();
@@ -4427,6 +4536,359 @@ async function abrirGestaoAssinatura() {
   }
 }
 
+// ═══════════════════════════════════════════════════════════
+// SUPORTE — chamados do cliente com a Workap
+// ═══════════════════════════════════════════════════════════
+var chamadoAberto = null;
+
+// updated_at pode não vir preenchido em resposta antiga ou de um banco
+// de teste; sem isso a lista mostra "Invalid Date", que é pior do que
+// mostrar a data de abertura.
+function dataDoChamado(c) {
+  var d = new Date(c.updated_at || c.created_at);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleString('pt-BR');
+}
+
+// Nome com sufixo de propósito: já existe um ROTULO_STATUS no painel
+// Owner, para o status da EMPRESA (ativa/trial/inadimplente), e a
+// declaração de lá vem depois neste arquivo — ela venceria, e o status
+// de chamado viraria undefined em silêncio. Foi exatamente o que
+// aconteceu, e é o mesmo tropeço do DIAS_SEMANA no espelho de ponto.
+var ROTULO_STATUS_CHAMADO = {
+  aberto:     { txt: 'Aguardando resposta', fundo: '#fff7ed', cor: '#9a3412' },
+  respondido: { txt: 'Respondido',          fundo: '#eff6ff', cor: '#1e40af' },
+  resolvido:  { txt: 'Resolvido',           fundo: '#edfaf2', cor: '#1e8a40' },
+  fechado:    { txt: 'Fechado',             fundo: '#f8fafc', cor: '#475569' }
+};
+var ROTULO_CATEGORIA_CHAMADO = { duvida:'Dúvida', problema:'Problema', sugestao:'Sugestão', cobranca:'Cobrança' };
+
+function erroChamado(msg) {
+  var el = document.getElementById('ch-erro');
+  if (!el) return;
+  if (!msg) { el.style.display = 'none'; return; }
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+async function abrirChamado() {
+  erroChamado('');
+  var assunto  = (document.getElementById('ch-assunto').value || '').trim();
+  var mensagem = (document.getElementById('ch-mensagem').value || '').trim();
+
+  // Validação aqui é só cortesia — quem decide é o servidor. Mas evita
+  // uma ida à rede para dizer o que a tela já sabia.
+  if (assunto.length < 3)   { erroChamado('Escreva um assunto.'); return; }
+  if (mensagem.length < 10) { erroChamado('Descreva com um pouco mais de detalhe — quanto mais específico, mais rápido resolvemos.'); return; }
+
+  var liberar = botaoOcupado(document.getElementById('btn-abrir-chamado'), 'Enviando...');
+  try {
+    var r = await fetch(API_BASE + '/suporte/chamados', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
+      body: JSON.stringify({
+        assunto: assunto,
+        mensagem: mensagem,
+        categoria: document.getElementById('ch-categoria').value,
+        prioridade: document.getElementById('ch-urgente').checked ? 'urgente' : 'normal'
+      })
+    });
+    var d = await r.json().catch(function () { return {}; });
+    liberar();
+    if (!r.ok) { erroChamado(d.error || 'Não foi possível enviar. Tente de novo.'); return; }
+
+    document.getElementById('ch-assunto').value = '';
+    document.getElementById('ch-mensagem').value = '';
+    document.getElementById('ch-urgente').checked = false;
+    carregarChamados();
+    if (d.chamado) verChamado(d.chamado.id);
+  } catch (e) {
+    liberar();
+    erroChamado('Erro de conexão. Tente de novo.');
+  }
+}
+
+async function carregarChamados() {
+  var lista = document.getElementById('ch-lista');
+  if (!lista) return;
+  var d = null;
+  try {
+    var r = await fetch(API_BASE + '/suporte/chamados', { headers: { 'Authorization': 'Bearer ' + sessaoWorka.token } });
+    if (r.ok) d = await r.json();
+  } catch (e) {}
+
+  lista.textContent = '';
+  if (!d) { lista.style.color = 'var(--gray500)'; lista.textContent = 'Não consegui carregar agora.'; return; }
+  if (!d.length) {
+    lista.style.color = 'var(--gray500)';
+    lista.style.fontSize = '.86rem';
+    lista.textContent = 'Você ainda não abriu nenhum chamado. Qualquer dúvida sobre o Workap, é por aqui.';
+    return;
+  }
+  lista.style.color = '';
+
+  d.forEach(function (c) {
+    var st = ROTULO_STATUS_CHAMADO[c.status] || ROTULO_STATUS_CHAMADO.aberto;
+    var linha = document.createElement('div');
+    linha.style.cssText = 'display:flex;gap:10px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--gray100);cursor:pointer';
+    linha.onclick = function () { verChamado(c.id); };
+
+    var meio = document.createElement('div');
+    meio.style.flex = '1';
+
+    var tit = document.createElement('div');
+    tit.style.cssText = 'font-weight:600;font-size:.88rem';
+    tit.textContent = c.assunto;
+    // Resposta não lida acende uma bolinha — sem isso o cliente só
+    // descobre que respondemos se abrir cada chamado na mão.
+    if (!c.lido_pelo_dono) {
+      var bolinha = document.createElement('span');
+      bolinha.style.cssText = 'display:inline-block;width:8px;height:8px;border-radius:50%;background:#dc2626;margin-left:6px;vertical-align:middle';
+      tit.appendChild(bolinha);
+    }
+
+    var sub = document.createElement('div');
+    sub.style.cssText = 'font-size:.76rem;color:var(--gray500);margin-top:2px';
+    sub.textContent = (ROTULO_CATEGORIA_CHAMADO[c.categoria] || c.categoria) + ' · ' +
+                      dataDoChamado(c) +
+                      (c.prioridade === 'urgente' ? ' · urgente' : '');
+
+    meio.appendChild(tit); meio.appendChild(sub);
+
+    var etiqueta = document.createElement('span');
+    etiqueta.textContent = st.txt;
+    etiqueta.style.cssText = 'flex:none;font-size:.66rem;font-weight:700;padding:3px 8px;border-radius:5px;background:' + st.fundo + ';color:' + st.cor;
+
+    linha.appendChild(meio); linha.appendChild(etiqueta);
+    lista.appendChild(linha);
+  });
+}
+
+async function verChamado(id) {
+  var card = document.getElementById('ch-conversa-card');
+  var caixa = document.getElementById('ch-mensagens');
+  if (!card) return;
+
+  var d = null;
+  try {
+    var r = await fetch(API_BASE + '/suporte/chamados/' + encodeURIComponent(id),
+      { headers: { 'Authorization': 'Bearer ' + sessaoWorka.token } });
+    if (r.ok) d = await r.json();
+  } catch (e) {}
+  if (!d) { alert('Não consegui abrir o chamado.'); return; }
+
+  chamadoAberto = d.chamado;
+  card.style.display = 'block';
+  document.getElementById('ch-conv-assunto').textContent = d.chamado.assunto;
+
+  var st = ROTULO_STATUS_CHAMADO[d.chamado.status] || ROTULO_STATUS_CHAMADO.aberto;
+  document.getElementById('ch-conv-info').textContent =
+    st.txt + ' · aberto em ' + new Date(d.chamado.created_at).toLocaleDateString('pt-BR');
+
+  // Chamado fechado não recebe resposta — esconder o campo evita
+  // alguém escrever um texto longo para descobrir depois que não vai.
+  var podeResponder = d.chamado.status !== 'fechado';
+  document.getElementById('ch-responder-area').style.display = podeResponder ? 'block' : 'none';
+  document.getElementById('btn-ch-resolvido').style.display =
+    (d.chamado.status === 'resolvido' || d.chamado.status === 'fechado') ? 'none' : 'inline-flex';
+
+  caixa.textContent = '';
+  d.mensagens.forEach(function (m) {
+    var doSuporte = m.autor_tipo === 'suporte';
+    var balao = document.createElement('div');
+    balao.style.cssText = 'margin-bottom:12px;max-width:82%;' + (doSuporte ? '' : 'margin-left:auto;');
+
+    var cabeca = document.createElement('div');
+    cabeca.style.cssText = 'font-size:.72rem;color:var(--gray500);margin-bottom:3px;' + (doSuporte ? '' : 'text-align:right;');
+    cabeca.textContent = m.autor_nome + ' · ' + new Date(m.created_at).toLocaleString('pt-BR');
+
+    var corpo = document.createElement('div');
+    corpo.style.cssText = 'padding:10px 13px;border-radius:12px;font-size:.86rem;line-height:1.55;white-space:pre-wrap;' +
+      (doSuporte ? 'background:var(--gray50);color:var(--gray700)' : 'background:#edfaf2;color:#0a2e1a');
+    corpo.textContent = m.mensagem;
+
+    balao.appendChild(cabeca); balao.appendChild(corpo);
+    caixa.appendChild(balao);
+  });
+  caixa.scrollTop = caixa.scrollHeight;
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  carregarChamados();
+}
+
+function fecharConversaChamado() {
+  document.getElementById('ch-conversa-card').style.display = 'none';
+  chamadoAberto = null;
+}
+
+async function responderChamado() {
+  if (!chamadoAberto) return;
+  var campo = document.getElementById('ch-resposta');
+  var texto = (campo.value || '').trim();
+  if (texto.length < 2) return;
+
+  var liberar = botaoOcupado(document.getElementById('btn-ch-responder'), 'Enviando...');
+  try {
+    var r = await fetch(API_BASE + '/suporte/chamados/' + encodeURIComponent(chamadoAberto.id) + '/mensagens', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
+      body: JSON.stringify({ mensagem: texto })
+    });
+    liberar();
+    if (!r.ok) { var d = await r.json().catch(function(){return {};}); alert(d.error || 'Não foi possível responder.'); return; }
+    campo.value = '';
+    verChamado(chamadoAberto.id);
+  } catch (e) { liberar(); alert('Erro de conexão.'); }
+}
+
+async function marcarChamadoResolvido() {
+  if (!chamadoAberto) return;
+  var liberar = botaoOcupado(document.getElementById('btn-ch-resolvido'), 'Salvando...');
+  try {
+    var r = await fetch(API_BASE + '/suporte/chamados/' + encodeURIComponent(chamadoAberto.id), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token },
+      body: JSON.stringify({ status: 'resolvido' })
+    });
+    liberar();
+    if (r.ok) verChamado(chamadoAberto.id);
+  } catch (e) { liberar(); }
+}
+
+// ── FILA DO SUPORTE (lado do owner) ────────────────────────
+var chamadoNaFila = null;
+
+async function carregarFilaSuporte() {
+  var lista = document.getElementById('fila-lista');
+  var resumo = document.getElementById('fila-resumo');
+  if (!lista) return;
+  var filtro = (document.getElementById('fila-filtro') || {}).value || '';
+
+  var d = null;
+  try {
+    var r = await fetch(API_BASE + '/owner/chamados' + (filtro ? '?status=' + encodeURIComponent(filtro) : ''),
+      { headers: cabecalhoOwner() });
+    if (r.ok) d = await r.json();
+  } catch (e) {}
+
+  if (!d) { resumo.textContent = 'Não consegui carregar.'; lista.textContent = 'Sem resposta do servidor.'; return; }
+
+  resumo.textContent = d.abertos === 0
+    ? 'Nenhum chamado aguardando resposta.'
+    : d.abertos + ' aguardando resposta';
+  resumo.style.color = d.abertos > 0 ? '#dc2626' : '';
+
+  lista.textContent = '';
+  if (!d.chamados.length) {
+    lista.style.color = 'var(--gray500)';
+    lista.style.fontSize = '.86rem';
+    lista.textContent = filtro ? 'Nenhum chamado com esse status.' : 'Nenhum chamado ainda.';
+    return;
+  }
+  lista.style.color = '';
+
+  d.chamados.forEach(function (c) {
+    var st = ROTULO_STATUS_CHAMADO[c.status] || ROTULO_STATUS_CHAMADO.aberto;
+    var linha = document.createElement('div');
+    linha.style.cssText = 'display:flex;gap:10px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--gray100);cursor:pointer';
+    linha.onclick = function () { verChamadoNaFila(c.id); };
+
+    var meio = document.createElement('div');
+    meio.style.flex = '1';
+
+    var tit = document.createElement('div');
+    tit.style.cssText = 'font-weight:600;font-size:.88rem';
+    tit.textContent = c.assunto;
+    if (c.prioridade === 'urgente') {
+      var urg = document.createElement('span');
+      urg.textContent = 'URGENTE';
+      urg.style.cssText = 'margin-left:8px;font-size:.62rem;font-weight:800;padding:2px 6px;border-radius:4px;background:#fef2f2;color:#991b1b';
+      tit.appendChild(urg);
+    }
+
+    var sub = document.createElement('div');
+    sub.style.cssText = 'font-size:.76rem;color:var(--gray500);margin-top:2px';
+    // Empresa e plano na própria linha: uma fila que só mostra o
+    // assunto obriga a abrir cada chamado para saber de quem é.
+    sub.textContent = c.empresa_nome + (c.empresa_plano ? ' · ' + c.empresa_plano : '') +
+                      ' · ' + (ROTULO_CATEGORIA_CHAMADO[c.categoria] || c.categoria) +
+                      ' · ' + dataDoChamado(c);
+
+    meio.appendChild(tit); meio.appendChild(sub);
+
+    var etiqueta = document.createElement('span');
+    etiqueta.textContent = st.txt;
+    etiqueta.style.cssText = 'flex:none;font-size:.66rem;font-weight:700;padding:3px 8px;border-radius:5px;background:' + st.fundo + ';color:' + st.cor;
+
+    linha.appendChild(meio); linha.appendChild(etiqueta);
+    lista.appendChild(linha);
+  });
+}
+
+async function verChamadoNaFila(id) {
+  var card = document.getElementById('fila-conversa-card');
+  var caixa = document.getElementById('fila-mensagens');
+  var d = null;
+  try {
+    var r = await fetch(API_BASE + '/suporte/chamados/' + encodeURIComponent(id), { headers: cabecalhoOwner() });
+    if (r.ok) d = await r.json();
+  } catch (e) {}
+  if (!d) { alert('Não consegui abrir o chamado.'); return; }
+
+  chamadoNaFila = d.chamado;
+  card.style.display = 'block';
+  document.getElementById('fila-assunto').textContent = d.chamado.assunto;
+  document.getElementById('fila-info').textContent =
+    d.chamado.autor_nome + ' <' + d.chamado.autor_email + '> · ' +
+    (ROTULO_STATUS_CHAMADO[d.chamado.status] || ROTULO_STATUS_CHAMADO.aberto).txt;
+
+  caixa.textContent = '';
+  d.mensagens.forEach(function (m) {
+    var doSuporte = m.autor_tipo === 'suporte';
+    var balao = document.createElement('div');
+    balao.style.cssText = 'margin-bottom:12px;max-width:82%;' + (doSuporte ? 'margin-left:auto;' : '');
+    var cabeca = document.createElement('div');
+    cabeca.style.cssText = 'font-size:.72rem;color:var(--gray500);margin-bottom:3px;' + (doSuporte ? 'text-align:right;' : '');
+    cabeca.textContent = m.autor_nome + ' · ' + new Date(m.created_at).toLocaleString('pt-BR');
+    var corpo = document.createElement('div');
+    corpo.style.cssText = 'padding:10px 13px;border-radius:12px;font-size:.86rem;line-height:1.55;white-space:pre-wrap;' +
+      (doSuporte ? 'background:#edfaf2;color:#0a2e1a' : 'background:var(--gray50);color:var(--gray700)');
+    corpo.textContent = m.mensagem;
+    balao.appendChild(cabeca); balao.appendChild(corpo);
+    caixa.appendChild(balao);
+  });
+  caixa.scrollTop = caixa.scrollHeight;
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function responderComoSuporte() {
+  if (!chamadoNaFila) return;
+  var campo = document.getElementById('fila-resposta');
+  var texto = (campo.value || '').trim();
+  if (texto.length < 2) return;
+
+  var liberar = botaoOcupado(document.getElementById('btn-fila-responder'), 'Enviando...');
+  try {
+    var r = await fetch(API_BASE + '/suporte/chamados/' + encodeURIComponent(chamadoNaFila.id) + '/mensagens', {
+      method: 'POST', headers: cabecalhoOwner(), body: JSON.stringify({ mensagem: texto })
+    });
+    liberar();
+    if (!r.ok) { var d = await r.json().catch(function(){return {};}); alert(d.error || 'Não foi possível responder.'); return; }
+    campo.value = '';
+    verChamadoNaFila(chamadoNaFila.id);
+    carregarFilaSuporte();
+  } catch (e) { liberar(); alert('Erro de conexão.'); }
+}
+
+async function mudarStatusChamado(novo) {
+  if (!chamadoNaFila) return;
+  if (novo === 'fechado' && !confirm('Fechar impede o cliente de responder. Confirma?')) return;
+  try {
+    var r = await fetch(API_BASE + '/suporte/chamados/' + encodeURIComponent(chamadoNaFila.id), {
+      method: 'PUT', headers: cabecalhoOwner(), body: JSON.stringify({ status: novo })
+    });
+    if (r.ok) { verChamadoNaFila(chamadoNaFila.id); carregarFilaSuporte(); }
+  } catch (e) {}
+}
+
 function ownerTab(tab) {
   // Cada aba busca o que precisa só quando é aberta: carregar tudo de
   // uma vez faria 6 chamadas ao servidor para ver uma tela só.
@@ -4434,6 +4896,7 @@ function ownerTab(tab) {
   if(tab === 'configuracoes'  && typeof carregarConfigOwner     === 'function') carregarConfigOwner();
   // Segurança e erros carregam sozinhos ao abrir; os testes não, porque
   // rodá-los faz chamadas de verdade — quem decide é o botão.
+  if(tab === 'suporte' && typeof carregarFilaSuporte === 'function') carregarFilaSuporte();
   if(tab === 'diagnostico') {
     if(typeof carregarSeguranca === 'function') carregarSeguranca();
     if(typeof carregarErros     === 'function') carregarErros();
