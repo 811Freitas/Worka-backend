@@ -8,11 +8,16 @@
 // o sistema não tem. Login biométrico continua sendo uma feature em
 // aberto (exige WebAuthn + tabela de credenciais no banco).
 
-// Cache bumped para v14: a loja online saiu do produto e o plano de
-// cima passou a ser o espelho de ponto e os relatórios do contador.
-// Sem trocar o nome do cache, quem já abriu o app continuaria vendo os
-// menus antigos apontando para telas que não existem mais.
-var CACHE = 'workap-v14';
+// v15: o pagamento saiu do PIX na própria página e passou para a
+// Stripe. Sem trocar o nome do cache, quem já tinha visitado o site
+// continuava recebendo o HTML antigo — com a tela de QR Code e um botão
+// chamando a rota /pix, que não existe mais no servidor. Era isso que
+// fazia o botão de pagamento "não funcionar" logo depois da troca, só
+// para quem já conhecia o site. Em aba anônima parecia tudo certo.
+//
+// REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
+// número. É de graça, e o bug que evita é invisível em teste.
+var CACHE = 'workap-v15';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
