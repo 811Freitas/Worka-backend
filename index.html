@@ -704,7 +704,7 @@
       </div>
       <div class="hero-price">
         <strong>R$ 49,99</strong>
-        <span>/mês · valor fixo · cancele quando quiser</span>
+        <span>/mês · a partir de · cancele quando quiser</span>
       </div>
     </div>
     <div class="hero-visual">
@@ -772,8 +772,8 @@
       </div>
       <div class="step">
         <div class="step-num">2</div>
-        <h3>Assine por R$ 49,99/mês</h3>
-        <p>Valor fixo, sem pegadinhas. Um único plano dá acesso a todas as funcionalidades da plataforma.</p>
+        <h3>Escolha o seu plano</h3>
+        <p>A partir de R$ 49,99/mês, valor fixo e sem pegadinhas. O Pro acrescenta espelho de ponto, banco de horas e relatórios prontos para o contador.</p>
       </div>
       <div class="step">
         <div class="step-num">3</div>
@@ -1104,7 +1104,7 @@
       </button>
 
       <div style="text-align:center">
-        <a href="#" onclick="escolherAssinarAgora();return false;" style="font-size:.78rem;color:#9aab9a;text-decoration:underline;cursor:pointer">Já decidi: prefiro assinar direto por R$ 49,99/mês</a>
+        <a href="#" onclick="escolherAssinarAgora();return false;" id="trial-link-assinar" style="font-size:.78rem;color:#9aab9a;text-decoration:underline;cursor:pointer">Já decidi: prefiro assinar direto</a>
       </div>
     </div>
 
@@ -1140,7 +1140,7 @@
       <div style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:#0a2e1a;margin-bottom:8px">Trial ativado!</div>
       <div style="font-size:.85rem;color:#6b7068;line-height:1.6;margin-bottom:20px">
         Seu período de <strong>7 dias grátis</strong> começou agora.<br>
-        Quando expirar, você será avisado para renovar por R$ 49,99/mês.
+        <span id="trial-ok-renovacao">Quando expirar, você será avisado para renovar.</span>
       </div>
       <div style="background:#edfaf2;border-radius:12px;padding:16px;margin-bottom:20px">
         <div style="font-size:.78rem;color:#16622f;font-weight:600"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg> Trial expira em:</div>
@@ -1401,7 +1401,10 @@ function resetModal() {
   document.getElementById('f-doc').value   = '';
   document.getElementById('f-email').value = '';
   document.getElementById('f-tel').value   = '';
-  document.getElementById('qrcode').innerHTML = '';
+  // O `#qrcode` foi embora junto com a tela de PIX. Esta linha
+  // continuou aqui e chamava .innerHTML em null: resetModal() estourava
+  // toda vez que o checkout era fechado, e tudo abaixo dela — inclusive
+  // limparCupom() — nunca rodava.
   document.getElementById('btn-gerar').disabled = false;
   document.getElementById('btn-gerar').innerHTML = '<span>Gerar pagamento</span> <span style="font-size:1.1rem;"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></span>';
   limparCupom();
@@ -1645,6 +1648,34 @@ function iniciarTimerReenvio() {
   }, 1000);
 }
 
+// RESTAURADA. Esta função foi apagada sem querer quando o bloco do PIX
+// (gerarPixReal ... copiarPix) foi recortado — ela morava no meio dele.
+// Ficou chamada em 10 lugares e definida em nenhum: qualquer falha no
+// checkout virava ReferenceError e o botão de pagamento simplesmente
+// parava de responder, sem erro visível para o cliente.
+//
+// node --check não pega isso: é referência em tempo de execução.
+// Mostra o erro na caixa do passo que está VISÍVEL agora.
+//
+// Antes escrevia sempre em #form-erro, que mora dentro de #step-form.
+// Só que a falha mais cara do checkout — não conseguir gerar o
+// pagamento — acontece com #step-trial-verify na tela. A mensagem ia
+// para um elemento escondido: o botão voltava ao normal e a pessoa
+// ficava olhando uma tela que não dizia nada, sem saber se tinha
+// falhado, se tinha dado certo, ou se era pra clicar de novo.
+function mostrarErro(msg) {
+  var visivel = null;
+  ['form', 'trial', 'trial-verify', 'verify', 'ok', 'trial-ok'].forEach(function (p) {
+    var passo = document.getElementById('step-' + p);
+    if (!visivel && passo && getComputedStyle(passo).display !== 'none') visivel = passo;
+  });
+
+  var el = (visivel && visivel.querySelector('[id$="-erro"]')) || document.getElementById('form-erro');
+  if (!el) { alert(msg); return; }
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
 /**
  * Manda o cliente para o Checkout da Stripe.
  *
@@ -1816,6 +1847,17 @@ function aplicarPlanoNaTela(){
   if (sub) sub.textContent = p.nome + ' · ' + texto + '/mês';
   var linha = document.getElementById('resumo-plano-nome');
   if (linha) linha.textContent = p.nome;
+
+  // Estes dois ficavam com "R$ 49,99" escrito no HTML e nunca eram
+  // tocados. Quem escolhia o Pro lia "assinar direto por R$ 49,99" e
+  // teria o cartão debitado em R$ 89,90 — o servidor recebia o plano
+  // certo, era só a tela que mentia. Preço anunciado diferente do
+  // cobrado é estorno na certa, e com razão.
+  var linkAssinar = document.getElementById('trial-link-assinar');
+  if (linkAssinar) linkAssinar.textContent = 'Já decidi: prefiro assinar direto por ' + texto + '/mês';
+
+  var renovacao = document.getElementById('trial-ok-renovacao');
+  if (renovacao) renovacao.textContent = 'Quando expirar, você será avisado para renovar por ' + texto + '/mês.';
 }
 
 // ═══════════════════════════════════
@@ -2105,7 +2147,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
            só na tela de login pedindo pra clicar de novo. -->
       <a href="app/?recuperar=1" style="color:#6b7068;font-size:0.78rem;text-decoration:underline;">Esqueci minha senha</a>
     </div>
-    <div style="text-align:center;font-size:0.78rem;color:#6b7068;">Não tem conta? <a href="#" onclick="fecharAcesso();abrirFunil();return false;" style="color:#1e8a40;font-weight:600;">Assinar por R$ 49,99/mês</a></div>
+    <div style="text-align:center;font-size:0.78rem;color:#6b7068;">Não tem conta? <a href="#" onclick="fecharAcesso();abrirFunil();return false;" style="color:#1e8a40;font-weight:600;">Assinar a partir de R$ 49,99/mês</a></div>
   </div>
 </div>
 
