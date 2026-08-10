@@ -75,7 +75,9 @@ const CONFIG = {
   STRIPE_WEBHOOK_SECRET: env("STRIPE_WEBHOOK_SECRET"),
   // Para onde a Stripe devolve o cliente depois do pagamento.
   SITE_URL:              env("SITE_URL") || "https://workap.com.br",
-  ENCRYPT_KEY:   env("ENCRYPT_SECRET"),
+  // ENCRYPT_SECRET foi removida: nenhuma linha deste projeto lia esse
+  // valor. Manter a variável no CONFIG só faria a próxima pessoa
+  // procurar onde ela é usada — e não achar.
   VAPID_PUBLIC:  env("VAPID_PUBLIC_KEY"),
   VAPID_PRIVATE: env("VAPID_PRIVATE_KEY"),
   // Conta administrativa única da Workap (painel Owner). Opcional — se
@@ -4148,11 +4150,14 @@ var server = http.createServer(async (req, res) => {
         CONFIG.OWNER_PASSWORD_HASH ? "Hash bcrypt configurado" : "OWNER_PASSWORD_HASH ausente",
         "Sem o hash a rota /login/owner responde 503. Gere com bcryptjs e configure na Render.");
 
-      // 4. Chave de criptografia dos dados de pagamento.
-      checar("encrypt_key", "Chave de criptografia definida", "medio",
-        !!CONFIG.ENCRYPT_KEY,
-        CONFIG.ENCRYPT_KEY ? "Configurada" : "ENCRYPT_SECRET ausente",
-        "Defina ENCRYPT_SECRET na Render.");
+      // Havia aqui uma checagem de ENCRYPT_SECRET. Ela saiu porque a
+      // variável NUNCA foi lida por nada no projeto — nem antes da
+      // Stripe. Era sobra do Duttyfy, cujo endereço vinha "encrypted"
+      // no nome mas era usado direto.
+      //
+      // Uma verificação que manda configurar coisa sem efeito é pior
+      // que nenhuma: gasta a atenção do dono num item que não muda
+      // nada e ensina ele a ignorar o painel inteiro.
 
       // 5. Ambiente. Fora de produção o /health expõe status de serviços.
       checar("ambiente", "Rodando como produção", "medio",
@@ -4218,12 +4223,18 @@ var server = http.createServer(async (req, res) => {
 
       var criticosAbertos = itens.filter(function (i) { return !i.ok && i.nivel === "critico"; }).length;
       var altosAbertos    = itens.filter(function (i) { return !i.ok && i.nivel === "alto"; }).length;
+      // Total em aberto, de qualquer gravidade. Sem este número o
+      // resumo dizia "todas passaram" enquanto um item médio aparecia
+      // reprovado logo abaixo — um painel que se contradiz na própria
+      // tela não serve para decidir nada.
+      var abertosTotal    = itens.filter(function (i) { return !i.ok; }).length;
 
       return jsonOk(res, {
         verificado_em: new Date().toISOString(),
         resumo: {
           total: itens.length,
-          ok: itens.filter(function (i) { return i.ok; }).length,
+          ok: itens.length - abertosTotal,
+          abertos: abertosTotal,
           criticos: criticosAbertos,
           altos: altosAbertos
         },
