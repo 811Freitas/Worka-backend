@@ -4225,12 +4225,28 @@ async function carregarSeguranca() {
     return ordem[a.nivel] - ordem[b.nivel];
   });
 
-  resumo.textContent = d.resumo.criticos > 0
-    ? d.resumo.criticos + ' problema(s) crítico(s) em aberto de ' + d.resumo.total + ' verificações'
-    : d.resumo.altos > 0
-      ? 'Nenhum crítico. ' + d.resumo.altos + ' ponto(s) de atenção.'
-      : 'Todas as ' + d.resumo.total + ' verificações passaram.';
-  resumo.style.color = d.resumo.criticos > 0 ? '#dc2626' : (d.resumo.altos > 0 ? '#b45309' : '');
+  // O resumo conta TUDO que está aberto, de qualquer gravidade.
+  //
+  // Antes ele só olhava crítico e alto: com um item médio reprovado, a
+  // linha dizia "Todas as 11 verificações passaram" enquanto o ✗
+  // aparecia dois centímetros abaixo. Painel que se contradiz na
+  // própria tela não serve para decidir nada — e mina a confiança em
+  // todas as outras linhas, inclusive nas que estavam certas.
+  var abertos = (typeof d.resumo.abertos === 'number')
+    ? d.resumo.abertos
+    : d.itens.filter(function (i) { return !i.ok; }).length;
+
+  if (abertos === 0) {
+    resumo.textContent = 'Todas as ' + d.resumo.total + ' verificações passaram.';
+    resumo.style.color = '';
+  } else {
+    var partes = [];
+    if (d.resumo.criticos) partes.push(d.resumo.criticos + ' crítico' + (d.resumo.criticos > 1 ? 's' : ''));
+    if (d.resumo.altos)    partes.push(d.resumo.altos + ' alto' + (d.resumo.altos > 1 ? 's' : ''));
+    resumo.textContent = abertos + ' de ' + d.resumo.total + ' em aberto' +
+      (partes.length ? ' — ' + partes.join(', ') : '');
+    resumo.style.color = d.resumo.criticos > 0 ? '#dc2626' : '#b45309';
+  }
 
   lista.textContent = '';
   itens.forEach(function (i) {
