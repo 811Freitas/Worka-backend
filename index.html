@@ -991,7 +991,9 @@
 </section>
 
 <!-- ══════════════════════════════════════════
-     MODAL DE CHECKOUT PIX
+     MODAL DE CADASTRO E ASSINATURA
+     (chamava-se "checkout PIX" de quando o QR Code era gerado nesta
+      página; hoje o pagamento acontece no Checkout da Stripe)
 ══════════════════════════════════════════ -->
 <div id="checkout-overlay" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(10,46,26,0.7);backdrop-filter:blur(6px);overflow-y:auto;padding:24px 16px;">
   <div id="checkout-modal" style="max-width:480px;margin:0 auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,0.3);">
@@ -1079,7 +1081,11 @@
       <button onclick="continuarParaOferta()" id="btn-gerar" style="width:100%;margin-top:16px;background:#1e8a40;color:white;border:none;padding:15px;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:background .2s;display:flex;align-items:center;justify-content:center;gap:8px;">
         <span>Gerar pagamento</span> <span style="font-size:1.1rem;"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></span>
       </button>
-      <div style="font-size:0.75rem;color:#6b7068;text-align:center;margin-top:10px;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Pagamento 100% seguro via PIX</div>
+      <!-- Dizia "via PIX". A assinatura mensal é cobrada no CARTÃO: o
+           Pix não consegue cobrar sozinho no mês seguinte, e prometer
+           na vitrine um meio que o checkout não oferece é a forma mais
+           rápida de perder a venda na última tela. -->
+      <div style="font-size:0.75rem;color:#6b7068;text-align:center;margin-top:10px;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Pagamento seguro no cartão · cancele quando quiser</div>
     </div>
 
     <!-- TRIAL: Escolher plano -->
@@ -1184,7 +1190,7 @@
         <svg class=ico aria-hidden=true><use href=#i-clock></use></svg> O código expira em 10 minutos
       </div>
     </div>
-    <!-- PASSO 2: QR Code PIX -->
+    <!-- PASSO 2: confirmação (era o QR Code do PIX) -->
     <div id="step-ok" style="display:none;padding:40px 28px;text-align:center;">
       <div style="width:72px;height:72px;background:#edfaf2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:2rem;"><svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg></div>
       <div style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:#16622f;margin-bottom:8px;">Pagamento confirmado!</div>
@@ -1534,6 +1540,12 @@ function apenasDigitos(s) { return s.replace(/\D/g,''); }
 // Dados globais do formulário
 var dadosFormulario = {};
 
+// ATENÇÃO: gerarPix() não é mais chamada por ninguém. O botão do
+// formulário chama continuarParaOferta(), e a verificação por código
+// que vale é a do fluxo de trial (mais abaixo). Ficou aqui por não ser
+// seguro recortar cem linhas no mesmo dia de uma troca de gateway —
+// remover é uma limpeza separada, com teste próprio.
+// Não é bug: função sem chamador não executa. É só lastro.
 async function gerarPix() {
   var nome  = document.getElementById('f-nome').value.trim();
   var doc   = apenasDigitos(document.getElementById('f-doc').value);
@@ -2498,7 +2510,7 @@ document.getElementById('acesso-overlay').addEventListener('click',function(e){i
            o plano barato: o de R$ 89,90 não aparecia em lugar nenhum
            para quem entrava por aqui. -->
       <div id="funil-planos" style="display:flex;flex-direction:column;gap:14px;margin-bottom:16px;"></div>
-      <div style="font-size:0.75rem;color:rgba(255,255,255,0.55);text-align:center;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Pagamento via PIX · sem fidelidade</div>
+      <div style="font-size:0.75rem;color:rgba(255,255,255,0.55);text-align:center;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Pagamento no cartão · sem fidelidade</div>
     </div>
 
   </div>
