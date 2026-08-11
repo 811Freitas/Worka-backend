@@ -544,6 +544,31 @@ var PERMISSOES_DONO = [
   "config:write"
 ];
 
+// A conta de owner (dono da Workap) navega pelas MESMAS telas do
+// produto que um cliente — é assim que se confere se o sistema está de
+// pé. Mas ela não é dona de nenhuma empresa: não tem funcionários,
+// ponto, caixa nem jornada.
+//
+// Toda rota filtra por `empresa_id` vindo do token, então esse token
+// precisa carregar ALGUMA empresa. Um uuid real e impossível resolve:
+// a consulta é válida, roda, e não casa com linha nenhuma. As telas
+// abrem vazias, que é a verdade.
+//
+// Só de zeros de propósito: `gen_random_uuid()` nunca gera este valor,
+// então não existe o risco de um dia colidir com uma empresa de
+// verdade e vazar dados de cliente para o painel da plataforma.
+var EMPRESA_NENHUMA = "00000000-0000-0000-0000-000000000000";
+
+// Valores que só aparecem numa URL quando uma variável de JavaScript
+// foi interpolada sem existir. Nenhum deles é dado: são o texto que
+// `undefined`, `NaN` e um objeto viram ao serem grudados numa string.
+//
+// A âncora no operador (`=eq.`, `=in.`...) e no fim do valor é o que
+// impede falso positivo — uma busca por texto que contenha a palavra
+// "undefined" continua passando, porque ali ela é conteúdo, não o
+// valor inteiro do filtro.
+var VALOR_FANTASMA = /=[a-z]+\.(?:undefined|NaN|\[object(?:%20| )Object\])(?:&|$)/;
+
 var ROLE_PERMISSIONS = {
   dono: new Set(PERMISSOES_DONO),
   gerente: new Set([
@@ -584,10 +609,16 @@ var ROLE_PERMISSIONS = {
   //
   // Importante: dar permissão de dono NÃO dá acesso aos dados de
   // nenhuma empresa cliente. Toda rota filtra por
-  // `authPayload.empresa_id`, que vem do JWT, e o token de owner é
-  // emitido sem empresa_id — então as consultas não casam com empresa
-  // alguma. Na prática o owner enxerga o produto inteiro, com os dados
-  // da própria conta (vazios), e nunca a conta de outra pessoa.
+  // `authPayload.empresa_id`, que vem do JWT, e o token de owner
+  // carrega `EMPRESA_NENHUMA` — um uuid que nenhuma empresa tem. Na
+  // prática o owner enxerga o produto inteiro, com as telas vazias, e
+  // nunca a conta de outra pessoa.
+  //
+  // Este comentário já afirmou que o token era emitido SEM empresa_id
+  // e que "as consultas não casam com empresa alguma". A conclusão
+  // estava certa, a mecânica não: sem empresa_id o filtro virava
+  // `eq.undefined`, o Postgres recusava converter para uuid e a rota
+  // devolvia 500. O owner não via tela vazia — via erro em todas elas.
   owner_saas: new Set([
     ...PERMISSOES_DONO,
     "saas:read", "saas:write",
@@ -768,6 +799,42 @@ function supabase(method, table, options = {}) {
     return Promise.reject(new Error(`Tabela não permitida: ${table}`));
   }
 
+  // Rede de segurança contra variável indefinida virando FILTRO.
+  //
+  // `empresa_id=eq.${x}` com x indefinido não dá erro em JavaScript:
+  // vira a string "empresa_id=eq.undefined" e é enviada como se fosse
+  // uma consulta legítima. O Postgres então tenta converter "undefined"
+  // para uuid, não consegue, e aborta — HTTP 500 numa rota que só
+  // queria listar dados.
+  //
+  // O sintoma engana: o erro aparece como problema de BANCO ("invalid
+  // input syntax for type uuid"), com stack apontando para esta função,
+  // quando a causa está lá atrás, em quem montou o filtro. Foi
+  // exatamente assim que o painel do owner quebrou — 500 em toda tela,
+  // e o rastro acusando o Supabase.
+  //
+  // Aqui a consulta nem chega a sair, e a mensagem diz onde olhar.
+  if (options.query && VALOR_FANTASMA.test(options.query)) {
+    secLog("query_com_valor_indefinido", { table, query: options.query.slice(0, 200) });
+    return Promise.reject(new Error(
+      "Consulta montada com valor indefinido — filtro inválido, nada foi enviado ao banco"
+    ));
+  }
+
+  // A mesma proteção do lado da ESCRITA: a conta de owner não é dona de
+  // nenhuma empresa, e o `EMPRESA_NENHUMA` no token dela serve para
+  // LER nada. Se esse valor chegasse a um insert, criaria linha órfã
+  // (nas tabelas sem chave estrangeira) apontando para uma empresa que
+  // não existe — dado invisível para todo mundo e impossível de
+  // rastrear depois.
+  if ((method === "POST" || method === "PATCH") && options.body &&
+      options.body.empresa_id === EMPRESA_NENHUMA) {
+    secLog("escrita_sem_empresa", { table, method });
+    return Promise.reject(new Error(
+      "Esta conta administra a plataforma e não tem empresa própria — não é possível gravar dados de empresa por ela"
+    ));
+  }
+
   return new Promise((resolve, reject) => {
     var path = `/rest/v1/${table}`;
     if (options.query) path += `?${options.query}`;
@@ -871,7 +938,10 @@ function secLog(event, meta = {}) {
   // global, não pertencem a nenhuma tela de auditoria específica).
   // Fire-and-forget: auditoria não pode atrasar a resposta da rota
   // nem derrubá-la se o insert falhar.
-  if (AUDIT_EVENTS.has(event) && safeMeta.empresa_id) {
+  // `EMPRESA_NENHUMA` fica de fora junto com os eventos sem empresa: o
+  // owner não tem tela de auditoria, e gravar ali criaria um histórico
+  // pendurado numa empresa que não existe.
+  if (AUDIT_EVENTS.has(event) && safeMeta.empresa_id && safeMeta.empresa_id !== EMPRESA_NENHUMA) {
     supabase("POST", "logs_sistema", {
       body: {
         empresa_id: safeMeta.empresa_id,
@@ -1121,7 +1191,10 @@ async function responderLoginOwner(res, owner, senha, deviceIdBruto, ip) {
   registrarLoginOwner(owner);
   secLog("login_owner_ok", { origem: owner.origem });
   return jsonOk(res, {
-    token: jwtSign({ email: owner.email, role: "owner_saas" }),
+    // EMPRESA_NENHUMA e não `undefined`: as telas do produto filtram
+    // por empresa_id e precisam de um uuid válido para devolver lista
+    // vazia em vez de erro. Ver o comentário da constante.
+    token: jwtSign({ email: owner.email, role: "owner_saas", empresa_id: EMPRESA_NENHUMA }),
     owner: { nome: owner.nome, email: owner.email },
     // O frontend usa isto para mandar direto ao painel da plataforma
     // em vez do painel de empresa, já que a resposta chega pela mesma
@@ -1852,7 +1925,11 @@ function registrarErro(tipo, mensagem, extra) {
       status:     typeof extra.status === "number" ? extra.status : null,
       mensagem:   String(mensagem || "sem mensagem").slice(0, 1000),
       detalhe:    limparDetalhe(extra.detalhe),
-      empresa_id: extra.empresa_id || null
+      // Erro disparado pela conta da plataforma não pertence a empresa
+      // nenhuma. Sem isto a trava de escrita recusaria o insert e o
+      // erro seria PERDIDO — justamente o que esta tabela existe para
+      // impedir.
+      empresa_id: (extra.empresa_id && extra.empresa_id !== EMPRESA_NENHUMA) ? extra.empresa_id : null
     },
     prefer: "return=minimal"
   })
@@ -2997,7 +3074,10 @@ var server = http.createServer(async (req, res) => {
       // verificação do login não precisa reinterpretar binário toda vez.
       var registro = {
         email:        authFim.email,
-        empresa_id:   authFim.empresa_id || null,
+        // A credencial do owner não pertence a empresa nenhuma — fica
+        // com empresa_id nulo, como já era antes do token passar a
+        // carregar EMPRESA_NENHUMA.
+        empresa_id:   (authFim.empresa_id && authFim.empresa_id !== EMPRESA_NENHUMA) ? authFim.empresa_id : null,
         funcionario_id: authFim.funcionario_id || null,
         credential_id: credId,
         public_key:   JSON.stringify(chavePublica.export({ format: "jwk" })),
@@ -3154,7 +3234,7 @@ var server = http.createServer(async (req, res) => {
         registrarLoginOwner(ownerVer);
         secLog("login_owner_ok", { via: "face_id" });
         return jsonOk(res, {
-          token: jwtSign({ email: emailVer, role: "owner_saas" }),
+          token: jwtSign({ email: emailVer, role: "owner_saas", empresa_id: EMPRESA_NENHUMA }),
           owner: { nome: ownerVer.nome, email: emailVer },
           is_owner: true
         });
@@ -3230,7 +3310,7 @@ var server = http.createServer(async (req, res) => {
         registrarLoginOwner(ownerConf);
         secLog("login_owner_ok", { via: "novo_dispositivo" });
         return jsonOk(res, {
-          token: jwtSign({ email: emailConf, role: "owner_saas" }),
+          token: jwtSign({ email: emailConf, role: "owner_saas", empresa_id: EMPRESA_NENHUMA }),
           owner: { nome: ownerConf.nome, email: emailConf },
           // Mesmo sinal do login comum: quem decide qual painel abrir é
           // o servidor, não uma lembrança guardada no navegador entre
