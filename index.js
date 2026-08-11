@@ -4750,7 +4750,8 @@ var server = http.createServer(async (req, res) => {
         // sem isso, "20 de 20 passaram" soa como garantia de que a venda
         // funciona — e a cobrança real nunca foi exercida.
         nao_testado: [
-          "Cobrança PIX de verdade (exige gerar uma cobrança e pagar)",
+          "Cobrança de verdade: cartão aprovado, Pix pago ou boleto compensado",
+          "Se o webhook da Stripe chega neste servidor (só um pagamento real prova)",
           "Entrega real de e-mail para um endereço de terceiro",
           "Envio de notificação push para um aparelho"
         ]
@@ -4887,7 +4888,7 @@ var server = http.createServer(async (req, res) => {
         // trocada. Fingir que sabe seria pior do que dizer que não sabe.
         nao_verificavel: [
           "Se a RESEND_KEY e a senha do e-mail que já vazaram foram realmente rotacionadas",
-          "Se o PIX funciona ponta a ponta (exige uma cobrança real)",
+          "Se o pagamento funciona ponta a ponta (exige uma cobrança real)",
           "Se o certificado TLS está válido (a Render termina o TLS antes de chegar aqui)"
         ]
       });
