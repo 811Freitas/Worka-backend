@@ -761,6 +761,7 @@ function supabase(method, table, options = {}) {
     "comunicados", "cargos", "config_faltas", "contas_pagar",
     "mensagens", "periodos_afastamento", "metas",
     "config_jornada", "erros_plataforma", "eventos_pagamento",
+    "links_pagamento",
     "chamados", "chamado_mensagens"
   ];
   if (!ALLOWED_TABLES.includes(table)) {
@@ -3605,6 +3606,29 @@ var server = http.createServer(async (req, res) => {
 
         if (pago || cancelado) {
           var meta = dadosEvt.metadata || (dadosEvt.subscription && dadosEvt.subscription.metadata) || {};
+
+          // Link de cobrança avulsa. Trata primeiro e SAI: não tem
+          // empresa nem assinatura envolvida, e continuar cairia na
+          // busca por empresa — que não acharia nada e registraria um
+          // erro falso de "pagamento sem empresa identificada".
+          var idLinkHook = meta.link_id;
+          if (!idLinkHook && dadosEvt.id) {
+            var porGateway = await DB.select("links_pagamento",
+              "gateway_id=eq." + encodeURIComponent(String(dadosEvt.id)) + "&select=id");
+            idLinkHook = porGateway.body && porGateway.body[0] && porGateway.body[0].id;
+          }
+          if (idLinkHook) {
+            await DB.update("links_pagamento", "id=eq." + idLinkHook, pago ? {
+              status: "pago",
+              pago_em: new Date().toISOString(),
+              // O valor CONFIRMADO, separado do pedido. Divergência
+              // silenciosa em cobrança só aparece no fim do mês.
+              valor_pago_centavos: typeof dadosEvt.amount === "number" ? dadosEvt.amount : null
+            } : { status: "cancelado" });
+            secLog("link_pagamento_" + (pago ? "pago" : "cancelado"), { link_id: idLinkHook });
+            return jsonOk(res, { recebido: true });
+          }
+
           var empIdHook = meta.empresa_id;
 
           if (!empIdHook) {
@@ -4578,6 +4602,141 @@ var server = http.createServer(async (req, res) => {
           "Se o certificado TLS está válido (a Render termina o TLS antes de chegar aqui)"
         ]
       });
+    }
+
+    // ═══════════════════════════════════════════════
+    // LINKS DE PAGAMENTO AVULSOS (somente owner)
+    // ═══════════════════════════════════════════════
+    // Cobra o que NÃO passa pela assinatura: setup, consultoria, plano
+    // anual combinado por fora. Sem isto, essas cobranças teriam que ser
+    // feitas no painel da AbacatePay, sem registro nenhum do lado do
+    // Workap — e depois ninguém sabe quem pagou o quê.
+
+    var METODOS_PAGAMENTO = ["PIX", "CARD", "BOLETO"];
+
+    if (method === "POST" && path === "/owner/links") {
+      if (!hasPermission(authPayload, "saas:write")) {
+        return jsonErr(res, "Apenas o owner da Workap pode criar cobranças", 403);
+      }
+      if (!CONFIG.ABACATE_KEY) return jsonErr(res, "Pagamento não configurado", 503);
+
+      var rawLink = await getBody(req);
+      var bodyLink = parseBody(rawLink);
+      if (!bodyLink) return jsonErr(res, "Dados inválidos");
+
+      var descLink = SANITIZE.string(bodyLink.descricao || "", 120);
+      if (!descLink || descLink.length < 3) return jsonErr(res, "Escreva do que se trata a cobrança.");
+
+      // O valor chega em centavos e é validado aqui. Teto de R$ 50 mil
+      // para um dedo escorregado no teclado não virar uma cobrança
+      // absurda enviada a um cliente.
+      var centavosLink = SANITIZE.int(bodyLink.valor_centavos, 100, 5000000);
+      if (!centavosLink) return jsonErr(res, "Valor inválido. Mínimo R$ 1,00, máximo R$ 50.000,00.");
+
+      var metodosLink = Array.isArray(bodyLink.metodos)
+        ? bodyLink.metodos.filter(function (m) { return METODOS_PAGAMENTO.includes(m); })
+        : [];
+      if (!metodosLink.length) metodosLink = ["PIX"];
+      // PIX sempre primeiro quando estiver na lista: é o mais barato
+      // para a Workap, e a ordem manda em qual o cliente escolhe.
+      metodosLink.sort(function (a, b) { return (a === "PIX" ? -1 : 0) - (b === "PIX" ? -1 : 0); });
+
+      var nomeCli  = SANITIZE.string(bodyLink.cliente_nome || "", 120) || null;
+      var emailCli = bodyLink.cliente_email ? SANITIZE.email(bodyLink.cliente_email) : null;
+
+      var linhaLink = null;
+      try {
+        // A linha nasce ANTES da chamada ao gateway: se o gateway
+        // responder e a gravação falhar depois, existiria uma cobrança
+        // real que o Workap não conhece — e um cliente pagando um link
+        // que ninguém consegue rastrear.
+        var criado = await DB.insert("links_pagamento", {
+          descricao: descLink,
+          valor_centavos: centavosLink,
+          metodos: metodosLink,
+          cliente_nome: nomeCli,
+          cliente_email: emailCli,
+          gateway: "abacatepay",
+          status: "aberto"
+        });
+        linhaLink = criado.body && criado.body[0];
+        if (!linhaLink) return jsonErr(res, "Não foi possível registrar a cobrança", 500);
+
+        var cobrancaLink = await abacateRequest("POST", ABACATE.criarCobranca, {
+          frequency: "ONE_TIME",
+          methods: metodosLink,
+          products: [{
+            externalId: "link-" + linhaLink.id,
+            name: descLink,
+            quantity: 1,
+            price: centavosLink
+          }],
+          returnUrl:     CONFIG.SITE_URL,
+          completionUrl: CONFIG.SITE_URL + "/?cobranca=ok",
+          customer: (nomeCli || emailCli) ? { name: nomeCli || undefined, email: emailCli || undefined } : undefined,
+          metadata: { link_id: linhaLink.id }
+        });
+
+        var urlLink = urlDaCobranca(cobrancaLink);
+        if (!urlLink) {
+          await DB.update("links_pagamento", "id=eq." + linhaLink.id, { status: "cancelado" });
+          registrarErro("pagamento", "Gateway não devolveu URL para o link de cobrança", {
+            rota: "/owner/links", detalhe: { campos: Object.keys(cobrancaLink || {}).join(",") }
+          });
+          return jsonErr(res, "O gateway não devolveu o link. Confira a configuração em Diagnóstico.", 502);
+        }
+
+        await DB.update("links_pagamento", "id=eq." + linhaLink.id, {
+          gateway_id: cobrancaLink.id || null,
+          url: urlLink
+        });
+
+        secLog("link_pagamento_criado", { valor: centavosLink, metodos: metodosLink.join(",") });
+        return jsonOk(res, { ok: true, id: linhaLink.id, url: urlLink });
+      } catch (e) {
+        if (linhaLink) await DB.update("links_pagamento", "id=eq." + linhaLink.id, { status: "cancelado" }).catch(function () {});
+        registrarErro("pagamento", e.message, { rota: "/owner/links", metodo: "POST", status: e.status || null });
+        return jsonErr(res, "Não foi possível criar a cobrança agora. Tente de novo em instantes.", 502);
+      }
+    }
+
+    if (method === "GET" && path === "/owner/links") {
+      if (!hasPermission(authPayload, "saas:read")) {
+        return jsonErr(res, "Apenas o owner da Workap pode ver isso", 403);
+      }
+      var qLinks = "arquivado=is.false&order=criado_em.desc&limit=100";
+      var filtroLink = SANITIZE.string(url.searchParams.get("status") || "", 20);
+      if (["aberto", "pago", "expirado", "cancelado"].includes(filtroLink)) qLinks += "&status=eq." + filtroLink;
+
+      var listaLinks = await DB.select("links_pagamento", qLinks).catch(function () { return { body: [] }; });
+      var linhas = listaLinks.body || [];
+
+      // Totais do que já entrou e do que está em aberto. Uma lista sem
+      // isso obriga o owner a somar de cabeça para saber quanto tem a
+      // receber, que é a única pergunta que ele realmente faz aqui.
+      var recebido = 0, aberto = 0;
+      linhas.forEach(function (l) {
+        if (l.status === "pago") recebido += (l.valor_pago_centavos || l.valor_centavos);
+        else if (l.status === "aberto") aberto += l.valor_centavos;
+      });
+
+      return jsonOk(res, {
+        links: linhas,
+        total_recebido_reais: centavosParaReais(recebido),
+        total_aberto_reais:   centavosParaReais(aberto)
+      });
+    }
+
+    // Arquivar em vez de apagar: link pago é registro financeiro e não
+    // pode sumir só porque poluiu a tela.
+    if (method === "DELETE" && path.startsWith("/owner/links/")) {
+      if (!hasPermission(authPayload, "saas:write")) {
+        return jsonErr(res, "Apenas o owner da Workap pode fazer isso", 403);
+      }
+      var idArq = path.split("/")[3];
+      if (!SANITIZE.uuid(idArq)) return jsonErr(res, "Cobrança inválida");
+      await DB.update("links_pagamento", "id=eq." + idArq, { arquivado: true });
+      return jsonOk(res, { ok: true });
     }
 
     // ── ERROS DA PLATAFORMA (somente owner) ──────────

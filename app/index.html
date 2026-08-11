@@ -1741,6 +1741,7 @@ tr:hover td{background:var(--g50)}
         <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('marketing')"><svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg> Marketing</button>
         <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('logs')"><svg class=ico aria-hidden=true><use href=#i-tasks></use></svg> Logs</button>
         <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('api')"><svg class=ico aria-hidden=true><use href=#i-plug></use></svg> API</button>
+        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('cobrancas')"><svg class=ico aria-hidden=true><use href=#i-link></use></svg> Cobranças</button>
         <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('diagnostico')"><svg class=ico aria-hidden=true><use href=#i-shield></use></svg> Diagnóstico</button>
         <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('configuracoes')"><svg class=ico aria-hidden=true><use href=#i-tool></use></svg> Configurações</button>
       </div>
@@ -1942,6 +1943,99 @@ tr:hover td{background:var(--g50)}
                 <tr><td colspan="3" style="padding:14px"><div class="skel skel-text" style="width:55%"></div></td></tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA: COBRANÇAS — links de pagamento avulsos.
+           Para o que não passa pela assinatura: setup, consultoria,
+           plano anual combinado por fora. -->
+      <div id="owner-cobrancas" style="display:none">
+        <div class="grid-2">
+          <div>
+            <div class="card" style="margin-bottom:16px">
+              <div class="card-header">
+                <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-link></use></svg> Nova cobrança</div>
+              </div>
+              <div class="card-body">
+                <div class="field">
+                  <label>Do que se trata</label>
+                  <input id="lk-descricao" type="text" maxlength="120" placeholder="Ex: Implantação e treinamento da equipe">
+                </div>
+                <div class="field">
+                  <label>Valor</label>
+                  <input id="lk-valor" type="text" inputmode="decimal" placeholder="R$ 0,00" oninput="mascaraValorLink(this)">
+                </div>
+
+                <div class="field">
+                  <label>Formas de pagamento</label>
+                  <div style="display:flex;flex-direction:column;gap:8px">
+                    <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer">
+                      <input type="checkbox" id="lk-pix" checked style="width:auto;margin:0"> PIX
+                      <span style="color:var(--gray500);font-size:.78rem">— R$ 0,80 por transação</span>
+                    </label>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer">
+                      <input type="checkbox" id="lk-card" checked style="width:auto;margin:0"> Cartão de crédito
+                      <span style="color:var(--gray500);font-size:.78rem">— 3,5% + R$ 0,60</span>
+                    </label>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer">
+                      <input type="checkbox" id="lk-boleto" style="width:auto;margin:0"> Boleto
+                      <span style="color:var(--gray500);font-size:.78rem">— R$ 2,50 por boleto pago</span>
+                    </label>
+                  </div>
+                  <!-- A taxa fica visível na hora de escolher: é a única
+                       decisão desta tela que mexe no quanto sobra. -->
+                  <div id="lk-taxa" style="font-size:.79rem;color:var(--gray500);margin-top:10px"></div>
+                </div>
+
+                <div class="field">
+                  <label>Para quem <span style="color:var(--gray500);font-weight:400">(opcional)</span></label>
+                  <input id="lk-nome" type="text" maxlength="120" placeholder="Nome do cliente">
+                </div>
+                <div class="field">
+                  <input id="lk-email" type="email" maxlength="140" placeholder="E-mail do cliente">
+                </div>
+
+                <div id="lk-erro" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 12px;font-size:.82rem;color:#dc2626;margin-bottom:12px"></div>
+
+                <button class="btn btn-primary" id="btn-criar-link" onclick="criarLink()">
+                  <svg class=ico aria-hidden=true><use href=#i-link></use></svg> Gerar link
+                </button>
+              </div>
+            </div>
+
+            <!-- Link recém-criado, grande e com botão de copiar. -->
+            <div class="card" id="lk-novo-card" style="display:none;margin-bottom:16px">
+              <div class="card-body">
+                <div style="font-size:.78rem;font-weight:700;color:var(--green600,#1e8a40);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Link pronto</div>
+                <div id="lk-novo-url" style="font-family:ui-monospace,Menlo,monospace;font-size:.78rem;word-break:break-all;background:var(--gray50);padding:10px;border-radius:8px;margin-bottom:10px"></div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <button class="btn btn-primary btn-sm" id="btn-copiar-link" onclick="copiarLink()">Copiar link</button>
+                  <a class="btn btn-secondary btn-sm" id="lk-novo-abrir" target="_blank" rel="noopener">Abrir</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="card">
+              <div class="card-head">
+                <div>
+                  <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-money></use></svg> Cobranças</div>
+                  <div class="card-sub" id="lk-resumo">Carregando...</div>
+                </div>
+                <div style="display:flex;gap:8px">
+                  <select id="lk-filtro" class="input" style="width:auto;font-size:.8rem;padding:6px 10px" onchange="carregarLinks()">
+                    <option value="">Todas</option>
+                    <option value="aberto">Aguardando</option>
+                    <option value="pago">Pagas</option>
+                    <option value="cancelado">Canceladas</option>
+                  </select>
+                  <button class="btn btn-secondary btn-sm" onclick="carregarLinks()"><svg class=ico aria-hidden=true><use href=#i-refresh></use></svg></button>
+                </div>
+              </div>
+              <div class="card-body" id="lk-lista">—</div>
+            </div>
           </div>
         </div>
       </div>
@@ -4932,6 +5026,225 @@ async function mudarStatusChamado(novo) {
   } catch (e) {}
 }
 
+// ═══════════════════════════════════════════════════════════
+// COBRANÇAS — links de pagamento avulsos
+// ═══════════════════════════════════════════════════════════
+var linkRecemCriado = null;
+
+// Taxas da AbacatePay, para a tela dizer quanto sobra ANTES de gerar.
+// Números do contrato vigente: se mudarem, é aqui que se corrige.
+var TAXAS_GATEWAY = {
+  PIX:    { nome: 'PIX',    percentual: 0,     fixo: 80 },
+  CARD:   { nome: 'Cartão', percentual: 0.035, fixo: 60 },
+  BOLETO: { nome: 'Boleto', percentual: 0,     fixo: 250 }
+};
+
+function mascaraValorLink(el) {
+  var digitos = (el.value || '').replace(/\D/g, '');
+  if (!digitos) { el.value = ''; atualizarTaxaLink(); return; }
+  var centavos = parseInt(digitos, 10);
+  el.value = 'R$ ' + (centavos / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  atualizarTaxaLink();
+}
+
+function centavosDoCampoLink() {
+  var d = (document.getElementById('lk-valor').value || '').replace(/\D/g, '');
+  return d ? parseInt(d, 10) : 0;
+}
+
+function metodosEscolhidos() {
+  var m = [];
+  if (document.getElementById('lk-pix').checked)    m.push('PIX');
+  if (document.getElementById('lk-card').checked)   m.push('CARD');
+  if (document.getElementById('lk-boleto').checked) m.push('BOLETO');
+  return m;
+}
+
+// Mostra quanto sobra em cada meio escolhido. É a única decisão desta
+// tela que mexe no resultado, então o número fica na frente de quem
+// decide, e não escondido num contrato.
+function atualizarTaxaLink() {
+  var caixa = document.getElementById('lk-taxa');
+  if (!caixa) return;
+  var centavos = centavosDoCampoLink();
+  var metodos = metodosEscolhidos();
+
+  if (!centavos || !metodos.length) { caixa.textContent = ''; return; }
+
+  var partes = metodos.map(function (m) {
+    var t = TAXAS_GATEWAY[m];
+    var taxa = Math.round(centavos * t.percentual) + t.fixo;
+    var liquido = centavos - taxa;
+    return t.nome + ': você recebe R$ ' + (liquido / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  });
+  caixa.textContent = partes.join('  ·  ');
+}
+
+function erroLink(msg) {
+  var el = document.getElementById('lk-erro');
+  if (!el) return;
+  if (!msg) { el.style.display = 'none'; return; }
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+async function criarLink() {
+  erroLink('');
+  var descricao = (document.getElementById('lk-descricao').value || '').trim();
+  var centavos = centavosDoCampoLink();
+  var metodos = metodosEscolhidos();
+
+  if (descricao.length < 3) { erroLink('Escreva do que se trata a cobrança.'); return; }
+  if (centavos < 100)       { erroLink('O valor mínimo é R$ 1,00.'); return; }
+  if (!metodos.length)      { erroLink('Escolha pelo menos uma forma de pagamento.'); return; }
+
+  var liberar = botaoOcupado(document.getElementById('btn-criar-link'), 'Gerando...');
+  try {
+    var r = await fetch(API_BASE + '/owner/links', {
+      method: 'POST', headers: cabecalhoOwner(),
+      body: JSON.stringify({
+        descricao: descricao,
+        valor_centavos: centavos,
+        metodos: metodos,
+        cliente_nome: (document.getElementById('lk-nome').value || '').trim() || null,
+        cliente_email: (document.getElementById('lk-email').value || '').trim() || null
+      })
+    });
+    var d = await r.json().catch(function () { return {}; });
+    liberar();
+    if (!r.ok || !d.url) { erroLink(d.error || 'Não foi possível gerar a cobrança.'); return; }
+
+    linkRecemCriado = d.url;
+    document.getElementById('lk-novo-url').textContent = d.url;
+    document.getElementById('lk-novo-abrir').href = d.url;
+    document.getElementById('lk-novo-card').style.display = 'block';
+
+    document.getElementById('lk-descricao').value = '';
+    document.getElementById('lk-valor').value = '';
+    document.getElementById('lk-nome').value = '';
+    document.getElementById('lk-email').value = '';
+    atualizarTaxaLink();
+    carregarLinks();
+  } catch (e) {
+    liberar();
+    erroLink('Erro de conexão. Tente de novo.');
+  }
+}
+
+function copiarLink() {
+  if (!linkRecemCriado) return;
+  var botao = document.getElementById('btn-copiar-link');
+  var restaurar = function () { setTimeout(function () { botao.textContent = 'Copiar link'; }, 1800); };
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(linkRecemCriado).then(function () {
+      botao.textContent = 'Copiado'; restaurar();
+    }, function () { botao.textContent = 'Copie à mão'; restaurar(); });
+  } else {
+    // Sem área de transferência (navegador antigo, contexto não
+    // seguro): seleciona o texto para o usuário copiar.
+    var faixa = document.createRange();
+    faixa.selectNodeContents(document.getElementById('lk-novo-url'));
+    var sel = window.getSelection();
+    sel.removeAllRanges(); sel.addRange(faixa);
+    botao.textContent = 'Selecionado'; restaurar();
+  }
+}
+
+var ROTULO_LINK = {
+  aberto:    { txt: 'Aguardando', fundo: '#fff7ed', cor: '#9a3412' },
+  pago:      { txt: 'Pago',       fundo: '#edfaf2', cor: '#1e8a40' },
+  expirado:  { txt: 'Expirado',   fundo: '#f8fafc', cor: '#475569' },
+  cancelado: { txt: 'Cancelado',  fundo: '#fef2f2', cor: '#991b1b' }
+};
+
+async function carregarLinks() {
+  var lista = document.getElementById('lk-lista');
+  var resumo = document.getElementById('lk-resumo');
+  if (!lista) return;
+  var filtro = (document.getElementById('lk-filtro') || {}).value || '';
+
+  var d = null;
+  try {
+    var r = await fetch(API_BASE + '/owner/links' + (filtro ? '?status=' + encodeURIComponent(filtro) : ''),
+      { headers: cabecalhoOwner() });
+    if (r.ok) d = await r.json();
+  } catch (e) {}
+
+  if (!d) { resumo.textContent = 'Não consegui carregar.'; lista.textContent = 'Sem resposta do servidor.'; return; }
+
+  resumo.textContent = 'R$ ' + d.total_recebido_reais + ' recebido · R$ ' + d.total_aberto_reais + ' aguardando';
+
+  lista.textContent = '';
+  if (!d.links.length) {
+    lista.style.color = 'var(--gray500)';
+    lista.style.fontSize = '.86rem';
+    lista.textContent = filtro ? 'Nenhuma cobrança com esse status.'
+      : 'Nenhuma cobrança ainda. Use para o que não passa pela assinatura: implantação, consultoria, plano anual.';
+    return;
+  }
+  lista.style.color = '';
+
+  d.links.forEach(function (l) {
+    var st = ROTULO_LINK[l.status] || ROTULO_LINK.aberto;
+    var linha = document.createElement('div');
+    linha.style.cssText = 'display:flex;gap:10px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--gray100)';
+
+    var meio = document.createElement('div');
+    meio.style.flex = '1';
+
+    var tit = document.createElement('div');
+    tit.style.cssText = 'font-weight:600;font-size:.88rem';
+    tit.textContent = l.descricao;
+
+    var sub = document.createElement('div');
+    sub.style.cssText = 'font-size:.76rem;color:var(--gray500);margin-top:2px';
+    var quando = new Date(l.criado_em);
+    sub.textContent = 'R$ ' + (l.valor_centavos / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) +
+      ' · ' + (l.metodos || []).join(', ') +
+      (l.cliente_nome ? ' · ' + l.cliente_nome : '') +
+      ' · ' + (isNaN(quando.getTime()) ? '—' : quando.toLocaleDateString('pt-BR'));
+
+    meio.appendChild(tit); meio.appendChild(sub);
+
+    if (l.url && l.status === 'aberto') {
+      var acoes = document.createElement('div');
+      acoes.style.cssText = 'margin-top:6px;display:flex;gap:10px';
+      var copiar = document.createElement('span');
+      copiar.textContent = 'Copiar link';
+      copiar.style.cssText = 'font-size:.76rem;color:var(--green600,#1e8a40);cursor:pointer;text-decoration:underline';
+      copiar.onclick = function () {
+        if (navigator.clipboard) navigator.clipboard.writeText(l.url).catch(function () {});
+        copiar.textContent = 'Copiado';
+        setTimeout(function () { copiar.textContent = 'Copiar link'; }, 1600);
+      };
+      var arquivar = document.createElement('span');
+      arquivar.textContent = 'Arquivar';
+      arquivar.style.cssText = 'font-size:.76rem;color:var(--gray500);cursor:pointer;text-decoration:underline';
+      arquivar.onclick = function () { arquivarLink(l.id); };
+      acoes.appendChild(copiar); acoes.appendChild(arquivar);
+      meio.appendChild(acoes);
+    }
+
+    var etiqueta = document.createElement('span');
+    etiqueta.textContent = st.txt;
+    etiqueta.style.cssText = 'flex:none;font-size:.66rem;font-weight:700;padding:3px 8px;border-radius:5px;background:' + st.fundo + ';color:' + st.cor;
+
+    linha.appendChild(meio); linha.appendChild(etiqueta);
+    lista.appendChild(linha);
+  });
+}
+
+async function arquivarLink(id) {
+  if (!confirm('Arquivar esta cobrança? O link continua valendo, só some da lista.')) return;
+  try {
+    var r = await fetch(API_BASE + '/owner/links/' + encodeURIComponent(id), {
+      method: 'DELETE', headers: cabecalhoOwner()
+    });
+    if (r.ok) carregarLinks();
+  } catch (e) {}
+}
+
 function ownerTab(tab) {
   // Cada aba busca o que precisa só quando é aberta: carregar tudo de
   // uma vez faria 6 chamadas ao servidor para ver uma tela só.
@@ -4940,13 +5253,14 @@ function ownerTab(tab) {
   // Segurança e erros carregam sozinhos ao abrir; os testes não, porque
   // rodá-los faz chamadas de verdade — quem decide é o botão.
   if(tab === 'suporte' && typeof carregarFilaSuporte === 'function') carregarFilaSuporte();
+  if(tab === 'cobrancas' && typeof carregarLinks === 'function') carregarLinks();
   if(tab === 'diagnostico') {
     if(typeof carregarSeguranca === 'function') carregarSeguranca();
     if(typeof carregarErros     === 'function') carregarErros();
   }
 
   // Esconder todas as abas
-  ['assinantes','financeiro','plataforma','suporte','marketing','logs','api','diagnostico','configuracoes'].forEach(function(t){
+  ['assinantes','financeiro','plataforma','suporte','marketing','logs','api','cobrancas','diagnostico','configuracoes'].forEach(function(t){
     var el = document.getElementById('owner-'+t);
     if(el) el.style.display = 'none';
   });
