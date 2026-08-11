@@ -8,6 +8,8 @@
 // o sistema não tem. Login biométrico continua sendo uma feature em
 // aberto (exige WebAuthn + tabela de credenciais no banco).
 
+// v19: link de pagamento passou a poder LIBERAR o plano (49,99 / 89,99
+// ou nenhum) — a aba Cobrancas ganhou os campos de plano e de dias.
 // v18: aba Cobrancas no painel Owner (links de pagamento).
 // v17: o pagamento passou da Stripe para a AbacatePay — o botão
 // de assinatura e a tela de cancelamento mudaram.
@@ -21,7 +23,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v18';
+var CACHE = 'workap-v19';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
