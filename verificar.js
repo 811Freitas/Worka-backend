@@ -56,7 +56,7 @@ var CRITICAS = {
   ],
   "app/index.html": [
     "fazerLogin", "botaoOcupado", "escreverComIcones",     "carregarSeguranca", "rodarTestes", "carregarErros", "ownerTab",
-    "carregarAssinatura", "cancelarAssinatura", "carregarChamados", "abrirChamado"
+    "carregarAssinatura", "cancelarAssinatura", "criarLink", "carregarLinks", "atualizarPlanoLink", "atualizarTaxaLink", "carregarChamados", "abrirChamado"
   ]
 };
 

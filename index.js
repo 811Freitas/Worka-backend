@@ -2012,6 +2012,79 @@ function webhookAbacateValido(url, headers) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+/**
+ * Aplica o plano vendido por um link de pagamento.
+ *
+ * Chamada de dois lugares, e os dois importam:
+ *
+ *  1. no webhook, quando o pagamento entra e a empresa JÁ existe;
+ *  2. no cadastro, quando alguém se registra com um e-mail que já
+ *     tinha pagamento pendente.
+ *
+ * O caso 2 não é canto raro: o dono negocia com uma padaria, manda o
+ * link, e a pessoa paga ANTES de criar a conta. Sem esse caminho, o
+ * dinheiro entrava e o acesso nunca abria.
+ *
+ * Devolve true quando concedeu.
+ */
+async function aplicarPlanoDoLink(link, empresa) {
+  if (!link || !empresa || !link.plano_concedido) return false;
+  if (link.acesso_aplicado) return false;
+
+  var dias = link.dias_acesso || 30;
+
+  // Estende a partir do que a empresa JÁ tem, quando ainda está no
+  // futuro. Sobrescrever com "hoje + 30" faria quem comprou um segundo
+  // mês perder os dias que ainda tinha — e reclamar com razão.
+  var base = Date.now();
+  if (empresa.assinatura_ate) {
+    var atual = new Date(empresa.assinatura_ate);
+    if (!isNaN(atual.getTime()) && atual.getTime() > base) base = atual.getTime();
+  }
+  var ate = new Date(base + dias * 24 * 60 * 60 * 1000);
+
+  await DB.update("empresas", "id=eq." + empresa.id, {
+    plano: link.plano_concedido,
+    status: "ativa",
+    assinatura_ate: ate.toISOString(),
+    // Este acesso veio de pagamento avulso, não de assinatura
+    // recorrente: quando vencer, vence mesmo. Marcar como agendado
+    // deixa claro para o dono que não há renovação automática por trás.
+    cancelamento_agendado: true
+  });
+
+  await DB.update("links_pagamento", "id=eq." + link.id, {
+    acesso_aplicado: true,
+    empresa_id: empresa.id
+  });
+
+  secLog("acesso_liberado_por_link", {
+    empresa_id: empresa.id, plano: link.plano_concedido, dias: dias, ate: ate.toISOString()
+  });
+
+  enviarEmail(empresa.email, "🎉 Seu acesso ao Workap está liberado",
+    EMAIL_TEMPLATES.pagamentoConfirmado(empresa.nome,
+      CONFIG.PLANOS[link.plano_concedido].nome + " · " + dias + " dias")
+  ).catch(function () {});
+
+  return true;
+}
+
+/**
+ * Procura pagamento já feito e ainda não aplicado para um e-mail.
+ * Usada no cadastro: quem pagou antes de ter conta recebe o acesso
+ * assim que a conta nasce.
+ */
+async function linkPendentePara(email) {
+  if (!email) return null;
+  var busca = await DB.select("links_pagamento",
+    "cliente_email=eq." + encodeURIComponent(email) +
+    "&status=eq.pago&acesso_aplicado=is.false&plano_concedido=not.is.null" +
+    "&order=criado_em.desc&limit=1"
+  ).catch(function () { return { body: [] }; });
+  return (busca.body && busca.body[0]) || null;
+}
+
 // Aplica o estado da assinatura na empresa. Um lugar só, chamado por
 // todos os eventos: espalhar essa regra por cada handler é como as
 // bases acabam com metade das contas num estado e metade no outro.
@@ -3312,12 +3385,36 @@ var server = http.createServer(async (req, res) => {
         if (result.body[0]) {
           var emp = result.body[0];
           var token = jwtSign({ empresa_id: emp.id, email: emp.email, role: "dono" });
+
+          // Já pagou antes de ter conta? É o caso de quem recebeu um
+          // link de venda, pagou, e só depois se cadastrou. Sem isto o
+          // dinheiro entrava e a conta nascia em trial, como se nada
+          // tivesse sido pago.
+          var planoJaPago = null;
+          try {
+            var pendente = await linkPendentePara(emp.email);
+            if (pendente && await aplicarPlanoDoLink(pendente, emp)) {
+              planoJaPago = pendente.plano_concedido;
+              emp.plano  = pendente.plano_concedido;
+              emp.status = "ativa";
+            }
+          } catch (e) {
+            // Não derruba o cadastro: a conta nasce em trial e o owner
+            // consegue ver o pagamento pendente na aba Cobranças.
+            registrarErro("pagamento", "Falha ao aplicar link pago no cadastro: " + e.message,
+              { rota: "/verificar-codigo", empresa_id: emp.id });
+          }
+
           enviarEmail(emp.email, "🎉 Bem-vindo ao Workap!", EMAIL_TEMPLATES.boasVindas(emp.nome, emp.team_id, trialFim))
             .catch(() => {});
-          secLog("empresa_via_otp", { empresa_id: emp.id });
+          secLog("empresa_via_otp", { empresa_id: emp.id, plano_ja_pago: planoJaPago || "nao" });
           delete emp.senha_hash;
           emp.ramo = ramoDaEmpresa(emp.ramo);
-          return jsonOk(res, { ok: true, token, empresa: emp, trial_fim: trialFim, ramo: configDoRamo(emp.ramo) });
+          return jsonOk(res, {
+            ok: true, token, empresa: emp, trial_fim: trialFim,
+            ramo: configDoRamo(emp.ramo),
+            plano_ja_pago: planoJaPago
+          });
         }
 
         // Chegou aqui: o insert falhou por outro motivo (banco fora do ar,
@@ -3626,6 +3723,22 @@ var server = http.createServer(async (req, res) => {
               valor_pago_centavos: typeof dadosEvt.amount === "number" ? dadosEvt.amount : null
             } : { status: "cancelado" });
             secLog("link_pagamento_" + (pago ? "pago" : "cancelado"), { link_id: idLinkHook });
+
+            // Link que vende plano: libera o acesso agora, se a empresa
+            // já existir. Se não existir, a concessão fica pendente e é
+            // aplicada no cadastro — o dinheiro não pode entrar sem o
+            // acesso abrir em algum momento.
+            if (pago) {
+              var linkPago = await DB.select("links_pagamento", "id=eq." + idLinkHook + "&select=*");
+              var lk = linkPago.body && linkPago.body[0];
+              if (lk && lk.plano_concedido && lk.cliente_email) {
+                var empDoLink = await DB.select("empresas",
+                  "email=eq." + encodeURIComponent(lk.cliente_email) + "&select=id,nome,email,assinatura_ate");
+                var eLink = empDoLink.body && empDoLink.body[0];
+                if (eLink) await aplicarPlanoDoLink(lk, eLink);
+                else secLog("link_acesso_pendente", { link_id: idLinkHook });
+              }
+            }
             return jsonOk(res, { recebido: true });
           }
 
@@ -4644,6 +4757,18 @@ var server = http.createServer(async (req, res) => {
       var nomeCli  = SANITIZE.string(bodyLink.cliente_nome || "", 120) || null;
       var emailCli = bodyLink.cliente_email ? SANITIZE.email(bodyLink.cliente_email) : null;
 
+      // Plano que o pagamento libera. Nulo = cobrança pura (implantação,
+      // consultoria), que é o padrão.
+      var planoLink = planoValido(bodyLink.plano_concedido) ? bodyLink.plano_concedido : null;
+      var diasLink  = SANITIZE.int(bodyLink.dias_acesso, 1, 730) || 30;
+
+      // Sem e-mail não há como saber QUEM recebe o acesso. Deixar passar
+      // criaria um link que cobra e não libera nada — e o cliente teria
+      // pago por nada até alguém perceber.
+      if (planoLink && !emailCli) {
+        return jsonErr(res, "Para o link liberar o plano, informe o e-mail do cliente — é por ele que o acesso é ligado à conta.");
+      }
+
       var linhaLink = null;
       try {
         // A linha nasce ANTES da chamada ao gateway: se o gateway
@@ -4656,6 +4781,8 @@ var server = http.createServer(async (req, res) => {
           metodos: metodosLink,
           cliente_nome: nomeCli,
           cliente_email: emailCli,
+          plano_concedido: planoLink,
+          dias_acesso: diasLink,
           gateway: "abacatepay",
           status: "aberto"
         });
@@ -4691,7 +4818,10 @@ var server = http.createServer(async (req, res) => {
           url: urlLink
         });
 
-        secLog("link_pagamento_criado", { valor: centavosLink, metodos: metodosLink.join(",") });
+        secLog("link_pagamento_criado", {
+          valor: centavosLink, metodos: metodosLink.join(","),
+          plano: planoLink || "nenhum", dias: diasLink
+        });
         return jsonOk(res, { ok: true, id: linhaLink.id, url: urlLink });
       } catch (e) {
         if (linhaLink) await DB.update("links_pagamento", "id=eq." + linhaLink.id, { status: "cancelado" }).catch(function () {});
