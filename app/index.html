@@ -1027,10 +1027,10 @@ tr:hover td{background:var(--g50)}
         </div>
         <div class="card-body">
           <p style="font-size:.82rem;color:var(--gray500);margin-bottom:14px" id="assinatura-texto">
-            Trocar o cartão, baixar recibos ou cancelar.
+            Carregando...
           </p>
-          <button class="btn btn-secondary" id="btn-assinatura" onclick="abrirGestaoAssinatura()">
-            <svg class=ico aria-hidden=true><use href=#i-link></use></svg> Gerenciar assinatura
+          <button class="btn btn-secondary" id="btn-assinatura" onclick="cancelarAssinatura()" style="display:none">
+            <svg class=ico aria-hidden=true><use href=#i-x></use></svg> Cancelar assinatura
           </button>
         </div>
       </div>
@@ -4191,6 +4191,7 @@ function abrirPagina(id) {
 
   if(id==='notificacoes' && typeof renderizarEstadoNotificacoes === 'function') renderizarEstadoNotificacoes();
   if(id==='suporte' && typeof carregarChamados === 'function') carregarChamados();
+  if(id==='visual' && typeof carregarAssinatura === 'function') carregarAssinatura();
   if(id==='funcionarios' && typeof carregarFuncionariosReais === 'function') carregarFuncionariosReais();
   if(id==='ponto' && typeof carregarPontoReal === 'function') carregarPontoReal();
   if(id==='ponto' && typeof carregarHistoricoPonto === 'function') carregarHistoricoPonto();
@@ -4510,26 +4511,68 @@ async function carregarErros() {
 }
 
 /**
- * Abre o portal de cobrança da Stripe.
+ * Estado da assinatura e cancelamento.
  *
- * A sessão do portal é criada no servidor e expira rápido, então o
- * endereço não pode ser guardado nem reaproveitado — por isso a busca
- * acontece no clique, e não no carregamento da página.
+ * A Stripe tinha um portal hospedado que resolvia isto sozinho; a
+ * AbacatePay não tem equivalente, então a tela mora aqui. Não é
+ * opcional: sem caminho de cancelamento dentro do produto, cada saída
+ * vira ticket de suporte — e o CDC exige que cancelar seja tão fácil
+ * quanto contratar.
  */
-async function abrirGestaoAssinatura() {
-  var liberar = botaoOcupado(document.getElementById('btn-assinatura'), 'Abrindo...');
+async function carregarAssinatura() {
+  var texto = document.getElementById('assinatura-texto');
+  var badge = document.getElementById('assinatura-badge');
+  var botao = document.getElementById('btn-assinatura');
+  if (!texto) return;
+
+  var d = null;
   try {
-    var r = await fetch(API_BASE + '/assinatura/portal', {
+    var r = await fetch(API_BASE + '/assinatura', { headers: { 'Authorization': 'Bearer ' + sessaoWorka.token } });
+    if (r.ok) d = await r.json();
+  } catch (e) {}
+
+  if (!d) { texto.textContent = 'Não consegui carregar os dados da assinatura agora.'; return; }
+
+  badge.textContent = d.plano_nome + ' · R$ ' + d.preco_reais;
+  badge.className = 'badge ' + (d.status === 'ativa' ? 'badge-green' : 'badge-yellow');
+
+  var ate = d.assinatura_ate ? new Date(d.assinatura_ate) : null;
+  var ateTexto = (ate && !isNaN(ate.getTime())) ? ate.toLocaleDateString('pt-BR') : null;
+
+  if (d.cancelamento_agendado) {
+    // Quem cancelou precisa ver ATÉ QUANDO ainda tem acesso. Só dizer
+    // "cancelada" faz a pessoa achar que perdeu o que já pagou.
+    texto.textContent = ateTexto
+      ? 'Assinatura cancelada. Seu acesso continua até ' + ateTexto + '.'
+      : 'Assinatura cancelada.';
+    botao.style.display = 'none';
+  } else if (d.tem_assinatura) {
+    texto.textContent = ateTexto
+      ? 'Renova automaticamente em ' + ateTexto + '.'
+      : 'Assinatura ativa.';
+    botao.style.display = 'inline-flex';
+  } else {
+    texto.textContent = d.status === 'trial'
+      ? 'Você está no período de teste. Ainda não há assinatura.'
+      : 'Nenhuma assinatura ativa nesta conta.';
+    botao.style.display = 'none';
+  }
+}
+
+async function cancelarAssinatura() {
+  if (!confirm('Cancelar a assinatura?\n\nSeu acesso continua até o fim do período já pago.')) return;
+
+  var liberar = botaoOcupado(document.getElementById('btn-assinatura'), 'Cancelando...');
+  try {
+    var r = await fetch(API_BASE + '/assinatura/cancelar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token }
     });
     var d = await r.json().catch(function () { return {}; });
-    if (r.ok && d.url) { window.location.href = d.url; return; }
     liberar();
-    // alert() e o padrao do resto deste arquivo para erro pontual —
-    // nao existe funcao de toast aqui, e inventar uma so para este
-    // botao deixaria duas linguagens de aviso convivendo.
-    alert(d.error || 'Não foi possível abrir a gestão da assinatura.');
+    if (!r.ok) { alert(d.error || 'Não foi possível cancelar.'); return; }
+    alert(d.mensagem || 'Assinatura cancelada.');
+    carregarAssinatura();
   } catch (e) {
     liberar();
     alert('Erro de conexão. Tente de novo.');

@@ -55,8 +55,8 @@ var CRITICAS = {
     "montarSegmentosDoFunil", "montarPlanosDoFunil", "buscarRamos", "botaoOcupado"
   ],
   "app/index.html": [
-    "fazerLogin", "botaoOcupado", "escreverComIcones", "abrirGestaoAssinatura",
-    "carregarSeguranca", "rodarTestes", "carregarErros", "ownerTab"
+    "fazerLogin", "botaoOcupado", "escreverComIcones",     "carregarSeguranca", "rodarTestes", "carregarErros", "ownerTab",
+    "carregarAssinatura", "cancelarAssinatura", "carregarChamados", "abrirChamado"
   ]
 };
 
