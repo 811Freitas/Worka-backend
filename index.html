@@ -993,7 +993,7 @@
 <!-- ══════════════════════════════════════════
      MODAL DE CADASTRO E ASSINATURA
      (chamava-se "checkout PIX" de quando o QR Code era gerado nesta
-      página; hoje o pagamento acontece no Checkout da Stripe)
+      página; hoje o pagamento acontece no checkout do gateway)
 ══════════════════════════════════════════ -->
 <div id="checkout-overlay" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(10,46,26,0.7);backdrop-filter:blur(6px);overflow-y:auto;padding:24px 16px;">
   <div id="checkout-modal" style="max-width:480px;margin:0 auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,0.3);">
@@ -1081,11 +1081,12 @@
       <button onclick="continuarParaOferta()" id="btn-gerar" style="width:100%;margin-top:16px;background:#1e8a40;color:white;border:none;padding:15px;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:background .2s;display:flex;align-items:center;justify-content:center;gap:8px;">
         <span>Gerar pagamento</span> <span style="font-size:1.1rem;"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg></span>
       </button>
-      <!-- Dizia "via PIX". A assinatura mensal é cobrada no CARTÃO: o
-           Pix não consegue cobrar sozinho no mês seguinte, e prometer
-           na vitrine um meio que o checkout não oferece é a forma mais
-           rápida de perder a venda na última tela. -->
-      <div style="font-size:0.75rem;color:#6b7068;text-align:center;margin-top:10px;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Pagamento seguro no cartão · cancele quando quiser</div>
+      <!-- O Pix voltou para a vitrine porque voltou para o produto: a
+           Cakto cobra assinatura mensal no Pix, no boleto e no cartão.
+           Com a Stripe só dava cartão — Pix não cobra sozinho no mês
+           seguinte — e a vitrine teve que deixar de prometer o meio que
+           o cliente de padaria mais usa. -->
+      <div style="font-size:0.75rem;color:#6b7068;text-align:center;margin-top:10px;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Pix, cartão ou boleto · cancele quando quiser</div>
     </div>
 
     <!-- TRIAL: Escolher plano -->
@@ -1689,7 +1690,7 @@ function mostrarErro(msg) {
 }
 
 /**
- * Manda o cliente para o Checkout da Stripe.
+ * Manda o cliente para o checkout do gateway.
  *
  * Substitui o fluxo de PIX com QR na própria página. Três motivos além
  * do pedido:
@@ -1697,7 +1698,7 @@ function mostrarErro(msg) {
  * - A cobrança passa a ser RECORRENTE. O PIX cobrava uma vez e nada
  *   nunca mais cobrava: o cliente pagava R$ 49,99 e usava para sempre.
  * - Nenhum dado de cartão passa por aqui. A página de pagamento é da
- *   Stripe, então o problema de PCI sai inteiro deste projeto.
+ *   gateway, então o problema de PCI sai inteiro deste projeto.
  * - Some o polling de 5 em 5 segundos: quem confirma o pagamento é o
  *   webhook, no servidor, que funciona mesmo se a pessoa fechar a aba
  *   no meio.
@@ -1732,9 +1733,9 @@ async function irParaPagamento(liberarDoChamador) {
   }
 }
 
-// Volta da Stripe. O acesso quem libera é o webhook — esta tela só
+// Volta do checkout. O acesso quem libera é o webhook — esta tela só
 // conta ao cliente o que aconteceu, sem prometer nada que não sabe.
-function tratarRetornoDaStripe() {
+function tratarRetornoDoPagamento() {
   var p = new URLSearchParams(window.location.search);
   var resultado = p.get('assinatura');
   var cobranca  = p.get('cobranca');
@@ -1786,7 +1787,7 @@ function mostrarAvisoDeCobranca() {
         'Recebemos seu pagamento' +
       '</div>' +
       '<p style="font-size:0.9rem;color:#6b7068;line-height:1.55;margin-bottom:8px;">' +
-        'Assim que a Stripe confirmar, você recebe o comprovante por e-mail.' +
+        'Assim que o pagamento for confirmado, você recebe o comprovante por e-mail.' +
       '</p>' +
       '<p style="font-size:0.82rem;color:#8b8f89;line-height:1.5;margin-bottom:24px;">' +
         'No cartão é na hora. No Pix costuma levar alguns minutos, e no boleto até 3 dias úteis.' +
@@ -2558,7 +2559,7 @@ document.getElementById('acesso-overlay').addEventListener('click',function(e){i
            o plano barato: o de R$ 89,90 não aparecia em lugar nenhum
            para quem entrava por aqui. -->
       <div id="funil-planos" style="display:flex;flex-direction:column;gap:14px;margin-bottom:16px;"></div>
-      <div style="font-size:0.75rem;color:rgba(255,255,255,0.55);text-align:center;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Pagamento no cartão · sem fidelidade</div>
+      <div style="font-size:0.75rem;color:rgba(255,255,255,0.55);text-align:center;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Pix, cartão ou boleto · sem fidelidade</div>
     </div>
 
   </div>
@@ -2759,7 +2760,7 @@ document.addEventListener("DOMContentLoaded",function(){
   // funil, com aviso na tela. Aqui só não pode virar erro solto.
   buscarRamos().catch(function(){});
   carregarPlanos();
-  tratarRetornoDaStripe();
+  tratarRetornoDoPagamento();
 });
 </script>
 

@@ -64,32 +64,18 @@ const CONFIG = {
   // Formato: 'Nome <endereco@dominio>'. O domínio precisa estar
   // verificado no Resend, senão a API rejeita com 403.
   EMAIL_FROM:    env("EMAIL_FROM") || "Workap <onboarding@resend.dev>",
-  // Stripe. A chave secreta NUNCA vai para o navegador: com o Checkout
-  // hospedado, o backend cria a sessão e devolve só a URL — então o
-  // front não precisa de chave nenhuma do gateway.
-  STRIPE_KEY:            env("STRIPE_SECRET_KEY"),
-  // Segredo do webhook. Sem ele qualquer um que descubra o endereço
-  // poderia postar um "invoice.paid" e ganhar acesso de graça — é a
-  // única coisa que separa um aviso da Stripe de um aviso forjado.
-  STRIPE_WEBHOOK_SECRET: env("STRIPE_WEBHOOK_SECRET"),
-  // Mostrar o campo "código promocional" no checkout. Só ligue depois
-  // de criar cupons na Stripe — ver o comentário na rota de checkout.
-  STRIPE_CUPONS:         env("STRIPE_CUPONS") === "1",
 
-  // Cakto. Credenciais OAuth2 do painel (Configurações → API).
+  // Cakto — o gateway de pagamento. Credenciais OAuth2 do painel deles
+  // (Configurações → API). Nunca vão para o navegador: o backend cria a
+  // cobrança e devolve só o link.
   CAKTO_CLIENT_ID:       env("CAKTO_CLIENT_ID"),
   CAKTO_CLIENT_SECRET:   env("CAKTO_CLIENT_SECRET"),
   // Segredo que vai na URL do webhook cadastrada no painel da Cakto.
-  // Você inventa este valor — não vem deles. Ver webhookCaktoValido().
+  // VOCÊ inventa este valor — não vem deles. Sem ele, qualquer um que
+  // descubra o endereço avisa "pago" e ganha acesso de graça. Ver
+  // webhookCaktoValido().
   CAKTO_WEBHOOK_SECRET:  env("CAKTO_WEBHOOK_SECRET"),
 
-  // Qual gateway atende o checkout e os links: "stripe" ou "cakto".
-  //
-  // Padrão stripe de propósito. A integração da Cakto foi escrita sem
-  // acesso à documentação (ver o bloco CAKTO), então ela só entra
-  // quando alguém DECIDIR que entra — nunca por descuido de deploy. E
-  // voltar, se der errado, é trocar esta variável no Render.
-  GATEWAY:               env("PAGAMENTO_GATEWAY") === "cakto" ? "cakto" : "stripe",
   // Para onde o gateway devolve o cliente depois do pagamento.
   SITE_URL:              env("SITE_URL") || "https://workap.com.br",
   // ENCRYPT_SECRET foi removida: nenhuma linha deste projeto lia esse
@@ -1985,147 +1971,30 @@ function supabaseRpc(fn) {
   });
 }
 
-// ═══════════════════════════════════════════════════════════
-// STRIPE — assinatura recorrente e cobrança avulsa
-// ═══════════════════════════════════════════════════════════
-//
-// Sem SDK, pelo mesmo motivo do Supabase e do Resend: o que este
-// projeto usa da API cabe em duas funções, e uma dependência a menos é
-// uma superfície a menos para auditar.
-//
-// A API da Stripe fala form-urlencoded, não JSON, e usa colchetes para
-// aninhar (line_items[0][price_data][currency]).
-//
-// Diferente do bloco que estava aqui antes: estes caminhos e nomes de
-// campo são os da API pública da Stripe, estável e versionada pelo
-// cabeçalho Stripe-Version — não precisam do aviso de "confira contra a
-// documentação" que a integração anterior carregava.
-
-function stripeEncode(obj, prefixo, saida) {
-  saida = saida || [];
-  for (var [k, v] of Object.entries(obj)) {
-    if (v === undefined || v === null) continue;
-    var chave = prefixo ? prefixo + "[" + k + "]" : k;
-    if (typeof v === "object") stripeEncode(v, chave, saida);
-    else saida.push(encodeURIComponent(chave) + "=" + encodeURIComponent(String(v)));
-  }
-  return saida;
-}
-
-function stripeRequest(metodo, caminho, params) {
-  return new Promise(function (resolve, reject) {
-    if (!CONFIG.STRIPE_KEY) return reject(new Error("Pagamento não configurado (STRIPE_SECRET_KEY ausente)"));
-    var corpo = params ? stripeEncode(params).join("&") : "";
-    var headers = {
-      "Authorization":  "Bearer " + CONFIG.STRIPE_KEY,
-      "Content-Type":   "application/x-www-form-urlencoded",
-      "Stripe-Version": "2024-06-20"
-    };
-    if (corpo) headers["Content-Length"] = Buffer.byteLength(corpo);
-
-    var req = https.request({
-      hostname: "api.stripe.com", port: 443, path: "/v1" + caminho, method: metodo, headers: headers
-    }, function (res) {
-      var raw = "";
-      res.on("data", function (c) { raw += c; });
-      res.on("end", function () {
-        var json = null;
-        try { json = JSON.parse(raw); } catch (e) {}
-        if (res.statusCode >= 400) {
-          var msg = (json && json.error && json.error.message) || raw.slice(0, 200) || ("HTTP " + res.statusCode);
-          var erro = new Error("Stripe " + res.statusCode + ": " + msg);
-          erro.status = res.statusCode;
-          erro.codigo = json && json.error && json.error.code;
-          return reject(erro);
-        }
-        resolve(json || {});
-      });
-    });
-    req.on("error", reject);
-    req.setTimeout(15000, function () { req.destroy(new Error("Stripe: tempo esgotado")); });
-    req.end(corpo);
-  });
-}
-
 /**
  * Identidade do Workap na tela de pagamento.
  *
- * A tela é hospedada pela Stripe, mas quase tudo dela vem daqui. O que
- * NÃO vem — logo, cor do botão, nome da empresa no topo — mora no
- * painel (Configurações → Branding) e não tem API: é configurado uma
- * vez, na mão.
+ * A tela é hospedada pelo gateway, mas quase tudo dela vem daqui. O
+ * que NÃO vem — logo, cores, nome da empresa no topo — mora no painel
+ * da Cakto e é configurado uma vez, na mão.
  *
  * Por que isto importa: a pessoa sai de workap.com.br e cai num
- * domínio da Stripe para digitar o cartão. Se a tela de lá não parecer
- * a mesma empresa, ela desconfia e fecha — e a venda morre no último
- * passo, sem deixar rastro nenhum de por quê.
+ * domínio de fora para pagar. Se a tela de lá não parecer a mesma
+ * empresa, ela desconfia e fecha — e a venda morre no último passo,
+ * sem deixar rastro nenhum de por quê.
  */
 var MARCA = {
-  // Imagem do produto no checkout. PNG de propósito: a Stripe não
-  // renderiza SVG aqui, e o símbolo do projeto é SVG.
-  // Precisa ser URL pública — a Stripe busca de fora, não recebe upload.
+  // Imagem do produto no checkout. PNG de propósito: gateway costuma
+  // não renderizar SVG, e o símbolo do projeto é SVG.
+  // Precisa ser URL pública — o gateway busca de fora, não recebe upload.
   imagem: function () { return CONFIG.SITE_URL + "/assets/icon-192.png"; },
 
   // Texto sob o botão de pagar. É o último lugar onde dá para responder
   // "e se eu me arrepender?" antes de a pessoa digitar o cartão.
-  avisoAssinatura: "Cobrança mensal no cartão. Cancele quando quiser, em dois cliques, dentro do app — sem ligar para ninguém.",
-  avisoAvulso: "Pagamento único. Você recebe o comprovante por e-mail assim que a Stripe confirmar."
+  avisoAssinatura: "Cobrança mensal. Cancele quando quiser, em dois cliques, dentro do app — sem ligar para ninguém.",
+  avisoAvulso: "Pagamento único. Você recebe o comprovante por e-mail assim que o pagamento for confirmado."
 };
 
-// Meios de pagamento oferecidos no checkout, na ordem em que a Stripe
-// mostra. Cartão primeiro porque é o único que serve para ASSINATURA
-// recorrente — Pix e boleto são cobrança única, e a Stripe recusa a
-// sessão de assinatura se eles vierem junto.
-//
-// A separação existe porque as duas listas são usadas em lugares
-// diferentes: a assinatura mensal só aceita cartão; o link avulso que o
-// dono manda por WhatsApp aceita os três.
-var STRIPE_METODOS_ASSINATURA = ["card"];
-var STRIPE_METODOS_AVULSO     = ["card", "pix", "boleto"];
-
-/**
- * Confere que o webhook veio mesmo da Stripe.
- *
- * Sem isto, qualquer um que descubra o endereço posta um
- * "invoice.paid" e ganha acesso vitalício de graça. A Stripe assina
- * cada evento com HMAC-SHA256 sobre "timestamp.corpo_cru" — por isso o
- * corpo precisa ser o texto ORIGINAL, byte a byte: reserializar o JSON
- * muda espaços e ordem de chaves, e a assinatura deixa de bater.
- *
- * É uma prova mais forte do que a do gateway anterior, que se
- * identificava por um segredo fixo na URL: lá, quem interceptasse o
- * endereço uma vez poderia repetir o aviso à vontade.
- */
-function stripeAssinaturaValida(corpoCru, cabecalhoAssinatura) {
-  if (!CONFIG.STRIPE_WEBHOOK_SECRET || !cabecalhoAssinatura) return false;
-
-  var partes = {};
-  String(cabecalhoAssinatura).split(",").forEach(function (p) {
-    var i = p.indexOf("=");
-    if (i > 0) {
-      var k = p.slice(0, i).trim();
-      // v1 pode aparecer mais de uma vez durante rotação de segredo.
-      if (k === "v1") (partes.v1 = partes.v1 || []).push(p.slice(i + 1).trim());
-      else partes[k] = p.slice(i + 1).trim();
-    }
-  });
-  if (!partes.t || !partes.v1 || !partes.v1.length) return false;
-
-  // Janela de 5 minutos contra reenvio de um evento antigo capturado.
-  var idade = Math.abs(Math.floor(Date.now() / 1000) - parseInt(partes.t, 10));
-  if (!isFinite(idade) || idade > 300) return false;
-
-  var esperado = crypto.createHmac("sha256", CONFIG.STRIPE_WEBHOOK_SECRET)
-    .update(partes.t + "." + corpoCru, "utf8").digest("hex");
-
-  // timingSafeEqual para a comparação não vazar, pelo tempo de resposta,
-  // quantos caracteres iniciais o atacante acertou.
-  var alvo = Buffer.from(esperado, "utf8");
-  return partes.v1.some(function (assinatura) {
-    var recebida = Buffer.from(assinatura, "utf8");
-    return recebida.length === alvo.length && crypto.timingSafeEqual(recebida, alvo);
-  });
-}
 
 // ═══════════════════════════════════════════════════════════
 // CAKTO — gateway alternativo
@@ -2154,14 +2023,13 @@ function stripeAssinaturaValida(corpoCru, cabecalhoAssinatura) {
 //     · de qual campo da resposta sai o link de pagamento
 //     · o formato do corpo que o webhook envia
 //
-// POR QUE A STRIPE CONTINUA NO CÓDIGO
+// A CAKTO É O ÚNICO GATEWAY
 //
-// Justamente por causa da lista de cima. Enquanto a Cakto não for
-// exercitada com dinheiro de verdade, trocar em definitivo seria apostar
-// a única fonte de receita do produto em campo de API adivinhado. O
-// gateway é escolhido por PAGAMENTO_GATEWAY, e voltar para a Stripe é
-// mudar uma variável no Render — não é fazer deploy às pressas com o
-// checkout quebrado e cliente na tela.
+// Não há mais para onde voltar em código: a Stripe foi removida a
+// pedido do dono, depois de eu apontar que esta integração não pôde ser
+// conferida. Por isso a lista de cima importa mais do que importaria
+// num gateway de reserva — enquanto uma cobrança REAL de R$ 1 não
+// passar ponta a ponta, considere o pagamento não comprovado.
 var CAKTO = {
   host: "api.cakto.com.br",
 
@@ -2332,11 +2200,9 @@ function reaisParaCentavosDoGateway(valor) {
 /**
  * Aplica na empresa o estado de uma assinatura da Cakto.
  *
- * Separada de aplicarAssinatura() (que fala Stripe) porque os dois
- * formatos não têm nenhum campo em comum: a Stripe manda
- * current_period_end em segundos epoch, a Cakto manda data em texto.
- * Tentar servir aos dois com uma função só é como nascem os "se vier
- * neste formato, senão naquele" que ninguém mais consegue ler.
+ * Um lugar só, chamado por todos os eventos de pagamento: espalhar
+ * essa regra por cada handler é como as bases acabam com metade das
+ * contas num estado e metade no outro.
  */
 async function aplicarAssinaturaCakto(empresaId, dados, planoMeta) {
   dados = dados || {};
@@ -2464,45 +2330,6 @@ async function linkPendentePara(email) {
     "&order=criado_em.desc&limit=1"
   ).catch(function () { return { body: [] }; });
   return (busca.body && busca.body[0]) || null;
-}
-
-// Aplica o estado da assinatura na empresa. Um lugar só, chamado por
-// todos os eventos: espalhar essa regra por cada handler é como as
-// bases acabam com metade das contas num estado e metade no outro.
-async function aplicarAssinatura(empresaId, assinatura) {
-  assinatura = assinatura || {};
-
-  // As colunas continuam genéricas (`pagamento_*`) mesmo agora que o
-  // gateway tem nome. Foi essa decisão, tomada na troca anterior, que
-  // permitiu voltar para a Stripe SEM migração de banco — e é o que
-  // vai permitir a próxima troca, se houver.
-  var fimSegundos = assinatura.current_period_end;
-  var mudancas = {
-    pagamento_gateway:      "stripe",
-    pagamento_assinatura_id: assinatura.id || undefined,
-    assinatura_ate:         fimSegundos ? new Date(fimSegundos * 1000).toISOString() : null,
-    cancelamento_agendado:  !!assinatura.cancel_at_period_end
-  };
-
-  // "active" e "trialing" liberam; "past_due" mantém o acesso até o fim
-  // do período já pago, porque a Stripe ainda vai tentar cobrar de novo
-  // — cortar na primeira falha derrubaria quem só teve um cartão
-  // recusado por limite momentâneo.
-  if (["active", "trialing", "past_due"].includes(assinatura.status)) {
-    mudancas.status = "ativa";
-  } else if (["canceled", "unpaid", "incomplete_expired"].includes(assinatura.status)) {
-    mudancas.status = "cancelada";
-  }
-
-  var itens = assinatura.items && assinatura.items.data && assinatura.items.data[0];
-  var planoMeta = (assinatura.metadata && assinatura.metadata.plano) ||
-                  (itens && itens.price && itens.price.metadata && itens.price.metadata.plano);
-  if (planoValido(planoMeta)) mudancas.plano = planoMeta;
-
-  await DB.update("empresas", "id=eq." + empresaId, mudancas);
-  secLog("assinatura_atualizada", {
-    empresa_id: empresaId, gateway: "stripe", estado: assinatura.status, ate: mudancas.assinatura_ate
-  });
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -3966,10 +3793,9 @@ var server = http.createServer(async (req, res) => {
     // token. A empresa é achada pelo e-mail, e o valor NUNCA vem do
     // navegador — sai de CONFIG.PLANOS, a mesma fonte que a vitrine usa.
     if (method === "POST" && path === "/assinatura/checkout") {
-      var configurado = CONFIG.GATEWAY === "cakto"
-        ? (CONFIG.CAKTO_CLIENT_ID && CONFIG.CAKTO_CLIENT_SECRET)
-        : CONFIG.STRIPE_KEY;
-      if (!configurado) return jsonErr(res, "Pagamento não configurado", 503);
+      if (!CONFIG.CAKTO_CLIENT_ID || !CONFIG.CAKTO_CLIENT_SECRET) {
+        return jsonErr(res, "Pagamento não configurado", 503);
+      }
 
       var rawAss = await getBody(req);
       var bodyAss = parseBody(rawAss);
@@ -3987,12 +3813,12 @@ var server = http.createServer(async (req, res) => {
       if (!empAss) return jsonErr(res, "Conta não encontrada. Conclua o cadastro antes de assinar.", 404);
       if (empAss.status === "ativa") return jsonErr(res, "Esta conta já tem assinatura ativa.", 409);
 
-      // ── Caminho Cakto ──
-      //
-      // Mais curto que o da Stripe porque a Cakto cobra assinatura no
-      // Pix e no boleto além do cartão — não existe a restrição de
-      // "assinatura só no cartão" que obriga a separar os meios.
-      if (CONFIG.GATEWAY === "cakto") {
+      // Pix, cartão e boleto na assinatura MENSAL — os três. É o motivo
+      // de a Cakto ter substituído a Stripe: lá a assinatura só podia
+      // ser no cartão, porque Pix e boleto não cobram sozinhos no mês
+      // seguinte. Para quem vende a dono de padaria, isso deixava
+      // metade do mercado de fora.
+      {
         try {
           var cobrancaCk = await criarCobrancaCakto({
             nome: "Workap — " + infoPlano.nome,
@@ -4026,96 +3852,6 @@ var server = http.createServer(async (req, res) => {
           });
           return jsonErr(res, "Não foi possível abrir o pagamento agora. Tente de novo em instantes.", 502);
         }
-      }
-
-      try {
-        // Reaproveita o cliente se já existir: criar um novo a cada
-        // tentativa espalharia a mesma pessoa em vários cadastros e
-        // quebraria o histórico de cobrança dela.
-        var clienteId = empAss.pagamento_cliente_id;
-        if (!clienteId) {
-          var novoCliente = await stripeRequest("POST", "/customers", {
-            email: empAss.email,
-            name:  empAss.nome,
-            metadata: { empresa_id: empAss.id }
-          });
-          clienteId = novoCliente.id;
-          await DB.update("empresas", "id=eq." + empAss.id, {
-            pagamento_gateway: "stripe",
-            pagamento_cliente_id: clienteId
-          });
-        }
-
-        var sessao = await stripeRequest("POST", "/checkout/sessions", {
-          mode: "subscription",
-          customer: clienteId,
-          // client_reference_id é como o webhook liga o pagamento à
-          // empresa sem confiar em nada que veio do navegador.
-          client_reference_id: empAss.id,
-          locale: "pt-BR",
-          allow_promotion_codes: "true",
-          success_url: CONFIG.SITE_URL + "/?assinatura=ok",
-          cancel_url:  CONFIG.SITE_URL + "/?assinatura=cancelada",
-          // Só cartão: a Stripe recusa a sessão de assinatura se vier
-          // Pix ou boleto junto, porque nenhum dos dois consegue cobrar
-          // sozinho no mês seguinte. Cobrança avulsa aceita os três — é
-          // o que os links do painel usam.
-          payment_method_types: STRIPE_METODOS_ASSINATURA,
-          // price_data em vez de um Price criado no painel: o preço
-          // continua morando em CONFIG.PLANOS, fonte única. Preço em dois
-          // lugares é preço que um dia diverge.
-          line_items: {
-            0: {
-              quantity: 1,
-              price_data: {
-                currency: "brl",
-                // Em CENTAVOS. Mandar reais aqui cobraria 100x menos e
-                // ninguém perceberia até o fim do mês.
-                unit_amount: infoPlano.centavos,
-                recurring: { interval: "month" },
-                product_data: {
-                  name: "Workap — " + infoPlano.nome,
-                  // O resumo do plano aparece embaixo do nome, na
-                  // coluna do valor. Sem ele a tela mostra só "Workap —
-                  // Plano Pro" e um preço, e quem chegou por anúncio não
-                  // tem como conferir se é isto mesmo que está levando.
-                  description: infoPlano.resumo,
-                  images: { 0: MARCA.imagem() }
-                }
-              }
-            }
-          },
-          // O campo de cupom só aparece se você realmente criar códigos
-          // promocionais NA STRIPE (Produtos → Cupons). Ele não tem
-          // relação com os cupons do painel do Workap, que são aplicados
-          // no cadastro e vivem no banco.
-          //
-          // Desligado por padrão de propósito: um campo "Adicionar
-          // código promocional" que nunca aceita nada planta a dúvida
-          // "existe um desconto que eu não estou pegando?" — e a pessoa
-          // sai da tela de pagamento para procurar cupom no Google.
-          // Ligue com STRIPE_CUPONS=1 no dia em que criar os códigos lá.
-          allow_promotion_codes: CONFIG.STRIPE_CUPONS ? "true" : undefined,
-          custom_text: { submit: { message: MARCA.avisoAssinatura } },
-          subscription_data: {
-            metadata: { empresa_id: empAss.id, plano: planoAss },
-            // Aparece na fatura e no extrato do cartão do cliente.
-            // Sem isto, a cobrança chega como um nome genérico e vira
-            // contestação — que além do estorno custa taxa e reputação
-            // com as bandeiras.
-            description: "Workap — " + infoPlano.nome
-          },
-          metadata: { empresa_id: empAss.id, plano: planoAss }
-        });
-
-        secLog("checkout_criado", { empresa_id: empAss.id, plano: planoAss, gateway: "stripe" });
-        return jsonOk(res, { url: sessao.url });
-      } catch (e) {
-        registrarErro("pagamento", e.message, {
-          rota: "/assinatura/checkout", metodo: "POST", status: e.status || null,
-          empresa_id: empAss.id, detalhe: { plano: planoAss }
-        });
-        return jsonErr(res, "Não foi possível abrir o pagamento agora. Tente de novo em instantes.", 502);
       }
     }
 
@@ -4251,183 +3987,6 @@ var server = http.createServer(async (req, res) => {
       return jsonOk(res, { recebido: true });
     }
 
-    // ── WEBHOOK DA STRIPE (rota pública, assinada) ──
-    //
-    // É por aqui que o dinheiro vira acesso. Fica antes do portão de
-    // JWT porque quem chama é a Stripe, que não tem token — a prova de
-    // identidade é a assinatura HMAC do corpo.
-    if (method === "POST" && path === "/webhook/stripe") {
-      var corpoCru = await getBody(req, 256 * 1024);
-      if (!stripeAssinaturaValida(corpoCru, req.headers["stripe-signature"])) {
-        secLog("webhook_stripe_assinatura_invalida", { ip: ip });
-        return jsonErr(res, "Assinatura inválida", 400);
-      }
-
-      var evento = parseBody(corpoCru);
-      if (!evento || !evento.id) return jsonErr(res, "Evento inválido");
-
-      // Idempotência pelo banco: a chave primária é o id do evento,
-      // então a duplicata é recusada pelo próprio Postgres. A Stripe
-      // reenvia quando não recebe 200 — e às vezes reenvia mesmo tendo
-      // recebido. Sem isto, um "invoice.paid" repetido somaria mais um
-      // mês de acesso de graça.
-      try {
-        await supabase("POST", "eventos_pagamento", {
-          body: { id: evento.id, gateway: "stripe", tipo: evento.type,
-                  payload: { objeto: (evento.data && evento.data.object && evento.data.object.id) || null } },
-          prefer: "return=minimal"
-        });
-      } catch (e) {
-        secLog("webhook_stripe_repetido", { evento: evento.id, tipo: evento.type });
-        return jsonOk(res, { recebido: true, repetido: true });
-      }
-
-      try {
-        var obj = (evento.data && evento.data.object) || {};
-
-        // ── Cobrança avulsa (link do painel) ──
-        //
-        // Tratada primeiro e com `return`: não tem assinatura
-        // envolvida, e continuar cairia na busca por empresa — que não
-        // acharia nada e registraria um erro falso de "pagamento sem
-        // empresa identificada".
-        //
-        // Os três eventos abaixo existem por causa do Pix e do boleto.
-        // No cartão a sessão fecha já paga; nos outros dois ela fecha
-        // com payment_status "unpaid" e o dinheiro só cai depois. Tratar
-        // "sessão concluída" como "pago" liberaria o acesso para quem
-        // apenas imprimiu o boleto — e nunca o pagou.
-        var ehSessao = evento.type === "checkout.session.completed" ||
-                       evento.type === "checkout.session.async_payment_succeeded" ||
-                       evento.type === "checkout.session.async_payment_failed" ||
-                       evento.type === "checkout.session.expired";
-
-        // Duas vias para achar a cobrança, porque uma só é frágil: a
-        // metadata do Payment Link nem sempre desce para a sessão, e
-        // sem a segunda via um pagamento real ficaria sem dono — o
-        // dinheiro entra e o link continua marcado como "aberto".
-        var idLinkHook = null;
-        if (ehSessao) {
-          idLinkHook = (obj.metadata && obj.metadata.link_id) || null;
-          if (!idLinkHook && obj.payment_link) {
-            var porGateway = await DB.select("links_pagamento",
-              "gateway_id=eq." + encodeURIComponent(String(obj.payment_link)) + "&select=id");
-            idLinkHook = porGateway.body && porGateway.body[0] && porGateway.body[0].id;
-          }
-        }
-
-        if (idLinkHook) {
-          var pagoDeFato = obj.payment_status === "paid" ||
-                           evento.type === "checkout.session.async_payment_succeeded";
-
-          if (pagoDeFato) {
-            await DB.update("links_pagamento", "id=eq." + idLinkHook, {
-              status: "pago",
-              pago_em: new Date().toISOString(),
-              // O valor CONFIRMADO, separado do pedido. Divergência
-              // silenciosa em cobrança só aparece no fim do mês.
-              valor_pago_centavos: typeof obj.amount_total === "number" ? obj.amount_total : null
-            });
-            secLog("link_pagamento_pago", { link_id: idLinkHook, metodo: obj.payment_method_types });
-
-            // Link que vende plano: libera o acesso agora, se a empresa
-            // já existir. Se não existir, a concessão fica pendente e é
-            // aplicada no cadastro — o dinheiro não pode entrar sem o
-            // acesso abrir em algum momento.
-            var linkPago = await DB.select("links_pagamento", "id=eq." + idLinkHook + "&select=*");
-            var lk = linkPago.body && linkPago.body[0];
-            if (lk && lk.plano_concedido && lk.cliente_email) {
-              var empDoLink = await DB.select("empresas",
-                "email=eq." + encodeURIComponent(lk.cliente_email) + "&select=id,nome,email,assinatura_ate");
-              var eLink = empDoLink.body && empDoLink.body[0];
-              if (eLink) await aplicarPlanoDoLink(lk, eLink);
-              else secLog("link_acesso_pendente", { link_id: idLinkHook });
-            }
-
-          } else if (evento.type === "checkout.session.async_payment_failed" ||
-                     evento.type === "checkout.session.expired") {
-            await DB.update("links_pagamento", "id=eq." + idLinkHook, { status: "expirado" });
-            secLog("link_pagamento_expirado", { link_id: idLinkHook, tipo: evento.type });
-
-          } else {
-            // Boleto ou Pix emitido, ainda não compensado. Fica como
-            // está — nem pago, nem expirado.
-            secLog("link_pagamento_aguardando", { link_id: idLinkHook });
-          }
-          return jsonOk(res, { recebido: true });
-        }
-
-        // ── Assinatura ──
-        if (evento.type === "checkout.session.completed") {
-          var empIdSess = obj.client_reference_id || (obj.metadata && obj.metadata.empresa_id);
-          if (empIdSess && obj.subscription) {
-            var assNova = await stripeRequest("GET", "/subscriptions/" + obj.subscription);
-            await aplicarAssinatura(empIdSess, assNova);
-
-            var empBoas = await DB.select("empresas", "id=eq." + empIdSess + "&select=nome,email,plano");
-            var eBoas = empBoas.body && empBoas.body[0];
-            if (eBoas) {
-              // O valor sai do que a Stripe COBROU, não do catálogo: com
-              // cupom aplicado no Checkout os dois divergem, e o e-mail
-              // tem que dizer o que saiu do cartão da pessoa.
-              var valorPago = typeof obj.amount_total === "number"
-                ? centavosParaReais(obj.amount_total)
-                : centavosParaReais(precoDoPlano(eBoas.plano));
-              enviarEmail(eBoas.email, "✅ Assinatura do Workap confirmada",
-                EMAIL_TEMPLATES.pagamentoConfirmado(eBoas.nome, "R$ " + valorPago)).catch(function () {});
-            }
-          }
-
-        } else if (evento.type === "invoice.paid" || evento.type === "invoice.payment_succeeded") {
-          // A renovação mensal cai aqui. É o evento que o fluxo do
-          // Duttyfy simplesmente não tinha — e por isso o mês 2 nunca
-          // chegava, e o cliente usava para sempre pagando uma vez só.
-          if (obj.subscription) {
-            var assRenov = await stripeRequest("GET", "/subscriptions/" + obj.subscription);
-            var empIdRenov = assRenov.metadata && assRenov.metadata.empresa_id;
-            if (!empIdRenov) {
-              var porCliente = await DB.select("empresas",
-                "pagamento_cliente_id=eq." + encodeURIComponent(String(obj.customer)) + "&select=id");
-              empIdRenov = porCliente.body && porCliente.body[0] && porCliente.body[0].id;
-            }
-            if (empIdRenov) await aplicarAssinatura(empIdRenov, assRenov);
-          }
-
-        } else if (evento.type === "invoice.payment_failed") {
-          // Não corta o acesso: a Stripe ainda vai tentar de novo, e o
-          // período já pago continua valendo. Só avisa quem precisa agir.
-          var falhaCli = await DB.select("empresas",
-            "pagamento_cliente_id=eq." + encodeURIComponent(String(obj.customer)) + "&select=id,nome,email");
-          var empFalha = falhaCli.body && falhaCli.body[0];
-          if (empFalha) {
-            secLog("pagamento_falhou", { empresa_id: empFalha.id });
-            registrarErro("pagamento", "Cobrança recusada pelo cartão do cliente", {
-              rota: "/webhook/stripe", empresa_id: empFalha.id,
-              detalhe: { tentativa: obj.attempt_count }
-            });
-          }
-
-        } else if (evento.type === "customer.subscription.updated" ||
-                   evento.type === "customer.subscription.deleted") {
-          var empIdSub = (obj.metadata && obj.metadata.empresa_id);
-          if (!empIdSub) {
-            var porSub = await DB.select("empresas",
-              "pagamento_assinatura_id=eq." + encodeURIComponent(String(obj.id)) + "&select=id");
-            empIdSub = porSub.body && porSub.body[0] && porSub.body[0].id;
-          }
-          if (empIdSub) await aplicarAssinatura(empIdSub, obj);
-        }
-      } catch (e) {
-        registrarErro("pagamento", "Falha ao processar " + evento.type + ": " + e.message, {
-          rota: "/webhook/stripe", metodo: "POST", detalhe: { evento: evento.id }
-        });
-        // 500 de propósito: a Stripe reenvia, e reenviar é melhor do que
-        // um pagamento que entrou e um acesso que não abriu.
-        return jsonErr(res, "Falha ao processar evento", 500);
-      }
-
-      return jsonOk(res, { recebido: true });
-    }
 
     // Rotas abaixo checam permissão específica via requirePermission()
     // em vez de só validar o token — isso é o que efetivamente
@@ -4675,12 +4234,10 @@ var server = http.createServer(async (req, res) => {
 
     // ── ASSINATURA DO DONO: VER E CANCELAR ──────────
     //
-    // Esta tela nasceu porque o gateway anterior não tinha portal
-    // hospedado. Ficou mesmo com a volta para a Stripe: cancelar em
-    // dois cliques, dentro do produto, é melhor do que jogar o cliente
-    // numa página de fora — e o CDC exige que cancelar seja tão fácil
-    // quanto contratar. O portal da Stripe entra ao lado dela, para
-    // trocar cartão e ver recibo (rota /assinatura/portal).
+    // Cancelar em dois cliques, dentro do produto, em vez de jogar o
+    // cliente numa página de fora. Não é opcional: sem caminho de
+    // cancelamento aqui, cada saída vira ticket de suporte — e o CDC
+    // exige que cancelar seja tão fácil quanto contratar.
     if (method === "GET" && path === "/assinatura") {
       if (!authPayload || authPayload.role !== "dono") {
         return jsonErr(res, "Apenas o dono da empresa pode ver a assinatura", 403);
@@ -4717,34 +4274,21 @@ var server = http.createServer(async (req, res) => {
         return jsonErr(res, "Esta conta não tem assinatura ativa.", 404);
       }
 
-      // O gateway da EMPRESA, não o gateway de hoje. Quem assinou antes
-      // de uma troca continua com a cobrança viva no gateway antigo, e é
-      // lá que ela precisa ser encerrada. Usar CONFIG.GATEWAY aqui
-      // deixaria essas assinaturas cobrando para sempre.
-      var empresaDoGateway = eCanc.pagamento_gateway || CONFIG.GATEWAY;
+      // Registrado no erro e no e-mail de alerta: se um dia houver
+      // assinatura de outro gateway nesta base, é isso que revela.
+      var empresaDoGateway = eCanc.pagamento_gateway || "cakto";
 
       // A cobrança precisa parar NO GATEWAY, não só neste banco.
       //
-      // Antes esta rota chamava a Stripe sempre. Com PAGAMENTO_GATEWAY
-      // em "cakto" isso mandava um id da Cakto para a Stripe: erro,
-      // engolido pelo catch, e o banco marcava como cancelado. O
-      // cliente perderia o acesso no fim do período e continuaria sendo
-      // COBRADO todo mês — o pior desfecho possível, porque ele só
-      // descobre na fatura e a conversa seguinte é sobre estorno.
+      // Marcar como cancelada aqui e não encerrar lá é o pior desfecho
+      // possível: o cliente perde o acesso no fim do período e continua
+      // sendo COBRADO todo mês. Ele só descobre na fatura, e a conversa
+      // seguinte é sobre estorno.
       var canceladoNoGateway = false, motivoFalha = null;
       try {
-        if (empresaDoGateway === "cakto") {
-          // ⚠️ Caminho inferido, como o resto do bloco CAKTO.
-          await caktoRequest("POST",
-            "/public_api/subscriptions/" + eCanc.pagamento_assinatura_id + "/cancel/", {});
-        } else {
-          // cancel_at_period_end, não `DELETE /subscriptions`: o segundo
-          // encerra na hora e a Stripe pararia de cobrar já — mas também
-          // tiraria o serviço de quem pagou o mês inteiro.
-          await stripeRequest("POST", "/subscriptions/" + eCanc.pagamento_assinatura_id, {
-            cancel_at_period_end: "true"
-          });
-        }
+        // ⚠️ Caminho inferido, como o resto do bloco CAKTO.
+        await caktoRequest("POST",
+          "/public_api/subscriptions/" + eCanc.pagamento_assinatura_id + "/cancel/", {});
         canceladoNoGateway = true;
       } catch (e) {
         motivoFalha = e.message;
@@ -4783,42 +4327,6 @@ var server = http.createServer(async (req, res) => {
         acesso_ate: eCanc.assinatura_ate,
         mensagem: "Assinatura cancelada. Seu acesso continua até o fim do período já pago."
       });
-    }
-
-    // ── PORTAL DE COBRANÇA (dono logado) ────────────
-    //
-    // Trocar o cartão que venceu, baixar recibo, ver o histórico. Sem
-    // isto, um cartão expirado vira churn silencioso: a cobrança falha,
-    // o cliente não tem onde corrigir, e some. A Stripe hospeda essa
-    // tela inteira — aqui só se abre a porta para ela.
-    if (method === "POST" && path === "/assinatura/portal") {
-      if (authPayload.role !== "dono") {
-        return jsonErr(res, "Apenas o dono da empresa pode gerenciar a assinatura", 403);
-      }
-      var empPortal = await DB.select("empresas",
-        "id=eq." + authPayload.empresa_id + "&select=pagamento_cliente_id,pagamento_gateway");
-      var linhaPortal = empPortal.body && empPortal.body[0];
-      var cidPortal = linhaPortal && linhaPortal.pagamento_cliente_id;
-      if (!cidPortal) return jsonErr(res, "Esta conta ainda não tem assinatura.", 404);
-      // O portal é uma tela da Stripe. Quem assinou pela Cakto não tem
-      // equivalente — e chamar a Stripe com um id de outro gateway daria
-      // um 502 sem explicação nenhuma para quem clicou.
-      if (linhaPortal.pagamento_gateway && linhaPortal.pagamento_gateway !== "stripe") {
-        return jsonErr(res, "A gestão do cartão desta assinatura é feita pelo e-mail de cobrança que você recebeu.", 404);
-      }
-
-      try {
-        var portal = await stripeRequest("POST", "/billing_portal/sessions", {
-          customer: cidPortal,
-          return_url: CONFIG.SITE_URL + "/app/"
-        });
-        return jsonOk(res, { url: portal.url });
-      } catch (e) {
-        registrarErro("pagamento", e.message, {
-          rota: "/assinatura/portal", metodo: "POST", empresa_id: authPayload.empresa_id
-        });
-        return jsonErr(res, "Não foi possível abrir a gestão da assinatura agora.", 502);
-      }
     }
 
     // ── SESSÃO ATUAL (restaurar login a partir do token) ─────
@@ -5004,25 +4512,13 @@ var server = http.createServer(async (req, res) => {
                   "só entrega no e-mail dono da conta. Cliente novo NÃO consegue se cadastrar. " +
                   "Verifique um domínio em resend.com/domains e defina EMAIL_FROM."
                 : "Remetente: " + soOEndereco(CONFIG.EMAIL_FROM) },
-          CONFIG.GATEWAY === "cakto"
-            ? { nome: "Pagamento (Cakto)",
-                ok: !!CONFIG.CAKTO_CLIENT_ID && !!CONFIG.CAKTO_CLIENT_SECRET && !!CONFIG.CAKTO_WEBHOOK_SECRET,
-                detalhe: !CONFIG.CAKTO_CLIENT_ID || !CONFIG.CAKTO_CLIENT_SECRET
-                  ? "CAKTO_CLIENT_ID/CAKTO_CLIENT_SECRET ausentes"
-                  : !CONFIG.CAKTO_WEBHOOK_SECRET
-                    ? "Credenciais ok, mas CAKTO_WEBHOOK_SECRET ausente — pagamento entra e o acesso NÃO abre"
-                    : "Gateway ativo: Cakto. Integração NÃO conferida contra a documentação — faça uma cobrança de R$ 1 antes de vender" }
-            : { nome: "Pagamento (Stripe)",
-            ok: !!CONFIG.STRIPE_KEY && !!CONFIG.STRIPE_WEBHOOK_SECRET,
-            detalhe: !CONFIG.STRIPE_KEY ? "STRIPE_SECRET_KEY ausente"
-              : !CONFIG.STRIPE_WEBHOOK_SECRET ? "Chave ok, mas STRIPE_WEBHOOK_SECRET ausente — pagamento entra e o acesso NÃO abre"
-              // sk_test_ é o modo de teste da Stripe: o checkout abre e
-              // aceita cartão fictício, mas nenhum dinheiro é movido.
-              // Vender com a chave de teste é a falha mais silenciosa
-              // possível — parece que funcionou, e não entrou nada.
-              : (String(CONFIG.STRIPE_KEY).indexOf("sk_test_") === 0
-                  ? "Modo TESTE — nenhuma cobrança é real"
-                  : "Modo produção") },
+          { nome: "Pagamento (Cakto)",
+            ok: !!CONFIG.CAKTO_CLIENT_ID && !!CONFIG.CAKTO_CLIENT_SECRET && !!CONFIG.CAKTO_WEBHOOK_SECRET,
+            detalhe: !CONFIG.CAKTO_CLIENT_ID || !CONFIG.CAKTO_CLIENT_SECRET
+              ? "CAKTO_CLIENT_ID/CAKTO_CLIENT_SECRET ausentes"
+              : !CONFIG.CAKTO_WEBHOOK_SECRET
+                ? "Credenciais ok, mas CAKTO_WEBHOOK_SECRET ausente — pagamento entra e o acesso NÃO abre"
+                : "Credenciais e webhook configurados" },
           { nome: "Notificações push (VAPID)", ok: !!CONFIG.VAPID_PUBLIC,
             detalhe: CONFIG.VAPID_PUBLIC ? "Chaves válidas" : "Chaves ausentes ou inválidas" },
           { nome: "Rastreio de origem (Utmify)", ok: cfgPlat.utmify_ativo === "1" && !!cfgPlat.utmify_token,
@@ -5272,69 +4768,30 @@ var server = http.createServer(async (req, res) => {
         "domínio próprio", soOEndereco(CONFIG.EMAIL_FROM), null);
 
       // ── Integrações que dependem de configuração ──
-      //
-      // Só o gateway ATIVO é testado. Testar os dois encheria a tela de
-      // vermelho por causa de credenciais que ninguém precisa ter — e um
-      // painel que mostra falha esperada é um painel que se aprende a
-      // ignorar.
-      anotar("Gateway de pagamento ativo", "Integrações", true,
-        "stripe ou cakto", CONFIG.GATEWAY, null);
-
-      if (CONFIG.GATEWAY === "cakto") {
-        if (CONFIG.CAKTO_CLIENT_ID && CONFIG.CAKTO_CLIENT_SECRET) {
-          var t0ck = Date.now();
-          var ckOk = false, ckDet = "";
-          try {
-            // Pede o token de verdade. É a única chamada que prova que o
-            // par client_id/secret vale — e é justamente a que falha
-            // primeiro se as credenciais foram revogadas.
-            await caktoToken();
-            ckOk = true;
-            ckDet = "token OAuth2 obtido";
-          } catch (e) { ckDet = e.message.slice(0, 120); }
-          anotar("Credenciais da Cakto são válidas", "Integrações", ckOk,
-            "token aceito pela API", ckDet, Date.now() - t0ck);
-        } else {
-          anotar("Credenciais da Cakto são válidas", "Integrações", false,
-            "token aceito pela API", "CAKTO_CLIENT_ID/CAKTO_CLIENT_SECRET ausentes", null);
-        }
-        anotar("Webhook da Cakto configurado", "Integrações", !!CONFIG.CAKTO_WEBHOOK_SECRET,
-          "CAKTO_WEBHOOK_SECRET definido",
-          CONFIG.CAKTO_WEBHOOK_SECRET
-            ? "definido — cadastre a URL com ?s=<segredo> no painel da Cakto"
-            : "ausente — pagamento entra e o acesso não abre", null);
-
-      } else if (CONFIG.STRIPE_KEY) {
-        var t0stripe = Date.now();
-        var stripeOk = false, stripeDet = "";
+      // A credencial é testada DE VERDADE, não só "está definida": uma
+      // chave revogada continua definida e só falha na hora da venda.
+      if (CONFIG.CAKTO_CLIENT_ID && CONFIG.CAKTO_CLIENT_SECRET) {
+        var t0ck = Date.now();
+        var ckOk = false, ckDet = "";
         try {
-          // /balance é a chamada mais barata que exige chave válida: não
-          // cria nada, não lista nada pesado, e falha na hora se a chave
-          // foi revogada.
-          await stripeRequest("GET", "/balance");
-          stripeOk = true;
-          stripeDet = String(CONFIG.STRIPE_KEY).indexOf("sk_test_") === 0 ? "modo teste" : "modo produção";
-        } catch (e) { stripeDet = e.message.slice(0, 100); }
-        anotar("Chave da Stripe é válida", "Integrações", stripeOk, "aceita pela API", stripeDet, Date.now() - t0stripe);
-
-        // Vender com a chave de teste é a falha mais silenciosa que
-        // existe: o cliente passa o cartão, a tela diz "aprovado", o
-        // acesso abre e nenhum dinheiro entra. Por isso é um teste
-        // separado, e não um detalhe do anterior.
-        anotar("Stripe em modo produção", "Integrações",
-          String(CONFIG.STRIPE_KEY).indexOf("sk_test_") !== 0,
-          "chave sk_live_",
-          String(CONFIG.STRIPE_KEY).indexOf("sk_test_") === 0
-            ? "chave de TESTE — o checkout funciona e nenhum dinheiro entra"
-            : "chave de produção", null);
+          // Pede o token de verdade. É a única chamada que prova que o
+          // par client_id/secret vale — e é justamente a que falha
+          // primeiro se as credenciais foram revogadas.
+          await caktoToken();
+          ckOk = true;
+          ckDet = "token OAuth2 obtido";
+        } catch (e) { ckDet = e.message.slice(0, 120); }
+        anotar("Credenciais da Cakto são válidas", "Integrações", ckOk,
+          "token aceito pela API", ckDet, Date.now() - t0ck);
       } else {
-        anotar("Chave da Stripe é válida", "Integrações", false, "aceita pela API", "STRIPE_SECRET_KEY ausente", null);
+        anotar("Credenciais da Cakto são válidas", "Integrações", false,
+          "token aceito pela API", "CAKTO_CLIENT_ID/CAKTO_CLIENT_SECRET ausentes", null);
       }
-      if (CONFIG.GATEWAY !== "cakto") {
-        anotar("Webhook da Stripe configurado", "Integrações", !!CONFIG.STRIPE_WEBHOOK_SECRET,
-          "STRIPE_WEBHOOK_SECRET definido",
-          CONFIG.STRIPE_WEBHOOK_SECRET ? "definido" : "ausente — pagamento entra e o acesso não abre", null);
-      }
+      anotar("Webhook da Cakto configurado", "Integrações", !!CONFIG.CAKTO_WEBHOOK_SECRET,
+        "CAKTO_WEBHOOK_SECRET definido",
+        CONFIG.CAKTO_WEBHOOK_SECRET
+          ? "definido — cadastre a URL com ?s=<segredo> no painel da Cakto"
+          : "ausente — pagamento entra e o acesso não abre", null);
       anotar("Notificações push configuradas", "Integrações", !!CONFIG.VAPID_PUBLIC && !!CONFIG.VAPID_PRIVATE,
         "par de chaves VAPID", CONFIG.VAPID_PUBLIC ? "chaves presentes" : "ausentes", null);
 
@@ -5348,7 +4805,7 @@ var server = http.createServer(async (req, res) => {
         // funciona — e a cobrança real nunca foi exercida.
         nao_testado: [
           "Cobrança de verdade: cartão aprovado, Pix pago ou boleto compensado",
-          "Se o webhook da Stripe chega neste servidor (só um pagamento real prova)",
+          "Se o webhook da Cakto chega neste servidor (só um pagamento real prova)",
           "Entrega real de e-mail para um endereço de terceiro",
           "Envio de notificação push para um aparelho"
         ]
@@ -5496,25 +4953,23 @@ var server = http.createServer(async (req, res) => {
     // ═══════════════════════════════════════════════
     // Cobra o que NÃO passa pela assinatura: setup, consultoria, plano
     // anual combinado por fora. Sem isto, essas cobranças teriam que ser
-    // feitas no painel da Stripe, sem registro nenhum do lado do
+    // feitas no painel da Cakto, sem registro nenhum do lado do
     // Workap — e depois ninguém sabe quem pagou o quê.
 
     // Nomes em maiúsculo continuam sendo o que o painel manda e o que
-    // está gravado nas linhas antigas; a tradução para o vocabulário da
-    // Stripe acontece na criação. Renomear no banco obrigaria a migrar
+    // está gravado nas linhas antigas; a tradução para o vocabulário do
+    // gateway acontece na criação. Renomear no banco obrigaria a migrar
     // as cobranças já feitas para ganhar nada.
     var METODOS_PAGAMENTO = ["PIX", "CARD", "BOLETO"];
-    var METODO_STRIPE = { PIX: "pix", CARD: "card", BOLETO: "boleto" };
     var METODO_CAKTO  = { PIX: "pix", CARD: "credit_card", BOLETO: "boleto" };
 
     if (method === "POST" && path === "/owner/links") {
       if (!hasPermission(authPayload, "saas:write")) {
         return jsonErr(res, "Apenas o owner da Workap pode criar cobranças", 403);
       }
-      var gwPronto = CONFIG.GATEWAY === "cakto"
-        ? (CONFIG.CAKTO_CLIENT_ID && CONFIG.CAKTO_CLIENT_SECRET)
-        : CONFIG.STRIPE_KEY;
-      if (!gwPronto) return jsonErr(res, "Pagamento não configurado", 503);
+      if (!CONFIG.CAKTO_CLIENT_ID || !CONFIG.CAKTO_CLIENT_SECRET) {
+        return jsonErr(res, "Pagamento não configurado", 503);
+      }
 
       var rawLink = await getBody(req);
       var bodyLink = parseBody(rawLink);
@@ -5534,9 +4989,8 @@ var server = http.createServer(async (req, res) => {
         : [];
       if (!metodosLink.length) metodosLink = ["PIX"];
       // PIX sempre primeiro quando estiver na lista: continua sendo o
-      // mais barato para a Workap na Stripe (1,19% contra 3,99% +
-      // R$ 0,39 do cartão e 3,45% do boleto), e a ordem manda em qual o
-      // cliente escolhe.
+      // mais barato para a Workap, e a ordem manda em qual o cliente
+      // escolhe.
       metodosLink.sort(function (a, b) { return (a === "PIX" ? -1 : 0) - (b === "PIX" ? -1 : 0); });
 
       var nomeCli  = SANITIZE.string(bodyLink.cliente_nome || "", 120) || null;
@@ -5568,117 +5022,42 @@ var server = http.createServer(async (req, res) => {
           cliente_email: emailCli,
           plano_concedido: planoLink,
           dias_acesso: diasLink,
-          gateway: CONFIG.GATEWAY,
+          gateway: "cakto",
           status: "aberto"
         });
         linhaLink = criado.body && criado.body[0];
         if (!linhaLink) return jsonErr(res, "Não foi possível registrar a cobrança", 500);
 
-        // ── Caminho Cakto ──
-        if (CONFIG.GATEWAY === "cakto") {
-          var cobrCk = await criarCobrancaCakto({
-            nome: descLink,
-            descricao: planoLink
-              ? CONFIG.PLANOS[planoLink].nome + " · " + diasLink + " dias de acesso"
-              : undefined,
-            centavos: centavosLink,
-            // Cobrança única: o link vende um acesso por prazo fixo, não
-            // uma assinatura. Quem renova é o cliente, comprando de novo.
-            recorrente: false,
-            metodos: metodosLink.map(function (m) { return METODO_CAKTO[m]; }),
-            metadata: { link_id: linhaLink.id }
-          });
-
-          if (!cobrCk.url) {
-            await DB.update("links_pagamento", "id=eq." + linhaLink.id, { status: "cancelado" });
-            registrarErro("pagamento", "Cakto não devolveu URL para o link de cobrança", {
-              rota: "/owner/links", detalhe: { campos: Object.keys(cobrCk.resposta || {}).join(",") }
-            });
-            return jsonErr(res, "O gateway não devolveu o link. Confira a configuração em Diagnóstico.", 502);
-          }
-
-          await DB.update("links_pagamento", "id=eq." + linhaLink.id, {
-            gateway_id: cobrCk.id || null,
-            url: cobrCk.url
-          });
-          secLog("link_pagamento_criado", {
-            valor: centavosLink, metodos: metodosLink.join(","),
-            plano: planoLink || "nenhum", dias: diasLink, gateway: "cakto"
-          });
-          return jsonOk(res, { ok: true, id: linhaLink.id, url: cobrCk.url });
-        }
-
-        // Payment Link, e não Checkout Session, por um motivo prático: a
-        // sessão de checkout expira em 24 horas. Um link que o dono
-        // manda por WhatsApp na sexta e o cliente abre na segunda estaria
-        // morto — e o dono só descobriria pela reclamação.
-        //
-        // O preço da Stripe exige um Produto antes, então são três
-        // chamadas. É o custo de ter um link que não vence.
-        var produtoLink = await stripeRequest("POST", "/products", {
-          name: descLink,
-          // Quando o link vende plano, a tela de pagamento diz o que a
-          // pessoa está levando e por quanto tempo. Sem isso ela vê só
-          // "Plano anual combinado" e um valor — e quem negociou por
-          // WhatsApp não tem como conferir se é o que foi acertado.
-          description: planoLink
+        var cobrCk = await criarCobrancaCakto({
+          nome: descLink,
+          descricao: planoLink
             ? CONFIG.PLANOS[planoLink].nome + " · " + diasLink + " dias de acesso"
             : undefined,
-          images: { 0: MARCA.imagem() },
+          centavos: centavosLink,
+          // Cobrança única: o link vende um acesso por prazo fixo, não
+          // uma assinatura. Quem renova é o cliente, comprando de novo.
+          recorrente: false,
+          metodos: metodosLink.map(function (m) { return METODO_CAKTO[m]; }),
           metadata: { link_id: linhaLink.id }
         });
-        var precoLink = await stripeRequest("POST", "/prices", {
-          product: produtoLink.id,
-          currency: "brl",
-          // Em CENTAVOS, como todo dinheiro deste projeto.
-          unit_amount: centavosLink
-        });
 
-        var linkStripe = await stripeRequest("POST", "/payment_links", {
-          line_items: { 0: { price: precoLink.id, quantity: 1 } },
-          payment_method_types: metodosLink.map(function (m) { return METODO_STRIPE[m]; }),
-          // Botão "Pagar", e não o padrão que a Stripe escolhe sozinha.
-          submit_type: "pay",
-          custom_text: { submit: { message: MARCA.avisoAvulso } },
-          // CPF/CNPJ. Obrigatório para boleto — sem ele o boleto nem é
-          // emitido. E quando o comprador é empresa (que é o caso na
-          // maioria destes links), o CNPJ é o que ele precisa no
-          // comprovante para lançar a despesa.
-          tax_id_collection: { enabled: "true" },
-          // Boleto exige endereço do pagador. Pedido sempre, porque
-          // descobrir isso só na hora em que o cliente escolhe boleto
-          // seria descobrir com ele parado na tela.
-          billing_address_collection: metodosLink.includes("BOLETO") ? "required" : "auto",
-          // metadata sobe para a sessão de checkout que o cliente abrir,
-          // e é por ela que o webhook sabe qual cobrança foi paga. O
-          // webhook ainda casa por `gateway_id` como segunda via, caso a
-          // metadata não venha.
-          metadata: { link_id: linhaLink.id },
-          after_completion: {
-            type: "redirect",
-            redirect: { url: CONFIG.SITE_URL + "/?cobranca=ok" }
-          }
-        });
-
-        if (!linkStripe.url) {
+        if (!cobrCk.url) {
           await DB.update("links_pagamento", "id=eq." + linhaLink.id, { status: "cancelado" });
-          registrarErro("pagamento", "Stripe não devolveu URL para o link de cobrança", {
-            rota: "/owner/links", detalhe: { campos: Object.keys(linkStripe || {}).join(",") }
+          registrarErro("pagamento", "Cakto não devolveu URL para o link de cobrança", {
+            rota: "/owner/links", detalhe: { campos: Object.keys(cobrCk.resposta || {}).join(",") }
           });
           return jsonErr(res, "O gateway não devolveu o link. Confira a configuração em Diagnóstico.", 502);
         }
 
-        var urlLink = linkStripe.url;
         await DB.update("links_pagamento", "id=eq." + linhaLink.id, {
-          gateway_id: linkStripe.id || null,
-          url: urlLink
+          gateway_id: cobrCk.id || null,
+          url: cobrCk.url
         });
-
         secLog("link_pagamento_criado", {
           valor: centavosLink, metodos: metodosLink.join(","),
-          plano: planoLink || "nenhum", dias: diasLink
+          plano: planoLink || "nenhum", dias: diasLink, gateway: "cakto"
         });
-        return jsonOk(res, { ok: true, id: linhaLink.id, url: urlLink });
+        return jsonOk(res, { ok: true, id: linhaLink.id, url: cobrCk.url });
       } catch (e) {
         if (linhaLink) await DB.update("links_pagamento", "id=eq." + linhaLink.id, { status: "cancelado" }).catch(function () {});
         registrarErro("pagamento", e.message, { rota: "/owner/links", metodo: "POST", status: e.status || null });

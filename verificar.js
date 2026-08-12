@@ -51,7 +51,7 @@ var CRITICAS = {
   "index.html": [
     "mostrarErro", "abrirCheckout", "fecharCheckout", "resetModal", "mostrarStep",
     "escolherPlano", "aplicarPlanoNaTela", "carregarPlanos", "continuarParaOferta",
-    "irParaPagamento", "tratarRetornoDaStripe", "abrirFunil", "fecharFunil",
+    "irParaPagamento", "tratarRetornoDoPagamento", "abrirFunil", "fecharFunil",
     "montarSegmentosDoFunil", "montarPlanosDoFunil", "buscarRamos", "botaoOcupado"
   ],
   "app/index.html": [

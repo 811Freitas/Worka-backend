@@ -1016,13 +1016,9 @@ tr:hover td{background:var(--g50)}
     </div>
 
     <div class="page" id="pg-visual">
-      <!-- Assinatura: cancelar aqui mesmo; trocar cartão e ver recibo
-           na tela hospedada pela Stripe.
-           Cancelar ficou dentro do produto de propósito: sem isso, cada
-           saída vira ticket de suporte, e o CDC exige que cancelar seja
-           tão fácil quanto contratar. Já o cartão vencido precisa do
-           portal — sem ele a cobrança falha, o cliente não tem onde
-           corrigir, e some sem dizer nada. -->
+      <!-- Assinatura: cancelar aqui mesmo, em dois cliques.
+           Sem isso cada saída vira ticket de suporte, e o CDC exige que
+           cancelar seja tão fácil quanto contratar. -->
       <div class="card" style="margin-bottom:16px">
         <div class="card-header">
           <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-card></use></svg> Assinatura</div>
@@ -1032,9 +1028,6 @@ tr:hover td{background:var(--g50)}
           <p style="font-size:.82rem;color:var(--gray500);margin-bottom:14px" id="assinatura-texto">
             Carregando...
           </p>
-          <button class="btn btn-secondary" id="btn-portal" onclick="abrirPortalCobranca()" style="display:none;margin-right:8px">
-            <svg class=ico aria-hidden=true><use href=#i-card></use></svg> Trocar cartão e ver recibos
-          </button>
           <button class="btn btn-secondary" id="btn-assinatura" onclick="cancelarAssinatura()" style="display:none">
             <svg class=ico aria-hidden=true><use href=#i-x></use></svg> Cancelar assinatura
           </button>
@@ -4637,18 +4630,16 @@ async function carregarErros() {
 }
 
 /**
- * Estado da assinatura, cancelamento e porta para o portal da Stripe.
+ * Estado da assinatura e cancelamento.
  *
  * Cancelar mora aqui dentro: sem caminho de cancelamento no produto,
  * cada saída vira ticket de suporte — e o CDC exige que cancelar seja
- * tão fácil quanto contratar. Trocar cartão e ver recibo ficam no
- * portal da Stripe, que já resolve isso pronto.
+ * tão fácil quanto contratar.
  */
 async function carregarAssinatura() {
   var texto = document.getElementById('assinatura-texto');
   var badge = document.getElementById('assinatura-badge');
   var botao = document.getElementById('btn-assinatura');
-  var portal = document.getElementById('btn-portal');
   if (!texto) return;
 
   var d = null;
@@ -4658,10 +4649,6 @@ async function carregarAssinatura() {
   } catch (e) {}
 
   if (!d) { texto.textContent = 'Não consegui carregar os dados da assinatura agora.'; return; }
-
-  // O portal aparece sempre que existe cliente no gateway — inclusive
-  // para quem cancelou, que ainda precisa dos recibos do que pagou.
-  if (portal) portal.style.display = d.tem_portal ? 'inline-flex' : 'none';
 
   badge.textContent = d.plano_nome + ' · R$ ' + d.preco_reais;
   badge.className = 'badge ' + (d.status === 'ativa' ? 'badge-green' : 'badge-yellow');
@@ -4686,25 +4673,6 @@ async function carregarAssinatura() {
       ? 'Você está no período de teste. Ainda não há assinatura.'
       : 'Nenhuma assinatura ativa nesta conta.';
     botao.style.display = 'none';
-  }
-}
-
-// Abre o portal da Stripe numa aba nova. A URL é de uso único e curta
-// duração, então é pedida na hora do clique — guardar não adiantaria.
-async function abrirPortalCobranca() {
-  var liberar = botaoOcupado(document.getElementById('btn-portal'), 'Abrindo...');
-  try {
-    var r = await fetch(API_BASE + '/assinatura/portal', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token }
-    });
-    var d = await r.json().catch(function () { return {}; });
-    liberar();
-    if (!r.ok || !d.url) { alert(d.error || 'Não foi possível abrir a gestão da assinatura.'); return; }
-    window.location.href = d.url;
-  } catch (e) {
-    liberar();
-    alert('Erro de conexão. Tente de novo.');
   }
 }
 
@@ -5086,23 +5054,19 @@ async function mudarStatusChamado(novo) {
 // ═══════════════════════════════════════════════════════════
 var linkRecemCriado = null;
 
-// Taxas da Stripe no Brasil, para a tela dizer quanto sobra ANTES de
-// gerar a cobrança.
+// Taxas do gateway, para a tela dizer quanto sobra ANTES de gerar a
+// cobrança.
 //
-// ⚠️  CONFIRA CONTRA O SEU PAINEL (stripe.com → Configurações →
-// Preços). Estes são os valores de tabela; a taxa real varia por conta
-// e pode ser negociada por volume. Errado aqui, o número que aparece na
-// tela vira preço errado cobrado do cliente.
+// ⚠️  CONFIRA CONTRA O SEU PAINEL DA CAKTO. Estes números são um
+// PLACEHOLDER: não consegui abrir a documentação deles nesta rede, e a
+// taxa varia por conta e por volume. Errado aqui, o número que aparece
+// na tela vira preço errado cobrado do cliente.
 //
-// MUDANÇA QUE IMPORTA: no gateway anterior o Pix era R$ 0,80 FIXO.
-// Aqui é percentual. Em R$ 49,99 dá quase o mesmo (R$ 0,59 contra
-// R$ 0,80), mas num plano anual de R$ 899 a diferença é grande:
-// R$ 10,70 contra R$ 0,80. Vale olhar este número antes de fechar
-// valor alto no Pix.
+// Enquanto não conferir, trate o valor mostrado como estimativa grossa.
 var TAXAS_GATEWAY = {
-  PIX:    { nome: 'PIX',    percentual: 0.0119, fixo: 0 },
-  CARD:   { nome: 'Cartão', percentual: 0.0399, fixo: 39 },
-  BOLETO: { nome: 'Boleto', percentual: 0.0345, fixo: 0 }
+  PIX:    { nome: 'PIX',    percentual: 0.0199, fixo: 0 },
+  CARD:   { nome: 'Cartão', percentual: 0.0499, fixo: 0 },
+  BOLETO: { nome: 'Boleto', percentual: 0,      fixo: 349 }
 };
 
 function mascaraValorLink(el) {
