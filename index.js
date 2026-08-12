@@ -2252,6 +2252,80 @@ async function caktoRequest(metodo, caminho, corpo) {
   }
 }
 
+/**
+ * Pergunta ao servidor deles quais valores um campo aceita.
+ *
+ * O Django REST Framework responde a OPTIONS com o esquema do
+ * formulário — inclusive a lista fechada de cada campo de escolha:
+ *
+ *   { "actions": { "POST": { "type": { "choices": [
+ *       { "value": "curso", "display_name": "Curso" } ] } } } }
+ *
+ * Isto existe porque a documentação da Cakto é inalcançável desta rede
+ * e o campo `type` já recusou "one_time" e "digital" sem dizer o que
+ * aceita. Adivinhar valor por valor custaria uma rodada inteira de
+ * "sobe no Render, tenta no celular, manda o print" para CADA palpite.
+ * Perguntar custa uma requisição.
+ *
+ * Devolve [] quando o servidor não colabora — aí o palpite volta a ser
+ * a única saída, mas o erro final pelo menos diz que a pergunta foi
+ * feita.
+ */
+var caktoEscolhasCache = {};
+
+// Valor de `type` que a API realmente aceitou, descoberto em execução.
+// Enquanto CAKTO.tipoProduto continua sendo o palpite inicial, este é o
+// que passou pela validação de verdade.
+var caktoTipoDescoberto = null;
+
+async function caktoEscolhasDe(caminho, campo) {
+  var chave = caminho + "#" + campo;
+  if (caktoEscolhasCache[chave]) return caktoEscolhasCache[chave];
+
+  var esquema;
+  try {
+    esquema = await caktoRequestCru("OPTIONS", caminho, null, await caktoToken());
+  } catch (e) {
+    secLog("cakto_options_falhou", { caminho: caminho, message: e.message.slice(0, 120) });
+    return [];
+  }
+
+  var post = esquema && esquema.actions && (esquema.actions.POST || esquema.actions.post);
+  var bruto = post && post[campo] && post[campo].choices;
+  if (!Array.isArray(bruto)) return [];
+
+  // A lista vem como objetos {value, display_name} ou como texto solto,
+  // conforme a versão do DRF.
+  var valores = bruto.map(function (c) {
+    return (c && typeof c === "object") ? c.value : c;
+  }).filter(function (v) { return typeof v === "string" && v; });
+
+  caktoEscolhasCache[chave] = valores;
+  secLog("cakto_escolhas", { campo: campo, valores: valores.join(",").slice(0, 200) });
+  return valores;
+}
+
+/**
+ * Escolhe, entre os valores que a API aceita, o que melhor descreve o
+ * Workap. A ordem é do mais específico ao mais genérico; software é o
+ * que o produto é, e "digital" costuma ser o guarda-chuva onde ele cai
+ * quando não há opção melhor.
+ *
+ * Sem nenhuma correspondência, fica com o primeiro da lista: um valor
+ * que a API aceita é melhor do que uma cobrança que não nasce. O
+ * cadastro do produto pode ser corrigido no painel deles depois; um
+ * cliente que não consegue pagar, não.
+ */
+function melhorTipoDeProduto(valores) {
+  var preferencia = ["software", "saas", "digital", "servico", "serviço", "service",
+                     "assinatura", "subscription", "curso", "course", "outro", "other"];
+  for (var p of preferencia) {
+    var achado = valores.find(function (v) { return String(v).toLowerCase() === p; });
+    if (achado) return achado;
+  }
+  return valores[0] || null;
+}
+
 // Acha o link de pagamento sem depender de UM nome de campo.
 function urlDaCobrancaCakto(resposta) {
   if (!resposta) return null;
@@ -2305,7 +2379,34 @@ async function criarCobrancaCakto(opcoes) {
   // produto. Ausente = cobrança única.
   if (opcoes.recorrente) corpo.recurrence_frequency = CAKTO.frequenciaMensal;
 
-  var criado = await caktoRequest("POST", CAKTO.criarProduto, corpo);
+  // Se já descobrimos o valor que a API aceita, usa ele direto.
+  if (caktoTipoDescoberto) corpo.type = caktoTipoDescoberto;
+
+  var criado;
+  try {
+    criado = await caktoRequest("POST", CAKTO.criarProduto, corpo);
+  } catch (e) {
+    // `type` recusado: em vez de chutar outro valor e gastar mais uma
+    // rodada de teste, PERGUNTA quais existem e tenta de novo com o
+    // melhor. "one_time" e "digital" já foram recusados assim.
+    if (!/type:/.test(e.message) || !/escolha|choice/i.test(e.message)) throw e;
+
+    var valores = await caktoEscolhasDe(CAKTO.criarProduto, "type");
+    var escolhido = melhorTipoDeProduto(valores);
+    if (!escolhido) {
+      throw new Error(e.message + " — e o servidor não quis dizer quais valores aceita " +
+                      "(OPTIONS sem lista). Veja em Diagnóstico → Erros.");
+    }
+
+    corpo.type = escolhido;
+    criado = await caktoRequest("POST", CAKTO.criarProduto, corpo);
+
+    // Guardado em memória para as próximas cobranças não repetirem a
+    // descoberta. Volta a zero quando o serviço reinicia, o que é o
+    // suficiente: são duas requisições a mais uma vez por deploy.
+    caktoTipoDescoberto = escolhido;
+    secLog("cakto_tipo_descoberto", { valor: escolhido, opcoes: valores.join(",").slice(0, 200) });
+  }
   var link = urlDaCobrancaCakto(criado);
   return {
     id: criado.id || (criado.default_offer && criado.default_offer.id) || null,
