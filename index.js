@@ -2118,44 +2118,72 @@ async function caktoToken() {
   }
   if (caktoTokenCache.valor && Date.now() < caktoTokenCache.expiraEm) return caktoTokenCache.valor;
 
-  // Duas formas de apresentar a credencial, nesta ordem. As duas são
-  // OAuth2 padrão (RFC 6749) e servidores diferentes aceitam uma, a
-  // outra, ou as duas — não dá para saber sem a documentação, que esta
-  // rede não alcança.
+  // ESCADA DE TENTATIVAS
   //
-  //   1. no corpo do formulário (client_secret_post)
-  //   2. em HTTP Basic (client_secret_basic)
+  // Sem a documentação (o domínio deles é bloqueado nesta rede), o
+  // formato do pedido de token foi descoberto pelas RESPOSTAS de erro
+  // do próprio servidor, uma de cada vez:
   //
-  // Tentar as duas custa uma requisição a mais SÓ quando a primeira
-  // falha, e apenas na renovação do token — que acontece a cada 30
-  // minutos, não a cada cobrança.
+  //   JSON + client_id/secret          → 401 invalid_client
+  //     (não leu o corpo: JSON não é formulário)
+  //   form + grant_type=client_credentials → 400 unsupported_grant_type
+  //     (leu o corpo — o formato está certo — mas não aceita esse grant)
+  //
+  // Cada erro estreitou o cerco. O que sobrou foi tentar os formatos
+  // plausíveis restantes em ordem, do mais provável ao menos, e deixar
+  // o servidor escolher. O que funcionar fica registrado no log
+  // (`cakto_token_ok`) para poder ser fixado depois — esta escada é
+  // andaime, não arquitetura.
+  //
+  // Custa requisição extra só quando falha, e só na renovação do token:
+  // a cada 30 minutos, não a cada cobrança.
   var basic = Buffer.from(CONFIG.CAKTO_CLIENT_ID + ":" + CONFIG.CAKTO_CLIENT_SECRET).toString("base64");
+  var idSecret = { client_id: CONFIG.CAKTO_CLIENT_ID, client_secret: CONFIG.CAKTO_CLIENT_SECRET };
   var tentativas = [
-    { corpo: { grant_type: "client_credentials",
-               client_id: CONFIG.CAKTO_CLIENT_ID,
-               client_secret: CONFIG.CAKTO_CLIENT_SECRET },
+    // O exemplo da documentação indexada mostra só client_id e
+    // client_secret indo para /token/ — sem grant_type nenhum. Como o
+    // servidor recusou "client_credentials" explicitamente, este virou
+    // o candidato mais forte.
+    { nome: "form sem grant_type",        corpo: idSecret, opcoes: { formulario: true } },
+    { nome: "form grant_type=password",   corpo: Object.assign({ grant_type: "password" }, idSecret),
       opcoes: { formulario: true } },
-    { corpo: { grant_type: "client_credentials" },
-      opcoes: { formulario: true, basic: basic } }
+    { nome: "form client_credentials",    corpo: Object.assign({ grant_type: "client_credentials" }, idSecret),
+      opcoes: { formulario: true } },
+    { nome: "basic client_credentials",   corpo: { grant_type: "client_credentials" },
+      opcoes: { formulario: true, basic: basic } },
+    { nome: "json sem grant_type",        corpo: idSecret, opcoes: {} }
   ];
 
-  var r = null, ultimoErro = null;
+  var r = null, usado = null, falhas = [];
   for (var t of tentativas) {
     try {
       r = await caktoRequestCru("POST", CAKTO.token, t.corpo, null, t.opcoes);
+      usado = t.nome;
       break;
     } catch (e) {
-      ultimoErro = e;
-      // 401/400 é "não gostei da credencial ou do formato" — vale tentar
-      // a outra forma. Qualquer outra falha (rede, 500, timeout) é
-      // problema deles, e insistir só atrasaria a resposta.
+      falhas.push(t.nome + ": " + e.message);
+      // 400/401 é "não gostei do formato ou da credencial" — vale tentar
+      // a próxima. Qualquer outra falha (rede, 500, timeout) é problema
+      // deles, e insistir só atrasaria a resposta.
       if (e.status !== 401 && e.status !== 400) throw e;
     }
   }
-  if (!r) throw ultimoErro;
+
+  // Falhou tudo: a mensagem carrega o que CADA formato respondeu. Com o
+  // ciclo de teste sendo "sobe no Render, tenta no celular, manda print",
+  // um erro que mostra só a última tentativa custaria uma rodada inteira
+  // por formato descartado.
+  if (!r) throw new Error("Cakto recusou todos os formatos de autenticação — " + falhas.join(" | "));
 
   var token = r.access_token || r.token || r.accessToken;
-  if (!token) throw new Error("Cakto: resposta de token sem access_token");
+  if (!token) {
+    throw new Error("Cakto: resposta sem access_token (" + usado + ") — campos recebidos: " +
+                    Object.keys(r).join(",").slice(0, 200));
+  }
+
+  // Qual formato funcionou. Fica no log para virar o único, quando
+  // houver documentação para confirmar.
+  secLog("cakto_token_ok", { formato: usado });
 
   // Renova um minuto antes de vencer, para não usar token que expira no
   // meio da chamada seguinte. Sem `expires_in`, assume 30 minutos.
