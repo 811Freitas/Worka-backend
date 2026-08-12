@@ -4711,27 +4711,65 @@ var server = http.createServer(async (req, res) => {
         return jsonErr(res, "Apenas o dono da empresa pode cancelar", 403);
       }
       var empCanc = await DB.select("empresas",
-        "id=eq." + authPayload.empresa_id + "&select=pagamento_assinatura_id,assinatura_ate");
+        "id=eq." + authPayload.empresa_id + "&select=pagamento_assinatura_id,assinatura_ate,pagamento_gateway");
       var eCanc = empCanc.body && empCanc.body[0];
       if (!eCanc || !eCanc.pagamento_assinatura_id) {
         return jsonErr(res, "Esta conta não tem assinatura ativa.", 404);
       }
 
+      // O gateway da EMPRESA, não o gateway de hoje. Quem assinou antes
+      // de uma troca continua com a cobrança viva no gateway antigo, e é
+      // lá que ela precisa ser encerrada. Usar CONFIG.GATEWAY aqui
+      // deixaria essas assinaturas cobrando para sempre.
+      var empresaDoGateway = eCanc.pagamento_gateway || CONFIG.GATEWAY;
+
+      // A cobrança precisa parar NO GATEWAY, não só neste banco.
+      //
+      // Antes esta rota chamava a Stripe sempre. Com PAGAMENTO_GATEWAY
+      // em "cakto" isso mandava um id da Cakto para a Stripe: erro,
+      // engolido pelo catch, e o banco marcava como cancelado. O
+      // cliente perderia o acesso no fim do período e continuaria sendo
+      // COBRADO todo mês — o pior desfecho possível, porque ele só
+      // descobre na fatura e a conversa seguinte é sobre estorno.
+      var canceladoNoGateway = false, motivoFalha = null;
       try {
-        // cancel_at_period_end, não `DELETE /subscriptions`: o segundo
-        // encerra na hora e a Stripe pararia de cobrar já — mas também
-        // tiraria o serviço de quem pagou o mês inteiro.
-        await stripeRequest("POST", "/subscriptions/" + eCanc.pagamento_assinatura_id, {
-          cancel_at_period_end: "true"
-        });
+        if (empresaDoGateway === "cakto") {
+          // ⚠️ Caminho inferido, como o resto do bloco CAKTO.
+          await caktoRequest("POST",
+            "/public_api/subscriptions/" + eCanc.pagamento_assinatura_id + "/cancel/", {});
+        } else {
+          // cancel_at_period_end, não `DELETE /subscriptions`: o segundo
+          // encerra na hora e a Stripe pararia de cobrar já — mas também
+          // tiraria o serviço de quem pagou o mês inteiro.
+          await stripeRequest("POST", "/subscriptions/" + eCanc.pagamento_assinatura_id, {
+            cancel_at_period_end: "true"
+          });
+        }
+        canceladoNoGateway = true;
       } catch (e) {
-        // Registra e SEGUE: o acesso é decidido por `assinatura_ate`
-        // deste banco, não pelo gateway. Travar o cancelamento porque a
-        // API de fora respondeu mal deixaria a pessoa presa numa
-        // assinatura que ela pediu para encerrar.
-        registrarErro("pagamento", "Falha ao cancelar no gateway: " + e.message, {
-          rota: "/assinatura/cancelar", empresa_id: authPayload.empresa_id
+        motivoFalha = e.message;
+        // SEGUE assim mesmo: o acesso é decidido por `assinatura_ate`
+        // deste banco. Travar o cancelamento porque a API de fora
+        // respondeu mal deixaria a pessoa presa numa assinatura que ela
+        // pediu para encerrar.
+        //
+        // Mas não pode passar em silêncio: alguém tem que parar a
+        // cobrança na mão, e essa pessoa é o dono da Workap.
+        registrarErro("pagamento",
+          "COBRANÇA NÃO FOI CANCELADA NO GATEWAY (" + empresaDoGateway + ") — cancele na mão no painel, " +
+          "senão o cliente continua sendo cobrado depois de ter cancelado. Motivo: " + e.message, {
+          rota: "/assinatura/cancelar", empresa_id: authPayload.empresa_id, status: e.status || null,
+          detalhe: { assinatura_id: eCanc.pagamento_assinatura_id, gateway: empresaDoGateway }
         });
+        if (CONFIG.OWNER_EMAIL) {
+          enviarEmail(CONFIG.OWNER_EMAIL,
+            "⚠️ Cancelamento não chegou ao gateway",
+            "<p>Uma empresa cancelou a assinatura no app, mas a cobrança <strong>não</strong> foi " +
+            "encerrada no gateway (" + empresaDoGateway + ").</p>" +
+            "<p>Cancele na mão no painel, senão o cliente segue sendo cobrado.</p>" +
+            "<p>Assinatura: <code>" + eCanc.pagamento_assinatura_id + "</code></p>"
+          ).catch(function () {});
+        }
       }
 
       // Cancelamento agendado, não imediato: quem pagou o mês usa até o
@@ -4758,9 +4796,16 @@ var server = http.createServer(async (req, res) => {
         return jsonErr(res, "Apenas o dono da empresa pode gerenciar a assinatura", 403);
       }
       var empPortal = await DB.select("empresas",
-        "id=eq." + authPayload.empresa_id + "&select=pagamento_cliente_id");
-      var cidPortal = empPortal.body && empPortal.body[0] && empPortal.body[0].pagamento_cliente_id;
+        "id=eq." + authPayload.empresa_id + "&select=pagamento_cliente_id,pagamento_gateway");
+      var linhaPortal = empPortal.body && empPortal.body[0];
+      var cidPortal = linhaPortal && linhaPortal.pagamento_cliente_id;
       if (!cidPortal) return jsonErr(res, "Esta conta ainda não tem assinatura.", 404);
+      // O portal é uma tela da Stripe. Quem assinou pela Cakto não tem
+      // equivalente — e chamar a Stripe com um id de outro gateway daria
+      // um 502 sem explicação nenhuma para quem clicou.
+      if (linhaPortal.pagamento_gateway && linhaPortal.pagamento_gateway !== "stripe") {
+        return jsonErr(res, "A gestão do cartão desta assinatura é feita pelo e-mail de cobrança que você recebeu.", 404);
+      }
 
       try {
         var portal = await stripeRequest("POST", "/billing_portal/sessions", {
