@@ -72,6 +72,9 @@ const CONFIG = {
   // poderia postar um "invoice.paid" e ganhar acesso de graça — é a
   // única coisa que separa um aviso da Stripe de um aviso forjado.
   STRIPE_WEBHOOK_SECRET: env("STRIPE_WEBHOOK_SECRET"),
+  // Mostrar o campo "código promocional" no checkout. Só ligue depois
+  // de criar cupons na Stripe — ver o comentário na rota de checkout.
+  STRIPE_CUPONS:         env("STRIPE_CUPONS") === "1",
   // Para onde o gateway devolve o cliente depois do pagamento.
   SITE_URL:              env("SITE_URL") || "https://workap.com.br",
   // ENCRYPT_SECRET foi removida: nenhuma linha deste projeto lia esse
@@ -2029,6 +2032,31 @@ function stripeRequest(metodo, caminho, params) {
   });
 }
 
+/**
+ * Identidade do Workap na tela de pagamento.
+ *
+ * A tela é hospedada pela Stripe, mas quase tudo dela vem daqui. O que
+ * NÃO vem — logo, cor do botão, nome da empresa no topo — mora no
+ * painel (Configurações → Branding) e não tem API: é configurado uma
+ * vez, na mão.
+ *
+ * Por que isto importa: a pessoa sai de workap.com.br e cai num
+ * domínio da Stripe para digitar o cartão. Se a tela de lá não parecer
+ * a mesma empresa, ela desconfia e fecha — e a venda morre no último
+ * passo, sem deixar rastro nenhum de por quê.
+ */
+var MARCA = {
+  // Imagem do produto no checkout. PNG de propósito: a Stripe não
+  // renderiza SVG aqui, e o símbolo do projeto é SVG.
+  // Precisa ser URL pública — a Stripe busca de fora, não recebe upload.
+  imagem: function () { return CONFIG.SITE_URL + "/assets/icon-192.png"; },
+
+  // Texto sob o botão de pagar. É o último lugar onde dá para responder
+  // "e se eu me arrepender?" antes de a pessoa digitar o cartão.
+  avisoAssinatura: "Cobrança mensal no cartão. Cancele quando quiser, em dois cliques, dentro do app — sem ligar para ninguém.",
+  avisoAvulso: "Pagamento único. Você recebe o comprovante por e-mail assim que a Stripe confirmar."
+};
+
 // Meios de pagamento oferecidos no checkout, na ordem em que a Stripe
 // mostra. Cartão primeiro porque é o único que serve para ASSINATURA
 // recorrente — Pix e boleto são cobrança única, e a Stripe recusa a
@@ -3720,11 +3748,38 @@ var server = http.createServer(async (req, res) => {
                 // ninguém perceberia até o fim do mês.
                 unit_amount: infoPlano.centavos,
                 recurring: { interval: "month" },
-                product_data: { name: "Workap — " + infoPlano.nome }
+                product_data: {
+                  name: "Workap — " + infoPlano.nome,
+                  // O resumo do plano aparece embaixo do nome, na
+                  // coluna do valor. Sem ele a tela mostra só "Workap —
+                  // Plano Pro" e um preço, e quem chegou por anúncio não
+                  // tem como conferir se é isto mesmo que está levando.
+                  description: infoPlano.resumo,
+                  images: { 0: MARCA.imagem() }
+                }
               }
             }
           },
-          subscription_data: { metadata: { empresa_id: empAss.id, plano: planoAss } },
+          // O campo de cupom só aparece se você realmente criar códigos
+          // promocionais NA STRIPE (Produtos → Cupons). Ele não tem
+          // relação com os cupons do painel do Workap, que são aplicados
+          // no cadastro e vivem no banco.
+          //
+          // Desligado por padrão de propósito: um campo "Adicionar
+          // código promocional" que nunca aceita nada planta a dúvida
+          // "existe um desconto que eu não estou pegando?" — e a pessoa
+          // sai da tela de pagamento para procurar cupom no Google.
+          // Ligue com STRIPE_CUPONS=1 no dia em que criar os códigos lá.
+          allow_promotion_codes: CONFIG.STRIPE_CUPONS ? "true" : undefined,
+          custom_text: { submit: { message: MARCA.avisoAssinatura } },
+          subscription_data: {
+            metadata: { empresa_id: empAss.id, plano: planoAss },
+            // Aparece na fatura e no extrato do cartão do cliente.
+            // Sem isto, a cobrança chega como um nome genérico e vira
+            // contestação — que além do estorno custa taxa e reputação
+            // com as bandeiras.
+            description: "Workap — " + infoPlano.nome
+          },
           metadata: { empresa_id: empAss.id, plano: planoAss }
         });
 
@@ -4982,6 +5037,14 @@ var server = http.createServer(async (req, res) => {
         // chamadas. É o custo de ter um link que não vence.
         var produtoLink = await stripeRequest("POST", "/products", {
           name: descLink,
+          // Quando o link vende plano, a tela de pagamento diz o que a
+          // pessoa está levando e por quanto tempo. Sem isso ela vê só
+          // "Plano anual combinado" e um valor — e quem negociou por
+          // WhatsApp não tem como conferir se é o que foi acertado.
+          description: planoLink
+            ? CONFIG.PLANOS[planoLink].nome + " · " + diasLink + " dias de acesso"
+            : undefined,
+          images: { 0: MARCA.imagem() },
           metadata: { link_id: linhaLink.id }
         });
         var precoLink = await stripeRequest("POST", "/prices", {
@@ -4994,6 +5057,18 @@ var server = http.createServer(async (req, res) => {
         var linkStripe = await stripeRequest("POST", "/payment_links", {
           line_items: { 0: { price: precoLink.id, quantity: 1 } },
           payment_method_types: metodosLink.map(function (m) { return METODO_STRIPE[m]; }),
+          // Botão "Pagar", e não o padrão que a Stripe escolhe sozinha.
+          submit_type: "pay",
+          custom_text: { submit: { message: MARCA.avisoAvulso } },
+          // CPF/CNPJ. Obrigatório para boleto — sem ele o boleto nem é
+          // emitido. E quando o comprador é empresa (que é o caso na
+          // maioria destes links), o CNPJ é o que ele precisa no
+          // comprovante para lançar a despesa.
+          tax_id_collection: { enabled: "true" },
+          // Boleto exige endereço do pagador. Pedido sempre, porque
+          // descobrir isso só na hora em que o cliente escolhe boleto
+          // seria descobrir com ele parado na tela.
+          billing_address_collection: metodosLink.includes("BOLETO") ? "required" : "auto",
           // metadata sobe para a sessão de checkout que o cliente abrir,
           // e é por ela que o webhook sabe qual cobrança foi paga. O
           // webhook ainda casa por `gateway_id` como segunda via, caso a

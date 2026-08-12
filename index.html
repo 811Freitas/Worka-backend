@@ -1737,10 +1737,24 @@ async function irParaPagamento(liberarDoChamador) {
 function tratarRetornoDaStripe() {
   var p = new URLSearchParams(window.location.search);
   var resultado = p.get('assinatura');
-  if (!resultado) return;
+  var cobranca  = p.get('cobranca');
+  if (!resultado && !cobranca) return;
 
   // Limpa o endereço para um F5 não repetir a mensagem.
   history.replaceState(null, '', window.location.pathname);
+
+  // Quem pagou um LINK avulso (o que o dono manda por WhatsApp) caía
+  // aqui na página inicial, sem confirmação nenhuma — depois de ter
+  // pago. A pessoa fica sem saber se deu certo, e a primeira coisa que
+  // ela faz é ligar perguntando.
+  //
+  // A mensagem é deliberadamente cuidadosa com boleto e Pix: nesses
+  // meios o dinheiro ainda não caiu quando o cliente volta para cá.
+  // Dizer "pagamento confirmado" seria mentira em metade dos casos.
+  if (cobranca === 'ok') {
+    mostrarAvisoDeCobranca();
+    return;
+  }
 
   if (resultado === 'ok') {
     abrirCheckout();
@@ -1750,6 +1764,40 @@ function tratarRetornoDaStripe() {
     mostrarStep('form');
     mostrarErro('Pagamento não concluído. Seus dados continuam salvos — é só tentar de novo.');
   }
+}
+
+// Faixa de confirmação para quem volta de um link de cobrança. Não usa
+// o modal de cadastro de propósito: quem paga um link avulso não está
+// se cadastrando, e abrir um formulário na cara dele seria pedir de
+// novo o que ele acabou de fazer.
+function mostrarAvisoDeCobranca() {
+  var caixa = document.createElement('div');
+  caixa.setAttribute('role', 'status');
+  caixa.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(10,46,26,0.72);' +
+    'backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:24px;';
+  caixa.innerHTML =
+    '<div style="max-width:420px;background:#fff;border-radius:20px;padding:36px 28px;text-align:center;' +
+      'box-shadow:0 32px 80px rgba(0,0,0,0.3);font-family:\'Inter\',sans-serif;">' +
+      '<div style="width:72px;height:72px;background:#edfaf2;border-radius:50%;display:flex;' +
+        'align-items:center;justify-content:center;margin:0 auto 20px;">' +
+        '<svg class="ico" aria-hidden="true" style="width:32px;height:32px;color:#1e8a40"><use href="#i-check-circle"></use></svg>' +
+      '</div>' +
+      '<div style="font-family:\'Syne\',sans-serif;font-size:1.35rem;font-weight:800;color:#16622f;margin-bottom:10px;">' +
+        'Recebemos seu pagamento' +
+      '</div>' +
+      '<p style="font-size:0.9rem;color:#6b7068;line-height:1.55;margin-bottom:8px;">' +
+        'Assim que a Stripe confirmar, você recebe o comprovante por e-mail.' +
+      '</p>' +
+      '<p style="font-size:0.82rem;color:#8b8f89;line-height:1.5;margin-bottom:24px;">' +
+        'No cartão é na hora. No Pix costuma levar alguns minutos, e no boleto até 3 dias úteis.' +
+      '</p>' +
+      '<button id="fechar-aviso-cobranca" style="background:#1e8a40;color:#fff;border:none;padding:13px 30px;' +
+        'border-radius:10px;font-size:0.95rem;font-weight:700;cursor:pointer;font-family:\'Inter\',sans-serif;">' +
+        'Entendi' +
+      '</button>' +
+    '</div>';
+  document.body.appendChild(caixa);
+  caixa.querySelector('#fechar-aviso-cobranca').onclick = function () { caixa.remove(); };
 }
 
 /**
