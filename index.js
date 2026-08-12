@@ -2061,11 +2061,31 @@ var CAKTO = {
 // webhook, onde essa ida a mais pesa.
 var caktoTokenCache = { valor: null, expiraEm: 0 };
 
-function caktoRequestCru(metodo, caminho, corpo, token) {
+function caktoRequestCru(metodo, caminho, corpo, token, opcoes) {
+  opcoes = opcoes || {};
   return new Promise(function (resolve, reject) {
-    var dados = corpo ? JSON.stringify(corpo) : null;
-    var headers = { "Content-Type": "application/json", "Accept": "application/json" };
-    if (token) headers["Authorization"] = "Bearer " + token;
+    // O endpoint de token fala FORMULÁRIO, o resto da API fala JSON.
+    // Não é capricho: a rota terminada em barra (/public_api/token/) é
+    // assinatura de Django, e o OAuth2 de Django lê os campos do corpo
+    // como formulário. Mandando JSON ele não acha client_id nem
+    // client_secret e responde "invalid_client" — que parece credencial
+    // errada e não é. Foi exatamente esse o erro do primeiro teste real.
+    var dados = null;
+    var headers = { "Accept": "application/json" };
+
+    if (corpo && opcoes.formulario) {
+      dados = Object.keys(corpo)
+        .filter(function (k) { return corpo[k] !== undefined && corpo[k] !== null; })
+        .map(function (k) { return encodeURIComponent(k) + "=" + encodeURIComponent(String(corpo[k])); })
+        .join("&");
+      headers["Content-Type"] = "application/x-www-form-urlencoded";
+    } else if (corpo) {
+      dados = JSON.stringify(corpo);
+      headers["Content-Type"] = "application/json";
+    }
+
+    if (opcoes.basic) headers["Authorization"] = "Basic " + opcoes.basic;
+    else if (token) headers["Authorization"] = "Bearer " + token;
     if (dados) headers["Content-Length"] = Buffer.byteLength(dados);
 
     var req = https.request({
@@ -2098,10 +2118,41 @@ async function caktoToken() {
   }
   if (caktoTokenCache.valor && Date.now() < caktoTokenCache.expiraEm) return caktoTokenCache.valor;
 
-  var r = await caktoRequestCru("POST", CAKTO.token, {
-    client_id: CONFIG.CAKTO_CLIENT_ID,
-    client_secret: CONFIG.CAKTO_CLIENT_SECRET
-  }, null);
+  // Duas formas de apresentar a credencial, nesta ordem. As duas são
+  // OAuth2 padrão (RFC 6749) e servidores diferentes aceitam uma, a
+  // outra, ou as duas — não dá para saber sem a documentação, que esta
+  // rede não alcança.
+  //
+  //   1. no corpo do formulário (client_secret_post)
+  //   2. em HTTP Basic (client_secret_basic)
+  //
+  // Tentar as duas custa uma requisição a mais SÓ quando a primeira
+  // falha, e apenas na renovação do token — que acontece a cada 30
+  // minutos, não a cada cobrança.
+  var basic = Buffer.from(CONFIG.CAKTO_CLIENT_ID + ":" + CONFIG.CAKTO_CLIENT_SECRET).toString("base64");
+  var tentativas = [
+    { corpo: { grant_type: "client_credentials",
+               client_id: CONFIG.CAKTO_CLIENT_ID,
+               client_secret: CONFIG.CAKTO_CLIENT_SECRET },
+      opcoes: { formulario: true } },
+    { corpo: { grant_type: "client_credentials" },
+      opcoes: { formulario: true, basic: basic } }
+  ];
+
+  var r = null, ultimoErro = null;
+  for (var t of tentativas) {
+    try {
+      r = await caktoRequestCru("POST", CAKTO.token, t.corpo, null, t.opcoes);
+      break;
+    } catch (e) {
+      ultimoErro = e;
+      // 401/400 é "não gostei da credencial ou do formato" — vale tentar
+      // a outra forma. Qualquer outra falha (rede, 500, timeout) é
+      // problema deles, e insistir só atrasaria a resposta.
+      if (e.status !== 401 && e.status !== 400) throw e;
+    }
+  }
+  if (!r) throw ultimoErro;
 
   var token = r.access_token || r.token || r.accessToken;
   if (!token) throw new Error("Cakto: resposta de token sem access_token");
@@ -5061,7 +5112,19 @@ var server = http.createServer(async (req, res) => {
       } catch (e) {
         if (linhaLink) await DB.update("links_pagamento", "id=eq." + linhaLink.id, { status: "cancelado" }).catch(function () {});
         registrarErro("pagamento", e.message, { rota: "/owner/links", metodo: "POST", status: e.status || null });
-        return jsonErr(res, "Não foi possível criar a cobrança agora. Tente de novo em instantes.", 502);
+
+        // A mensagem do gateway vai NA RESPOSTA, ao contrário do resto
+        // do sistema. Aqui quem chama é o owner da Workap, no painel
+        // dele — não há cliente do outro lado para quem "Cakto 401:
+        // invalid credentials" seja informação perigosa ou confusa.
+        //
+        // Esconder isso custava caro: a tela dizia "tente de novo em
+        // instantes", o que sugere problema passageiro, quando a causa
+        // real (credencial errada, conta não liberada, campo que a API
+        // recusa) não melhora sozinha nunca. O owner tentava de novo,
+        // dava o mesmo, e só descobria o motivo se soubesse abrir
+        // Diagnóstico → Erros.
+        return jsonErr(res, "A Cakto recusou a cobrança: " + String(e.message).slice(0, 300), 502);
       }
     }
 
