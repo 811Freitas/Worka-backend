@@ -2049,6 +2049,21 @@ var CAKTO = {
   // mensal, trimestral e anual; aqui só o mensal é usado.
   frequenciaMensal: "monthly",
 
+  // Tipo do PRODUTO, não da cobrança.
+  //
+  // Eu mandava "one_time" e "subscription" aqui, achando que este campo
+  // dizia se a cobrança era única ou recorrente. A Cakto respondeu:
+  //
+  //   "type": ["\"one_time\" não é um escolha válido."]
+  //
+  // A Cakto é plataforma de infoproduto: `type` classifica O QUE está
+  // sendo vendido (digital, físico), e quem manda na recorrência é
+  // `recurrence_frequency`. O Workap é software, então "digital".
+  //
+  // Se este valor também for recusado, a mensagem de erro agora lista
+  // os campos e o motivo de cada um — é por ela que se acha o certo.
+  tipoProduto: "digital",
+
   // Eventos que significam dinheiro confirmado. Qualquer outro é
   // registrado e ignorado — reagir a "checkout iniciado" liberaria
   // acesso para quem só abriu a tela.
@@ -2060,6 +2075,38 @@ var CAKTO = {
 // chamadas em vez de uma — e o gateway exige resposta em 5 segundos no
 // webhook, onde essa ida a mais pesa.
 var caktoTokenCache = { valor: null, expiraEm: 0 };
+
+/**
+ * Traduz o erro da Cakto para uma linha legível.
+ *
+ * A API deles valida campo a campo e responde no formato do Django:
+ *
+ *   {"description":["Este campo é obrigatório."],
+ *    "type":["\"one_time\" não é um escolha válido."]}
+ *
+ * Jogar esse JSON cru na tela funciona, mas obriga quem lê a garimpar
+ * chave e colchete. Vira "description: Este campo é obrigatório · type:
+ * "one_time" não é um escolha válido" — que é o que responde a pergunta
+ * "qual campo eu errei".
+ *
+ * Importa mais do que parece aqui: sem acesso à documentação, esta
+ * mensagem é a ÚNICA fonte sobre o formato esperado pela API.
+ */
+function mensagemDeErroCakto(json, raw) {
+  if (json && typeof json === "object") {
+    // Erro de campo: objeto de listas, sem as chaves padrão de erro.
+    if (!json.detail && !json.message && !json.error) {
+      var partes = Object.keys(json).map(function (campo) {
+        var v = json[campo];
+        return campo + ": " + (Array.isArray(v) ? v.join(" ") : String(v));
+      });
+      if (partes.length) return partes.join(" · ").slice(0, 400);
+    }
+    var direto = json.detail || json.message || json.error;
+    if (direto) return typeof direto === "string" ? direto : JSON.stringify(direto).slice(0, 400);
+  }
+  return (raw || "").slice(0, 300) || "sem corpo na resposta";
+}
 
 function caktoRequestCru(metodo, caminho, corpo, token, opcoes) {
   opcoes = opcoes || {};
@@ -2097,9 +2144,7 @@ function caktoRequestCru(metodo, caminho, corpo, token, opcoes) {
         var json = null;
         try { json = JSON.parse(raw); } catch (e) {}
         if (res.statusCode >= 400) {
-          var msg = (json && (json.detail || json.message || json.error)) ||
-                    raw.slice(0, 200) || ("HTTP " + res.statusCode);
-          var erro = new Error("Cakto " + res.statusCode + ": " + msg);
+          var erro = new Error("Cakto " + res.statusCode + ": " + mensagemDeErroCakto(json, raw));
           erro.status = res.statusCode;
           return reject(erro);
         }
@@ -2238,15 +2283,26 @@ function urlDaCobrancaCakto(resposta) {
 async function criarCobrancaCakto(opcoes) {
   var corpo = {
     name: opcoes.nome,
-    description: opcoes.descricao || undefined,
+    // OBRIGATÓRIO. A Cakto respondeu "Este campo é obrigatório" quando
+    // um link de cobrança pura foi criado sem descrição — antes ela só
+    // era enviada quando o link vendia plano.
+    //
+    // Cair para o nome não é enfeite para satisfazer a validação: esta
+    // descrição aparece na tela de pagamento do cliente, e vazia deixaria
+    // a tela dizendo menos do que ele precisa para conferir o que está
+    // comprando.
+    description: opcoes.descricao || opcoes.nome,
     // Em CENTAVOS convertidos para reais: a Cakto trabalha com o valor
     // em reais, e é o único lugar do projeto onde o dinheiro sai de
     // centavos. Divisão por 100 com duas casas, nunca float solto.
     price: Number((opcoes.centavos / 100).toFixed(2)),
-    type: opcoes.recorrente ? "subscription" : "one_time",
+    // O QUE se vende, não COMO se cobra — ver CAKTO.tipoProduto.
+    type: CAKTO.tipoProduto,
     payment_methods: opcoes.metodos,
     metadata: opcoes.metadata || undefined
   };
+  // Quem marca a assinatura é a frequência, já que `type` classifica o
+  // produto. Ausente = cobrança única.
   if (opcoes.recorrente) corpo.recurrence_frequency = CAKTO.frequenciaMensal;
 
   var criado = await caktoRequest("POST", CAKTO.criarProduto, corpo);
