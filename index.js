@@ -75,6 +75,21 @@ const CONFIG = {
   // Mostrar o campo "código promocional" no checkout. Só ligue depois
   // de criar cupons na Stripe — ver o comentário na rota de checkout.
   STRIPE_CUPONS:         env("STRIPE_CUPONS") === "1",
+
+  // Cakto. Credenciais OAuth2 do painel (Configurações → API).
+  CAKTO_CLIENT_ID:       env("CAKTO_CLIENT_ID"),
+  CAKTO_CLIENT_SECRET:   env("CAKTO_CLIENT_SECRET"),
+  // Segredo que vai na URL do webhook cadastrada no painel da Cakto.
+  // Você inventa este valor — não vem deles. Ver webhookCaktoValido().
+  CAKTO_WEBHOOK_SECRET:  env("CAKTO_WEBHOOK_SECRET"),
+
+  // Qual gateway atende o checkout e os links: "stripe" ou "cakto".
+  //
+  // Padrão stripe de propósito. A integração da Cakto foi escrita sem
+  // acesso à documentação (ver o bloco CAKTO), então ela só entra
+  // quando alguém DECIDIR que entra — nunca por descuido de deploy. E
+  // voltar, se der errado, é trocar esta variável no Render.
+  GATEWAY:               env("PAGAMENTO_GATEWAY") === "cakto" ? "cakto" : "stripe",
   // Para onde o gateway devolve o cliente depois do pagamento.
   SITE_URL:              env("SITE_URL") || "https://workap.com.br",
   // ENCRYPT_SECRET foi removida: nenhuma linha deste projeto lia esse
@@ -2112,6 +2127,272 @@ function stripeAssinaturaValida(corpoCru, cabecalhoAssinatura) {
   });
 }
 
+// ═══════════════════════════════════════════════════════════
+// CAKTO — gateway alternativo
+// ═══════════════════════════════════════════════════════════
+//
+// ⚠️  ESTE BLOCO NÃO FOI CONFERIDO CONTRA A DOCUMENTAÇÃO.
+//
+// O domínio docs.cakto.com.br é bloqueado pela rede onde este código
+// foi escrito. O que está aqui veio de busca na web, não da doc aberta
+// lado a lado. O que EU SEI e o que EU SUPUS:
+//
+//   SEI (apareceu na documentação indexada)
+//     · autenticação OAuth2: POST /public_api/token/ com client_id e
+//       client_secret, devolve token usado como "Bearer"
+//     · existem os recursos products, offers, orders e webhooks
+//     · criar um produto gera oferta, checkout e link de pagamento
+//       automaticamente, no formato https://pay.cakto.com.br/{oferta}
+//     · pedido tem status paid | waiting_payment | refunded
+//     · webhook é criado com os campos status, name, url, products,
+//       events — e um dos eventos é purchase_approved
+//     · a aplicação precisa responder em até 5 segundos
+//
+//   SUPUS (pode estar errado, é o que conferir primeiro)
+//     · o nome exato dos campos ao criar produto e oferta
+//     · como a recorrência é declarada no produto
+//     · de qual campo da resposta sai o link de pagamento
+//     · o formato do corpo que o webhook envia
+//
+// POR QUE A STRIPE CONTINUA NO CÓDIGO
+//
+// Justamente por causa da lista de cima. Enquanto a Cakto não for
+// exercitada com dinheiro de verdade, trocar em definitivo seria apostar
+// a única fonte de receita do produto em campo de API adivinhado. O
+// gateway é escolhido por PAGAMENTO_GATEWAY, e voltar para a Stripe é
+// mudar uma variável no Render — não é fazer deploy às pressas com o
+// checkout quebrado e cliente na tela.
+var CAKTO = {
+  host: "api.cakto.com.br",
+
+  token:         "/public_api/token/",
+  criarProduto:  "/public_api/products/",
+  listarProdutos:"/public_api/products/",
+  criarOferta:   "/public_api/offers/",
+  listarPedidos: "/public_api/orders/",
+  criarWebhook:  "/public_api/webhooks/",
+
+  // Onde procurar o link de pagamento na resposta. Lista porque não sei
+  // o nome exato do campo, e tentar vários é mais barato do que
+  // descobrir em produção que a cobrança foi criada e o link não veio.
+  camposDeUrl: ["checkout_url", "payment_link", "link", "url", "offer_url"],
+
+  // Frequência da recorrência. O painel da Cakto oferece semanal,
+  // mensal, trimestral e anual; aqui só o mensal é usado.
+  frequenciaMensal: "monthly",
+
+  // Eventos que significam dinheiro confirmado. Qualquer outro é
+  // registrado e ignorado — reagir a "checkout iniciado" liberaria
+  // acesso para quem só abriu a tela.
+  eventosPagos:     ["purchase_approved", "purchase_approved_recurrence", "subscription_renewed"],
+  eventosCancelados:["purchase_refunded", "purchase_chargeback", "subscription_canceled"]
+};
+
+// Token OAuth2 com cache. Sem o cache, cada cobrança faria duas
+// chamadas em vez de uma — e o gateway exige resposta em 5 segundos no
+// webhook, onde essa ida a mais pesa.
+var caktoTokenCache = { valor: null, expiraEm: 0 };
+
+function caktoRequestCru(metodo, caminho, corpo, token) {
+  return new Promise(function (resolve, reject) {
+    var dados = corpo ? JSON.stringify(corpo) : null;
+    var headers = { "Content-Type": "application/json", "Accept": "application/json" };
+    if (token) headers["Authorization"] = "Bearer " + token;
+    if (dados) headers["Content-Length"] = Buffer.byteLength(dados);
+
+    var req = https.request({
+      hostname: CAKTO.host, port: 443, path: caminho, method: metodo, headers: headers
+    }, function (res) {
+      var raw = "";
+      res.on("data", function (c) { raw += c; });
+      res.on("end", function () {
+        var json = null;
+        try { json = JSON.parse(raw); } catch (e) {}
+        if (res.statusCode >= 400) {
+          var msg = (json && (json.detail || json.message || json.error)) ||
+                    raw.slice(0, 200) || ("HTTP " + res.statusCode);
+          var erro = new Error("Cakto " + res.statusCode + ": " + msg);
+          erro.status = res.statusCode;
+          return reject(erro);
+        }
+        resolve(json || {});
+      });
+    });
+    req.on("error", reject);
+    req.setTimeout(15000, function () { req.destroy(new Error("Cakto: tempo esgotado")); });
+    req.end(dados);
+  });
+}
+
+async function caktoToken() {
+  if (!CONFIG.CAKTO_CLIENT_ID || !CONFIG.CAKTO_CLIENT_SECRET) {
+    throw new Error("Pagamento não configurado (CAKTO_CLIENT_ID/CAKTO_CLIENT_SECRET ausentes)");
+  }
+  if (caktoTokenCache.valor && Date.now() < caktoTokenCache.expiraEm) return caktoTokenCache.valor;
+
+  var r = await caktoRequestCru("POST", CAKTO.token, {
+    client_id: CONFIG.CAKTO_CLIENT_ID,
+    client_secret: CONFIG.CAKTO_CLIENT_SECRET
+  }, null);
+
+  var token = r.access_token || r.token || r.accessToken;
+  if (!token) throw new Error("Cakto: resposta de token sem access_token");
+
+  // Renova um minuto antes de vencer, para não usar token que expira no
+  // meio da chamada seguinte. Sem `expires_in`, assume 30 minutos.
+  var segundos = Number(r.expires_in) > 0 ? Number(r.expires_in) : 1800;
+  caktoTokenCache = { valor: token, expiraEm: Date.now() + (segundos - 60) * 1000 };
+  return token;
+}
+
+async function caktoRequest(metodo, caminho, corpo) {
+  var token = await caktoToken();
+  try {
+    return await caktoRequestCru(metodo, caminho, corpo, token);
+  } catch (e) {
+    // Token pode ter sido revogado antes de vencer. Uma segunda tentativa
+    // com token novo evita que uma venda morra por isso.
+    if (e.status === 401) {
+      caktoTokenCache = { valor: null, expiraEm: 0 };
+      return caktoRequestCru(metodo, caminho, corpo, await caktoToken());
+    }
+    throw e;
+  }
+}
+
+// Acha o link de pagamento sem depender de UM nome de campo.
+function urlDaCobrancaCakto(resposta) {
+  if (!resposta) return null;
+  var procurar = [resposta, resposta.offer, resposta.default_offer, resposta.checkout];
+  for (var obj of procurar) {
+    if (!obj || typeof obj !== "object") continue;
+    for (var campo of CAKTO.camposDeUrl) {
+      if (typeof obj[campo] === "string" && /^https?:\/\//.test(obj[campo])) return obj[campo];
+    }
+  }
+  // A doc diz que o link segue https://pay.cakto.com.br/{id_da_oferta}.
+  // Montar a partir do id é a última tentativa antes de desistir.
+  var idOferta = (resposta.default_offer && resposta.default_offer.id) ||
+                 (resposta.offer && resposta.offer.id) || resposta.offer_id;
+  return idOferta ? "https://pay.cakto.com.br/" + idOferta : null;
+}
+
+/**
+ * Cria uma cobrança na Cakto e devolve o link de pagamento.
+ *
+ * Um produto só, com a oferta padrão que a Cakto gera junto — em vez de
+ * produto + oferta em duas chamadas. Menos ida à API é menos chance de
+ * a segunda falhar e deixar um produto órfão no painel deles.
+ *
+ * `recorrente` decide entre assinatura mensal e cobrança única. É o
+ * mesmo caminho para os dois porque, na Cakto, a diferença está num
+ * campo do produto — não num endpoint separado.
+ */
+async function criarCobrancaCakto(opcoes) {
+  var corpo = {
+    name: opcoes.nome,
+    description: opcoes.descricao || undefined,
+    // Em CENTAVOS convertidos para reais: a Cakto trabalha com o valor
+    // em reais, e é o único lugar do projeto onde o dinheiro sai de
+    // centavos. Divisão por 100 com duas casas, nunca float solto.
+    price: Number((opcoes.centavos / 100).toFixed(2)),
+    type: opcoes.recorrente ? "subscription" : "one_time",
+    payment_methods: opcoes.metodos,
+    metadata: opcoes.metadata || undefined
+  };
+  if (opcoes.recorrente) corpo.recurrence_frequency = CAKTO.frequenciaMensal;
+
+  var criado = await caktoRequest("POST", CAKTO.criarProduto, corpo);
+  var link = urlDaCobrancaCakto(criado);
+  return {
+    id: criado.id || (criado.default_offer && criado.default_offer.id) || null,
+    url: link,
+    resposta: criado
+  };
+}
+
+/**
+ * Converte para centavos um valor que o gateway mandou em reais.
+ *
+ * A Cakto fala em reais (49.99); todo o resto deste projeto fala em
+ * centavos. Um único lugar faz a conversão, e ele arredonda: 49.99 * 100
+ * em ponto flutuante dá 4998.999999999999, e truncar isso cobraria um
+ * centavo a menos em toda cobrança — o tipo de erro que só aparece na
+ * conciliação do fim do mês.
+ *
+ * Devolve null quando não há valor, para não gravar 0 como se fosse um
+ * pagamento de zero real.
+ */
+function reaisParaCentavosDoGateway(valor) {
+  var n = Number(valor);
+  if (!isFinite(n) || n <= 0) return null;
+  return Math.round(n * 100);
+}
+
+/**
+ * Aplica na empresa o estado de uma assinatura da Cakto.
+ *
+ * Separada de aplicarAssinatura() (que fala Stripe) porque os dois
+ * formatos não têm nenhum campo em comum: a Stripe manda
+ * current_period_end em segundos epoch, a Cakto manda data em texto.
+ * Tentar servir aos dois com uma função só é como nascem os "se vier
+ * neste formato, senão naquele" que ninguém mais consegue ler.
+ */
+async function aplicarAssinaturaCakto(empresaId, dados, planoMeta) {
+  dados = dados || {};
+
+  var fimTexto = dados.next_charge_date || dados.next_billing_date ||
+                 dados.expires_at || dados.valid_until;
+  var fim = fimTexto ? new Date(fimTexto) : null;
+  // Sem data, 30 dias. Um acesso sem prazo é o bug que motivou toda a
+  // história de trocar de gateway: cobra uma vez, usa para sempre.
+  if (!fim || isNaN(fim.getTime())) fim = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+  var mudancas = {
+    pagamento_gateway: "cakto",
+    assinatura_ate:    fim.toISOString(),
+    status:            "ativa"
+  };
+  if (dados.subscription_id || dados.product_id) {
+    mudancas.pagamento_assinatura_id = String(dados.subscription_id || dados.product_id);
+  }
+  if (planoValido(planoMeta)) mudancas.plano = planoMeta;
+
+  await DB.update("empresas", "id=eq." + empresaId, mudancas);
+  secLog("assinatura_atualizada", {
+    empresa_id: empresaId, gateway: "cakto", ate: mudancas.assinatura_ate
+  });
+}
+
+/**
+ * Confere que o webhook veio mesmo da Cakto.
+ *
+ * A busca não revelou nenhuma assinatura HMAC no aviso da Cakto — os
+ * campos de criação do webhook são status, name, url, products e
+ * events, sem segredo. Como não dá para confiar num campo que talvez
+ * não exista, a prova de identidade é algo que NÃO depende deles: um
+ * segredo que só eu conheço, embutido na própria URL cadastrada.
+ *
+ * Isso funciona qualquer que seja o formato do aviso — mas é mais fraco
+ * que HMAC: quem interceptar a URL uma vez pode repetir o aviso. Duas
+ * defesas compensam em parte: comparação em tempo constante, e
+ * idempotência por id de evento, que impede a repetição de virar mês de
+ * acesso extra.
+ *
+ * Se a Cakto assinar os avisos, trocar isto por HMAC é a primeira
+ * melhoria a fazer.
+ */
+function webhookCaktoValido(url, headers) {
+  if (!CONFIG.CAKTO_WEBHOOK_SECRET) return false;
+  var candidato = url.searchParams.get("s") ||
+                  url.searchParams.get("secret") ||
+                  headers["x-webhook-secret"] || "";
+  if (!candidato) return false;
+  var a = Buffer.from(String(candidato), "utf8");
+  var b = Buffer.from(CONFIG.CAKTO_WEBHOOK_SECRET, "utf8");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 /**
  * Aplica o plano vendido por um link de pagamento.
  *
@@ -3685,7 +3966,10 @@ var server = http.createServer(async (req, res) => {
     // token. A empresa é achada pelo e-mail, e o valor NUNCA vem do
     // navegador — sai de CONFIG.PLANOS, a mesma fonte que a vitrine usa.
     if (method === "POST" && path === "/assinatura/checkout") {
-      if (!CONFIG.STRIPE_KEY) return jsonErr(res, "Pagamento não configurado", 503);
+      var configurado = CONFIG.GATEWAY === "cakto"
+        ? (CONFIG.CAKTO_CLIENT_ID && CONFIG.CAKTO_CLIENT_SECRET)
+        : CONFIG.STRIPE_KEY;
+      if (!configurado) return jsonErr(res, "Pagamento não configurado", 503);
 
       var rawAss = await getBody(req);
       var bodyAss = parseBody(rawAss);
@@ -3702,6 +3986,47 @@ var server = http.createServer(async (req, res) => {
       var empAss = buscaEmp.body && buscaEmp.body[0];
       if (!empAss) return jsonErr(res, "Conta não encontrada. Conclua o cadastro antes de assinar.", 404);
       if (empAss.status === "ativa") return jsonErr(res, "Esta conta já tem assinatura ativa.", 409);
+
+      // ── Caminho Cakto ──
+      //
+      // Mais curto que o da Stripe porque a Cakto cobra assinatura no
+      // Pix e no boleto além do cartão — não existe a restrição de
+      // "assinatura só no cartão" que obriga a separar os meios.
+      if (CONFIG.GATEWAY === "cakto") {
+        try {
+          var cobrancaCk = await criarCobrancaCakto({
+            nome: "Workap — " + infoPlano.nome,
+            descricao: infoPlano.resumo,
+            centavos: infoPlano.centavos,
+            recorrente: true,
+            metodos: ["pix", "credit_card", "boleto"],
+            // É por aqui que o webhook liga o pagamento à empresa sem
+            // confiar em nada que veio do navegador.
+            metadata: { empresa_id: empAss.id, plano: planoAss }
+          });
+
+          if (!cobrancaCk.url) {
+            registrarErro("pagamento", "Cakto não devolveu link de pagamento", {
+              rota: "/assinatura/checkout", empresa_id: empAss.id,
+              detalhe: { campos: Object.keys(cobrancaCk.resposta || {}).join(",") }
+            });
+            return jsonErr(res, "Não foi possível abrir o pagamento agora. Tente de novo em instantes.", 502);
+          }
+
+          await DB.update("empresas", "id=eq." + empAss.id, {
+            pagamento_gateway: "cakto",
+            pagamento_assinatura_id: cobrancaCk.id || undefined
+          });
+          secLog("checkout_criado", { empresa_id: empAss.id, plano: planoAss, gateway: "cakto" });
+          return jsonOk(res, { url: cobrancaCk.url });
+        } catch (e) {
+          registrarErro("pagamento", e.message, {
+            rota: "/assinatura/checkout", metodo: "POST", status: e.status || null,
+            empresa_id: empAss.id, detalhe: { plano: planoAss, gateway: "cakto" }
+          });
+          return jsonErr(res, "Não foi possível abrir o pagamento agora. Tente de novo em instantes.", 502);
+        }
+      }
 
       try {
         // Reaproveita o cliente se já existir: criar um novo a cada
@@ -3792,6 +4117,138 @@ var server = http.createServer(async (req, res) => {
         });
         return jsonErr(res, "Não foi possível abrir o pagamento agora. Tente de novo em instantes.", 502);
       }
+    }
+
+    // ── WEBHOOK DA CAKTO (rota pública, com segredo na URL) ──
+    //
+    // Cadastre no painel da Cakto como:
+    //   https://SEU-BACKEND/webhook/cakto?s=<CAKTO_WEBHOOK_SECRET>
+    //
+    // O segredo é seu, não deles — ver webhookCaktoValido(). Responde
+    // rápido de propósito: a Cakto exige resposta em 5 segundos, e o
+    // trabalho pesado (e-mail) já é disparado sem esperar.
+    if (method === "POST" && path === "/webhook/cakto") {
+      if (!webhookCaktoValido(url, req.headers)) {
+        secLog("webhook_cakto_segredo_invalido", { ip: ip });
+        return jsonErr(res, "Não autorizado", 401);
+      }
+
+      var corpoCk = await getBody(req, 256 * 1024);
+      var evCk = parseBody(corpoCk);
+      if (!evCk) return jsonErr(res, "Evento inválido");
+
+      var dadosCk = evCk.data || evCk.order || evCk;
+      var tipoCk  = String(evCk.event || evCk.type || evCk.event_type || "desconhecido");
+
+      // Id do evento para a idempotência. Sem um id próprio, o hash do
+      // corpo serve: dois avisos idênticos geram a mesma chave e o
+      // segundo é recusado pelo banco.
+      var idCk = evCk.id || evCk.event_id ||
+                 crypto.createHash("sha256").update(corpoCk).digest("hex").slice(0, 40);
+
+      try {
+        await supabase("POST", "eventos_pagamento", {
+          body: { id: idCk, gateway: "cakto", tipo: tipoCk,
+                  payload: { objeto: (dadosCk && (dadosCk.id || null)) } },
+          prefer: "return=minimal"
+        });
+      } catch (e) {
+        secLog("webhook_cakto_repetido", { evento: idCk, tipo: tipoCk });
+        return jsonOk(res, { recebido: true, repetido: true });
+      }
+
+      try {
+        // Só pagamento confirmado libera. O estado do pedido é conferido
+        // junto com o nome do evento porque não sei qual dos dois a
+        // Cakto preenche — e liberar acesso por "checkout iniciado"
+        // daria plano de graça para quem só abriu a tela.
+        var statusCk = String(dadosCk.status || "").toLowerCase();
+        var pagoCk = CAKTO.eventosPagos.indexOf(tipoCk) >= 0 || statusCk === "paid";
+        var canceladoCk = CAKTO.eventosCancelados.indexOf(tipoCk) >= 0 ||
+                          statusCk === "refunded" || statusCk === "chargeback";
+
+        if (pagoCk || canceladoCk) {
+          var metaCk = dadosCk.metadata || evCk.metadata || {};
+
+          // Link avulso: trata e SAI. Não tem assinatura envolvida, e
+          // continuar cairia na busca por empresa — que não acharia nada
+          // e registraria um erro falso de "pagamento sem empresa".
+          var idLinkCk = metaCk.link_id;
+          if (!idLinkCk && dadosCk.product_id) {
+            var porProduto = await DB.select("links_pagamento",
+              "gateway_id=eq." + encodeURIComponent(String(dadosCk.product_id)) + "&select=id");
+            idLinkCk = porProduto.body && porProduto.body[0] && porProduto.body[0].id;
+          }
+
+          if (idLinkCk) {
+            await DB.update("links_pagamento", "id=eq." + idLinkCk, pagoCk ? {
+              status: "pago",
+              pago_em: new Date().toISOString(),
+              valor_pago_centavos: reaisParaCentavosDoGateway(dadosCk.amount || dadosCk.total || dadosCk.price)
+            } : { status: "cancelado" });
+            secLog("link_pagamento_" + (pagoCk ? "pago" : "cancelado"), { link_id: idLinkCk, gateway: "cakto" });
+
+            if (pagoCk) {
+              var linkCk = await DB.select("links_pagamento", "id=eq." + idLinkCk + "&select=*");
+              var lkCk = linkCk.body && linkCk.body[0];
+              if (lkCk && lkCk.plano_concedido && lkCk.cliente_email) {
+                var empCk = await DB.select("empresas",
+                  "email=eq." + encodeURIComponent(lkCk.cliente_email) + "&select=id,nome,email,assinatura_ate");
+                var eCk = empCk.body && empCk.body[0];
+                if (eCk) await aplicarPlanoDoLink(lkCk, eCk);
+                else secLog("link_acesso_pendente", { link_id: idLinkCk });
+              }
+            }
+            return jsonOk(res, { recebido: true });
+          }
+
+          // Assinatura.
+          var empIdCk = metaCk.empresa_id;
+          if (!empIdCk && dadosCk.product_id) {
+            var porAss = await DB.select("empresas",
+              "pagamento_assinatura_id=eq." + encodeURIComponent(String(dadosCk.product_id)) + "&select=id");
+            empIdCk = porAss.body && porAss.body[0] && porAss.body[0].id;
+          }
+          if (!empIdCk && (dadosCk.customer_email || (dadosCk.customer && dadosCk.customer.email))) {
+            var emailCk = dadosCk.customer_email || dadosCk.customer.email;
+            var porEmail = await DB.select("empresas",
+              "email=eq." + encodeURIComponent(String(emailCk)) + "&select=id");
+            empIdCk = porEmail.body && porEmail.body[0] && porEmail.body[0].id;
+          }
+
+          if (empIdCk) {
+            if (canceladoCk && !pagoCk) {
+              // Não corta na hora: o período já pago continua valendo, e
+              // a rotina diária derruba quando vencer.
+              await DB.update("empresas", "id=eq." + empIdCk, { cancelamento_agendado: true });
+              secLog("assinatura_cancelamento_agendado", { empresa_id: empIdCk, gateway: "cakto" });
+            } else {
+              await aplicarAssinaturaCakto(empIdCk, dadosCk, metaCk.plano);
+
+              var empBoasCk = await DB.select("empresas", "id=eq." + empIdCk + "&select=nome,email,plano");
+              var eBoasCk = empBoasCk.body && empBoasCk.body[0];
+              if (eBoasCk) {
+                var pagoCent = reaisParaCentavosDoGateway(dadosCk.amount || dadosCk.total) ||
+                               precoDoPlano(eBoasCk.plano);
+                enviarEmail(eBoasCk.email, "✅ Assinatura do Workap confirmada",
+                  EMAIL_TEMPLATES.pagamentoConfirmado(eBoasCk.nome, "R$ " + centavosParaReais(pagoCent))
+                ).catch(function () {});
+              }
+            }
+          } else {
+            registrarErro("pagamento", "Aviso de pagamento sem empresa identificada", {
+              rota: "/webhook/cakto", detalhe: { evento: tipoCk, objeto: dadosCk.id || null }
+            });
+          }
+        }
+      } catch (e) {
+        registrarErro("pagamento", "Falha ao processar " + tipoCk + ": " + e.message, {
+          rota: "/webhook/cakto", metodo: "POST", detalhe: { evento: idCk }
+        });
+        return jsonErr(res, "Falha ao processar evento", 500);
+      }
+
+      return jsonOk(res, { recebido: true });
     }
 
     // ── WEBHOOK DA STRIPE (rota pública, assinada) ──
@@ -4502,7 +4959,15 @@ var server = http.createServer(async (req, res) => {
                   "só entrega no e-mail dono da conta. Cliente novo NÃO consegue se cadastrar. " +
                   "Verifique um domínio em resend.com/domains e defina EMAIL_FROM."
                 : "Remetente: " + soOEndereco(CONFIG.EMAIL_FROM) },
-          { nome: "Pagamento (Stripe)",
+          CONFIG.GATEWAY === "cakto"
+            ? { nome: "Pagamento (Cakto)",
+                ok: !!CONFIG.CAKTO_CLIENT_ID && !!CONFIG.CAKTO_CLIENT_SECRET && !!CONFIG.CAKTO_WEBHOOK_SECRET,
+                detalhe: !CONFIG.CAKTO_CLIENT_ID || !CONFIG.CAKTO_CLIENT_SECRET
+                  ? "CAKTO_CLIENT_ID/CAKTO_CLIENT_SECRET ausentes"
+                  : !CONFIG.CAKTO_WEBHOOK_SECRET
+                    ? "Credenciais ok, mas CAKTO_WEBHOOK_SECRET ausente — pagamento entra e o acesso NÃO abre"
+                    : "Gateway ativo: Cakto. Integração NÃO conferida contra a documentação — faça uma cobrança de R$ 1 antes de vender" }
+            : { nome: "Pagamento (Stripe)",
             ok: !!CONFIG.STRIPE_KEY && !!CONFIG.STRIPE_WEBHOOK_SECRET,
             detalhe: !CONFIG.STRIPE_KEY ? "STRIPE_SECRET_KEY ausente"
               : !CONFIG.STRIPE_WEBHOOK_SECRET ? "Chave ok, mas STRIPE_WEBHOOK_SECRET ausente — pagamento entra e o acesso NÃO abre"
@@ -4762,9 +5227,39 @@ var server = http.createServer(async (req, res) => {
         "domínio próprio", soOEndereco(CONFIG.EMAIL_FROM), null);
 
       // ── Integrações que dependem de configuração ──
-      // A chave é testada DE VERDADE, não só "está definida": uma chave
-      // revogada continua definida e só falha na hora da venda.
-      if (CONFIG.STRIPE_KEY) {
+      //
+      // Só o gateway ATIVO é testado. Testar os dois encheria a tela de
+      // vermelho por causa de credenciais que ninguém precisa ter — e um
+      // painel que mostra falha esperada é um painel que se aprende a
+      // ignorar.
+      anotar("Gateway de pagamento ativo", "Integrações", true,
+        "stripe ou cakto", CONFIG.GATEWAY, null);
+
+      if (CONFIG.GATEWAY === "cakto") {
+        if (CONFIG.CAKTO_CLIENT_ID && CONFIG.CAKTO_CLIENT_SECRET) {
+          var t0ck = Date.now();
+          var ckOk = false, ckDet = "";
+          try {
+            // Pede o token de verdade. É a única chamada que prova que o
+            // par client_id/secret vale — e é justamente a que falha
+            // primeiro se as credenciais foram revogadas.
+            await caktoToken();
+            ckOk = true;
+            ckDet = "token OAuth2 obtido";
+          } catch (e) { ckDet = e.message.slice(0, 120); }
+          anotar("Credenciais da Cakto são válidas", "Integrações", ckOk,
+            "token aceito pela API", ckDet, Date.now() - t0ck);
+        } else {
+          anotar("Credenciais da Cakto são válidas", "Integrações", false,
+            "token aceito pela API", "CAKTO_CLIENT_ID/CAKTO_CLIENT_SECRET ausentes", null);
+        }
+        anotar("Webhook da Cakto configurado", "Integrações", !!CONFIG.CAKTO_WEBHOOK_SECRET,
+          "CAKTO_WEBHOOK_SECRET definido",
+          CONFIG.CAKTO_WEBHOOK_SECRET
+            ? "definido — cadastre a URL com ?s=<segredo> no painel da Cakto"
+            : "ausente — pagamento entra e o acesso não abre", null);
+
+      } else if (CONFIG.STRIPE_KEY) {
         var t0stripe = Date.now();
         var stripeOk = false, stripeDet = "";
         try {
@@ -4790,9 +5285,11 @@ var server = http.createServer(async (req, res) => {
       } else {
         anotar("Chave da Stripe é válida", "Integrações", false, "aceita pela API", "STRIPE_SECRET_KEY ausente", null);
       }
-      anotar("Webhook da Stripe configurado", "Integrações", !!CONFIG.STRIPE_WEBHOOK_SECRET,
-        "STRIPE_WEBHOOK_SECRET definido",
-        CONFIG.STRIPE_WEBHOOK_SECRET ? "definido" : "ausente — pagamento entra e o acesso não abre", null);
+      if (CONFIG.GATEWAY !== "cakto") {
+        anotar("Webhook da Stripe configurado", "Integrações", !!CONFIG.STRIPE_WEBHOOK_SECRET,
+          "STRIPE_WEBHOOK_SECRET definido",
+          CONFIG.STRIPE_WEBHOOK_SECRET ? "definido" : "ausente — pagamento entra e o acesso não abre", null);
+      }
       anotar("Notificações push configuradas", "Integrações", !!CONFIG.VAPID_PUBLIC && !!CONFIG.VAPID_PRIVATE,
         "par de chaves VAPID", CONFIG.VAPID_PUBLIC ? "chaves presentes" : "ausentes", null);
 
@@ -4963,12 +5460,16 @@ var server = http.createServer(async (req, res) => {
     // as cobranças já feitas para ganhar nada.
     var METODOS_PAGAMENTO = ["PIX", "CARD", "BOLETO"];
     var METODO_STRIPE = { PIX: "pix", CARD: "card", BOLETO: "boleto" };
+    var METODO_CAKTO  = { PIX: "pix", CARD: "credit_card", BOLETO: "boleto" };
 
     if (method === "POST" && path === "/owner/links") {
       if (!hasPermission(authPayload, "saas:write")) {
         return jsonErr(res, "Apenas o owner da Workap pode criar cobranças", 403);
       }
-      if (!CONFIG.STRIPE_KEY) return jsonErr(res, "Pagamento não configurado", 503);
+      var gwPronto = CONFIG.GATEWAY === "cakto"
+        ? (CONFIG.CAKTO_CLIENT_ID && CONFIG.CAKTO_CLIENT_SECRET)
+        : CONFIG.STRIPE_KEY;
+      if (!gwPronto) return jsonErr(res, "Pagamento não configurado", 503);
 
       var rawLink = await getBody(req);
       var bodyLink = parseBody(rawLink);
@@ -5022,11 +5523,45 @@ var server = http.createServer(async (req, res) => {
           cliente_email: emailCli,
           plano_concedido: planoLink,
           dias_acesso: diasLink,
-          gateway: "stripe",
+          gateway: CONFIG.GATEWAY,
           status: "aberto"
         });
         linhaLink = criado.body && criado.body[0];
         if (!linhaLink) return jsonErr(res, "Não foi possível registrar a cobrança", 500);
+
+        // ── Caminho Cakto ──
+        if (CONFIG.GATEWAY === "cakto") {
+          var cobrCk = await criarCobrancaCakto({
+            nome: descLink,
+            descricao: planoLink
+              ? CONFIG.PLANOS[planoLink].nome + " · " + diasLink + " dias de acesso"
+              : undefined,
+            centavos: centavosLink,
+            // Cobrança única: o link vende um acesso por prazo fixo, não
+            // uma assinatura. Quem renova é o cliente, comprando de novo.
+            recorrente: false,
+            metodos: metodosLink.map(function (m) { return METODO_CAKTO[m]; }),
+            metadata: { link_id: linhaLink.id }
+          });
+
+          if (!cobrCk.url) {
+            await DB.update("links_pagamento", "id=eq." + linhaLink.id, { status: "cancelado" });
+            registrarErro("pagamento", "Cakto não devolveu URL para o link de cobrança", {
+              rota: "/owner/links", detalhe: { campos: Object.keys(cobrCk.resposta || {}).join(",") }
+            });
+            return jsonErr(res, "O gateway não devolveu o link. Confira a configuração em Diagnóstico.", 502);
+          }
+
+          await DB.update("links_pagamento", "id=eq." + linhaLink.id, {
+            gateway_id: cobrCk.id || null,
+            url: cobrCk.url
+          });
+          secLog("link_pagamento_criado", {
+            valor: centavosLink, metodos: metodosLink.join(","),
+            plano: planoLink || "nenhum", dias: diasLink, gateway: "cakto"
+          });
+          return jsonOk(res, { ok: true, id: linhaLink.id, url: cobrCk.url });
+        }
 
         // Payment Link, e não Checkout Session, por um motivo prático: a
         // sessão de checkout expira em 24 horas. Um link que o dono
