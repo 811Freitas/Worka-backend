@@ -2656,6 +2656,54 @@ async function aplicarPlanoDoLink(link, empresa) {
 }
 
 /**
+ * Avisa o dono da Workap que entrou dinheiro.
+ *
+ * Chamada SEM await, de propósito. O webhook da Cakto precisa responder
+ * em 5 segundos; somar o mês e mandar e-mail não pode entrar nessa
+ * conta. Se falhar, o pagamento já está registrado no banco de qualquer
+ * forma — o aviso é conveniência, não a fonte da verdade.
+ *
+ * O total do mês vai junto porque o valor de UMA venda não diz se o mês
+ * está bom. É a diferença entre um aviso que informa e um que só
+ * notifica.
+ */
+async function avisarOwnerDeRecebimento(dados) {
+  if (!CONFIG.OWNER_EMAIL) return;
+
+  var totalMes = 0, quantas = 0;
+  try {
+    // Do dia 1 do mês corrente em diante. Em UTC, como todo o resto do
+    // projeto — a diferença de fuso pode jogar um pagamento da virada
+    // para o mês vizinho, e isso é aceitável num aviso; quem fecha o
+    // caixa é o extrato do gateway.
+    var agora = new Date();
+    var inicio = new Date(Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), 1)).toISOString();
+    var doMes = await DB.select("links_pagamento",
+      "status=eq.pago&pago_em=gte." + inicio + "&select=valor_centavos,valor_pago_centavos");
+    (doMes.body || []).forEach(function (l) {
+      totalMes += (l.valor_pago_centavos || l.valor_centavos || 0);
+      quantas++;
+    });
+  } catch (e) {
+    // Sem o total, o aviso ainda vale — some só o comparativo.
+    secLog("aviso_recebimento_sem_total", { message: e.message.slice(0, 100) });
+  }
+
+  await enviarEmail(CONFIG.OWNER_EMAIL,
+    "💚 Você recebeu R$ " + centavosParaReais(dados.centavos) + " — " + String(dados.descricao || "").slice(0, 60),
+    EMAIL_TEMPLATES.dinheiroRecebido(
+      dados.descricao || "Pagamento recebido",
+      centavosParaReais(dados.centavos),
+      dados.cliente,
+      dados.meio,
+      centavosParaReais(totalMes),
+      quantas
+    )
+  );
+  secLog("owner_avisado_de_recebimento", { centavos: dados.centavos, no_mes: totalMes });
+}
+
+/**
  * Procura pagamento já feito e ainda não aplicado para um e-mail.
  * Usada no cadastro: quem pagou antes de ter conta recebe o acesso
  * assim que a conta nasce.
@@ -2845,6 +2893,34 @@ var EMAIL_TEMPLATES = {
     <div style="background:#f7f9f7;border-radius:16px;padding:24px">
       <table width="100%"><tr><td style="font-size:13px;color:#6b7a6b">Valor</td><td style="font-weight:900;color:#1e8a40;text-align:right">R$ ${SANITIZE.string(valor)}</td></tr></table>
     </div>`),
+
+  // Aviso de dinheiro que ENTROU, para o dono da Workap.
+  //
+  // O painel já mostra os totais, mas exige abrir o painel. Quem vende
+  // quer saber na hora — e um pagamento que entra sem ninguém perceber
+  // é também um pagamento que ninguém confere contra o extrato.
+  //
+  // Traz o mês inteiro junto de propósito: o número de UMA venda não
+  // diz se o mês está bom. Os dois lado a lado, sim.
+  dinheiroRecebido: (descricao, valor, quem, meio, totalMes, quantasNoMes) => emailBase(`
+    <h2 style="text-align:center;margin:0 0 8px;color:#0a2e1a;font-size:22px;font-weight:800">Você recebeu R$ ${SANITIZE.string(valor)} 💚</h2>
+    <p style="color:#5a6b5a;text-align:center;margin:0 0 24px">${SANITIZE.string(descricao, 140)}</p>
+    <div style="background:#f7f9f7;border-radius:16px;padding:24px">
+      <table width="100%" style="font-size:14px">
+        <tr><td style="color:#6b7a6b;padding:4px 0">Valor</td><td style="font-weight:900;color:#1e8a40;text-align:right">R$ ${SANITIZE.string(valor)}</td></tr>
+        <tr><td style="color:#6b7a6b;padding:4px 0">Cliente</td><td style="text-align:right;color:#3a3d39">${SANITIZE.string(quem || "não informado", 120)}</td></tr>
+        <tr><td style="color:#6b7a6b;padding:4px 0">Forma</td><td style="text-align:right;color:#3a3d39">${SANITIZE.string(meio || "—", 40)}</td></tr>
+      </table>
+      <div style="margin-top:18px;padding-top:16px;border-top:1px solid #e2e8e2">
+        <table width="100%" style="font-size:14px">
+          <tr><td style="color:#6b7a6b">Recebido no mês</td><td style="font-weight:800;color:#0a2e1a;text-align:right">R$ ${SANITIZE.string(totalMes)}</td></tr>
+          <tr><td style="color:#6b7a6b;padding-top:4px">Cobranças pagas</td><td style="text-align:right;color:#3a3d39;padding-top:4px">${SANITIZE.int(quantasNoMes, 0, 100000)}</td></tr>
+        </table>
+      </div>
+    </div>
+    <p style="margin:20px 0 0;font-size:12px;color:#9aab9a;text-align:center">
+      O valor acima é o que o cliente pagou. A taxa do gateway é descontada antes de cair na sua conta.
+    </p>`),
 
   trialAcabando: (nome, dias) => emailBase(`
     <h2 style="text-align:center;margin:0 0 8px;color:#0a2e1a;font-weight:800">Seu trial acaba em ${SANITIZE.int(dias, 0, 30)} dia(s)! ⏰</h2>
@@ -4274,6 +4350,21 @@ var server = http.createServer(async (req, res) => {
                 if (eCk) await aplicarPlanoDoLink(lkCk, eCk);
                 else secLog("link_acesso_pendente", { link_id: idLinkCk });
               }
+
+              // Aviso ao dono da Workap. Sem await: a Cakto espera
+              // resposta em 5 segundos, e somar o mês mais mandar
+              // e-mail não pode entrar nessa conta. O pagamento já está
+              // gravado — o aviso é conveniência.
+              if (lkCk) {
+                avisarOwnerDeRecebimento({
+                  descricao: lkCk.descricao,
+                  centavos: lkCk.valor_pago_centavos || lkCk.valor_centavos,
+                  cliente: lkCk.cliente_nome || lkCk.cliente_email,
+                  meio: (dadosCk.payment_method || dadosCk.paymentMethod || "").toUpperCase() || null
+                }).catch(function (e) {
+                  secLog("aviso_recebimento_falhou", { message: e.message.slice(0, 100) });
+                });
+              }
             }
             return jsonOk(res, { recebido: true });
           }
@@ -4309,6 +4400,19 @@ var server = http.createServer(async (req, res) => {
                 enviarEmail(eBoasCk.email, "✅ Assinatura do Workap confirmada",
                   EMAIL_TEMPLATES.pagamentoConfirmado(eBoasCk.nome, "R$ " + centavosParaReais(pagoCent))
                 ).catch(function () {});
+
+                // A assinatura mensal também é dinheiro entrando, e a
+                // renovação passa por aqui todo mês. Avisar só as
+                // cobranças avulsas esconderia justamente a receita que
+                // se repete — que é a que importa num SaaS.
+                avisarOwnerDeRecebimento({
+                  descricao: "Assinatura — " + eBoasCk.nome,
+                  centavos: pagoCent,
+                  cliente: eBoasCk.nome + " · " + eBoasCk.email,
+                  meio: (dadosCk.payment_method || dadosCk.paymentMethod || "").toUpperCase() || null
+                }).catch(function (e) {
+                  secLog("aviso_recebimento_falhou", { message: e.message.slice(0, 100) });
+                });
               }
             }
           } else {
