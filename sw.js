@@ -8,6 +8,8 @@
 // o sistema não tem. Login biométrico continua sendo uma feature em
 // aberto (exige WebAuthn + tabela de credenciais no banco).
 
+// v24: SEO — description, canonical, dados estruturados e o nome no
+// H1. Entraram robots.txt e sitemap.xml.
 // v23: o cadastro passou a EXIGIR telefone e CPF/CNPJ — os campos ja
 // existiam na tela, mas nao eram conferidos nem enviados.
 // v22: a Stripe saiu; o pagamento é da Cakto. A vitrine voltou a
@@ -32,7 +34,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v23';
+var CACHE = 'workap-v24';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';

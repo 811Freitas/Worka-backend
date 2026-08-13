@@ -6,6 +6,85 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Workap — Gestão de Equipe para Pequenas Empresas</title>
 
+  <!-- ═══════════ SER ENCONTRADO NA BUSCA ═══════════
+       Faltava o essencial: sem description, o Google inventa o texto
+       que aparece embaixo do título — geralmente um pedaço solto do
+       menu. Sem canonical, o mesmo site em workap.com.br,
+       www.workap.com.br e 811freitas.github.io conta como três
+       páginas concorrendo entre si, e a força se divide por três.
+
+       A description é o anúncio do resultado: é ela que decide se
+       alguém clica. Até 160 caracteres, com o nome na frente. -->
+  <meta name="description" content="Workap: app de gestão de equipe para pequenas empresas. Ponto digital por QR Code, tarefas com foto, escala, controle de validade e folha. Teste 7 dias grátis." />
+  <link rel="canonical" href="https://workap.com.br/" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="author" content="Workap" />
+
+  <!-- Aparência do link no WhatsApp, Instagram e no X -->
+  <meta property="og:site_name" content="Workap" />
+  <meta property="og:locale" content="pt_BR" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Workap — Gestão de Equipe para Pequenas Empresas" />
+  <meta name="twitter:description" content="Ponto digital, tarefas com foto e controle de validade. Tudo em um app só." />
+  <meta name="twitter:image" content="https://workap.com.br/assets/icon-512.png" />
+
+  <!-- Dados estruturados: é assim que o Google entende que "Workap" é
+       o NOME de um produto, e não uma palavra qualquer no meio do
+       texto. Sem isto ele precisa adivinhar pela repetição.
+       É também o que permite o resultado aparecer com preço e nota. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://workap.com.br/#organizacao",
+        "name": "Workap",
+        "alternateName": ["Workap Gestão", "Worka"],
+        "url": "https://workap.com.br/",
+        "logo": "https://workap.com.br/assets/icon-512.png",
+        "description": "Software de gestão de equipe para micro e pequenas empresas no Brasil.",
+        "areaServed": { "@type": "Country", "name": "Brasil" }
+      },
+      {
+        "@type": "SoftwareApplication",
+        "name": "Workap",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web, Android, iOS",
+        "url": "https://workap.com.br/",
+        "publisher": { "@id": "https://workap.com.br/#organizacao" },
+        "inLanguage": "pt-BR",
+        "description": "Ponto digital por QR Code, tarefas com foto, escala de trabalho, controle de validade, folha de pagamento e chat da equipe. Feito para padaria, mercearia, barbearia, oficina e outros pequenos negócios.",
+        "offers": [
+          {
+            "@type": "Offer",
+            "name": "Plano Completo",
+            "price": "49.99",
+            "priceCurrency": "BRL",
+            "category": "Assinatura mensal",
+            "availability": "https://schema.org/InStock"
+          },
+          {
+            "@type": "Offer",
+            "name": "Plano Pro",
+            "price": "89.90",
+            "priceCurrency": "BRL",
+            "category": "Assinatura mensal",
+            "availability": "https://schema.org/InStock"
+          }
+        ]
+      },
+      {
+        "@type": "WebSite",
+        "name": "Workap",
+        "url": "https://workap.com.br/",
+        "inLanguage": "pt-BR",
+        "publisher": { "@id": "https://workap.com.br/#organizacao" }
+      }
+    ]
+  }
+  </script>
+
   <!-- Ícone da aba e do atalho: só o símbolo, sem a palavra "workap"
        da arte completa, que vira um borrão a 16px.
        O SVG vem primeiro porque escala sem perda em tela retina; os
@@ -696,7 +775,16 @@
   <div class="hero-inner">
     <div class="hero-content">
       <div class="hero-badge">Plataforma SaaS • White Label</div>
-      <h1>Gerencie sua equipe com <em>simplicidade total</em></h1>
+      <!-- O H1 é o título que o buscador lê como assunto da página, e ele
+     não dizia o nome do produto: "Gerencie sua equipe com
+     simplicidade total" serve para qualquer concorrente. Para o
+     Google, a página não afirmava ser sobre Workap em lugar nenhum
+     fora da aba do navegador.
+
+     O nome entra sem virar título de folheto: continua sendo uma
+     frase que o visitante lê como promessa, não como palavra-chave
+     empilhada. -->
+<h1>Workap: gerencie sua equipe com <em>simplicidade total</em></h1>
       <p class="hero-sub">Ponto digital, tarefas com comprovação, alerta de validade e controle completo da equipe — tudo customizável com a sua marca.</p>
       <div class="hero-actions">
         <a href="#" onclick="abrirCheckout();return false;" class="btn-primary">Testar grátis 7 dias</a>

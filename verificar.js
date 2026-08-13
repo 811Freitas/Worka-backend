@@ -74,8 +74,22 @@ function checarSintaxe(codigo, rotulo) {
 var paginas = ["index.html", "app/index.html"];
 paginas.forEach(function (rel) {
   var html = fs.readFileSync(path.join(RAIZ, rel), "utf8");
-  var re = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi, m, i = 0;
-  while ((m = re.exec(html))) { i++; checarSintaxe(m[1], rel + " script #" + i); }
+  // Nem toda tag <script> carrega JavaScript. Dados estruturados
+  // (application/ld+json) e templates viajam dentro dela, e o
+  // navegador não os executa — mas o `new vm.Script` daqui tentava, e
+  // acusava "Unexpected token ':'" na primeira chave do JSON.
+  //
+  // Sem esta exceção, o verificador reprovaria toda mudança de SEO e
+  // ensinaria a ignorar o próprio verificador, que é o pior desfecho
+  // possível para uma ferramenta de checagem.
+  var re = /<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/gi, m, i = 0;
+  while ((m = re.exec(html))) {
+    var tipo = (/\btype\s*=\s*["']([^"']+)/i.exec(m[1]) || [])[1] || "";
+    var ehJs = !tipo || /javascript|ecmascript|^module$/i.test(tipo);
+    if (!ehJs) continue;
+    i++;
+    checarSintaxe(m[2], rel + " script #" + i);
+  }
 });
 
 // ── 2. O portão de autenticação do backend ──────────────────────────
