@@ -1818,9 +1818,28 @@ function mostrarAvisoDeCobranca() {
  * nem aviso no console. Só o nome novo impede que volte a acontecer.
  */
 function continuarParaOferta() {
-  var nome = ((document.getElementById('f-nome')||{}).value||'').trim();
+  var nome  = ((document.getElementById('f-nome')||{}).value||'').trim();
   var email = ((document.getElementById('f-email')||{}).value||'').trim();
-  if (!nome||!email){mostrarErro('Preencha nome e e-mail!');return;}
+  var doc   = apenasDigitos(((document.getElementById('f-doc')||{}).value||''));
+  var tel   = apenasDigitos(((document.getElementById('f-tel')||{}).value||''));
+
+  // Os quatro campos são marcados com * na tela, mas só nome e e-mail
+  // eram conferidos aqui — CPF e telefone podiam passar em branco. O
+  // resultado era conta nascendo sem telefone, que é justamente o dado
+  // que permite falar com a pessoa dentro dos 7 dias de trial.
+  //
+  // Cada erro aponta UM campo. "Preencha os campos" numa tela com seis
+  // obriga a pessoa a procurar qual — e quem procura no cadastro
+  // desiste.
+  if (!nome)  { mostrarErro('Informe seu nome ou o nome da empresa.'); return; }
+  if (!email || email.indexOf('@') < 0) { mostrarErro('Informe um e-mail válido.'); return; }
+  if (doc.length !== 11 && doc.length !== 14) {
+    mostrarErro('CPF deve ter 11 dígitos ou CNPJ 14.'); return;
+  }
+  if (tel.length !== 10 && tel.length !== 11) {
+    mostrarErro('Informe o WhatsApp com DDD (ex.: 11 98765-4321).'); return;
+  }
+
   mostrarStep('trial');
   var n=document.getElementById('trial-nome-dest');if(n)n.textContent=nome.split(' ')[0];
 }
@@ -2074,7 +2093,17 @@ async function confirmarTrialCodigo() {
     var r = await fetch(API_BASE + '/verificar-codigo', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, codigo, nome, senha, ramo: ramoEscolhidoNoCadastro(), plano: planoEscolhido })
+      // telefone e documento saem do MESMO formulário do passo 1, que
+      // já os coletava com máscara — só não os mandava. Sem eles a
+      // conta nascia sem contato, e o aviso de trial novo chegava sem
+      // nada para ligar.
+      body: JSON.stringify({
+        email, codigo, nome, senha,
+        telefone:  apenasDigitos(((document.getElementById('f-tel')||{}).value||'')),
+        documento: apenasDigitos(((document.getElementById('f-doc')||{}).value||'')),
+        ramo: ramoEscolhidoNoCadastro(),
+        plano: planoEscolhido
+      })
     });
     var data = await r.json();
 

@@ -719,6 +719,57 @@ var SANITIZE = {
   },
 
   // Team ID formato #WK-NNNN
+  // Telefone brasileiro: só os dígitos, com DDD. 10 para fixo, 11 para
+  // celular. A máscara é decisão de tela — guardar "(11) 98765-4321"
+  // deixaria o mesmo número em três formatos no banco, e aí nenhuma
+  // busca acha.
+  telefone: (v) => {
+    if (typeof v !== "string" && typeof v !== "number") return null;
+    var d = String(v).replace(/\D/g, "");
+    // DDD válido começa em 11; nada abaixo disso existe no Brasil, e é
+    // o que separa um telefone de alguém digitando qualquer número.
+    if (d.length !== 10 && d.length !== 11) return null;
+    if (parseInt(d.slice(0, 2), 10) < 11) return null;
+    return d;
+  },
+
+  /**
+   * CPF (11) ou CNPJ (14), validado pelo dígito verificador.
+   *
+   * Conferir só o tamanho aceitaria "11111111111", que é o que uma
+   * pessoa digita quando não quer informar. O dígito verificador custa
+   * dez linhas e é a diferença entre ter o documento e ter lixo com o
+   * tamanho certo.
+   */
+  documento: (v) => {
+    if (typeof v !== "string" && typeof v !== "number") return null;
+    var d = String(v).replace(/\D/g, "");
+
+    function digito(base, pesos) {
+      var soma = 0;
+      for (var i = 0; i < pesos.length; i++) soma += parseInt(base[i], 10) * pesos[i];
+      var r = soma % 11;
+      return r < 2 ? 0 : 11 - r;
+    }
+
+    if (d.length === 11) {
+      // Todos os dígitos iguais passam na conta do verificador, então
+      // são barrados à parte. "111.111.111-11" é um CPF matematicamente
+      // válido e obviamente falso.
+      if (/^(\d)\1{10}$/.test(d)) return null;
+      var d1 = digito(d, [10, 9, 8, 7, 6, 5, 4, 3, 2]);
+      var d2 = digito(d, [11, 10, 9, 8, 7, 6, 5, 4, 3, 2]);
+      return (d1 === +d[9] && d2 === +d[10]) ? d : null;
+    }
+    if (d.length === 14) {
+      if (/^(\d)\1{13}$/.test(d)) return null;
+      var p1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+      var p2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+      return (digito(d, p1) === +d[12] && digito(d, p2) === +d[13]) ? d : null;
+    }
+    return null;
+  },
+
   teamId: (v) => {
     if (typeof v !== "string") return null;
     var re = /^#WK-\d{4}$/;
@@ -2685,6 +2736,23 @@ async function aplicarPlanoDoLink(link, empresa) {
  * contas diferentes, nem sempre no mesmo celular — e um aviso de venda
  * que chega só onde a pessoa não olha é um aviso que não existe.
  */
+// Formatação para LEITURA, nunca para gravar. O banco guarda só
+// dígitos; estes dois existem porque quem lê o aviso vai copiar o
+// telefone para o WhatsApp e conferir o documento de bater o olho.
+function formatarTelefone(d) {
+  var n = String(d || "").replace(/\D/g, "");
+  if (n.length === 11) return "(" + n.slice(0, 2) + ") " + n.slice(2, 7) + "-" + n.slice(7);
+  if (n.length === 10) return "(" + n.slice(0, 2) + ") " + n.slice(2, 6) + "-" + n.slice(6);
+  return n || null;
+}
+
+function formatarDocumento(d) {
+  var n = String(d || "").replace(/\D/g, "");
+  if (n.length === 11) return n.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+  if (n.length === 14) return n.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+  return n || null;
+}
+
 function destinatariosDeAviso() {
   var bruto = CONFIG.AVISOS_EMAIL || CONFIG.OWNER_EMAIL || "";
   return String(bruto).split(",")
@@ -2761,6 +2829,12 @@ async function avisarTrialNovo(empresa, ramoSlug) {
   var corpo = EMAIL_TEMPLATES.trialIniciado(empresa.nome, [
     ["Nome",      empresa.nome],
     ["E-mail",    empresa.email],
+    // Formatados só aqui, para leitura humana. No banco continuam só
+    // dígitos — é o telefone deste e-mail que alguém vai copiar para o
+    // WhatsApp, e "(11) 98765-4321" é mais fácil de conferir de bater
+    // o olho do que onze dígitos colados.
+    ["Telefone",  formatarTelefone(empresa.telefone)],
+    ["CPF/CNPJ",  formatarDocumento(empresa.documento)],
     ["Segmento",  ramoInfo ? ramoInfo.nome : ramoSlug],
     ["Plano escolhido", infoPlano ? infoPlano.nome + " (R$ " + centavosParaReais(infoPlano.centavos) + ")" : null],
     ["Código da equipe", empresa.team_id],
@@ -4052,6 +4126,27 @@ var server = http.createServer(async (req, res) => {
       var codigo = SANITIZE.string(body.codigo || "", 6);
       if (!email || !codigo || !/^\d{6}$/.test(codigo)) return jsonErr(res, "Dados inválidos");
 
+      // Os campos do cadastro são conferidos ANTES do código, porque
+      // verificarOTP() QUEIMA o código ao aceitá-lo. Validando depois,
+      // um CPF com um dígito trocado consumia o código: a pessoa tinha
+      // recebido o e-mail, digitado certo, e ainda assim precisava
+      // pedir outro — no passo mais frágil do cadastro, onde desistir é
+      // a reação natural.
+      //
+      // A ordem é a regra geral: o barato e reversível primeiro, o
+      // destrutivo por último.
+      var telefoneNovo = null, documentoNovo = null;
+      if (body.nome && body.senha) {
+        telefoneNovo = SANITIZE.telefone(body.telefone);
+        if (!telefoneNovo) {
+          return jsonErr(res, "Informe um telefone válido com DDD (ex.: 11 98765-4321).");
+        }
+        documentoNovo = SANITIZE.documento(body.documento);
+        if (!documentoNovo) {
+          return jsonErr(res, "CPF ou CNPJ inválido. Confira os números digitados.");
+        }
+      }
+
       var otpResult = await verificarOTP(email, codigo);
       if (!otpResult.ok) return jsonErr(res, otpResult.erro);
 
@@ -4106,8 +4201,12 @@ var server = http.createServer(async (req, res) => {
         var ramoEscolhido = ramoDaEmpresa(body.ramo);
         var planoNovo = planoValido(body.plano);
 
+        // telefoneNovo e documentoNovo já vieram validados lá de cima,
+        // antes de o código ser queimado.
         var result = await DB.insert("empresas", {
           nome, email, senha_hash: senhaHash,
+          telefone: telefoneNovo,
+          documento: documentoNovo,
           ramo: ramoEscolhido,
           plano: planoNovo,
           valor_mensal: CONFIG.PLANOS[planoNovo].centavos / 100,
