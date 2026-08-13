@@ -89,6 +89,17 @@ const CONFIG = {
   // bcrypt da senha (gerar com: node -e "console.log(require('bcryptjs').hashSync('SUA_SENHA',12))"),
   // nunca a senha em texto plano.
   OWNER_EMAIL:         env("OWNER_EMAIL") ? env("OWNER_EMAIL").toLowerCase() : null,
+  // Para onde vão os avisos de venda e de trial novo. Aceita vários
+  // endereços separados por vírgula — o e-mail da empresa e o pessoal,
+  // por exemplo, que são contas diferentes e nem sempre no mesmo
+  // celular.
+  //
+  // Variável, e não endereço escrito no código: trocar quem recebe vira
+  // um campo no Render, não um deploy. E endereço pessoal em código de
+  // repositório é o tipo de coisa que vaza sem ninguém reparar.
+  //
+  // Sem configurar, cai no OWNER_EMAIL — nunca fica sem destino.
+  AVISOS_EMAIL:        env("AVISOS_EMAIL"),
   OWNER_PASSWORD_HASH: env("OWNER_PASSWORD_HASH"),
   BCRYPT_ROUNDS: 12,
   JWT_EXPIRES:   "8h",
@@ -2667,8 +2678,23 @@ async function aplicarPlanoDoLink(link, empresa) {
  * está bom. É a diferença entre um aviso que informa e um que só
  * notifica.
  */
+/**
+ * Para quem vão os avisos internos (venda, trial).
+ *
+ * Vários endereços porque o e-mail da empresa e o pessoal costumam ser
+ * contas diferentes, nem sempre no mesmo celular — e um aviso de venda
+ * que chega só onde a pessoa não olha é um aviso que não existe.
+ */
+function destinatariosDeAviso() {
+  var bruto = CONFIG.AVISOS_EMAIL || CONFIG.OWNER_EMAIL || "";
+  return String(bruto).split(",")
+    .map(function (e) { return e.trim().toLowerCase(); })
+    .filter(function (e) { return e.indexOf("@") > 0; });
+}
+
 async function avisarOwnerDeRecebimento(dados) {
-  if (!CONFIG.OWNER_EMAIL) return;
+  var destinos = destinatariosDeAviso();
+  if (!destinos.length) return;
 
   var totalMes = 0, quantas = 0;
   try {
@@ -2689,18 +2715,65 @@ async function avisarOwnerDeRecebimento(dados) {
     secLog("aviso_recebimento_sem_total", { message: e.message.slice(0, 100) });
   }
 
-  await enviarEmail(CONFIG.OWNER_EMAIL,
-    "💚 Você recebeu R$ " + centavosParaReais(dados.centavos) + " — " + String(dados.descricao || "").slice(0, 60),
-    EMAIL_TEMPLATES.dinheiroRecebido(
-      dados.descricao || "Pagamento recebido",
-      centavosParaReais(dados.centavos),
-      dados.cliente,
-      dados.meio,
-      centavosParaReais(totalMes),
-      quantas
-    )
+  var corpo = EMAIL_TEMPLATES.vendaRealizada(
+    centavosParaReais(dados.centavos),
+    dados.descricao || "Pagamento recebido",
+    dados.cliente || [],
+    centavosParaReais(totalMes),
+    quantas
   );
-  secLog("owner_avisado_de_recebimento", { centavos: dados.centavos, no_mes: totalMes });
+  var assunto = "🎉 Venda de R$ " + centavosParaReais(dados.centavos) +
+                " — " + String(dados.descricao || "").slice(0, 60);
+
+  // Um envio por destinatário, e não todos num "to" só: assim o e-mail
+  // de um não expõe o endereço do outro, e a falha de um endereço não
+  // leva o outro junto.
+  for (var destino of destinos) {
+    await enviarEmail(destino, assunto, corpo).catch(function (e) {
+      secLog("aviso_venda_falhou", { destino: destino, message: e.message.slice(0, 80) });
+    });
+  }
+  secLog("aviso_venda_enviado", { centavos: dados.centavos, no_mes: totalMes, destinos: destinos.length });
+}
+
+/**
+ * Avisa que alguém começou o trial.
+ *
+ * Sem await no chamador, como o aviso de venda: o cadastro não pode
+ * ficar esperando e-mail. Se falhar, a conta já existe — o aviso é
+ * conveniência.
+ *
+ * Trial não é venda, e por isso não entra na conta do mês: misturar os
+ * dois faria a caixa de entrada mentir sobre quanto se vendeu.
+ */
+async function avisarTrialNovo(empresa, ramoSlug) {
+  var destinos = destinatariosDeAviso();
+  if (!destinos.length || !empresa) return;
+
+  var fim = empresa.trial_fim ? new Date(empresa.trial_fim) : null;
+  var fimTexto = (fim && !isNaN(fim.getTime()))
+    ? fim.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })
+    : "7 dias";
+
+  var ramoInfo = RAMOS[ramoSlug] || null;
+  var infoPlano = CONFIG.PLANOS[empresa.plano] || null;
+
+  var corpo = EMAIL_TEMPLATES.trialIniciado(empresa.nome, [
+    ["Nome",      empresa.nome],
+    ["E-mail",    empresa.email],
+    ["Segmento",  ramoInfo ? ramoInfo.nome : ramoSlug],
+    ["Plano escolhido", infoPlano ? infoPlano.nome + " (R$ " + centavosParaReais(infoPlano.centavos) + ")" : null],
+    ["Código da equipe", empresa.team_id],
+    ["Trial até", fimTexto]
+  ], fimTexto);
+
+  for (var destino of destinos) {
+    await enviarEmail(destino, "👋 Novo trial: " + String(empresa.nome || "").slice(0, 60), corpo)
+      .catch(function (e) {
+        secLog("aviso_trial_falhou", { destino: destino, message: e.message.slice(0, 80) });
+      });
+  }
+  secLog("aviso_trial_enviado", { empresa_id: empresa.id, destinos: destinos.length });
 }
 
 /**
@@ -2894,7 +2967,17 @@ var EMAIL_TEMPLATES = {
       <table width="100%"><tr><td style="font-size:13px;color:#6b7a6b">Valor</td><td style="font-weight:900;color:#1e8a40;text-align:right">R$ ${SANITIZE.string(valor)}</td></tr></table>
     </div>`),
 
-  // Aviso de dinheiro que ENTROU, para o dono da Workap.
+  // Linhas "rótulo: valor" para os avisos internos. Um lugar só, para
+  // venda e trial ficarem com a mesma cara — e para o SANITIZE nunca
+  // ser esquecido num deles.
+  linhasDeDados: (pares) => (pares || [])
+    .filter(function (p) { return p && p[1]; })
+    .map(function (p) {
+      return `<tr><td style="color:#6b7a6b;padding:4px 0;white-space:nowrap">${SANITIZE.string(p[0], 40)}</td>` +
+             `<td style="text-align:right;color:#3a3d39;padding-left:16px">${SANITIZE.string(String(p[1]), 160)}</td></tr>`;
+    }).join(""),
+
+  // Aviso de VENDA, para quem é dono do negócio.
   //
   // O painel já mostra os totais, mas exige abrir o painel. Quem vende
   // quer saber na hora — e um pagamento que entra sem ninguém perceber
@@ -2902,15 +2985,14 @@ var EMAIL_TEMPLATES = {
   //
   // Traz o mês inteiro junto de propósito: o número de UMA venda não
   // diz se o mês está bom. Os dois lado a lado, sim.
-  dinheiroRecebido: (descricao, valor, quem, meio, totalMes, quantasNoMes) => emailBase(`
-    <h2 style="text-align:center;margin:0 0 8px;color:#0a2e1a;font-size:22px;font-weight:800">Você recebeu R$ ${SANITIZE.string(valor)} 💚</h2>
-    <p style="color:#5a6b5a;text-align:center;margin:0 0 24px">${SANITIZE.string(descricao, 140)}</p>
-    <div style="background:#f7f9f7;border-radius:16px;padding:24px">
-      <table width="100%" style="font-size:14px">
-        <tr><td style="color:#6b7a6b;padding:4px 0">Valor</td><td style="font-weight:900;color:#1e8a40;text-align:right">R$ ${SANITIZE.string(valor)}</td></tr>
-        <tr><td style="color:#6b7a6b;padding:4px 0">Cliente</td><td style="text-align:right;color:#3a3d39">${SANITIZE.string(quem || "não informado", 120)}</td></tr>
-        <tr><td style="color:#6b7a6b;padding:4px 0">Forma</td><td style="text-align:right;color:#3a3d39">${SANITIZE.string(meio || "—", 40)}</td></tr>
-      </table>
+  vendaRealizada: (valor, descricao, dadosCliente, totalMes, quantasNoMes) => emailBase(`
+    <p style="text-align:center;margin:0 0 4px;font-size:32px">🎉</p>
+    <h2 style="text-align:center;margin:0 0 6px;color:#0a2e1a;font-size:22px;font-weight:800">Parabéns! Você realizou uma venda</h2>
+    <p style="text-align:center;margin:0 0 22px;font-size:30px;font-weight:900;color:#1e8a40">R$ ${SANITIZE.string(valor)}</p>
+    <p style="color:#5a6b5a;text-align:center;margin:0 0 22px;font-size:14px">${SANITIZE.string(descricao, 140)}</p>
+    <div style="background:#f7f9f7;border-radius:16px;padding:22px">
+      <div style="font-size:11px;font-weight:800;letter-spacing:.5px;color:#6b7a6b;text-transform:uppercase;margin-bottom:10px">Dados do cliente</div>
+      <table width="100%" style="font-size:14px">${EMAIL_TEMPLATES.linhasDeDados(dadosCliente)}</table>
       <div style="margin-top:18px;padding-top:16px;border-top:1px solid #e2e8e2">
         <table width="100%" style="font-size:14px">
           <tr><td style="color:#6b7a6b">Recebido no mês</td><td style="font-weight:800;color:#0a2e1a;text-align:right">R$ ${SANITIZE.string(totalMes)}</td></tr>
@@ -2920,6 +3002,24 @@ var EMAIL_TEMPLATES = {
     </div>
     <p style="margin:20px 0 0;font-size:12px;color:#9aab9a;text-align:center">
       O valor acima é o que o cliente pagou. A taxa do gateway é descontada antes de cair na sua conta.
+    </p>`),
+
+  // Aviso de TRIAL novo.
+  //
+  // Sem valor em destaque de propósito: trial não é venda, e tratar os
+  // dois com a mesma cara faria a caixa de entrada mentir sobre quanto
+  // se vendeu no mês. O que importa aqui é QUEM entrou — é com esse
+  // nome que se faz o contato antes dos 7 dias acabarem.
+  trialIniciado: (nome, dadosCliente, terminaEm) => emailBase(`
+    <p style="text-align:center;margin:0 0 4px;font-size:30px">👋</p>
+    <h2 style="text-align:center;margin:0 0 6px;color:#0a2e1a;font-size:21px;font-weight:800">Novo trial: ${SANITIZE.string(nome, 80)}</h2>
+    <p style="color:#5a6b5a;text-align:center;margin:0 0 22px;font-size:14px">Alguém começou os 7 dias grátis.</p>
+    <div style="background:#f7f9f7;border-radius:16px;padding:22px">
+      <div style="font-size:11px;font-weight:800;letter-spacing:.5px;color:#6b7a6b;text-transform:uppercase;margin-bottom:10px">Dados do cadastro</div>
+      <table width="100%" style="font-size:14px">${EMAIL_TEMPLATES.linhasDeDados(dadosCliente)}</table>
+    </div>
+    <p style="margin:20px 0 0;font-size:13px;color:#5a6b5a;text-align:center">
+      O trial acaba em <strong>${SANITIZE.string(terminaEm, 30)}</strong>. É a janela para falar com essa pessoa.
     </p>`),
 
   trialAcabando: (nome, dias) => emailBase(`
@@ -4040,6 +4140,18 @@ var server = http.createServer(async (req, res) => {
 
           enviarEmail(emp.email, "🎉 Bem-vindo ao Workap!", EMAIL_TEMPLATES.boasVindas(emp.nome, emp.team_id, trialFim))
             .catch(() => {});
+
+          // Aviso interno de trial novo. Sem await: o cadastro nao pode
+          // ficar esperando e-mail, e a conta ja existe neste ponto.
+          //
+          // Quem pagou ANTES de se cadastrar nao entra aqui — para essa
+          // pessoa o aviso de VENDA ja saiu quando o pagamento entrou, e
+          // mandar "novo trial" depois contaria a historia errada.
+          if (!planoJaPago) {
+            avisarTrialNovo(emp, ramoEscolhido).catch(function (e) {
+              secLog("aviso_trial_falhou", { message: e.message.slice(0, 100) });
+            });
+          }
           secLog("empresa_via_otp", { empresa_id: emp.id, plano_ja_pago: planoJaPago || "nao" });
           delete emp.senha_hash;
           emp.ramo = ramoDaEmpresa(emp.ramo);
@@ -4359,8 +4471,15 @@ var server = http.createServer(async (req, res) => {
                 avisarOwnerDeRecebimento({
                   descricao: lkCk.descricao,
                   centavos: lkCk.valor_pago_centavos || lkCk.valor_centavos,
-                  cliente: lkCk.cliente_nome || lkCk.cliente_email,
-                  meio: (dadosCk.payment_method || dadosCk.paymentMethod || "").toUpperCase() || null
+                  cliente: [
+                    ["Nome",   lkCk.cliente_nome],
+                    ["E-mail", lkCk.cliente_email],
+                    ["Forma",  (dadosCk.payment_method || dadosCk.paymentMethod || "").toUpperCase()],
+                    ["Cobrança", lkCk.descricao],
+                    ["Libera",  lkCk.plano_concedido
+                      ? (CONFIG.PLANOS[lkCk.plano_concedido] || {}).nome + " · " + lkCk.dias_acesso + " dias"
+                      : "nada (cobrança avulsa)"]
+                  ]
                 }).catch(function (e) {
                   secLog("aviso_recebimento_falhou", { message: e.message.slice(0, 100) });
                 });
@@ -4406,10 +4525,15 @@ var server = http.createServer(async (req, res) => {
                 // cobranças avulsas esconderia justamente a receita que
                 // se repete — que é a que importa num SaaS.
                 avisarOwnerDeRecebimento({
-                  descricao: "Assinatura — " + eBoasCk.nome,
+                  descricao: "Assinatura mensal — " + eBoasCk.nome,
                   centavos: pagoCent,
-                  cliente: eBoasCk.nome + " · " + eBoasCk.email,
-                  meio: (dadosCk.payment_method || dadosCk.paymentMethod || "").toUpperCase() || null
+                  cliente: [
+                    ["Empresa", eBoasCk.nome],
+                    ["E-mail",  eBoasCk.email],
+                    ["Plano",   (CONFIG.PLANOS[eBoasCk.plano] || {}).nome || eBoasCk.plano],
+                    ["Forma",   (dadosCk.payment_method || dadosCk.paymentMethod || "").toUpperCase()],
+                    ["Tipo",    "Assinatura recorrente"]
+                  ]
                 }).catch(function (e) {
                   secLog("aviso_recebimento_falhou", { message: e.message.slice(0, 100) });
                 });
