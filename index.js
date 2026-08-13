@@ -2326,21 +2326,112 @@ function melhorTipoDeProduto(valores) {
   return valores[0] || null;
 }
 
-// Acha o link de pagamento sem depender de UM nome de campo.
+/**
+ * Acha o link de pagamento dentro da resposta, sem depender de UM nome
+ * de campo nem de UM nível de aninhamento.
+ *
+ * A versão anterior olhava só três lugares conhecidos e desistia. O
+ * produto passou a ser criado com sucesso e mesmo assim o link "não
+ * vinha" — porque ele estava em algum ponto da resposta que essa lista
+ * não cobria. Procurar em toda a estrutura custa microssegundos e
+ * elimina a classe inteira do problema.
+ */
 function urlDaCobrancaCakto(resposta) {
-  if (!resposta) return null;
-  var procurar = [resposta, resposta.offer, resposta.default_offer, resposta.checkout];
-  for (var obj of procurar) {
-    if (!obj || typeof obj !== "object") continue;
+  if (!resposta || typeof resposta !== "object") return null;
+
+  var achado = null;
+
+  (function varrer(no, profundidade) {
+    if (achado || !no || profundidade > 6) return;
+
+    if (typeof no === "string") {
+      // Qualquer endereço de pagamento da Cakto serve, esteja em que
+      // campo estiver.
+      if (/^https?:\/\/[^\s"]*cakto[^\s"]*$/i.test(no)) achado = no;
+      return;
+    }
+    if (Array.isArray(no)) {
+      for (var item of no) varrer(item, profundidade + 1);
+      return;
+    }
+    if (typeof no !== "object") return;
+
+    // Primeiro os campos cujo NOME promete um link: assim, havendo
+    // vários endereços, ganha o que é de fato o checkout.
     for (var campo of CAKTO.camposDeUrl) {
-      if (typeof obj[campo] === "string" && /^https?:\/\//.test(obj[campo])) return obj[campo];
+      if (typeof no[campo] === "string" && /^https?:\/\//.test(no[campo])) { achado = no[campo]; return; }
+    }
+    for (var chave of Object.keys(no)) varrer(no[chave], profundidade + 1);
+  })(resposta, 0);
+
+  if (achado) return achado;
+
+  // Nada de endereço pronto: a documentação diz que o link segue
+  // https://pay.cakto.com.br/{id_da_oferta}. Montar a partir do id da
+  // oferta é a última tentativa antes de desistir.
+  var idOferta = idDaOfertaCakto(resposta);
+  return idOferta ? "https://pay.cakto.com.br/" + idOferta : null;
+}
+
+// Procura o id da oferta padrão em qualquer profundidade.
+function idDaOfertaCakto(resposta) {
+  if (!resposta || typeof resposta !== "object") return null;
+  var direto = (resposta.default_offer && resposta.default_offer.id) ||
+               (resposta.offer && resposta.offer.id) ||
+               resposta.offer_id || resposta.default_offer_id;
+  if (direto) return direto;
+
+  // Lista de ofertas, que é como a API costuma devolver o conjunto.
+  var listas = [resposta.offers, resposta.results, resposta.data];
+  for (var lista of listas) {
+    if (Array.isArray(lista) && lista.length && lista[0] && lista[0].id) return lista[0].id;
+  }
+  return null;
+}
+
+/**
+ * Busca a oferta criada junto com o produto.
+ *
+ * A documentação diz que criar um produto gera oferta, checkout e link
+ * automaticamente. Quando o link não vem na resposta da criação, ele
+ * existe assim mesmo — só está do outro lado, na oferta. Uma consulta
+ * a mais é muito mais barata do que um dono sem link para mandar ao
+ * cliente.
+ */
+async function linkPelaOfertaCakto(produtoId) {
+  if (!produtoId) return null;
+  var tentativas = [
+    CAKTO.criarOferta + "?product=" + encodeURIComponent(produtoId),
+    CAKTO.criarOferta + "?product_id=" + encodeURIComponent(produtoId),
+    CAKTO.criarOferta
+  ];
+  for (var caminho of tentativas) {
+    try {
+      var r = await caktoRequest("GET", caminho, null);
+      var url = urlDaCobrancaCakto(r);
+      if (url) return url;
+    } catch (e) {
+      secLog("cakto_ofertas_falhou", { caminho: caminho, message: e.message.slice(0, 100) });
     }
   }
-  // A doc diz que o link segue https://pay.cakto.com.br/{id_da_oferta}.
-  // Montar a partir do id é a última tentativa antes de desistir.
-  var idOferta = (resposta.default_offer && resposta.default_offer.id) ||
-                 (resposta.offer && resposta.offer.id) || resposta.offer_id;
-  return idOferta ? "https://pay.cakto.com.br/" + idOferta : null;
+  return null;
+}
+
+/**
+ * Descreve o formato de uma resposta, para a mensagem de erro.
+ *
+ * Sem documentação alcançável, saber QUE campos vieram é o que permite
+ * achar o certo na rodada seguinte. Só os nomes — nunca os valores, que
+ * podem carregar dado de cliente para dentro de um log.
+ */
+function formatoDaResposta(obj, profundidade) {
+  profundidade = profundidade || 0;
+  if (!obj || typeof obj !== "object" || profundidade > 2) return "";
+  if (Array.isArray(obj)) return obj.length ? "[" + formatoDaResposta(obj[0], profundidade + 1) + "]" : "[]";
+  return Object.keys(obj).map(function (k) {
+    var filho = formatoDaResposta(obj[k], profundidade + 1);
+    return filho ? k + "{" + filho + "}" : k;
+  }).join(",");
 }
 
 /**
@@ -2408,8 +2499,19 @@ async function criarCobrancaCakto(opcoes) {
     secLog("cakto_tipo_descoberto", { valor: escolhido, opcoes: valores.join(",").slice(0, 200) });
   }
   var link = urlDaCobrancaCakto(criado);
+
+  // O produto nasceu, mas o link não veio na resposta. Ele existe assim
+  // mesmo: a documentação diz que criar produto gera oferta, checkout e
+  // link automaticamente. Só está do outro lado — na oferta. Buscar
+  // custa uma consulta; não buscar custa um dono sem link para mandar
+  // ao cliente, com o produto já criado no painel deles.
+  if (!link) {
+    link = await linkPelaOfertaCakto(criado.id);
+    if (link) secLog("cakto_link_veio_da_oferta", { produto: criado.id });
+  }
+
   return {
-    id: criado.id || (criado.default_offer && criado.default_offer.id) || null,
+    id: criado.id || idDaOfertaCakto(criado) || null,
     url: link,
     resposta: criado
   };
@@ -4068,9 +4170,11 @@ var server = http.createServer(async (req, res) => {
           });
 
           if (!cobrancaCk.url) {
-            registrarErro("pagamento", "Cakto não devolveu link de pagamento", {
+            registrarErro("pagamento",
+              "Cakto criou a assinatura mas não devolveu link — a resposta veio assim: " +
+              formatoDaResposta(cobrancaCk.resposta), {
               rota: "/assinatura/checkout", empresa_id: empAss.id,
-              detalhe: { campos: Object.keys(cobrancaCk.resposta || {}).join(",") }
+              detalhe: { formato: formatoDaResposta(cobrancaCk.resposta) }
             });
             return jsonErr(res, "Não foi possível abrir o pagamento agora. Tente de novo em instantes.", 502);
           }
@@ -5279,10 +5383,18 @@ var server = http.createServer(async (req, res) => {
 
         if (!cobrCk.url) {
           await DB.update("links_pagamento", "id=eq." + linhaLink.id, { status: "cancelado" });
-          registrarErro("pagamento", "Cakto não devolveu URL para o link de cobrança", {
-            rota: "/owner/links", detalhe: { campos: Object.keys(cobrCk.resposta || {}).join(",") }
+          // O formato da resposta VAI na mensagem, não só no detalhe:
+          // sem a documentação, saber que campos vieram é o que permite
+          // achar onde o link mora. Escondido no detalhe, custava mais
+          // uma rodada de teste só para ser lido.
+          var formatoLink = formatoDaResposta(cobrCk.resposta);
+          registrarErro("pagamento",
+            "Cakto criou o produto mas não devolveu link — a resposta veio assim: " + formatoLink, {
+            rota: "/owner/links", detalhe: { formato: formatoLink }
           });
-          return jsonErr(res, "O gateway não devolveu o link. Confira a configuração em Diagnóstico.", 502);
+          return jsonErr(res,
+            "A Cakto criou o produto, mas não devolveu o link de pagamento. " +
+            "Campos que ela mandou: " + formatoLink, 502);
         }
 
         await DB.update("links_pagamento", "id=eq." + linhaLink.id, {
