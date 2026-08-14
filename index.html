@@ -2185,8 +2185,13 @@ async function confirmarTrialCodigo() {
       // já os coletava com máscara — só não os mandava. Sem eles a
       // conta nascia sem contato, e o aviso de trial novo chegava sem
       // nada para ligar.
+      // A origem já era capturada na primeira visita e guardada no
+      // navegador — mas origemGravada() nunca era chamada por ninguém.
+      // O dado existia e morria ao fechar a aba. É ela que responde
+      // qual anúncio trouxe cliente que PAGA, e não só quem clica.
       body: JSON.stringify({
         email, codigo, nome, senha,
+        origem: origemGravada(),
         telefone:  apenasDigitos(((document.getElementById('f-tel')||{}).value||'')),
         documento: apenasDigitos(((document.getElementById('f-doc')||{}).value||'')),
         ramo: ramoEscolhidoNoCadastro(),

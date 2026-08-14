@@ -2753,6 +2753,74 @@ function formatarDocumento(d) {
   return n || null;
 }
 
+/**
+ * Normaliza a origem que o site manda no cadastro.
+ *
+ * O Meta preenche esses valores sozinho, a partir do que está no campo
+ * "Parâmetros de URL" do anúncio. Nome de campanha entra ali como a
+ * pessoa digitou — com acento, espaço, emoji e o que mais tiver — e
+ * chega aqui já decodificado pelo navegador.
+ *
+ * Por isso cada valor é limitado a 200 caracteres e passa pelo
+ * SANITIZE: é texto que veio de fora, e vai para o corpo de um e-mail
+ * em HTML. Um nome de campanha com "<" quebraria o aviso.
+ *
+ * Nunca lança e nunca recusa: origem é dado de marketing. Barrar um
+ * cadastro porque um parâmetro veio torto seria perder a venda pelo
+ * relatório.
+ */
+function origemDoCadastro(bruto) {
+  var saida = { tem: false };
+  var chaves = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"];
+  if (!bruto || typeof bruto !== "object") return saida;
+
+  chaves.forEach(function (k) {
+    var v = bruto[k];
+    if (typeof v !== "string" && typeof v !== "number") return;
+    var limpo = SANITIZE.string(String(v), 200);
+    if (limpo) { saida[k] = limpo; saida.tem = true; }
+  });
+  return saida;
+}
+
+/**
+ * Traduz a origem para uma linha legível no aviso.
+ *
+ * O padrão do Meta manda "nome|id" em cada campo. O id serve para achar
+ * o anúncio no Gerenciador; o nome é o que a pessoa reconhece. Mostrar
+ * os dois colados ("Padarias SP|120234...") polui, então o nome vem na
+ * frente e o id fica junto, menor.
+ */
+function linhasDaOrigem(emp) {
+  if (!emp || !emp.utm_source) return [];
+  // Separa "nome|id" pelo ÚLTIMO "|", não pelo primeiro.
+  //
+  // Nome de campanha com barra vertical é comum — "WK | Mensagens |
+  // Frio" é exatamente como um gestor de tráfego nomeia. Cortando no
+  // primeiro, o nome virava "WK" e o resto sumia junto com o id, que é
+  // o número usado para achar o anúncio no Gerenciador.
+  //
+  // O corte só acontece quando o que vem depois é um id de verdade (só
+  // dígitos): assim um nome que termina em "|" não perde o último
+  // pedaço por engano.
+  function parte(v) {
+    if (!v) return null;
+    var texto = String(v);
+    var corte = texto.lastIndexOf("|");
+    if (corte < 0) return texto;
+    var id = texto.slice(corte + 1).trim();
+    if (!/^\d{3,}$/.test(id)) return texto;
+    return texto.slice(0, corte).trim() + " · " + id;
+  }
+  return [
+    ["Veio de",     emp.utm_source],
+    ["Campanha",    parte(emp.utm_campaign)],
+    ["Conjunto",    parte(emp.utm_medium)],
+    ["Anúncio",     parte(emp.utm_content)],
+    ["Onde apareceu", emp.utm_term]
+  ];
+}
+
 function destinatariosDeAviso() {
   var bruto = CONFIG.AVISOS_EMAIL || CONFIG.OWNER_EMAIL || "";
   return String(bruto).split(",")
@@ -2839,7 +2907,7 @@ async function avisarTrialNovo(empresa, ramoSlug) {
     ["Plano escolhido", infoPlano ? infoPlano.nome + " (R$ " + centavosParaReais(infoPlano.centavos) + ")" : null],
     ["Código da equipe", empresa.team_id],
     ["Trial até", fimTexto]
-  ], fimTexto);
+  ].concat(linhasDaOrigem(empresa)), fimTexto);
 
   for (var destino of destinos) {
     await enviarEmail(destino, "👋 Novo trial: " + String(empresa.nome || "").slice(0, 60), corpo)
@@ -4201,12 +4269,25 @@ var server = http.createServer(async (req, res) => {
         var ramoEscolhido = ramoDaEmpresa(body.ramo);
         var planoNovo = planoValido(body.plano);
 
-        // telefoneNovo e documentoNovo já vieram validados lá de cima,
-        // antes de o código ser queimado.
+        // De qual anúncio a pessoa veio. O site captura na primeira
+        // visita e guarda no navegador; aqui os valores viram coluna e
+        // param de ser um dado que só existia até fechar a aba.
+        //
+        // Nada aqui pode barrar o cadastro: origem é informação de
+        // marketing, e recusar uma conta porque um parâmetro de URL
+        // veio estranho seria perder a venda pelo relatório.
+        var origem = origemDoCadastro(body.origem);
+
         var result = await DB.insert("empresas", {
           nome, email, senha_hash: senhaHash,
           telefone: telefoneNovo,
           documento: documentoNovo,
+          utm_source:   origem.utm_source,
+          utm_medium:   origem.utm_medium,
+          utm_campaign: origem.utm_campaign,
+          utm_content:  origem.utm_content,
+          utm_term:     origem.utm_term,
+          origem_em:    origem.tem ? new Date().toISOString() : undefined,
           ramo: ramoEscolhido,
           plano: planoNovo,
           valor_mensal: CONFIG.PLANOS[planoNovo].centavos / 100,
@@ -4610,7 +4691,9 @@ var server = http.createServer(async (req, res) => {
             } else {
               await aplicarAssinaturaCakto(empIdCk, dadosCk, metaCk.plano);
 
-              var empBoasCk = await DB.select("empresas", "id=eq." + empIdCk + "&select=nome,email,plano");
+              var empBoasCk = await DB.select("empresas",
+                "id=eq." + empIdCk +
+                "&select=nome,email,plano,utm_source,utm_medium,utm_campaign,utm_content,utm_term");
               var eBoasCk = empBoasCk.body && empBoasCk.body[0];
               if (eBoasCk) {
                 var pagoCent = reaisParaCentavosDoGateway(dadosCk.amount || dadosCk.total) ||
@@ -4626,13 +4709,16 @@ var server = http.createServer(async (req, res) => {
                 avisarOwnerDeRecebimento({
                   descricao: "Assinatura mensal — " + eBoasCk.nome,
                   centavos: pagoCent,
+                  // A origem entra aqui porque é o dado que fecha a
+                  // conta do tráfego pago: sem ele você sabe que
+                  // vendeu, mas não sabe qual anúncio pagar mais.
                   cliente: [
                     ["Empresa", eBoasCk.nome],
                     ["E-mail",  eBoasCk.email],
                     ["Plano",   (CONFIG.PLANOS[eBoasCk.plano] || {}).nome || eBoasCk.plano],
                     ["Forma",   (dadosCk.payment_method || dadosCk.paymentMethod || "").toUpperCase()],
                     ["Tipo",    "Assinatura recorrente"]
-                  ]
+                  ].concat(linhasDaOrigem(eBoasCk))
                 }).catch(function (e) {
                   secLog("aviso_recebimento_falhou", { message: e.message.slice(0, 100) });
                 });
