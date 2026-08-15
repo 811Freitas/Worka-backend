@@ -2,7 +2,13 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://worka-backend-awng.onrender.com https://fonts.googleapis.com https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://worka-backend-awng.onrender.com;">
+  <!-- connect.facebook.net e facebook.com entraram para o Pixel da Meta
+       poder carregar. Sem isso o navegador BLOQUEIA o script em
+       silêncio: o Gerenciador de Anúncios mostra "pixel não recebeu
+       eventos" e não há nada de errado com o pixel — é esta linha.
+       O domínio é dos poucos liberados de propósito; a política segue
+       fechada para todo o resto. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://worka-backend-awng.onrender.com https://fonts.googleapis.com https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://worka-backend-awng.onrender.com https://connect.facebook.net https://www.facebook.com;">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Workap — Gestão de Equipe para Pequenas Empresas</title>
 
@@ -1358,6 +1364,77 @@ function origemGravada(){
 capturarOrigem();
 
 /**
+ * Integrações vindas do painel: Pixel da Meta e WhatsApp de vendas.
+ *
+ * Buscadas do servidor em vez de escritas aqui porque este arquivo é
+ * estático no GitHub Pages — cravar o id do Pixel no HTML tornaria
+ * cada troca um deploy, e quem gerencia anúncio precisa mudar isso
+ * sozinho.
+ *
+ * Falha em silêncio de propósito: se a API estiver fora do ar, o site
+ * continua funcionando sem rastreio e sem botão. Nenhuma das duas
+ * coisas vale derrubar a página de vendas.
+ */
+async function carregarIntegracoes(){
+  var cfg = null;
+  try {
+    var r = await fetch(API_BASE + '/config-publica');
+    if(r.ok) cfg = await r.json();
+  } catch(e) {}
+  if(!cfg) return;
+
+  if(cfg.meta_pixel_id) ligarPixel(cfg.meta_pixel_id);
+  if(cfg.whatsapp_vendas) montarBotaoWhats(cfg.whatsapp_vendas);
+}
+
+// Código oficial do Pixel, com o id vindo de fora. O PageView sai
+// junto: sem ele o Gerenciador mostra o pixel como "sem atividade"
+// mesmo recebendo visita.
+function ligarPixel(id){
+  if(window.fbq) return;
+  /* eslint-disable */
+  !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+  n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}
+  (window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+  /* eslint-enable */
+  fbq('init', String(id));
+  fbq('track', 'PageView');
+}
+
+// Avisa o Pixel de um evento, quando ele existir. Chamada dos pontos
+// que importam para o anúncio aprender: quem começou o cadastro e quem
+// terminou. Sem isso a Meta otimiza por clique, e clique não paga.
+function avisarPixel(evento, dados){
+  try { if(window.fbq) fbq('track', evento, dados || {}); } catch(e) {}
+}
+
+// Botão flutuante de WhatsApp. A mensagem já vem escrita: "Olá" sozinho
+// obriga o cliente a explicar o que quer, e é aí que ele desiste.
+function montarBotaoWhats(numero){
+  if(document.getElementById('zap-flutuante')) return;
+  var texto = encodeURIComponent('Olá! Vi o Workap e queria entender como funciona para o meu negócio.');
+  var a = document.createElement('a');
+  a.id = 'zap-flutuante';
+  a.href = 'https://wa.me/' + numero + '?text=' + texto;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  a.setAttribute('aria-label', 'Falar no WhatsApp');
+  a.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:900;width:56px;height:56px;' +
+    'border-radius:50%;background:#25D366;display:flex;align-items:center;justify-content:center;' +
+    'box-shadow:0 6px 20px rgba(0,0,0,.22);transition:transform .2s';
+  a.onmouseenter = function(){ a.style.transform = 'scale(1.06)'; };
+  a.onmouseleave = function(){ a.style.transform = 'scale(1)'; };
+  a.innerHTML = '<svg width="30" height="30" viewBox="0 0 24 24" fill="#fff" aria-hidden="true">' +
+    '<path d="M17.5 14.4c-.3-.2-1.7-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.7 1-.9 1.2-.2.2-.3.2-.6.1-1.7-.9-2.9-1.6-4-3.5-.3-.5.3-.5.9-1.6.1-.2 0-.4 0-.5 0-.2-.7-1.6-.9-2.2-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.2.2 2.1 3.2 5.1 4.5 1.9.8 2.6.9 3.5.7.6-.1 1.7-.7 1.9-1.3.2-.7.2-1.2.2-1.3-.1-.2-.3-.2-.6-.4z"/>' +
+    '<path d="M12 2C6.5 2 2 6.5 2 12c0 1.8.5 3.4 1.3 4.9L2 22l5.3-1.4c1.4.8 3 1.2 4.7 1.2 5.5 0 10-4.5 10-10S17.5 2 12 2zm0 18.2c-1.6 0-3-.4-4.3-1.2l-.3-.2-3.1.8.8-3-.2-.3C4.1 15 3.7 13.6 3.7 12 3.7 7.4 7.4 3.7 12 3.7s8.3 3.7 8.3 8.3-3.7 8.2-8.3 8.2z"/></svg>';
+  document.body.appendChild(a);
+}
+
+carregarIntegracoes();
+
+/**
  * Escreve num elemento um conteúdo que mistura ícones SVG e texto.
  *
  * Existe por causa de um defeito real: a troca dos emojis por ícones
@@ -1928,6 +2005,10 @@ function continuarParaOferta() {
     mostrarErro('Informe o WhatsApp com DDD (ex.: 11 98765-4321).'); return;
   }
 
+  // Passou dos dados: para a Meta, isto e "iniciou o cadastro". Sem
+  // este evento ela otimiza por CLIQUE, e clique nao paga conta.
+  avisarPixel('InitiateCheckout');
+
   mostrarStep('trial');
   var n=document.getElementById('trial-nome-dest');if(n)n.textContent=nome.split(' ')[0];
 }
@@ -2246,6 +2327,12 @@ async function confirmarTrialCodigo() {
     await irParaPagamento(liberarVerif);
     return;
   }
+
+  // Conta criada. Para a Meta este e o evento que vale: e ele que
+  // ensina a quem mostrar o anuncio. "Lead" e nao "CompleteRegistration"
+  // porque trial nao e venda — misturar os dois faria a otimizacao
+  // perseguir cadastro em vez de cliente que paga.
+  avisarPixel('Lead', { content_name: 'Trial 7 dias' });
 
   // Trial ativado!
   mostrarStep('trial-ok');
