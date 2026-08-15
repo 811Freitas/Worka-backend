@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zapfy — chatbot de WhatsApp sem código</title>
+<meta name="description" content="Monte, conecte e mantenha o chatbot de WhatsApp da sua empresa pelo navegador. API oficial da Meta, no ar 24 horas por dia.">
+<meta name="theme-color" content="#0f9d76">
+<link rel="stylesheet" href="/css/estilo.css">
+<!--
+  Não existe um único <script> inline neste arquivo, e nenhum atributo
+  onclick. É exigência da política de segurança que o servidor manda
+  (script-src 'self'): sem ela, um texto vindo do banco com <script>
+  dentro executaria na origem do painel. Todo comportamento vive em
+  /js/*.js e se prende por addEventListener.
+-->
+<script type="module" src="/js/app.js"></script>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════
+     ENTRADA — login e cadastro
+     ════════════════════════════════════════ -->
+<div id="tela-entrada">
+  <div class="entrada-arte">
+    <div class="marca-topo" style="color:#fff;margin-bottom:36px">
+      <span class="marca-ponto" style="background:rgba(255,255,255,.18)">Z</span> Zapfy
+    </div>
+    <h1>Seu WhatsApp atendendo sozinho, 24 horas por dia.</h1>
+    <p>Monte o atendimento arrastando blocos, conecte seu número e pronto. Sem programar, sem servidor, sem QR Code para ler toda semana.</p>
+    <ul>
+      <li>API oficial da Meta — sem risco de banimento do seu número</li>
+      <li>Menus, botões, palavras-chave e perguntas</li>
+      <li>Teste o bot antes de conectar qualquer coisa</li>
+      <li>Histórico de conversas e transferência para atendente</li>
+      <li>Avisamos você se a conexão cair</li>
+    </ul>
+  </div>
+
+  <div class="entrada-forma">
+    <div class="entrada-caixa">
+      <div class="marca-topo" style="margin-bottom:28px">
+        <span class="marca-ponto">Z</span> Zapfy
+      </div>
+
+      <div class="abas">
+        <button type="button" id="aba-entrar" class="ativa">Entrar</button>
+        <button type="button" id="aba-criar">Criar conta</button>
+      </div>
+
+      <!-- ENTRAR -->
+      <form id="forma-entrar" autocomplete="on">
+        <div class="campo">
+          <label for="entrar-email">E-mail</label>
+          <input type="email" id="entrar-email" name="email" autocomplete="username" required>
+        </div>
+        <div class="campo">
+          <label for="entrar-senha">Senha</label>
+          <input type="password" id="entrar-senha" name="senha" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="botao largo" id="botao-entrar">Entrar</button>
+      </form>
+
+      <!-- CRIAR CONTA -->
+      <form id="forma-criar" class="oculto" autocomplete="on">
+        <div class="campo">
+          <label for="criar-nome">Seu nome</label>
+          <input type="text" id="criar-nome" name="nome" autocomplete="name" required>
+        </div>
+        <div class="campo">
+          <label for="criar-empresa">Nome da empresa</label>
+          <input type="text" id="criar-empresa" name="empresa" autocomplete="organization">
+          <div class="dica">Aparece só para você, no painel.</div>
+        </div>
+        <div class="campo">
+          <label for="criar-email">E-mail</label>
+          <input type="email" id="criar-email" name="email" autocomplete="username" required>
+        </div>
+        <div class="campo">
+          <label for="criar-senha">Senha</label>
+          <input type="password" id="criar-senha" name="senha" autocomplete="new-password" required>
+          <div class="dica">Pelo menos 8 caracteres.</div>
+        </div>
+        <button type="submit" class="botao largo" id="botao-criar">Criar minha conta</button>
+        <p class="fraco centro espaco">Sua conta já vem com um chatbot de exemplo pronto para testar.</p>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     PAINEL
+     ════════════════════════════════════════ -->
+<div id="tela-painel">
+
+  <aside class="lateral" id="lateral">
+    <div class="lateral-topo">
+      <div class="marca-topo"><span class="marca-ponto">Z</span> Zapfy</div>
+      <div class="lateral-conta" id="rotulo-conta"></div>
+    </div>
+
+    <nav class="menu" id="menu">
+      <button type="button" data-pagina="painel" class="ativa"><span class="icone">▦</span> Painel</button>
+      <button type="button" data-pagina="construtor"><span class="icone">◇</span> Meu chatbot</button>
+      <button type="button" data-pagina="conversas"><span class="icone">💬</span> Conversas</button>
+      <button type="button" data-pagina="conexao"><span class="icone">🔗</span> Conexão</button>
+      <button type="button" data-pagina="registros"><span class="icone">≣</span> Registros</button>
+      <button type="button" data-pagina="conta"><span class="icone">⚙</span> Minha conta</button>
+    </nav>
+
+    <div class="lateral-base">
+      <button type="button" class="botao neutro largo pequeno" id="botao-sair">Sair</button>
+    </div>
+  </aside>
+
+  <main class="conteudo">
+
+    <!-- ── PAINEL ────────────────────────── -->
+    <section class="pagina ativa" id="pagina-painel">
+      <div class="topo-pagina">
+        <div style="display:flex;align-items:center;gap:12px">
+          <button type="button" class="abrir-menu" id="abrir-menu" aria-label="Abrir menu">☰</button>
+          <div>
+            <h1>Painel</h1>
+            <p class="sub" id="saudacao"></p>
+          </div>
+        </div>
+        <span class="selo parado" id="selo-conexao">carregando</span>
+      </div>
+
+      <div id="avisos-painel"></div>
+
+      <div class="grade-indicadores" id="indicadores"></div>
+
+      <div class="cartao">
+        <div class="cabecalho-cartao">
+          <h2>Mensagens dos últimos 7 dias</h2>
+        </div>
+        <div class="grafico" id="grafico"></div>
+        <div class="legenda">
+          <span><i style="background:var(--marca)"></i> recebidas</span>
+          <span><i style="background:#b9dfd2"></i> enviadas</span>
+        </div>
+      </div>
+
+      <div class="cartao">
+        <div class="cabecalho-cartao">
+          <h2>Conversas recentes</h2>
+          <button type="button" class="botao discreto pequeno" data-ir="conversas">ver todas →</button>
+        </div>
+        <ul class="lista" id="conversas-recentes"></ul>
+      </div>
+    </section>
+
+    <!-- ── CONSTRUTOR ────────────────────── -->
+    <section class="pagina" id="pagina-construtor">
+      <div class="topo-pagina">
+        <div style="display:flex;align-items:center;gap:12px">
+          <button type="button" class="abrir-menu" aria-label="Abrir menu">☰</button>
+          <div>
+            <h1>Meu chatbot</h1>
+            <p class="sub">Edite à vontade: vale na próxima mensagem, sem reconectar o WhatsApp.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="cartao">
+        <div class="cabecalho-cartao">
+          <h2>Mensagens do bot</h2>
+          <button type="button" class="botao pequeno" id="salvar-bot">Salvar</button>
+        </div>
+
+        <div class="campo">
+          <label for="bot-nome">Nome do atendimento</label>
+          <input type="text" id="bot-nome">
+        </div>
+        <div class="campo">
+          <label for="bot-boas-vindas">Primeira mensagem (boas-vindas)</label>
+          <textarea id="bot-boas-vindas"></textarea>
+          <div class="dica">Use <code>{{nome}}</code> para chamar a pessoa pelo nome do perfil dela.</div>
+        </div>
+        <div class="campo">
+          <label for="bot-fallback">Quando o bot não entender</label>
+          <textarea id="bot-fallback"></textarea>
+        </div>
+        <div class="campo">
+          <label for="bot-transbordo">Ao chamar um atendente</label>
+          <textarea id="bot-transbordo"></textarea>
+        </div>
+
+        <div class="campo">
+          <label class="marcador">
+            <input type="checkbox" id="bot-horario-ativo">
+            <span>Só atender em horário comercial</span>
+          </label>
+        </div>
+        <div id="area-horario" class="oculto">
+          <div class="linha-campos">
+            <div class="campo">
+              <label for="bot-inicio">Abre às</label>
+              <input type="time" id="bot-inicio">
+            </div>
+            <div class="campo">
+              <label for="bot-fim">Fecha às</label>
+              <input type="time" id="bot-fim">
+            </div>
+          </div>
+          <div class="campo">
+            <label>Dias de atendimento</label>
+            <div class="grupo-botoes" id="dias-semana"></div>
+          </div>
+          <div class="campo">
+            <label for="bot-fora-horario">Mensagem fora do horário</label>
+            <textarea id="bot-fora-horario"></textarea>
+          </div>
+        </div>
+
+        <div class="campo">
+          <label for="bot-expirar">Recomeçar a conversa depois de (minutos parados)</label>
+          <input type="number" id="bot-expirar" min="0" max="10080">
+          <div class="dica">0 desliga: a conversa continua de onde parou, por mais tempo que passe.</div>
+        </div>
+      </div>
+
+      <div class="construtor">
+        <div>
+          <div class="cartao">
+            <div class="cabecalho-cartao">
+              <h2>Fluxo da conversa</h2>
+              <div class="grupo-botoes">
+                <button type="button" class="botao neutro pequeno" id="conferir-fluxo">Conferir</button>
+                <button type="button" class="botao pequeno" id="novo-bloco">+ Bloco</button>
+              </div>
+            </div>
+            <div id="resultado-conferencia"></div>
+            <div class="blocos" id="lista-blocos"></div>
+          </div>
+
+          <div class="cartao oculto" id="editor-bloco">
+            <div class="cabecalho-cartao">
+              <h2 id="editor-titulo">Editar bloco</h2>
+              <button type="button" class="botao discreto pequeno" id="fechar-editor">fechar ✕</button>
+            </div>
+
+            <div class="linha-campos">
+              <div class="campo">
+                <label for="bloco-titulo">Nome do bloco</label>
+                <input type="text" id="bloco-titulo" placeholder="Ex.: Preços">
+              </div>
+              <div class="campo">
+                <label for="bloco-chave">Identificador</label>
+                <input type="text" id="bloco-chave" placeholder="precos">
+                <div class="dica">Usado pelas opções para apontar até aqui.</div>
+              </div>
+            </div>
+
+            <div class="campo">
+              <label for="bloco-tipo">O que este bloco faz</label>
+              <select id="bloco-tipo">
+                <option value="menu">Mostra opções e espera a escolha</option>
+                <option value="texto">Só manda uma mensagem e segue</option>
+                <option value="pergunta">Faz uma pergunta e guarda a resposta</option>
+                <option value="humano">Chama um atendente de verdade</option>
+                <option value="encerrar">Despede e encerra a conversa</option>
+              </select>
+            </div>
+
+            <div class="campo">
+              <label for="bloco-mensagem">Mensagem</label>
+              <textarea id="bloco-mensagem"></textarea>
+            </div>
+
+            <div class="campo">
+              <label for="bloco-gatilhos">Palavras-chave (separadas por vírgula)</label>
+              <input type="text" id="bloco-gatilhos" placeholder="preço, valor, quanto custa">
+              <div class="dica">Levam direto a este bloco, de qualquer ponto da conversa.</div>
+            </div>
+
+            <div class="campo" id="campo-salvar-em">
+              <label for="bloco-salvar-em">Guardar a resposta na variável</label>
+              <input type="text" id="bloco-salvar-em" placeholder="nome">
+              <div class="dica">Depois use <code>{{nome}}</code> nas mensagens seguintes.</div>
+            </div>
+
+            <div class="campo" id="campo-proxima">
+              <label for="bloco-proxima">Depois deste bloco, ir para</label>
+              <select id="bloco-proxima"></select>
+            </div>
+
+            <div class="campo" id="campo-opcoes">
+              <label>Opções do menu</label>
+              <div id="lista-opcoes"></div>
+              <button type="button" class="botao neutro pequeno espaco" id="nova-opcao">+ Opção</button>
+            </div>
+
+            <div class="campo">
+              <label class="marcador">
+                <input type="checkbox" id="bloco-inicial">
+                <span>Começar toda conversa por este bloco</span>
+              </label>
+            </div>
+
+            <div class="grupo-botoes">
+              <button type="button" class="botao" id="salvar-bloco">Salvar bloco</button>
+              <button type="button" class="botao perigo" id="apagar-bloco">Apagar</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="simulador">
+          <div class="cartao">
+            <div class="cabecalho-cartao">
+              <h2>Testar o bot</h2>
+              <button type="button" class="botao discreto pequeno" id="reiniciar-simulacao">recomeçar</button>
+            </div>
+            <p class="fraco" style="margin-bottom:10px">Conversa de mentira, fluxo de verdade. Nada é enviado nem gravado.</p>
+            <div class="telefone" id="telefone"></div>
+            <div class="eventos" id="eventos-simulacao"></div>
+            <form class="escrever" id="forma-simular">
+              <input type="text" id="entrada-simulacao" placeholder="Escreva como um cliente..." autocomplete="off">
+              <button type="submit" class="botao">Enviar</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── CONVERSAS ─────────────────────── -->
+    <section class="pagina" id="pagina-conversas">
+      <div class="topo-pagina">
+        <div style="display:flex;align-items:center;gap:12px">
+          <button type="button" class="abrir-menu" aria-label="Abrir menu">☰</button>
+          <h1>Conversas</h1>
+        </div>
+        <button type="button" class="botao neutro pequeno" id="atualizar-conversas">Atualizar</button>
+      </div>
+
+      <div class="conversas">
+        <div class="cartao">
+          <div class="campo">
+            <input type="text" id="busca-conversas" placeholder="Buscar por nome ou telefone">
+          </div>
+          <ul class="lista lista-conversas" id="lista-conversas"></ul>
+        </div>
+
+        <div class="cartao janela-conversa">
+          <div class="cabecalho-cartao">
+            <div>
+              <h2 id="conversa-titulo">Escolha uma conversa</h2>
+              <p class="fraco" id="conversa-estado"></p>
+            </div>
+            <div class="grupo-botoes" id="acoes-conversa"></div>
+          </div>
+          <div class="mensagens" id="mensagens"></div>
+          <form class="escrever oculto" id="forma-responder">
+            <input type="text" id="texto-resposta" placeholder="Escreva sua resposta..." autocomplete="off">
+            <button type="submit" class="botao">Enviar</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── CONEXÃO ───────────────────────── -->
+    <section class="pagina" id="pagina-conexao">
+      <div class="topo-pagina">
+        <div style="display:flex;align-items:center;gap:12px">
+          <button type="button" class="abrir-menu" aria-label="Abrir menu">☰</button>
+          <div>
+            <h1>Conexão do WhatsApp</h1>
+            <p class="sub">API oficial da Meta. Seu número não corre risco de bloqueio.</p>
+          </div>
+        </div>
+        <span class="selo parado" id="selo-conexao-2">carregando</span>
+      </div>
+
+      <div id="aviso-conexao"></div>
+
+      <div class="cartao">
+        <div class="cabecalho-cartao">
+          <h2>Estado da conexão</h2>
+          <div class="grupo-botoes" id="acoes-conexao"></div>
+        </div>
+        <div id="resumo-conexao"></div>
+      </div>
+
+      <div class="cartao">
+        <div class="cabecalho-cartao">
+          <h2>Como conectar</h2>
+        </div>
+
+        <div class="passo" id="passo-1">
+          <div class="passo-numero">1</div>
+          <div class="passo-corpo">
+            <h3>Crie um app no painel da Meta</h3>
+            <p class="sub">Entre em <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer">developers.facebook.com/apps</a>, crie um app do tipo <strong>Empresa</strong> e adicione o produto <strong>WhatsApp</strong>. É gratuito e leva uns 5 minutos.</p>
+          </div>
+        </div>
+
+        <div class="passo" id="passo-2">
+          <div class="passo-numero">2</div>
+          <div class="passo-corpo">
+            <h3>Cole aqui as credenciais do seu número</h3>
+            <p class="sub">Na tela do WhatsApp dentro do app da Meta, copie o <strong>Phone Number ID</strong> e gere um <strong>token permanente</strong> (por um usuário do sistema, em Configurações do Negócio).</p>
+
+            <div class="campo espaco">
+              <label for="conexao-phone-id">Phone Number ID</label>
+              <input type="text" id="conexao-phone-id" placeholder="123456789012345" autocomplete="off">
+              <div class="dica">É uma sequência de números — não é o telefone com DDD.</div>
+            </div>
+            <div class="campo">
+              <label for="conexao-token">Token de acesso permanente</label>
+              <input type="password" id="conexao-token" placeholder="EAAG..." autocomplete="off">
+              <div class="dica">O token temporário da tela inicial da Meta expira em 24 horas e seu bot para. Gere um permanente.</div>
+            </div>
+            <div class="campo">
+              <label for="conexao-app-secret">App Secret <span class="fraco">(recomendado)</span></label>
+              <input type="password" id="conexao-app-secret" placeholder="Configurações → Básico, no app da Meta" autocomplete="off">
+              <div class="dica">Sem ele não conseguimos provar que uma mensagem veio mesmo da Meta.</div>
+            </div>
+            <button type="button" class="botao" id="salvar-conexao">Conectar</button>
+          </div>
+        </div>
+
+        <div class="passo" id="passo-3">
+          <div class="passo-numero">3</div>
+          <div class="passo-corpo">
+            <h3>Cadastre o webhook no painel da Meta</h3>
+            <p class="sub">No app da Meta, em <strong>WhatsApp → Configuração → Webhooks</strong>, clique em Editar e cole estes dois valores. Depois assine o campo <strong>messages</strong>.</p>
+
+            <div class="copiavel">
+              <code id="webhook-url"></code>
+              <button type="button" class="botao neutro pequeno" data-copiar="webhook-url">copiar</button>
+            </div>
+            <div class="copiavel">
+              <code id="webhook-token"></code>
+              <button type="button" class="botao neutro pequeno" data-copiar="webhook-token">copiar</button>
+            </div>
+            <p class="fraco espaco">Assim que a Meta validar, esta página muda para “conectado” sozinha.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── REGISTROS ─────────────────────── -->
+    <section class="pagina" id="pagina-registros">
+      <div class="topo-pagina">
+        <div style="display:flex;align-items:center;gap:12px">
+          <button type="button" class="abrir-menu" aria-label="Abrir menu">☰</button>
+          <div>
+            <h1>Registros</h1>
+            <p class="sub">Tudo que aconteceu com seu bot, em ordem.</p>
+          </div>
+        </div>
+        <div class="grupo-botoes">
+          <select id="filtro-nivel" style="width:auto">
+            <option value="">Tudo</option>
+            <option value="erro">Só erros</option>
+            <option value="aviso">Só avisos</option>
+            <option value="info">Só informações</option>
+          </select>
+          <button type="button" class="botao neutro pequeno" id="atualizar-registros">Atualizar</button>
+        </div>
+      </div>
+
+      <div class="cartao rolagem-lateral">
+        <table class="tabela">
+          <thead>
+            <tr><th>Quando</th><th>Nível</th><th>Evento</th><th>Detalhe</th></tr>
+          </thead>
+          <tbody id="corpo-registros"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── CONTA ─────────────────────────── -->
+    <section class="pagina" id="pagina-conta">
+      <div class="topo-pagina">
+        <div style="display:flex;align-items:center;gap:12px">
+          <button type="button" class="abrir-menu" aria-label="Abrir menu">☰</button>
+          <h1>Minha conta</h1>
+        </div>
+      </div>
+
+      <div class="cartao">
+        <div class="cabecalho-cartao">
+          <h2>Avisos</h2>
+          <button type="button" class="botao discreto pequeno" id="marcar-lidas">marcar tudo como lido</button>
+        </div>
+        <ul class="lista" id="lista-notificacoes"></ul>
+      </div>
+
+      <div class="cartao">
+        <div class="cabecalho-cartao"><h2>Dados</h2></div>
+        <div id="dados-conta"></div>
+      </div>
+
+      <div class="cartao">
+        <div class="cabecalho-cartao"><h2>Trocar a senha</h2></div>
+        <form id="forma-senha">
+          <div class="campo">
+            <label for="senha-atual">Senha atual</label>
+            <input type="password" id="senha-atual" autocomplete="current-password" required>
+          </div>
+          <div class="campo">
+            <label for="senha-nova">Senha nova</label>
+            <input type="password" id="senha-nova" autocomplete="new-password" required>
+          </div>
+          <button type="submit" class="botao">Trocar senha</button>
+        </form>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div id="recados" aria-live="polite"></div>
+
+</body>
+</html>

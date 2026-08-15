@@ -1,0 +1,499 @@
+/* ════════════════════════════════════════════════════════════
+   ZAPFY — folha de estilo única
+   ════════════════════════════════════════════════════════════
+   Sem framework e sem etapa de build de propósito: o painel é servido
+   como arquivo estático pelo mesmo servidor da API, e qualquer correção
+   chega no F5 seguinte, sem compilar nada.
+
+   Tudo parte das variáveis abaixo. Trocar a marca é trocar --marca.
+   ════════════════════════════════════════════════════════════ */
+
+:root {
+  --marca:        #0f9d76;
+  --marca-escura: #0b7d5d;
+  --marca-clara:  #e6f7f1;
+
+  --tinta:      #0f1e1a;
+  --tinta-suave:#4a5c56;
+  --tinta-fraca:#8a9b95;
+
+  --fundo:      #f5f7f6;
+  --papel:      #ffffff;
+  --linha:      #e3e9e7;
+
+  --perigo:     #d33a3a;
+  --perigo-claro:#fdecec;
+  --alerta:     #b8791a;
+  --alerta-claro:#fdf5e6;
+  --ok:         #0f9d76;
+
+  --raio:       12px;
+  --raio-p:     8px;
+  --sombra:     0 1px 2px rgba(15,30,26,.06), 0 4px 12px rgba(15,30,26,.05);
+  --sombra-alta:0 8px 30px rgba(15,30,26,.12);
+
+  --lateral:    248px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--fundo);
+  color: var(--tinta);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--marca-escura); }
+
+/* ════════════════════════════════════════
+   TIPOGRAFIA E BLOCOS BÁSICOS
+   ════════════════════════════════════════ */
+h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -.02em; }
+h2 { font-size: 1.15rem; font-weight: 650; letter-spacing: -.01em; }
+h3 { font-size: .95rem; font-weight: 650; }
+
+.sub { color: var(--tinta-suave); font-size: .875rem; }
+.fraco { color: var(--tinta-fraca); font-size: .8125rem; }
+.centro { text-align: center; }
+.espaco { margin-top: 16px; }
+.oculto { display: none !important; }
+
+.cartao {
+  background: var(--papel);
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  padding: 20px;
+  box-shadow: var(--sombra);
+}
+
+.cartao + .cartao { margin-top: 16px; }
+
+.cabecalho-cartao {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 16px; flex-wrap: wrap;
+}
+
+/* ════════════════════════════════════════
+   FORMULÁRIOS
+   ════════════════════════════════════════ */
+label { display: block; font-size: .8125rem; font-weight: 600; margin-bottom: 6px; color: var(--tinta-suave); }
+
+input[type=text], input[type=email], input[type=password], input[type=time],
+input[type=number], textarea, select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--linha);
+  border-radius: var(--raio-p);
+  font: inherit;
+  font-size: .9375rem;
+  background: var(--papel);
+  color: var(--tinta);
+  transition: border-color .15s, box-shadow .15s;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--marca);
+  box-shadow: 0 0 0 3px var(--marca-clara);
+}
+
+/* 120px cabe um menu de quatro itens sem cortar. Com 90px, a mensagem
+   mais comum do produto — uma lista de produtos com preço — aparecia
+   com a última linha partida ao meio, e parecia defeito da tela. */
+textarea { resize: vertical; min-height: 120px; line-height: 1.55; }
+
+.campo { margin-bottom: 16px; }
+.campo .dica { font-size: .75rem; color: var(--tinta-fraca); margin-top: 5px; }
+
+.linha-campos { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+.marcador { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.marcador input { margin-top: 3px; width: 16px; height: 16px; accent-color: var(--marca); flex-shrink: 0; }
+.marcador span { font-size: .875rem; color: var(--tinta); font-weight: 500; }
+
+/* ════════════════════════════════════════
+   BOTÕES
+   ════════════════════════════════════════ */
+.botao {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--raio-p);
+  font: inherit; font-size: .875rem; font-weight: 600;
+  cursor: pointer;
+  background: var(--marca); color: #fff;
+  transition: background .15s, opacity .15s, transform .05s;
+  white-space: nowrap;
+}
+.botao:hover:not(:disabled) { background: var(--marca-escura); }
+.botao:active:not(:disabled) { transform: translateY(1px); }
+.botao:disabled { opacity: .55; cursor: not-allowed; }
+
+.botao.neutro { background: var(--papel); color: var(--tinta); border-color: var(--linha); }
+.botao.neutro:hover:not(:disabled) { background: var(--fundo); }
+
+.botao.perigo { background: var(--perigo); }
+.botao.perigo:hover:not(:disabled) { background: #b32f2f; }
+
+.botao.discreto { background: transparent; color: var(--tinta-suave); padding: 6px 10px; }
+.botao.discreto:hover:not(:disabled) { background: var(--fundo); color: var(--tinta); }
+
+.botao.pequeno { padding: 6px 11px; font-size: .8125rem; }
+.botao.largo { width: 100%; }
+
+.grupo-botoes { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ════════════════════════════════════════
+   SELOS DE ESTADO
+   ════════════════════════════════════════ */
+.selo {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 999px;
+  font-size: .75rem; font-weight: 650;
+  background: var(--fundo); color: var(--tinta-suave);
+}
+.selo::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+.selo.ligado    { background: var(--marca-clara);  color: var(--marca-escura); }
+.selo.erro      { background: var(--perigo-claro); color: var(--perigo); }
+.selo.esperando { background: var(--alerta-claro); color: var(--alerta); }
+.selo.parado    { background: #eef0ef;             color: var(--tinta-fraca); }
+
+/* O ponto pulsa só quando está tudo certo: movimento constante na tela
+   vira ruído, mas neste caso ele carrega informação — é o sinal de que a
+   página está viva e falando com o servidor. */
+.selo.ligado::before { animation: pulso 2s ease-in-out infinite; }
+@keyframes pulso { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+/* ════════════════════════════════════════
+   ENTRADA (login e cadastro)
+   ════════════════════════════════════════ */
+#tela-entrada {
+  min-height: 100vh;
+  display: grid; grid-template-columns: 1fr 1fr;
+}
+
+.entrada-arte {
+  background: linear-gradient(150deg, var(--marca-escura), #0a5f47 70%, #084c39);
+  color: #fff;
+  padding: 48px;
+  display: flex; flex-direction: column; justify-content: center;
+}
+.entrada-arte h1 { font-size: 2.25rem; margin-bottom: 14px; line-height: 1.15; }
+.entrada-arte p { opacity: .85; font-size: 1.0625rem; max-width: 26rem; }
+.entrada-arte ul { list-style: none; margin-top: 32px; }
+.entrada-arte li { padding: 9px 0 9px 28px; position: relative; opacity: .92; font-size: .9375rem; }
+.entrada-arte li::before {
+  content: "✓"; position: absolute; left: 0; top: 8px;
+  font-weight: 700; color: #7fe3c1;
+}
+
+.entrada-forma {
+  display: flex; align-items: center; justify-content: center;
+  padding: 40px 24px; background: var(--papel);
+}
+.entrada-caixa { width: 100%; max-width: 380px; }
+
+.abas { display: flex; gap: 4px; background: var(--fundo); padding: 4px; border-radius: var(--raio-p); margin-bottom: 24px; }
+.abas button {
+  flex: 1; padding: 9px; border: 0; background: transparent;
+  font: inherit; font-size: .875rem; font-weight: 600; color: var(--tinta-suave);
+  border-radius: 6px; cursor: pointer;
+}
+.abas button.ativa { background: var(--papel); color: var(--tinta); box-shadow: var(--sombra); }
+
+.marca-topo { display: flex; align-items: center; gap: 9px; font-weight: 750; font-size: 1.25rem; letter-spacing: -.02em; }
+.marca-ponto { width: 26px; height: 26px; border-radius: 8px; background: var(--marca); display: grid; place-items: center; color: #fff; font-size: .8125rem; font-weight: 800; }
+
+/* ════════════════════════════════════════
+   ESTRUTURA DO PAINEL
+   ════════════════════════════════════════ */
+#tela-painel { display: none; min-height: 100vh; }
+#tela-painel.visivel { display: block; }
+
+.lateral {
+  position: fixed; top: 0; left: 0; bottom: 0; width: var(--lateral);
+  background: var(--papel); border-right: 1px solid var(--linha);
+  display: flex; flex-direction: column; z-index: 40;
+}
+
+.lateral-topo { padding: 18px 18px 14px; border-bottom: 1px solid var(--linha); }
+.lateral-conta { font-size: .8125rem; color: var(--tinta-fraca); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.menu { flex: 1; padding: 12px 10px; overflow-y: auto; }
+.menu button {
+  display: flex; align-items: center; gap: 11px; width: 100%;
+  padding: 9px 11px; margin-bottom: 2px;
+  border: 0; background: transparent; border-radius: var(--raio-p);
+  font: inherit; font-size: .875rem; font-weight: 550; color: var(--tinta-suave);
+  cursor: pointer; text-align: left;
+}
+.menu button:hover { background: var(--fundo); color: var(--tinta); }
+.menu button.ativa { background: var(--marca-clara); color: var(--marca-escura); font-weight: 650; }
+.menu .icone { width: 18px; text-align: center; flex-shrink: 0; font-size: 1rem; }
+.menu .conta-bolha {
+  margin-left: auto; background: var(--perigo); color: #fff;
+  font-size: .6875rem; font-weight: 700; padding: 1px 6px; border-radius: 999px;
+}
+
+.lateral-base { padding: 12px; border-top: 1px solid var(--linha); }
+
+.conteudo { margin-left: var(--lateral); padding: 24px 28px 60px; max-width: 1180px; }
+
+.topo-pagina { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+
+.pagina { display: none; }
+.pagina.ativa { display: block; }
+
+.abrir-menu { display: none; }
+
+/* ════════════════════════════════════════
+   PAINEL — indicadores
+   ════════════════════════════════════════ */
+.grade-indicadores {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px; margin-bottom: 16px;
+}
+.indicador { background: var(--papel); border: 1px solid var(--linha); border-radius: var(--raio); padding: 16px; }
+.indicador .rotulo { font-size: .75rem; color: var(--tinta-fraca); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.indicador .valor { font-size: 1.75rem; font-weight: 700; letter-spacing: -.02em; margin-top: 5px; }
+.indicador .valor.atencao { color: var(--perigo); }
+
+/* Gráfico de barras em SVG — sem biblioteca. Sete barras não justificam
+   uma dependência de 200KB. */
+.grafico { display: flex; align-items: flex-end; gap: 8px; height: 130px; padding-top: 8px; }
+.grafico .dia { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+.grafico .barras { display: flex; gap: 3px; align-items: flex-end; width: 100%; height: 100%; justify-content: center; }
+.grafico .barra { width: 12px; border-radius: 3px 3px 0 0; min-height: 2px; }
+.grafico .barra.entrada { background: var(--marca); }
+.grafico .barra.saida { background: #b9dfd2; }
+.grafico .rotulo-dia { font-size: .6875rem; color: var(--tinta-fraca); }
+
+.legenda { display: flex; gap: 16px; font-size: .75rem; color: var(--tinta-suave); margin-top: 10px; }
+.legenda span { display: flex; align-items: center; gap: 6px; }
+.legenda i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+/* ════════════════════════════════════════
+   LISTAS
+   ════════════════════════════════════════ */
+.lista { list-style: none; }
+.lista li {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 0; border-bottom: 1px solid var(--linha);
+}
+.lista li:last-child { border-bottom: 0; }
+
+.item-clicavel { cursor: pointer; border-radius: var(--raio-p); padding-left: 10px; padding-right: 10px; margin: 0 -10px; }
+.item-clicavel:hover { background: var(--fundo); }
+.item-clicavel.selecionado { background: var(--marca-clara); }
+
+.avatar {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  background: var(--marca-clara); color: var(--marca-escura);
+  display: grid; place-items: center; font-weight: 700; font-size: .8125rem;
+}
+
+.item-corpo { flex: 1; min-width: 0; }
+.item-titulo { font-weight: 600; font-size: .9375rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-linha { font-size: .8125rem; color: var(--tinta-fraca); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.vazio { text-align: center; padding: 40px 20px; color: var(--tinta-fraca); font-size: .875rem; }
+.vazio .emoji { font-size: 2rem; display: block; margin-bottom: 10px; opacity: .55; }
+
+/* ════════════════════════════════════════
+   CONSTRUTOR DE FLUXO
+   ════════════════════════════════════════ */
+.construtor { display: grid; grid-template-columns: 1fr 380px; gap: 16px; align-items: start; }
+
+.blocos { display: flex; flex-direction: column; gap: 10px; }
+
+.bloco {
+  background: var(--papel); border: 1px solid var(--linha); border-radius: var(--raio);
+  padding: 14px 16px; cursor: pointer; transition: border-color .15s, box-shadow .15s;
+}
+.bloco:hover { border-color: #c8d5d1; }
+.bloco.selecionado { border-color: var(--marca); box-shadow: 0 0 0 3px var(--marca-clara); }
+
+.bloco-topo { display: flex; align-items: center; gap: 9px; margin-bottom: 7px; flex-wrap: wrap; }
+.bloco-titulo { font-weight: 650; font-size: .9375rem; }
+.bloco-mensagem {
+  font-size: .8125rem; color: var(--tinta-suave); line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  white-space: pre-wrap;
+}
+.bloco-opcoes { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+
+.etiqueta {
+  font-size: .6875rem; font-weight: 650; padding: 2px 8px; border-radius: 999px;
+  background: var(--fundo); color: var(--tinta-suave); border: 1px solid var(--linha);
+}
+.etiqueta.tipo-menu     { background: #eaf2ff; color: #2c5fa8; border-color: #d6e5fb; }
+.etiqueta.tipo-pergunta { background: #f3ecfd; color: #6b3fb0; border-color: #e6dbfa; }
+.etiqueta.tipo-humano   { background: var(--alerta-claro); color: var(--alerta); border-color: #f5e3c0; }
+.etiqueta.tipo-encerrar { background: #eef0ef; color: var(--tinta-fraca); }
+.etiqueta.tipo-texto    { background: var(--marca-clara); color: var(--marca-escura); border-color: #cdeade; }
+.etiqueta.inicial       { background: var(--marca); color: #fff; border-color: var(--marca); }
+
+.seta { color: var(--tinta-fraca); font-size: .75rem; }
+
+/* ════════════════════════════════════════
+   SIMULADOR
+   ════════════════════════════════════════ */
+.simulador { position: sticky; top: 20px; }
+
+.telefone {
+  background: #e9ebe9; border-radius: var(--raio); padding: 12px;
+  height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;
+}
+
+.balao {
+  max-width: 82%; padding: 8px 12px; border-radius: 12px;
+  font-size: .875rem; line-height: 1.45; white-space: pre-wrap; word-wrap: break-word;
+  box-shadow: 0 1px 1px rgba(0,0,0,.06);
+}
+.balao.deles { background: var(--papel); align-self: flex-start; border-bottom-left-radius: 3px; }
+.balao.nossa { background: #d6f5cd; align-self: flex-end; border-bottom-right-radius: 3px; }
+
+.balao-botoes { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.balao-botoes button {
+  padding: 7px; border: 1px solid #cfd8d4; background: var(--papel);
+  border-radius: 7px; font: inherit; font-size: .8125rem; font-weight: 600;
+  color: var(--marca-escura); cursor: pointer;
+}
+.balao-botoes button:hover { background: var(--marca-clara); }
+
+.eventos { font-size: .6875rem; color: var(--tinta-fraca); margin-top: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.escrever { display: flex; gap: 8px; margin-top: 12px; }
+.escrever input { flex: 1; }
+
+/* ════════════════════════════════════════
+   CONVERSAS
+   ════════════════════════════════════════ */
+.conversas { display: grid; grid-template-columns: 320px 1fr; gap: 16px; align-items: start; }
+.lista-conversas { max-height: 640px; overflow-y: auto; }
+
+/* Dentro de uma lista que rola, o realce que "sangra" para fora da
+   borda (margin negativa de .item-clicavel) deixa os itens 20px mais
+   largos que o container — e o navegador corta o que sobra. Na prática:
+   o horário e o selo "atendente", que ficam justamente na ponta direita,
+   sumiam. Aqui o realce fica contido, e nada é cortado. */
+.lista-conversas .item-clicavel { margin-left: 0; margin-right: 0; }
+.janela-conversa { display: flex; flex-direction: column; min-height: 480px; }
+.mensagens { flex: 1; background: #e9ebe9; border-radius: var(--raio); padding: 14px; overflow-y: auto; max-height: 460px; display: flex; flex-direction: column; gap: 8px; }
+.hora-balao { font-size: .625rem; color: var(--tinta-fraca); margin-top: 3px; text-align: right; }
+.balao.falhou { border: 1px solid var(--perigo); background: var(--perigo-claro); }
+
+/* ════════════════════════════════════════
+   CONEXÃO — assistente por passos
+   ════════════════════════════════════════ */
+.passo { display: flex; gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--linha); }
+.passo:last-child { border-bottom: 0; }
+.passo-numero {
+  width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+  background: var(--fundo); color: var(--tinta-suave);
+  display: grid; place-items: center; font-size: .8125rem; font-weight: 700;
+}
+.passo.pronto .passo-numero { background: var(--marca); color: #fff; }
+.passo-corpo { flex: 1; min-width: 0; }
+.passo-corpo h3 { margin-bottom: 5px; }
+
+.copiavel {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--fundo); border: 1px solid var(--linha); border-radius: var(--raio-p);
+  padding: 9px 11px; margin-top: 9px;
+}
+.copiavel code {
+  flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .8125rem; overflow-x: auto; white-space: nowrap; color: var(--tinta);
+}
+
+.aviso {
+  padding: 12px 14px; border-radius: var(--raio-p);
+  font-size: .875rem; line-height: 1.5; margin-bottom: 16px;
+  border: 1px solid;
+}
+.aviso.ruim  { background: var(--perigo-claro); border-color: #f5cccc; color: #8f2626; }
+.aviso.atento{ background: var(--alerta-claro); border-color: #f5e3c0; color: #7a5210; }
+.aviso.bom   { background: var(--marca-clara);  border-color: #cdeade; color: var(--marca-escura); }
+
+/* ════════════════════════════════════════
+   TABELA DE REGISTROS
+   ════════════════════════════════════════ */
+.tabela { width: 100%; border-collapse: collapse; font-size: .8125rem; }
+.tabela th {
+  text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--linha);
+  font-size: .6875rem; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--tinta-fraca); font-weight: 650;
+}
+.tabela td { padding: 9px 10px; border-bottom: 1px solid var(--linha); vertical-align: top; }
+.tabela tr:last-child td { border-bottom: 0; }
+.rolagem-lateral { overflow-x: auto; }
+
+.nivel-erro  { color: var(--perigo); font-weight: 650; }
+.nivel-aviso { color: var(--alerta); font-weight: 650; }
+.nivel-info  { color: var(--tinta-fraca); }
+
+/* ════════════════════════════════════════
+   RECADOS (toasts)
+   ════════════════════════════════════════ */
+#recados { position: fixed; right: 18px; bottom: 18px; z-index: 100; display: flex; flex-direction: column; gap: 8px; }
+.recado {
+  background: var(--tinta); color: #fff;
+  padding: 12px 16px; border-radius: var(--raio-p);
+  font-size: .875rem; font-weight: 550; box-shadow: var(--sombra-alta);
+  max-width: 340px; animation: entra .2s ease-out;
+}
+.recado.ruim { background: var(--perigo); }
+.recado.bom  { background: var(--marca-escura); }
+@keyframes entra { from { opacity: 0; transform: translateY(8px); } }
+
+/* ════════════════════════════════════════
+   CELULAR E TABLET
+   ════════════════════════════════════════ */
+@media (max-width: 980px) {
+  #tela-entrada { grid-template-columns: 1fr; }
+  .entrada-arte { display: none; }
+
+  .construtor, .conversas { grid-template-columns: 1fr; }
+  .simulador { position: static; }
+  .lista-conversas { max-height: 300px; }
+}
+
+@media (max-width: 720px) {
+  .lateral {
+    transform: translateX(-100%);
+    transition: transform .22s ease;
+    box-shadow: var(--sombra-alta);
+  }
+  .lateral.aberta { transform: translateX(0); }
+
+  .conteudo { margin-left: 0; padding: 16px 16px 60px; }
+
+  .abrir-menu {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 38px; height: 38px; border: 1px solid var(--linha);
+    background: var(--papel); border-radius: var(--raio-p);
+    font-size: 1.125rem; cursor: pointer; flex-shrink: 0;
+  }
+
+  /* Véu que fecha o menu ao tocar fora — num celular, o menu aberto
+     cobre metade da tela e é preciso ter como sair dele sem acertar um
+     alvo pequeno. */
+  .veu { position: fixed; inset: 0; background: rgba(15,30,26,.35); z-index: 35; }
+
+  .linha-campos { grid-template-columns: 1fr; }
+  .grade-indicadores { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+  .indicador .valor { font-size: 1.375rem; }
+  h1 { font-size: 1.25rem; }
+  #recados { left: 14px; right: 14px; bottom: 14px; }
+  .recado { max-width: none; }
+}
+
+/* Quem prefere menos movimento não vê nenhum. */
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}

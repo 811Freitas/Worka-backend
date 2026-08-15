@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zapfy — Administração</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="/css/estilo.css">
+<link rel="stylesheet" href="/css/owner.css">
+<script type="module" src="/js/owner.js"></script>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════
+     ENTRADA ADMINISTRATIVA
+     ════════════════════════════════════════ -->
+<div id="tela-entrada-owner">
+  <div class="entrada-caixa">
+    <div class="marca-topo" style="margin-bottom:6px">
+      <span class="marca-ponto">Z</span> Zapfy
+    </div>
+    <p class="sub" style="margin-bottom:28px">Administração da plataforma</p>
+
+    <form id="forma-owner" autocomplete="on">
+      <div class="campo">
+        <label for="owner-email">E-mail</label>
+        <input type="email" id="owner-email" autocomplete="username" required>
+      </div>
+      <div class="campo">
+        <label for="owner-senha">Senha</label>
+        <input type="password" id="owner-senha" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="botao largo" id="botao-owner">Entrar</button>
+    </form>
+
+    <p class="fraco centro espaco">
+      Esta área é só para quem administra o Zapfy.
+      <a href="/">Voltar para o painel de cliente</a>
+    </p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     PAINEL ADMINISTRATIVO
+     ════════════════════════════════════════ -->
+<div id="painel-owner">
+
+  <header class="topo-owner">
+    <div class="marca-topo">
+      <span class="marca-ponto">Z</span> Zapfy
+      <span class="etiqueta-admin">admin</span>
+    </div>
+
+    <nav class="abas-owner" id="abas-owner">
+      <button type="button" data-aba="resumo" class="ativa">Resumo</button>
+      <button type="button" data-aba="contas">Contas</button>
+      <button type="button" data-aba="saude">Saúde</button>
+      <button type="button" data-aba="auditoria">Auditoria</button>
+    </nav>
+
+    <div class="topo-direita">
+      <span class="fraco" id="owner-identidade"></span>
+      <button type="button" class="botao neutro pequeno" id="sair-owner">Sair</button>
+    </div>
+  </header>
+
+  <main class="conteudo-owner">
+
+    <!-- ── RESUMO ────────────────────────── -->
+    <section class="pagina ativa" id="aba-resumo">
+      <div class="topo-pagina">
+        <div>
+          <h1>Resumo da plataforma</h1>
+          <p class="sub" id="resumo-atualizado"></p>
+        </div>
+        <button type="button" class="botao neutro pequeno" id="atualizar-resumo">Atualizar</button>
+      </div>
+
+      <div id="alerta-plataforma"></div>
+
+      <h2 class="titulo-secao">Clientes</h2>
+      <div class="grade-indicadores" id="indicadores-contas"></div>
+
+      <h2 class="titulo-secao">Conexões de WhatsApp</h2>
+      <div class="grade-indicadores" id="indicadores-conexoes"></div>
+
+      <h2 class="titulo-secao">Uso</h2>
+      <div class="grade-indicadores" id="indicadores-uso"></div>
+
+      <div class="cartao">
+        <div class="cabecalho-cartao">
+          <h2>Mensagens por dia — últimas 2 semanas</h2>
+        </div>
+        <div class="grafico" id="grafico-owner"></div>
+        <div class="legenda">
+          <span><i style="background:var(--marca)"></i> mensagens trocadas na plataforma</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── CONTAS ────────────────────────── -->
+    <section class="pagina" id="aba-contas">
+      <div class="topo-pagina">
+        <h1>Contas</h1>
+        <div class="grupo-botoes">
+          <input type="text" id="busca-contas" placeholder="Buscar por empresa ou e-mail" style="width:15rem">
+          <select id="filtro-contas" style="width:auto">
+            <option value="todas">Todas</option>
+            <option value="ativas">Ativas</option>
+            <option value="suspensas">Suspensas</option>
+            <option value="com_erro">Com WhatsApp caído</option>
+            <option value="sem_conexao">Sem conexão</option>
+            <option value="inativas">Inativas há 14 dias</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="cartao rolagem-lateral">
+        <table class="tabela">
+          <thead>
+            <tr>
+              <th>Empresa</th><th>Dono</th><th>Plano</th><th>Conta</th>
+              <th>WhatsApp</th><th class="num">Msg 7d</th><th class="num">Conversas</th>
+              <th>Cadastro</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="corpo-contas"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── SAÚDE ─────────────────────────── -->
+    <section class="pagina" id="aba-saude">
+      <div class="topo-pagina">
+        <div>
+          <h1>Saúde da plataforma</h1>
+          <p class="sub">Quem está quebrado agora, e por quê.</p>
+        </div>
+        <button type="button" class="botao neutro pequeno" id="atualizar-saude">Atualizar</button>
+      </div>
+
+      <div class="cartao">
+        <div class="cabecalho-cartao"><h2>Conexões com erro</h2></div>
+        <div id="conexoes-quebradas"></div>
+      </div>
+
+      <div class="cartao">
+        <div class="cabecalho-cartao"><h2>Falhas de envio nas últimas 24h</h2></div>
+        <div id="falhas-envio"></div>
+      </div>
+
+      <div class="cartao rolagem-lateral">
+        <div class="cabecalho-cartao"><h2>Erros registrados (48h)</h2></div>
+        <table class="tabela">
+          <thead><tr><th>Quando</th><th>Conta</th><th>Evento</th><th>Detalhe</th></tr></thead>
+          <tbody id="erros-plataforma"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── AUDITORIA ─────────────────────── -->
+    <section class="pagina" id="aba-auditoria">
+      <div class="topo-pagina">
+        <div>
+          <h1>Auditoria</h1>
+          <p class="sub">Toda ação administrativa fica registrada aqui.</p>
+        </div>
+      </div>
+
+      <div class="cartao rolagem-lateral">
+        <table class="tabela">
+          <thead><tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Conta</th><th>Detalhe</th></tr></thead>
+          <tbody id="corpo-auditoria"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Ficha da conta, aberta ao clicar numa linha da tabela -->
+<div id="ficha" class="ficha-fundo oculto">
+  <div class="ficha-painel">
+    <div class="cabecalho-cartao">
+      <div>
+        <h2 id="ficha-nome"></h2>
+        <p class="fraco" id="ficha-email"></p>
+      </div>
+      <button type="button" class="botao discreto pequeno" id="fechar-ficha">fechar ✕</button>
+    </div>
+    <div id="ficha-corpo"></div>
+  </div>
+</div>
+
+<div id="recados" aria-live="polite"></div>
+
+</body>
+</html>

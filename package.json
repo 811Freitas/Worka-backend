@@ -1,17 +1,23 @@
 {
-  "name": "worka-backend",
-  "version": "3.0.0",
-  "description": "Worka — Backend seguro",
-  "main": "index.js",
+  "name": "zapfy",
+  "version": "1.0.0",
+  "description": "Plataforma SaaS onde cada cliente cria, configura e conecta seu proprio chatbot de WhatsApp pelo site, usando a API oficial da Meta (Cloud API).",
+  "main": "src/servidor.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node src/servidor.js",
+    "dev": "node --watch src/servidor.js",
+    "migrar": "node src/db/migrar.js",
+    "teste": "node testes/executar.js"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
   "license": "UNLICENSED",
+  "private": true,
   "dependencies": {
-    "bcryptjs": "^3.0.3",
-    "web-push": "^3.6.7"
+    "bcryptjs": "^3.0.2",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "pg": "^8.16.3"
   }
 }

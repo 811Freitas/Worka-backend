@@ -1,0 +1,59 @@
+# Deploy na Render em um clique.
+#
+# Sobe o serviço web e um Postgres, e liga os dois. As migrations rodam
+# no boot do próprio servidor, então não há passo manual antes do deploy
+# — o que importa numa hospedagem onde "rode este comando antes" nem
+# sempre existe.
+
+databases:
+  - name: zapfy-banco
+    databaseName: zapfy
+    user: zapfy
+    plan: free
+
+services:
+  - type: web
+    name: zapfy
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /saude
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: zapfy-banco
+          property: connectionString
+
+      # Postgres gerenciado exige TLS.
+      - key: DB_SSL
+        value: "true"
+
+      - key: NODE_ENV
+        value: production
+
+      # Gerados pela Render no primeiro deploy e mantidos daí em diante.
+      #
+      # ATENÇÃO: se você APAGAR o serviço e criar outro, a CRYPTO_KEY
+      # muda — e as credenciais da Meta guardadas no banco antigo ficam
+      # ilegíveis. Antes de qualquer recriação, copie o valor atual do
+      # painel da Render e cole no serviço novo.
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CRYPTO_KEY
+        generateValue: true
+
+      # PRECISA ser preenchida à mão depois do primeiro deploy, com a URL
+      # que a Render atribuir (https://zapfy.onrender.com, por exemplo).
+      # É dela que sai o endereço de webhook que cada cliente cola no
+      # painel da Meta: errada aqui, ninguém consegue conectar.
+      - key: PUBLIC_URL
+        sync: false
+
+      # Painel de administração (/owner). Preenchidos à mão no painel da
+      # Render — o hash não pode ficar no repositório, que é público.
+      #   node -e "console.log(require('bcryptjs').hashSync('SUA_SENHA',12))"
+      - key: OWNER_EMAIL
+        sync: false
+      - key: OWNER_SENHA_HASH
+        sync: false

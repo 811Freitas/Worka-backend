@@ -1,11 +1,9 @@
-# Dependências — o Render roda `npm install` no deploy, então elas
-# nunca precisam ir para o repositório (e são pesadas).
+# Dependências — a hospedagem roda `npm install` no deploy.
 node_modules/
 
-# Variáveis de ambiente. NADA de segredo entra no Git: as chaves reais
-# (JWT_SECRET, SUPABASE_SERVICE_KEY, RESEND_KEY, OWNER_PASSWORD_HASH,
-# ENCRYPT_SECRET, DUTTYFY_PIX_URL_ENCRYPTED) ficam só no painel do
-# Render. Este projeto já teve uma API key vazada por ficar no código.
+# Segredos. Nada aqui entra no Git: JWT_SECRET, CRYPTO_KEY e
+# DATABASE_URL dão acesso a tudo, e um arquivo commitado por engano
+# continua no histórico para sempre, mesmo depois de apagado.
 .env
 .env.*
 !.env.example
@@ -15,7 +13,7 @@ node_modules/
 npm-debug.log*
 .npm/
 
-# Sistema operacional / editor
+# Sistema operacional e editores
 .DS_Store
 Thumbs.db
 .vscode/
