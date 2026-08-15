@@ -2163,6 +2163,53 @@ tr:hover td{background:var(--g50)}
           </div>
         </div>
 
+        <!-- Integrações do site público.
+             Ficam aqui, e não em variável de ambiente, porque nenhuma
+             das duas é segredo: o Pixel aparece no código-fonte de
+             qualquer site que o use, e o WhatsApp é para o cliente
+             ligar. Trocar deixa de exigir deploy — que era o que fazia
+             cada mudancinha depender de programador. -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-zap></use></svg> Integrações do site</div>
+            <span class="badge" id="owc-int-badge">—</span>
+          </div>
+          <div class="card-body">
+            <div style="font-size:.82rem;color:var(--gray500);line-height:1.55;margin-bottom:14px">
+              O site lê estes dois valores ao abrir. Mudar aqui vale na próxima visita de qualquer pessoa — não precisa publicar nada.
+            </div>
+
+            <div class="field">
+              <label>ID do Pixel da Meta</label>
+              <input id="owc-pixel" type="text" inputmode="numeric" placeholder="Ex.: 1234567890123456" autocomplete="off">
+              <div style="font-size:.75rem;color:var(--gray500);margin-top:5px;line-height:1.5">
+                Gerenciador de Anúncios → Eventos → Fontes de dados. É só o número, 15 ou 16 dígitos. Deixe vazio para desligar o rastreio.
+              </div>
+            </div>
+
+            <div class="field">
+              <label>WhatsApp de vendas</label>
+              <input id="owc-whats" type="tel" placeholder="(11) 98765-4321" autocomplete="off">
+              <div style="font-size:.75rem;color:var(--gray500);margin-top:5px;line-height:1.5">
+                Aparece como botão flutuante no site. É para onde vai quem clicar no anúncio de mensagem.
+              </div>
+            </div>
+
+            <div class="login-erro" id="owc-int-erro">Erro</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+              <button class="btn btn-primary" id="owc-btn-int" onclick="salvarIntegracoes()"><svg class=ico aria-hidden=true><use href=#i-check></use></svg> Salvar</button>
+            </div>
+
+            <!-- Dizer o que NÃO fica aqui importa tanto quanto os
+                 campos: sem esta linha, o próximo passo natural seria
+                 pedir um campo para a chave da Cakto. -->
+            <div style="margin-top:16px;padding:12px 14px;background:var(--gray50,#f7f9f7);border-radius:var(--r);font-size:.78rem;color:var(--gray500);line-height:1.6">
+              <strong style="color:var(--gray700,#3a3d39)">Chaves secretas não entram aqui.</strong>
+              Cakto, Resend e o segredo do JWT continuam só nas variáveis de ambiente do Render. Elas dão acesso a dinheiro e a dados de cliente — guardadas no banco, apareceriam para qualquer pessoa com acesso a esta tela ou ao Supabase.
+            </div>
+          </div>
+        </div>
+
         <div class="card">
           <div class="card-header">
             <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg> Utmify — rastreio de origem das vendas</div>
@@ -8508,6 +8555,24 @@ async function carregarConfigOwner(){
   }
   escrever('owc-email', c.owner_email);
 
+  // Integrações do site. Preenchidas com o valor inteiro: não são
+  // segredo, e esconder o que é público só atrapalharia conferir se
+  // foi digitado certo.
+  var campoPixel = document.getElementById('owc-pixel');
+  if(campoPixel) campoPixel.value = c.meta_pixel_id || '';
+  var campoZap = document.getElementById('owc-whats');
+  if(campoZap) campoZap.value = c.whatsapp_vendas || '';
+
+  var badgeInt = document.getElementById('owc-int-badge');
+  if(badgeInt){
+    var quantas = (c.meta_pixel_id ? 1 : 0) + (c.whatsapp_vendas ? 1 : 0);
+    badgeInt.textContent = quantas === 2 ? 'Pixel e WhatsApp'
+      : c.meta_pixel_id ? 'Só o Pixel'
+      : c.whatsapp_vendas ? 'Só o WhatsApp'
+      : 'Nada configurado';
+    badgeInt.className = 'badge ' + (quantas === 2 ? 'badge-green' : quantas === 1 ? 'badge-yellow' : '');
+  }
+
   var campoToken = document.getElementById('owc-utm-token');
   if(campoToken) campoToken.placeholder = c.utmify_token_fim
     ? 'Token salvo (termina em ' + c.utmify_token_fim.slice(-4) + ') — cole outro para trocar'
@@ -8527,6 +8592,56 @@ async function carregarConfigOwner(){
   }
 
   carregarEnviosUtmify();
+}
+
+/**
+ * Integrações que o SITE lê — Pixel da Meta e WhatsApp de vendas.
+ *
+ * Separado de salvarUtmify() porque são coisas diferentes: a Utmify é
+ * um serviço que recebe avisos daqui; estes dois são valores que o site
+ * público vai buscar sozinho ao abrir. Juntar os dois numa função só
+ * faria um erro de token da Utmify impedir de salvar o WhatsApp.
+ */
+async function salvarIntegracoes(){
+  var erro = document.getElementById('owc-int-erro');
+  erro.style.display = 'none';
+
+  var pixel = (document.getElementById('owc-pixel').value || '').replace(/\D/g,'');
+  var zap   = (document.getElementById('owc-whats').value || '').replace(/\D/g,'');
+
+  // Conferido aqui também para o erro aparecer sem ida ao servidor —
+  // mas quem manda é o backend, que valida de novo.
+  if(pixel && !/^\d{10,20}$/.test(pixel)){
+    erro.textContent = 'ID do Pixel inválido. É só o número, com 15 ou 16 dígitos.';
+    erro.style.display = 'block'; return;
+  }
+  if(zap && zap.length !== 10 && zap.length !== 11 && !/^55\d{10,11}$/.test(zap)){
+    erro.textContent = 'WhatsApp inválido. Informe com DDD.';
+    erro.style.display = 'block'; return;
+  }
+
+  var liberar = botaoOcupado(document.getElementById('owc-btn-int'), 'Salvando...');
+  try {
+    var r = await fetch(API_BASE + '/owner/config', {
+      method: 'PUT', headers: cabecalhoOwner(),
+      // Manda os dois SEMPRE, inclusive vazios: apagar o campo tem que
+      // desligar a integração.
+      body: JSON.stringify({ meta_pixel_id: pixel, whatsapp_vendas: zap })
+    }).then(function(x){ return x.json().then(function(d){ return { status:x.status, data:d }; }); });
+    liberar();
+
+    if(r.status !== 200){
+      erro.textContent = r.data.error || 'Não foi possível salvar.';
+      erro.style.display = 'block';
+      return;
+    }
+    carregarConfigOwner();
+    alert('Salvo. O site já usa os valores novos na próxima visita.');
+  } catch(e){
+    liberar();
+    erro.textContent = 'Erro de conexão. Tente de novo.';
+    erro.style.display = 'block';
+  }
 }
 
 async function salvarUtmify(){

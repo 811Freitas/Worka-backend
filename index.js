@@ -4467,6 +4467,26 @@ var server = http.createServer(async (req, res) => {
       });
     }
 
+    // ── INTEGRAÇÕES DO SITE (rota pública) ───────────
+    //
+    // O site é um arquivo estático no GitHub Pages: não tem como ler o
+    // banco na hora em que é publicado. Lendo daqui, o id do Pixel e o
+    // WhatsApp passam a ser campos do painel — trocar deixa de exigir
+    // deploy, que é o que fazia cada mudancinha depender de programador.
+    //
+    // Pública sem constrangimento: os dois valores aparecem no HTML
+    // final de qualquer jeito. Pixel fica visível no código-fonte de
+    // todo site que o usa, e o WhatsApp é justamente para o cliente
+    // ligar. Nenhum segredo passa por aqui — os que são segredo (chaves
+    // da Cakto, do Resend) continuam só em variável de ambiente.
+    if (method === "GET" && path === "/config-publica") {
+      var cfgPub = await lerConfigPlataforma();
+      return jsonOk(res, {
+        meta_pixel_id:   cfgPub.meta_pixel_id || null,
+        whatsapp_vendas: cfgPub.whatsapp_vendas || null
+      });
+    }
+
     // ── RAMOS DE NEGÓCIO (rota pública) ──────────────
     //
     // Pública porque o formulário de cadastro do site precisa montar o
@@ -5308,7 +5328,15 @@ var server = http.createServer(async (req, res) => {
         // precisa vê-lo de novo, e um print de tela deixaria de ser
         // inofensivo.
         utmify_token_fim: tokenUtm ? "••••" + tokenUtm.slice(-4) : null,
-        utmify_url:       cfgLida.utmify_url || UTMIFY_URL_PADRAO
+        utmify_url:       cfgLida.utmify_url || UTMIFY_URL_PADRAO,
+
+        // Integrações que o site público lê. Devolvidas INTEIRAS, ao
+        // contrário do token da Utmify: nenhuma das duas é segredo —
+        // o Pixel aparece no código-fonte de qualquer site que o use, e
+        // o WhatsApp é para o cliente ligar. Esconder o que é público
+        // só atrapalharia quem precisa conferir se digitou certo.
+        meta_pixel_id:    cfgLida.meta_pixel_id || "",
+        whatsapp_vendas:  cfgLida.whatsapp_vendas || ""
       });
     }
 
@@ -5330,6 +5358,36 @@ var server = http.createServer(async (req, res) => {
         var urlTeste = bodyCfg.utmify_url.trim();
         try { new URL(urlTeste); } catch (e) { return jsonErr(res, "URL da Utmify inválida"); }
         await gravarConfigPlataforma("utmify_url", urlTeste);
+      }
+
+      // ── Integrações do site ──
+      //
+      // Aceitam string vazia de propósito: apagar o campo tem que
+      // DESLIGAR a integração. Um campo que só liga e nunca desliga
+      // obriga a mexer no banco para voltar atrás.
+      if (typeof bodyCfg.meta_pixel_id === "string") {
+        var pixel = bodyCfg.meta_pixel_id.replace(/\D/g, "");
+        // O id do Pixel é numérico, 15 a 16 dígitos. Validar aqui evita
+        // o caso silencioso: alguém cola a URL inteira do Gerenciador,
+        // o site injeta lixo, e o rastreio simplesmente não funciona —
+        // sem erro nenhum na tela.
+        if (pixel && !/^\d{10,20}$/.test(pixel)) {
+          return jsonErr(res, "ID do Pixel inválido. É só o número, com 15 ou 16 dígitos.");
+        }
+        await gravarConfigPlataforma("meta_pixel_id", pixel);
+      }
+      if (typeof bodyCfg.whatsapp_vendas === "string") {
+        var zap = bodyCfg.whatsapp_vendas.replace(/\D/g, "");
+        if (zap) {
+          // Guardado com 55 na frente: é o formato que o link
+          // wa.me exige. Sem isso o botão abre uma conversa vazia e
+          // ninguém entende por quê.
+          if (zap.length === 10 || zap.length === 11) zap = "55" + zap;
+          if (!/^55\d{10,11}$/.test(zap)) {
+            return jsonErr(res, "WhatsApp inválido. Informe com DDD (ex.: 11 98765-4321).");
+          }
+        }
+        await gravarConfigPlataforma("whatsapp_vendas", zap);
       }
 
       secLog("config_plataforma_alterada", {});
