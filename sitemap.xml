@@ -1,16 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!--
-  Mapa do site para os buscadores.
-
-  Uma página só, e é a verdade: o Workap é uma landing única mais uma
-  área logada que não deve ser indexada. Listar âncoras (#planos,
-  #recursos) como se fossem páginas separadas é truque velho que os
-  buscadores já descontam há anos.
-
-  Quando existirem páginas de conteúdo de verdade — um texto sobre
-  controle de ponto pela CLT, outro sobre escala de trabalho —, é aqui
-  que elas entram. São elas que trazem quem ainda não conhece o nome.
--->
+<?xml version="1.0" encoding="utf-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://workap.com.br/</loc>
