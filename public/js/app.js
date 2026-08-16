@@ -220,6 +220,64 @@ $("forma-senha").addEventListener("submit", async function (e) {
   }
 });
 
+// A faixa some para quem já é assinante ('ativa') e para quem está
+// suspenso por decisão do owner (isso já tem aviso próprio nas
+// notificações) — só trial e inadimplente precisam de um lembrete
+// permanente, visível em toda página, não só na aba de notificações.
+// Pede o link de pagamento e manda a pessoa para lá. Enquanto o Cakto
+// não estiver configurado no servidor (sem chaves reais), a API responde
+// 503 com uma mensagem clara — que aparece como recado, não como botão
+// quebrado ou tela em branco.
+async function assinarAgora(botao) {
+  await ocupado(botao, "Gerando link...", async function () {
+    try {
+      var r = await api("POST", "/pagamentos/checkout", {});
+      location.href = r.url;
+    } catch (erro) {
+      recado(erro.message, "ruim");
+    }
+  });
+}
+
+function atualizarFaixaTrial(conta) {
+  var faixa = $("faixa-trial");
+
+  if (conta.status === "trial") {
+    var dias = conta.trial_dias_restantes;
+    faixa.className = "atento";
+    trocar(faixa, [
+      el("span", {}, [
+        el("strong", { texto: "Teste grátis: " }),
+        document.createTextNode(
+          dias == null ? "em andamento." :
+          dias === 0 ? "acaba hoje." :
+          dias === 1 ? "acaba amanhã." :
+          "faltam " + dias + " dias."
+        )
+      ]),
+      el("button", { classe: "botao pequeno", texto: "Assinar agora",
+        aoClicar: function (e) { assinarAgora(e.currentTarget); } })
+    ]);
+    return;
+  }
+
+  if (conta.status === "inadimplente") {
+    faixa.className = "ruim";
+    trocar(faixa, [
+      el("span", {}, [
+        el("strong", { texto: "Teste grátis acabou. " }),
+        document.createTextNode("O bot parou de responder. Seus dados continuam salvos.")
+      ]),
+      el("button", { classe: "botao pequeno", texto: "Assinar agora",
+        aoClicar: function (e) { assinarAgora(e.currentTarget); } })
+    ]);
+    return;
+  }
+
+  faixa.className = "oculto";
+  trocar(faixa, []);
+}
+
 export function atualizarBolhaAvisos(quantidade) {
   var botao = document.querySelector('#menu button[data-pagina="conta"]');
   var bolha = botao.querySelector(".conta-bolha");
@@ -244,6 +302,7 @@ async function entrar() {
   $("saudacao").textContent = cumprimento + ", " + sessao.usuario.nome.split(" ")[0] + ".";
 
   atualizarBolhaAvisos(sessao.notificacoes_nao_lidas);
+  atualizarFaixaTrial(sessao.conta);
 
   // Volta para a tela em que a pessoa estava antes do F5. Sem isto,
   // qualquer recarga durante a configuração da conexão jogaria de volta
@@ -255,7 +314,12 @@ async function entrar() {
 export function sessaoAtual() { return sessao; }
 
 (async function () {
-  if (!pegarToken()) return;
+  if (!pegarToken()) {
+    // A landing e a demonstração linkam para "/#criar" — quem vem de lá
+    // quer o cadastro na cara, não o login (a aba padrão).
+    if (location.hash === "#criar") mostrarAba("criar");
+    return;
+  }
 
   try {
     await entrar();

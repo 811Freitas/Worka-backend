@@ -104,7 +104,20 @@ var config = {
   // então em produção normalmente não há origem cruzada nenhuma — a
   // lista existe para quem hospedar o front separado do back.
   ORIGENS: (ler("CORS_ORIGINS", "") || "")
-    .split(",").map(function (s) { return s.trim(); }).filter(Boolean)
+    .split(",").map(function (s) { return s.trim(); }).filter(Boolean),
+
+  // ── Pagamento (Cakto) ──────────────────────────────────
+  // Deliberadamente OPCIONAL, fora de OBRIGATORIAS: sem estas três
+  // variáveis, o módulo de pagamentos (src/modulos/pagamentos) responde
+  // "não configurado" em vez de derrubar o servidor inteiro. É a
+  // diferença entre lançar o produto sem cobrança pronta e não
+  // conseguir lançar o produto.
+  CAKTO_CLIENT_ID:      ler("CAKTO_CLIENT_ID"),
+  CAKTO_CLIENT_SECRET:  ler("CAKTO_CLIENT_SECRET"),
+  // Segredo que vai na URL do webhook cadastrada no painel da Cakto
+  // (?s=...). Ver src/modulos/pagamentos/cakto.js para o porquê de não
+  // ser HMAC.
+  CAKTO_WEBHOOK_SECRET: ler("CAKTO_WEBHOOK_SECRET")
 };
 
 /**

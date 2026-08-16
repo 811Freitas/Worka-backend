@@ -14,6 +14,7 @@ var cripto = require("../../lib/cripto");
 var registro = require("../../lib/registro");
 var motor = require("../../motor/motor");
 var meta = require("./cloud-api");
+var { contaAtende } = require("../../lib/contaEstado");
 
 /**
  * Devolve o token em claro de uma conexão, ou null.
@@ -191,7 +192,7 @@ async function processarEntrada(conexao, msg) {
     }
 
     var conta = await db.uma("select status from contas where id=$1", [conexao.conta_id]);
-    if (conta && conta.status !== "ativa") {
+    if (conta && !contaAtende(conta.status)) {
       return { pulou: true, motivo: "conta suspensa" };
     }
 

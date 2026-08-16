@@ -28,7 +28,7 @@ async function exigirLogin(req, res, proximo) {
   // continuaria atendendo as conversas até amanhã.
   var usuario = await db.uma(
     `select u.id, u.conta_id, u.nome, u.email, u.papel, u.ativo,
-            c.nome as conta_nome, c.plano, c.status as conta_status
+            c.nome as conta_nome, c.plano, c.status as conta_status, c.trial_fim
        from usuarios u
        join contas c on c.id = u.conta_id
       where u.id = $1`,

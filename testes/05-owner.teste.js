@@ -104,7 +104,9 @@ teste(G, "o resumo conta as contas e o uso da plataforma", async function (ctx) 
 
   igual(depois.status, 200);
   igual(depois.corpo.numeros.contas_total, antes.corpo.numeros.contas_total + 1);
-  verdade(depois.corpo.numeros.contas_ativas >= 1);
+  // Conta recém-criada nasce em trial, não "ativa" — ativa é quem já
+  // assinou um plano. É por isso que o resumo tem um contador para cada.
+  verdade(depois.corpo.numeros.contas_trial >= 1);
   igual(depois.corpo.serie.length, 14, "quatorze dias, inclusive os vazios");
 });
 

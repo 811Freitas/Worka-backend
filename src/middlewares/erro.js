@@ -43,9 +43,12 @@ function tratador(err, req, res, proximo) {
 
   var status = err.status || err.statusCode || 500;
 
-  // Erro que a própria rota levantou de propósito ("e-mail já cadastrado"):
-  // a mensagem foi escrita para o cliente ler, então vai inteira.
-  if (err.esperado && status < 500) {
+  // Erro que a própria rota levantou de propósito ("e-mail já cadastrado",
+  // "painel administrativo não configurado"): a mensagem foi escrita para
+  // o cliente ler, então vai inteira — em qualquer status, inclusive 5xx.
+  // ErroHttp existe só para isto; se a rota preferisse esconder o motivo,
+  // teria deixado a exceção genérica seguir para o log abaixo.
+  if (err.esperado) {
     return res.status(status).json({ erro: err.message });
   }
 

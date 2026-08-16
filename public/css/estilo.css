@@ -420,6 +420,19 @@ textarea { resize: vertical; min-height: 120px; line-height: 1.55; }
 .aviso.atento{ background: var(--alerta-claro); border-color: #f5e3c0; color: #7a5210; }
 .aviso.bom   { background: var(--marca-clara);  border-color: #cdeade; color: var(--marca-escura); }
 
+/* Faixa de trial: fixa no topo do conteúdo, em toda página do painel —
+   diferente dos .aviso de dentro de uma tela, que somem ao trocar de aba. */
+#faixa-trial {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 20px; margin: 0 0 -4px;
+  border-bottom: 1px solid;
+  font-size: .875rem;
+}
+#faixa-trial.atento { background: var(--alerta-claro); border-color: #f5e3c0; color: #7a5210; }
+#faixa-trial.ruim   { background: var(--perigo-claro); border-color: #f5cccc; color: #8f2626; }
+#faixa-trial strong { font-weight: 650; }
+
 /* ════════════════════════════════════════
    TABELA DE REGISTROS
    ════════════════════════════════════════ */

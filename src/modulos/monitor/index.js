@@ -99,6 +99,58 @@ async function verificarTodas() {
 }
 
 /**
+ * Trial de 7 dias: avisa quem está acabando, expira quem passou.
+ *
+ * Duas passadas, cada uma com sua trava de "já fiz isso":
+ *
+ *  1. Quem tem entre 1,5 e 2,5 dias de trial restantes recebe UM aviso —
+ *     a janela de um dia inteiro existe porque o cron roda de hora em
+ *     hora, e uma janela de minutos deixaria passar quem o processo não
+ *     estava de pé bem naquele minuto.
+ *  2. Quem passou do prazo vira 'inadimplente': o bot se cala (mesma
+ *     regra de conta suspensa), mas os dados continuam intactos — se a
+ *     pessoa assinar depois, é só voltar o status, não recriar a conta.
+ */
+async function verificarTrials() {
+  try {
+    var avisar = await db.varias(
+      `select id, nome, trial_fim from contas
+        where status='trial' and not aviso_trial_sent
+          and trial_fim between now() + interval '1.5 days' and now() + interval '2.5 days'`
+    );
+    for (var conta of avisar) {
+      var dias = Math.max(1, Math.ceil((new Date(conta.trial_fim) - Date.now()) / 86400000));
+      await registro.notificar(conta.id, "trial_acabando",
+        "Seu teste grátis está acabando",
+        "Faltam " + dias + " dia(s). Assine um plano para o bot continuar atendendo sem interrupção.");
+      await db.consultar("update contas set aviso_trial_sent=true where id=$1", [conta.id]);
+      registro.info(conta.id, "trial_aviso_enviado", "Aviso de trial acabando enviado (" + dias + " dias)");
+    }
+
+    var expirados = await db.varias(
+      `select id, nome from contas
+        where status='trial' and not aviso_expirado_sent and trial_fim < now()`
+    );
+    for (var conta of expirados) {
+      await db.consultar(
+        "update contas set status='inadimplente', aviso_expirado_sent=true where id=$1",
+        [conta.id]
+      );
+      await registro.notificar(conta.id, "trial_expirado",
+        "Seu teste grátis acabou",
+        "O bot parou de responder. Assine um plano para religar o atendimento — seus dados continuam salvos.");
+      registro.aviso(conta.id, "trial_expirado", "Trial expirado. Conta virou inadimplente, bot silenciado.");
+    }
+
+    if (avisar.length || expirados.length) {
+      console.log("[trial]", JSON.stringify({ avisados: avisar.length, expirados: expirados.length }));
+    }
+  } catch (e) {
+    console.error("[trial] falhou:", e.message);
+  }
+}
+
+/**
  * Faxina do que cresce para sempre.
  *
  * `eventos_recebidos` ganha uma linha por mensagem recebida, de todos os
@@ -155,11 +207,13 @@ function iniciar() {
 
   setTimeout(function () {
     verificarTodas();
+    verificarTrials();
     limparAntigos();
   }, 30 * 1000).unref();
 
   temporizador = setInterval(function () {
     verificarTodas();
+    verificarTrials();
     // A faxina roda a cada quatro passadas — de hora em hora com o
     // intervalo padrão. Não precisa da frequência da verificação.
     if (Math.random() < 0.25) limparAntigos();
@@ -174,4 +228,4 @@ function parar() {
   temporizador = null;
 }
 
-module.exports = { iniciar, parar, verificarTodas, limparAntigos };
+module.exports = { iniciar, parar, verificarTodas, verificarTrials, limparAntigos };

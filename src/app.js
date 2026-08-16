@@ -109,6 +109,12 @@ app.get("/saude", function (req, res) {
 var webhook = require("./modulos/whatsapp/webhook");
 app.use("/webhook", webhook.router);
 
+// O aviso de pagamento da Cakto é o mesmo caso do webhook da Meta acima:
+// quem chama é um terceiro, não o navegador de um cliente logado, e o
+// rate limit de /api existe para gente, não para o gateway de pagamento.
+var pagamentos = require("./modulos/pagamentos/rotas");
+app.use("/webhook/cakto", pagamentos.webhookRouter);
+
 // ════════════════════════════════════════
 // API
 // ════════════════════════════════════════
@@ -128,6 +134,8 @@ app.use("/api/painel", require("./modulos/contas/painel"));
 app.use("/api/bot", require("./modulos/bots/rotas"));
 app.use("/api/whatsapp", require("./modulos/whatsapp/rotas").router);
 app.use("/api/conversas", require("./modulos/conversas/rotas"));
+app.use("/api/demo", require("./modulos/demo/rotas"));
+app.use("/api/pagamentos", pagamentos.router);
 
 // ════════════════════════════════════════
 // PAINEL (arquivos estáticos)

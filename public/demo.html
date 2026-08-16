@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Teste um chatbot de WhatsApp — demonstração grátis | Zapfy</title>
+<meta name="description" content="Converse agora com um chatbot de exemplo, sem cadastrar nada. É o mesmo motor de conversa que roda no WhatsApp de cada cliente do Zapfy.">
+<meta name="theme-color" content="#0f9d76">
+<link rel="stylesheet" href="/css/estilo.css">
+<link rel="stylesheet" href="/css/site.css">
+<script type="module" src="/js/demo.js"></script>
+</head>
+<body>
+
+<header class="site-topo">
+  <a href="/site" class="marca-topo"><span class="marca-ponto">Z</span> Zapfy</a>
+  <nav class="site-nav">
+    <a href="/site#recursos">Recursos</a>
+    <a href="/site#precos">Preços</a>
+    <a href="/" class="botao pequeno">Entrar</a>
+    <a href="/#criar" class="botao pequeno">Criar conta grátis</a>
+  </nav>
+</header>
+
+<main class="demo-pagina">
+  <div class="demo-intro">
+    <h1>Converse com o bot de exemplo</h1>
+    <p>Isto não é uma imitação: é o <strong>mesmo motor de conversa</strong> que atende os clientes de verdade no WhatsApp de cada empresa que usa o Zapfy — só que rodando aqui, sem número conectado e sem cadastro nenhum.</p>
+    <p class="fraco">Dica: digite "preço", "horário" ou "atendente" a qualquer momento — palavra-chave funciona de qualquer ponto da conversa, do jeito que funcionaria no seu bot.</p>
+    <a href="/#criar" class="botao largo">Gostei — criar minha conta grátis</a>
+    <p class="fraco centro">7 dias grátis, sem cartão de crédito.</p>
+  </div>
+
+  <div class="demo-telefone">
+    <div class="janela-conversa">
+      <div class="mensagens" id="demo-mensagens"></div>
+      <form id="demo-forma" autocomplete="off">
+        <input type="text" id="demo-entrada" placeholder="Digite uma mensagem..." autocomplete="off" maxlength="500">
+        <button type="submit" class="botao" id="demo-enviar">Enviar</button>
+      </form>
+    </div>
+    <button type="button" class="botao discreto pequeno" id="demo-reiniciar">↺ Recomeçar a conversa</button>
+  </div>
+</main>
+
+<footer class="site-rodape">
+  <span>© <span id="ano-rodape"></span> Zapfy</span>
+  <a href="/site">Site</a>
+  <a href="/">Entrar</a>
+</footer>
+
+<div id="recados" aria-live="polite"></div>
+
+</body>
+</html>

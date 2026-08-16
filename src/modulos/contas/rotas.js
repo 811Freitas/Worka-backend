@@ -17,6 +17,13 @@ var { rota, ErroHttp } = require("../../middlewares/erro");
 var { limitar } = require("../../middlewares/limitar");
 var { exigirLogin } = require("../../middlewares/autenticar");
 var { criarExemplo } = require("../bots/exemplo");
+var { diasRestantes } = require("../../lib/contaEstado");
+
+// 7 dias, sem cartão. É a mesma janela do Workap: tempo suficiente para
+// montar um fluxo, conectar o WhatsApp e ver o bot atender de verdade
+// antes de decidir se vale pagar — curto o bastante para não virar uso
+// grátis por tempo indeterminado disfarçado de trial.
+var DIAS_TRIAL = 7;
 
 var router = express.Router();
 
@@ -31,7 +38,11 @@ function respostaSessao(usuario, conta) {
     usuario: {
       id: usuario.id, nome: usuario.nome, email: usuario.email, papel: usuario.papel
     },
-    conta: { id: conta.id, nome: conta.nome, plano: conta.plano, status: conta.status }
+    conta: {
+      id: conta.id, nome: conta.nome, plano: conta.plano, status: conta.status,
+      trial_fim: conta.trial_fim || null,
+      trial_dias_restantes: conta.status === "trial" ? diasRestantes(conta.trial_fim) : null
+    }
   };
 }
 
@@ -69,8 +80,10 @@ router.post("/cadastro", limitar(10, 60 * 60 * 1000, "cadastro"), rota(async fun
   // um login que abre um painel quebrado — e sem poder se cadastrar de
   // novo, porque o e-mail já estaria em uso.
   var criado = await db.transacao(async function (cliente) {
+    var trialFim = new Date(Date.now() + DIAS_TRIAL * 24 * 60 * 60 * 1000);
     var conta = (await cliente.query(
-      "insert into contas (nome) values ($1) returning *", [empresa]
+      "insert into contas (nome, status, trial_fim) values ($1,'trial',$2) returning *",
+      [empresa, trialFim]
     )).rows[0];
 
     var usuario = (await cliente.query(
@@ -112,7 +125,7 @@ router.post("/login", limitar(10, 15 * 60 * 1000, "login"), rota(async function 
 
   var usuario = email
     ? await db.uma(
-        `select u.*, c.nome as conta_nome, c.plano, c.status as conta_status
+        `select u.*, c.nome as conta_nome, c.plano, c.status as conta_status, c.trial_fim
            from usuarios u join contas c on c.id = u.conta_id
           where lower(u.email) = lower($1)`,
         [email]
@@ -134,7 +147,7 @@ router.post("/login", limitar(10, 15 * 60 * 1000, "login"), rota(async function 
 
   res.json(respostaSessao(usuario, {
     id: usuario.conta_id, nome: usuario.conta_nome,
-    plano: usuario.plano, status: usuario.conta_status
+    plano: usuario.plano, status: usuario.conta_status, trial_fim: usuario.trial_fim
   }));
 }));
 
@@ -157,7 +170,10 @@ router.get("/eu", exigirLogin, rota(async function (req, res) {
     },
     conta: {
       id: req.usuario.conta_id, nome: req.usuario.conta_nome,
-      plano: req.usuario.plano, status: req.usuario.conta_status
+      plano: req.usuario.plano, status: req.usuario.conta_status,
+      trial_fim: req.usuario.trial_fim,
+      trial_dias_restantes: req.usuario.conta_status === "trial"
+        ? diasRestantes(req.usuario.trial_fim) : null
     },
     notificacoes_nao_lidas: naoLidas.total
   });

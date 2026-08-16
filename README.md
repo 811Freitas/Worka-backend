@@ -104,7 +104,7 @@ número.
 npm run teste
 ```
 
-106 casos. Sobem um servidor de verdade, contra um Postgres de verdade,
+115 casos. Sobem um servidor de verdade, contra um Postgres de verdade,
 com uma Meta falsa em `127.0.0.1` que responde como a Graph API responde
 (inclusive os erros: token expirado, limite de botões, instabilidade).
 
@@ -118,9 +118,11 @@ fusos, expiração de conversa, fluxo circular, conexão, verificação do
 webhook, mensagem entrando e resposta saindo, idempotência de reenvio,
 assinatura do webhook, pausar/reiniciar/desconectar/reconectar,
 transbordo humano, queda e recuperação de conexão, dois clientes
-atendendo ao mesmo tempo sem se misturar, e a fronteira do painel
+atendendo ao mesmo tempo sem se misturar, a fronteira do painel
 administrativo nas duas direções (cliente não entra; administrador não
-alcança conversa nem credencial de cliente).
+alcança conversa nem credencial de cliente), o trial de 7 dias (aviso,
+expiração, bot silenciado) e o módulo de pagamento (seguro quando
+desconfigurado, nunca finge sucesso).
 
 ---
 
@@ -136,6 +138,16 @@ que o cliente copia para o painel da Meta.
 Para o painel de administração: `OWNER_EMAIL` e `OWNER_SENHA_HASH`. Sem
 elas, `/owner` responde 503 — o painel não existe, em vez de existir com
 uma senha padrão.
+
+Para cobrar a assinatura (opcional): `CAKTO_CLIENT_ID`,
+`CAKTO_CLIENT_SECRET` e `CAKTO_WEBHOOK_SECRET`. Sem elas, o botão
+"Assinar agora" do painel responde com uma mensagem clara de "pagamento
+ainda não disponível" — o site funciona inteiro sem essas três
+variáveis, só a cobrança fica desligada. **Antes de confiar em dinheiro
+de verdade passando por aqui**, leia o aviso no topo de
+`src/modulos/pagamentos/cakto.js`: o formato exato da API da Cakto não
+foi confirmado contra a documentação deles, e precisa de uma cobrança
+real de R$ 1 testada ponta a ponta primeiro.
 
 > **`CRYPTO_KEY` é a única variável cuja perda é irreversível.** Ela cifra
 > os tokens da Meta guardados no banco. Trocá-la torna ilegíveis as

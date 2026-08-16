@@ -84,6 +84,8 @@ router.get("/resumo", rota(async function (req, res) {
     select
       (select count(*)::int from contas)                                        as contas_total,
       (select count(*)::int from contas where status = 'ativa')                 as contas_ativas,
+      (select count(*)::int from contas where status = 'trial')                 as contas_trial,
+      (select count(*)::int from contas where status = 'inadimplente')          as contas_inadimplentes,
       (select count(*)::int from contas where status = 'suspensa')              as contas_suspensas,
       (select count(*)::int from contas where criado_em > now() - interval '7 days')  as contas_7d,
       (select count(*)::int from contas where criado_em > now() - interval '30 days') as contas_30d,
@@ -132,14 +134,16 @@ router.get("/resumo", rota(async function (req, res) {
 // ════════════════════════════════════════
 router.get("/contas", rota(async function (req, res) {
   var limite = v.inteiro(req.query.limite, 1, 200, 100);
-  var filtro = v.umDe(req.query.filtro, ["todas", "ativas", "suspensas", "com_erro", "sem_conexao", "inativas"]) || "todas";
+  var filtro = v.umDe(req.query.filtro, ["todas", "ativas", "trial", "inadimplentes", "suspensas", "com_erro", "sem_conexao", "inativas"]) || "todas";
   var busca = req.query.busca ? String(req.query.busca).slice(0, 60) : null;
 
   var condicoes = [];
   var params = [];
 
-  if (filtro === "ativas")      condicoes.push("c.status = 'ativa'");
-  if (filtro === "suspensas")   condicoes.push("c.status = 'suspensa'");
+  if (filtro === "ativas")       condicoes.push("c.status = 'ativa'");
+  if (filtro === "trial")        condicoes.push("c.status = 'trial'");
+  if (filtro === "inadimplentes") condicoes.push("c.status = 'inadimplente'");
+  if (filtro === "suspensas")    condicoes.push("c.status = 'suspensa'");
   if (filtro === "com_erro")    condicoes.push("x.status = 'erro'");
   if (filtro === "sem_conexao") condicoes.push("(x.status is null or x.status in ('desconectado','aguardando_webhook'))");
   // "Inativa" é conta sem mensagem nenhuma nos últimos 14 dias. É a
@@ -164,7 +168,7 @@ router.get("/contas", rota(async function (req, res) {
   // Um LEFT JOIN LATERAL por métrica, em vez de uma consulta por conta.
   // Com 500 contas na tela, o caminho ingênuo seria 1500 idas ao banco.
   var lista = await db.varias(`
-    select c.id, c.nome, c.plano, c.status, c.criado_em, c.suspensa_em, c.observacao,
+    select c.id, c.nome, c.plano, c.status, c.criado_em, c.suspensa_em, c.observacao, c.trial_fim,
            x.status          as conexao_status,
            x.numero_exibicao as numero,
            x.ultimo_erro     as conexao_erro,

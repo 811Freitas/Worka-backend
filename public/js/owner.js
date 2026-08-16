@@ -130,6 +130,8 @@ async function carregarResumo() {
   trocar($("indicadores-contas"), [
     ind("Contas", n.contas_total),
     ind("Ativas", n.contas_ativas),
+    ind("Em trial", n.contas_trial),
+    ind("Inadimplentes", n.contas_inadimplentes, n.contas_inadimplentes > 0),
     ind("Suspensas", n.contas_suspensas, n.contas_suspensas > 0),
     ind("Novas (7 dias)", n.contas_7d),
     ind("Novas (30 dias)", n.contas_30d),
@@ -202,14 +204,14 @@ async function carregarContas() {
   }
 
   trocar(corpo, contas.map(function (c) {
-    var linha = el("tr", { classe: c.status === "suspensa" ? "linha-suspensa" : "" }, [
+    var linha = el("tr", { classe: (c.status === "suspensa" || c.status === "inadimplente") ? "linha-suspensa" : "" }, [
       el("td", {}, [
         el("strong", { texto: c.nome }),
         c.observacao ? el("div", { classe: "fraco", texto: "📌 " + c.observacao }) : null
       ]),
       el("td", { classe: "fraco", texto: c.email_dono || "—" }),
       el("td", {}, [el("span", { classe: "etiqueta", texto: c.plano })]),
-      el("td", {}, [selo(c.status === "ativa" ? "ok" : "ruim", c.status)]),
+      el("td", {}, [seloStatusConta(c)]),
       el("td", {}, [seloConexao(c)]),
       el("td", { classe: "num", texto: Number(c.mensagens_7d).toLocaleString("pt-BR") }),
       el("td", { classe: "num", texto: String(c.conversas) }),
@@ -224,6 +226,25 @@ async function carregarContas() {
 
 function selo(tipo, texto) {
   return el("span", { classe: "selo-mini " + tipo, texto: texto });
+}
+
+// 'ativa' e 'trial' atendem (bom/atenção); 'inadimplente' e 'suspensa'
+// não (ruim) — a mesma regra de src/lib/contaEstado.js, só que em rótulo.
+function seloStatusConta(c) {
+  if (c.status === "ativa")        return selo("ok", "ativa");
+  if (c.status === "trial") {
+    var dias = diasRestantesTrial(c.trial_fim);
+    return selo("atencao", dias == null ? "trial" : "trial · " + dias + "d");
+  }
+  if (c.status === "inadimplente")  return selo("ruim", "inadimplente");
+  if (c.status === "suspensa")      return selo("ruim", "suspensa");
+  return selo("neutro", c.status);
+}
+
+function diasRestantesTrial(trialFim) {
+  if (!trialFim) return null;
+  var ms = new Date(trialFim).getTime() - Date.now();
+  return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
 }
 
 function seloConexao(c) {
@@ -264,10 +285,23 @@ async function abrirFicha(id) {
       document.createTextNode(d.conta.motivo_suspensao || "Sem motivo registrado.")
     ]));
   }
+  if (d.conta.status === "inadimplente") {
+    partes.push(el("div", { classe: "aviso ruim" }, [
+      el("strong", { texto: "Trial acabou. " }),
+      document.createTextNode("O bot desta conta parou de responder até ela assinar um plano.")
+    ]));
+  }
+  if (d.conta.status === "trial") {
+    var diasT = diasRestantesTrial(d.conta.trial_fim);
+    partes.push(el("div", { classe: "aviso atento" }, [
+      el("strong", { texto: "Em trial. " }),
+      document.createTextNode(diasT == null ? "" : "Faltam " + diasT + " dia(s) para o teste grátis acabar.")
+    ]));
+  }
 
   // ── Ações ──
   partes.push(el("div", { classe: "grupo-botoes", estilo: "margin-bottom:16px" }, [
-    d.conta.status === "ativa"
+    (d.conta.status === "ativa" || d.conta.status === "trial")
       ? el("button", { classe: "botao perigo pequeno", texto: "Suspender",
           aoClicar: function () { suspender(d.conta); } })
       : el("button", { classe: "botao pequeno", texto: "Reativar",
@@ -288,7 +322,8 @@ async function abrirFicha(id) {
   // ── Dados ──
   partes.push(el("div", { classe: "ficha-secao", texto: "Conta" }));
   partes.push(fl("Plano", d.conta.plano));
-  partes.push(fl("Status", d.conta.status));
+  partes.push(fl("Status", d.conta.status +
+    (d.conta.status === "trial" ? " (" + diasRestantesTrial(d.conta.trial_fim) + " dia(s) restantes)" : "")));
   partes.push(fl("Cadastro", dataHora(d.conta.criado_em)));
   if (d.conta.observacao) partes.push(fl("Anotação", d.conta.observacao));
 
