@@ -23,6 +23,12 @@ function mostrarAba(qual) {
 $("aba-entrar").addEventListener("click", function () { mostrarAba("entrar"); });
 $("aba-criar").addEventListener("click", function () { mostrarAba("criar"); });
 
+// Chave própria, separada da sessão de cliente (CHAVE_TOKEN em base.js):
+// o /owner lê este valor para entrar direto, sem mostrar o formulário
+// dele — mas o token de dono da plataforma não pode ir parar na mesma
+// gaveta do token de cliente, senão os dois se atropelam a cada F5.
+var CHAVE_TOKEN_OWNER = "zapfy.token.owner";
+
 $("forma-entrar").addEventListener("submit", async function (e) {
   e.preventDefault();
   await ocupado($("botao-entrar"), "Entrando...", async function () {
@@ -31,6 +37,17 @@ $("forma-entrar").addEventListener("submit", async function (e) {
         email: $("entrar-email").value,
         senha: $("entrar-senha").value
       });
+
+      // O servidor reconhece o e-mail do dono da plataforma dentro do
+      // MESMO formulário de login de cliente — sem aba nem link
+      // separado anunciando que essa conta existe. `is_owner` é só o
+      // sinal para abrir o painel certo.
+      if (r.is_owner) {
+        localStorage.setItem(CHAVE_TOKEN_OWNER, r.token);
+        location.href = "/owner";
+        return;
+      }
+
       guardarToken(r.token);
       await entrar();
     } catch (erro) {

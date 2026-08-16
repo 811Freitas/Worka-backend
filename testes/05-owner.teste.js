@@ -42,6 +42,38 @@ teste(G, "login administrativo funciona com as credenciais do ambiente", async f
   igual(r.corpo.owner.email, OWNER.email);
 });
 
+teste(G, "o dono da plataforma também entra pelo login central de cliente", async function (ctx) {
+  // Mesmo formulário, mesma rota — /api/login, não /api/owner/login.
+  // É o servidor que reconhece o e-mail e devolve o token certo.
+  var r = await ctx.cliente.post("/api/login", OWNER);
+
+  igual(r.status, 200);
+  verdade(r.corpo.token, "veio token");
+  igual(r.corpo.is_owner, true);
+  igual(r.corpo.owner.email, OWNER.email);
+
+  // E o token funciona de verdade contra uma rota administrativa.
+  var resumo = await ctx.cliente.get("/api/owner/resumo", r.corpo.token);
+  igual(resumo.status, 200);
+});
+
+teste(G, "login central com e-mail do dono e senha errada não vaza para o caminho de cliente", async function (ctx) {
+  var r = await ctx.cliente.post("/api/login", { email: OWNER.email, senha: "chute-errado-123" });
+  igual(r.status, 401);
+  igual(r.corpo.is_owner, undefined, "não deveria emitir token nenhum");
+});
+
+teste(G, "tentativas com o e-mail do dono, no login central, têm um limite mais apertado", async function (ctx) {
+  // O limite geral de /login é 10 por 15 min; o balde extra só para o
+  // e-mail do owner é 5 — e é ele que deveria barrar primeiro aqui.
+  var barrou = false;
+  for (var i = 0; i < 8; i++) {
+    var r = await ctx.cliente.post("/api/login", { email: OWNER.email, senha: "chute-errado-" + i });
+    if (r.status === 429) { barrou = true; break; }
+  }
+  verdade(barrou, "o limite apertado do login do owner não foi aplicado");
+});
+
 teste(G, "senha errada é recusada", async function (ctx) {
   var r = await ctx.cliente.post("/api/owner/login",
     { email: OWNER.email, senha: "chute-errado-123" });

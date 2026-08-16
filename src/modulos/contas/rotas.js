@@ -119,9 +119,41 @@ router.post("/cadastro", limitar(10, 60 * 60 * 1000, "cadastro"), rota(async fun
 // ════════════════════════════════════════
 // LOGIN
 // ════════════════════════════════════════
-router.post("/login", limitar(10, 15 * 60 * 1000, "login"), rota(async function (req, res) {
+// Trava extra, só para tentativas com o e-mail do dono da plataforma —
+// além do limite geral de /login logo abaixo. A conta administrativa é
+// a chave-mestra de tudo; vale um balde próprio, mais apertado, mesmo
+// dividindo a rota com o login de cliente.
+var limitarOwner = limitar(5, 15 * 60 * 1000, "login-owner");
+
+router.post("/login", limitar(10, 15 * 60 * 1000, "login"), function (req, res, proximo) {
+  var email = typeof req.body.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  if (config.OWNER_EMAIL && email === config.OWNER_EMAIL) return limitarOwner(req, res, proximo);
+  proximo();
+}, rota(async function (req, res) {
   var email = v.email(req.body.email);
   var senha = typeof req.body.senha === "string" ? req.body.senha : "";
+
+  // O dono da plataforma entra pelo MESMO formulário das contas
+  // clientes — e-mail e senha como qualquer um, sem aba nem URL
+  // separada anunciando que existe uma conta administrativa. Ele é
+  // reconhecido AQUI, antes de qualquer consulta a `usuarios`, porque
+  // não existe linha nessa tabela: a conta do owner mora em variável de
+  // ambiente (ver src/config.js e src/modulos/owner), de propósito,
+  // para que um vazamento do banco não entregue a chave-mestra da
+  // plataforma. Mesmo desenho do login central do Workap.
+  if (email && config.OWNER_EMAIL && email === config.OWNER_EMAIL) {
+    if (!config.OWNER_SENHA_HASH) {
+      throw new ErroHttp(503, "Painel administrativo não configurado neste servidor.");
+    }
+    var confereOwner = await bcrypt.compare(senha, config.OWNER_SENHA_HASH);
+    if (!confereOwner) throw new ErroHttp(401, "E-mail ou senha incorretos.");
+
+    return res.json({
+      token: sessao.assinar({ owner: true, email: config.OWNER_EMAIL }),
+      owner: { email: config.OWNER_EMAIL },
+      is_owner: true
+    });
+  }
 
   var usuario = email
     ? await db.uma(

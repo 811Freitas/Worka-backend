@@ -9,6 +9,13 @@
 
 import { el, trocar, vazio, recado, ocupado, $, dataHora, quando } from "./base.js";
 
+// Mesma chave que o login central (public/js/app.js) usa para guardar o
+// token de quem entrou como dono da plataforma. É o que permite abrir
+// esta página direto no painel, sem formulário nenhum, para quem acabou
+// de entrar por "/" — e não precisa da senha de novo três segundos
+// depois de já ter digitado.
+var CHAVE_TOKEN_OWNER = "zapfy.token.owner";
+
 var TOKEN = null;
 var contas = [];
 
@@ -29,6 +36,7 @@ async function api(metodo, caminho, corpo) {
 
   if (resposta.status === 401) {
     TOKEN = null;
+    localStorage.removeItem(CHAVE_TOKEN_OWNER);
     mostrarEntrada();
     throw new Error((dados && dados.erro) || "Sessão administrativa expirada.");
   }
@@ -44,6 +52,11 @@ function mostrarEntrada() {
   $("painel-owner").classList.remove("visivel");
 }
 
+// Formulário mantido como caminho de reserva — o mesmo motivo do
+// Workap manter a rota antiga de login do owner: se por algum motivo o
+// token guardado pelo login central não chegar aqui (aba nova, storage
+// limpo, link direto para /owner), ainda dá para entrar com e-mail e
+// senha, direto nesta página.
 $("forma-owner").addEventListener("submit", async function (e) {
   e.preventDefault();
   await ocupado($("botao-owner"), "Entrando...", async function () {
@@ -53,6 +66,7 @@ $("forma-owner").addEventListener("submit", async function (e) {
         senha: $("owner-senha").value
       });
       TOKEN = r.token;
+      localStorage.setItem(CHAVE_TOKEN_OWNER, r.token);
       $("owner-senha").value = "";
       await entrar(r.owner.email);
     } catch (erro) {
@@ -70,8 +84,31 @@ async function entrar(email) {
 
 $("sair-owner").addEventListener("click", function () {
   TOKEN = null;
+  localStorage.removeItem(CHAVE_TOKEN_OWNER);
   location.reload();
 });
+
+// ════════════════════════════════════════
+// ENTRADA AUTOMÁTICA
+// ════════════════════════════════════════
+// Quem acabou de entrar pelo login central (public/js/app.js) chega
+// aqui com o token já em localStorage — o formulário acima nem aparece.
+(async function () {
+  var guardado = localStorage.getItem(CHAVE_TOKEN_OWNER);
+  if (!guardado) return;
+
+  TOKEN = guardado;
+  try {
+    var r = await api("GET", "/eu");
+    await entrar(r.owner.email);
+  } catch (e) {
+    // Token velho ou revogado (troca de OWNER_EMAIL/SENHA no ambiente).
+    // A tela de entrada continua disponível — sem isso, /owner ficaria
+    // preso tentando um token que nunca mais vai funcionar.
+    TOKEN = null;
+    localStorage.removeItem(CHAVE_TOKEN_OWNER);
+  }
+})();
 
 // ════════════════════════════════════════
 // ABAS
