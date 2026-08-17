@@ -208,6 +208,13 @@ textarea { resize: vertical; min-height: 120px; line-height: 1.55; }
 .marca-topo { display: flex; align-items: center; gap: 9px; font-weight: 750; font-size: 1.25rem; letter-spacing: -.02em; }
 .marca-ponto { width: 26px; height: 26px; border-radius: 8px; background: var(--marca); display: grid; place-items: center; color: #fff; font-size: .8125rem; font-weight: 800; }
 
+/* Logotipo em imagem (public/img/zapfy-logo*.png) — largura livre, só a
+   altura é fixada, para o arquivo (proporção própria) nunca esticar
+   nem espremer. -branco é a mesma marca em silhueta branca, para cima
+   de fundo escuro (hero, topo do painel do owner), onde a versão
+   colorida (verde escuro/claro) quase não apareceria. */
+.marca-imagem { height: 22px; width: auto; display: block; }
+
 /* ════════════════════════════════════════
    ESTRUTURA DO PAINEL
    ════════════════════════════════════════ */

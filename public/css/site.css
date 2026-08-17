@@ -47,8 +47,6 @@
 }
 .site-topo .marca-topo { text-decoration: none; flex-shrink: 0; transition: transform .2s ease; }
 .site-topo .marca-topo:hover { transform: scale(1.04); }
-.site-topo .marca-topo .marca-ponto { transition: transform .3s ease; }
-.site-topo .marca-topo:hover .marca-ponto { transform: rotate(-8deg); }
 
 .site-nav { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; justify-content: flex-end; }
 .site-nav a:not(.botao) {
@@ -414,7 +412,5 @@ html { scroll-behavior: smooth; }
      segundo pareceria travamento, não intenção. */
   #site-carregando { transition: opacity .01ms linear, visibility 0s linear; }
   html { scroll-behavior: auto; }
-  .site-topo .marca-topo, .site-topo .marca-topo .marca-ponto,
-  .site-nav a:not(.botao)::after { transition: none !important; }
-  .site-topo .marca-topo:hover .marca-ponto { transform: none; }
+  .site-topo .marca-topo, .site-nav a:not(.botao)::after { transition: none !important; }
 }
