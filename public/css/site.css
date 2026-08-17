@@ -15,10 +15,20 @@
   background: var(--papel);
   position: sticky; top: 0; z-index: 10;
 }
-.site-topo .marca-topo { text-decoration: none; }
-.site-nav { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+.site-topo .marca-topo { text-decoration: none; flex-shrink: 0; }
+.site-nav { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; justify-content: flex-end; }
 .site-nav a:not(.botao) { color: var(--tinta-suave); font-weight: 600; font-size: .875rem; text-decoration: none; }
 .site-nav a:not(.botao):hover { color: var(--tinta); }
+
+/* Abaixo de ~700px os links de âncora (Recursos, Como funciona, Preços,
+   Demonstração) somem — cabem mal ao lado da marca e do CTA, e quem
+   está no celular chega neles rolando a página de qualquer forma. Os
+   dois botões de ação continuam sempre visíveis: são o que importa. */
+@media (max-width: 700px) {
+  .site-nav a:not(.botao) { display: none; }
+  .site-topo { flex-wrap: wrap; gap: 10px; }
+  .site-nav { gap: 8px; }
+}
 
 .site-rodape {
   display: flex; align-items: center; justify-content: center; gap: 20px;
@@ -31,29 +41,121 @@
    LANDING (site.html)
    ════════════════════════════════════════ */
 .site-hero {
+  position: relative;
+  overflow: hidden;
   background: linear-gradient(150deg, var(--marca-escura), #0a5f47 70%, #084c39);
+  background-size: 200% 200%;
+  animation: gradienteHero 14s ease infinite;
   color: #fff;
   padding: clamp(48px, 8vw, 96px) clamp(20px, 6vw, 64px);
-  text-align: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
+  gap: clamp(28px, 5vw, 56px);
+  align-items: center;
 }
+@keyframes gradienteHero {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
+/* Manchas desfocadas flutuando atrás do conteúdo — decoração pura,
+   por isso aria-hidden no HTML e sem nenhuma informação dentro. */
+.site-blob {
+  position: absolute; border-radius: 50%; filter: blur(60px);
+  background: radial-gradient(circle, rgba(255,255,255,.20), transparent 70%);
+  pointer-events: none; z-index: 0;
+}
+.site-blob-1 { width: 380px; height: 380px; top: -120px; left: -100px; animation: flutuar1 16s ease-in-out infinite; }
+.site-blob-2 { width: 300px; height: 300px; bottom: -140px; right: -80px; animation: flutuar2 19s ease-in-out infinite; }
+.site-blob-3 { width: 220px; height: 220px; top: 40%; right: 18%; animation: flutuar1 13s ease-in-out infinite reverse; }
+@keyframes flutuar1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(30px, -24px) scale(1.08); }
+}
+@keyframes flutuar2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(-24px, 26px) scale(1.05); }
+}
+
+.site-hero-texto { position: relative; z-index: 1; text-align: left; }
 .site-hero h1 {
-  font-size: clamp(1.9rem, 4vw, 3rem); line-height: 1.15; margin: 0 auto 18px;
-  max-width: 46rem; font-weight: 800;
+  font-size: clamp(1.9rem, 4vw, 3rem); line-height: 1.15; margin: 0 0 18px;
+  max-width: 32rem; font-weight: 800;
 }
 .site-hero p.site-lead {
   font-size: clamp(1rem, 1.6vw, 1.1875rem); color: rgba(255,255,255,.86);
-  max-width: 38rem; margin: 0 auto 30px; line-height: 1.55;
+  max-width: 34rem; margin: 0 0 30px; line-height: 1.55;
 }
-.site-hero .grupo-botoes { justify-content: center; }
+.site-hero .grupo-botoes { justify-content: flex-start; }
 .site-hero .botao.neutro { background: #fff; color: var(--marca-escura); border-color: #fff; }
 .site-selo-confianca {
   margin-top: 26px; font-size: .8125rem; color: rgba(255,255,255,.72);
-  display: flex; gap: 18px; justify-content: center; flex-wrap: wrap;
+  display: flex; gap: 18px; justify-content: flex-start; flex-wrap: wrap;
+}
+
+/* ── Telefone animado do hero ── */
+.site-hero-telefone { position: relative; z-index: 1; display: flex; justify-content: center; }
+.site-celular {
+  width: min(300px, 82vw); background: #0d1f18; border-radius: 34px; padding: 12px;
+  box-shadow: 0 30px 70px rgba(0,0,0,.35); animation: boiarCelular 6s ease-in-out infinite;
+}
+@keyframes boiarCelular {
+  0%, 100% { transform: translateY(0) rotate(-1.5deg); }
+  50%      { transform: translateY(-14px) rotate(1deg); }
+}
+.site-celular-tela {
+  background: #e9ebe9; border-radius: 24px; padding: 16px 12px; height: 400px;
+  display: flex; flex-direction: column; gap: 8px; overflow: hidden;
+}
+.site-celular-topo {
+  display: flex; align-items: center; gap: 8px; padding: 2px 4px 10px;
+  border-bottom: 1px solid rgba(0,0,0,.08); margin-bottom: 4px;
+}
+.site-celular-avatar {
+  width: 28px; height: 28px; border-radius: 50%; background: var(--marca);
+  color: #fff; display: grid; place-items: center; font-size: .75rem; font-weight: 700; flex-shrink: 0;
+}
+.site-celular-nome { font-size: .8125rem; font-weight: 700; color: var(--tinta); }
+.site-celular-status { font-size: .6875rem; color: var(--marca-escura); }
+.site-celular-msgs { flex: 1; display: flex; flex-direction: column; gap: 7px; justify-content: flex-end; }
+.site-celular-balao {
+  max-width: 82%; padding: 7px 11px; border-radius: 12px; font-size: .75rem; line-height: 1.4;
+  /* Cor explícita, não herdada: .site-hero pinta o texto de branco para
+     o próprio fundo escuro, e sem isto as duas bolhas (fundo claro)
+     ficariam com texto branco sobre branco — invisível, mas só visível
+     em captura de tela, nunca "a olho" quando se testa passando o mouse. */
+  color: var(--tinta);
+  opacity: 0; transform: translateY(8px) scale(.96); transition: opacity .35s ease, transform .35s ease;
+  box-shadow: 0 1px 1px rgba(0,0,0,.06);
+}
+.site-celular-balao.mostrar { opacity: 1; transform: translateY(0) scale(1); }
+.site-celular-balao.deles { align-self: flex-start; background: #fff; border-bottom-left-radius: 3px; }
+.site-celular-balao.nossa { align-self: flex-end; background: #d6f5cd; border-bottom-right-radius: 3px; }
+.site-celular-digitando { align-self: flex-start; display: flex; gap: 4px; padding: 9px 12px;
+  background: #fff; border-radius: 12px; border-bottom-left-radius: 3px; opacity: 0; transition: opacity .25s ease; }
+.site-celular-digitando.mostrar { opacity: 1; }
+.site-celular-digitando span {
+  width: 5px; height: 5px; border-radius: 50%; background: var(--tinta-fraca);
+  animation: pontoDigitando 1s ease-in-out infinite;
+}
+.site-celular-digitando span:nth-child(2) { animation-delay: .15s; }
+.site-celular-digitando span:nth-child(3) { animation-delay: .3s; }
+@keyframes pontoDigitando {
+  0%, 60%, 100% { transform: translateY(0); opacity: .4; }
+  30%           { transform: translateY(-3px); opacity: 1; }
+}
+
+@media (max-width: 860px) {
+  .site-hero { grid-template-columns: 1fr; text-align: center; }
+  .site-hero-texto { text-align: center; }
+  .site-hero .grupo-botoes, .site-selo-confianca { justify-content: center; }
+  .site-hero h1, .site-hero p.site-lead { margin-left: auto; margin-right: auto; }
 }
 
 .site-secao { padding: clamp(40px, 6vw, 76px) clamp(20px, 6vw, 64px); max-width: 74rem; margin: 0 auto; }
 .site-secao h2 { font-size: clamp(1.4rem, 2.4vw, 2rem); margin: 0 0 10px; text-align: center; }
 .site-secao > p.site-lead { text-align: center; color: var(--tinta-suave); max-width: 40rem; margin: 0 auto 36px; }
+.site-secao-cta-extra { text-align: center; margin-top: 36px; }
 
 .site-grade {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
@@ -62,11 +164,19 @@
 .site-cartao {
   background: var(--papel); border: 1px solid var(--linha); border-radius: var(--raio);
   padding: 24px; box-shadow: var(--sombra);
+  transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+}
+.site-cartao:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--sombra-alta);
+  border-color: var(--marca);
 }
 .site-cartao .site-icone {
   width: 42px; height: 42px; border-radius: 10px; background: var(--marca-clara);
   color: var(--marca-escura); display: grid; place-items: center; font-size: 1.25rem; margin-bottom: 14px;
+  transition: transform .25s ease;
 }
+.site-cartao:hover .site-icone { transform: scale(1.12) rotate(-4deg); }
 .site-cartao h3 { font-size: 1rem; margin: 0 0 6px; }
 .site-cartao p { font-size: .875rem; color: var(--tinta-suave); line-height: 1.5; margin: 0; }
 
@@ -90,7 +200,10 @@
   background: var(--papel); border: 1px solid var(--linha); border-radius: var(--raio);
   padding: 28px 24px; display: flex; flex-direction: column; gap: 14px;
 }
+.site-plano { transition: transform .25s ease, box-shadow .25s ease; }
+.site-plano:hover { transform: translateY(-4px); box-shadow: var(--sombra-alta); }
 .site-plano.destaque { border-color: var(--marca); box-shadow: 0 0 0 3px var(--marca-clara); position: relative; }
+.site-plano.destaque:hover { box-shadow: 0 0 0 3px var(--marca-clara), var(--sombra-alta); }
 .site-plano-selo {
   position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
   background: var(--marca); color: #fff; font-size: .6875rem; font-weight: 700;
@@ -138,4 +251,87 @@
 @media (max-width: 860px) {
   .demo-pagina { grid-template-columns: 1fr; }
   .demo-telefone { position: static; }
+}
+
+/* ════════════════════════════════════════
+   BOTÕES: hover, pulso, flutuante
+   ════════════════════════════════════════ */
+/* Todo .botao dentro de página pública ganha uma leve elevação ao
+   passar o mouse — sem sobrescrever a cor/base, que já vem de
+   estilo.css, só o movimento. */
+.site-topo .botao, .site-hero .botao, .site-secao .botao, .site-cta-demo .botao {
+  transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease;
+}
+.site-topo .botao:hover, .site-hero .botao:hover, .site-secao .botao:hover, .site-cta-demo .botao:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 10px 24px rgba(15,30,26,.18);
+}
+.site-topo .botao:active, .site-hero .botao:active, .site-secao .botao:active, .site-cta-demo .botao:active {
+  transform: translateY(0) scale(.98);
+}
+
+/* O CTA principal do hero pulsa baixinho para chamar o olho primeiro,
+   sem ser irritante — a animação para assim que o mouse chega perto. */
+.site-hero .grupo-botoes .botao.neutro {
+  animation: pulsarCta 2.6s ease-in-out infinite;
+}
+.site-hero .grupo-botoes .botao.neutro:hover { animation-play-state: paused; }
+@keyframes pulsarCta {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,.45); }
+  50%      { box-shadow: 0 0 0 10px rgba(255,255,255,0); }
+}
+
+/* Botão flutuante que aparece depois que a pessoa passa do hero — o
+   lembrete de "criar conta" que acompanha a rolagem, comum em landing
+   page de SaaS. JS (site.js) só alterna a classe .mostrar. */
+.site-flutuante {
+  position: fixed; right: 20px; bottom: 20px; z-index: 50;
+  opacity: 0; transform: translateY(16px) scale(.92); pointer-events: none;
+  transition: opacity .3s ease, transform .3s ease;
+  box-shadow: 0 12px 30px rgba(15,30,26,.28);
+}
+.site-flutuante.mostrar { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+
+@media (max-width: 700px) {
+  /* Menor e mais perto do canto: o mesmo lembrete, cobrindo menos
+     texto de quem está lendo a página embaixo dele. */
+  .site-flutuante { right: 12px; bottom: 12px; padding: 9px 14px; font-size: .8125rem; }
+}
+
+/* ════════════════════════════════════════
+   REVELAÇÃO AO ROLAR
+   ════════════════════════════════════════
+   site.js observa cada .reveal e acrescenta .visivel quando entra na
+   tela. Começa oculto/deslocado só quando JS está de fato rodando
+   (marcado por .js-pronto no <html>) — sem isso, com JS desligado ou
+   travado, a seção inteira ficaria invisível para sempre. */
+.js-pronto .reveal {
+  opacity: 0; transform: translateY(28px);
+  transition: opacity .6s ease, transform .6s ease;
+}
+.js-pronto .reveal.visivel { opacity: 1; transform: translateY(0); }
+
+.js-pronto .site-grade .reveal:nth-child(1) { transition-delay: .05s; }
+.js-pronto .site-grade .reveal:nth-child(2) { transition-delay: .12s; }
+.js-pronto .site-grade .reveal:nth-child(3) { transition-delay: .19s; }
+.js-pronto .site-grade .reveal:nth-child(4) { transition-delay: .26s; }
+.js-pronto .site-grade .reveal:nth-child(5) { transition-delay: .33s; }
+.js-pronto .site-grade .reveal:nth-child(6) { transition-delay: .4s; }
+.js-pronto .site-passos .reveal:nth-child(1) { transition-delay: .05s; }
+.js-pronto .site-passos .reveal:nth-child(2) { transition-delay: .18s; }
+.js-pronto .site-passos .reveal:nth-child(3) { transition-delay: .31s; }
+.js-pronto .site-planos .reveal:nth-child(1) { transition-delay: .05s; }
+.js-pronto .site-planos .reveal:nth-child(2) { transition-delay: .18s; }
+
+/* Quem pede menos movimento recebe menos movimento — de verdade, não
+   só "mais rápido". Isto vem por último de propósito, para vencer
+   qualquer regra de cima em cascata. */
+@media (prefers-reduced-motion: reduce) {
+  .site-hero, .site-blob, .site-celular, .site-celular-balao, .site-cartao,
+  .site-plano, .site-flutuante, .js-pronto .reveal, .site-hero .grupo-botoes .botao.neutro {
+    animation: none !important;
+    transition: opacity .01ms linear !important;
+  }
+  .js-pronto .reveal { opacity: 1; transform: none; }
+  .site-cartao:hover, .site-plano:hover { transform: none; }
 }
