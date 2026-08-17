@@ -8,6 +8,9 @@
 // o sistema não tem. Login biométrico continua sendo uma feature em
 // aberto (exige WebAuthn + tabela de credenciais no banco).
 
+// v27: o preco saiu do topo do site — no lugar entrou a linha de
+// garantias (7 dias / sem cartao / cancela quando quiser). O valor
+// continua na secao de planos.
 // v26: aba Integracoes no painel Owner — Pixel da Meta e WhatsApp
 // passam a ser campos, e o site le do servidor em vez de deploy.
 // v25: o cadastro passou a ENVIAR a origem (UTM) que ja capturava —
@@ -38,7 +41,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v26';
+var CACHE = 'workap-v27';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';

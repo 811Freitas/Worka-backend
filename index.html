@@ -322,13 +322,25 @@
     }
     .btn-ghost:hover { border-color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.07); }
 
-    .hero-price {
-      margin-top: 28px;
-      display: flex; align-items: baseline; gap: 6px;
-      color: rgba(255,255,255,0.9);
+    /* Linha de garantias sob o botão do topo (substituiu o preço).
+       flex-wrap de propósito: em tela estreita as três viram duas
+       linhas em vez de estourar a largura. */
+    .hero-garantia {
+      margin-top: 24px;
+      display: flex; flex-wrap: wrap; align-items: center;
+      gap: 8px 16px;
+      font-size: 0.88rem; color: rgba(255,255,255,0.65);
     }
-    .hero-price strong { font-size: 2rem; font-weight: 800; color: var(--green-300); }
-    .hero-price span { font-size: 0.9rem; color: rgba(255,255,255,0.55); }
+    .hero-garantia span { display: inline-flex; align-items: center; gap: 7px; }
+    /* O "check" é feito no CSS para não depender de fonte de ícone nem
+       de emoji, que muda de cara em cada sistema. */
+    .hero-garantia span::before {
+      content: ""; width: 15px; height: 15px; flex: none;
+      border-radius: 50%;
+      background: rgba(74,222,128,0.15);
+      border: 1px solid rgba(74,222,128,0.45);
+      box-shadow: inset 0 0 0 2px rgba(10,46,26,0.9);
+    }
 
     /* Dashboard mockup */
     .hero-visual {
@@ -796,9 +808,22 @@
         <a href="#" onclick="abrirCheckout();return false;" class="btn-primary">Testar grátis 7 dias</a>
         <a href="#funcionalidades" class="btn-ghost">Ver funcionalidades</a>
       </div>
-      <div class="hero-price">
-        <strong>R$ 49,99</strong>
-        <span>/mês · a partir de · cancele quando quiser</span>
+      <!-- O preço saiu daqui a pedido do dono. Ele continua visível na
+           seção de planos, que é onde o visitante procura por ele — no
+           topo, a decisão que se quer é "começar o teste", e um número
+           grande em verde antes de qualquer explicação do produto
+           trabalha contra isso.
+
+           No lugar entrou o que remove objeção em vez de criar: as três
+           coisas abaixo são verdade conferida no código — o cadastro
+           pede nome, e-mail, telefone, CPF/CNPJ e senha, e NÃO pede
+           cartão; o trial é de 7 dias; e /assinatura/cancelar existe e
+           funciona sem falar com ninguém. Se algum desses três deixar
+           de ser verdade, esta linha tem que mudar junto. -->
+      <div class="hero-garantia">
+        <span>7 dias grátis</span>
+        <span>sem cartão de crédito</span>
+        <span>cancele quando quiser</span>
       </div>
     </div>
     <div class="hero-visual">
