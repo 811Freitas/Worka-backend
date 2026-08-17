@@ -108,6 +108,31 @@ textarea { resize: vertical; min-height: 120px; line-height: 1.55; }
 .campo { margin-bottom: 16px; }
 .campo .dica { font-size: .75rem; color: var(--tinta-fraca); margin-top: 5px; }
 
+/* Ícone dentro do campo (entrada/cadastro) — decorativo, por isso
+   pointer-events:none: o clique tem que atravessar até o input, não
+   parar no SVG por cima dele. */
+.campo-com-icone { position: relative; }
+.campo-com-icone .campo-icone {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  width: 18px; height: 18px; color: var(--tinta-fraca); pointer-events: none;
+}
+.campo-com-icone input { padding-left: 38px; }
+
+.campo-com-icone .campo-alternar-senha {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: 36px; height: 36px; display: grid; place-items: center;
+  background: transparent; border: 0; border-radius: 6px; cursor: pointer;
+  color: var(--tinta-fraca); padding: 0;
+}
+.campo-com-icone .campo-alternar-senha svg { width: 18px; height: 18px; }
+.campo-com-icone.tem-alternar input { padding-right: 38px; }
+/* hover:hover: sem isso, tocar o botão no celular deixaria a cor
+   "presa" ligada até o próximo toque em outro lugar — o mesmo bug já
+   corrigido nos botões de /site (ver site.css). */
+@media (hover: hover) and (pointer: fine) {
+  .campo-com-icone .campo-alternar-senha:hover { background: var(--fundo); color: var(--tinta); }
+}
+
 .linha-campos { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
 .marcador { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
@@ -180,10 +205,28 @@ textarea { resize: vertical; min-height: 120px; line-height: 1.55; }
 }
 
 .entrada-arte {
+  position: relative; overflow: hidden;
   background: linear-gradient(150deg, var(--marca-escura), #0a5f47 70%, #084c39);
+  background-size: 200% 200%;
+  animation: gradienteHero 14s ease infinite;
   color: #fff;
   padding: 48px;
   display: flex; flex-direction: column; justify-content: center;
+}
+
+/* Some por padrão — só entra em telas com altura de sobra (ver a
+   media query abaixo). Numa tela de laptop comum (1366×768, a
+   resolução mais vendida do mundo), o formulário ao lado tem que
+   caber sem rolar; este celular animado é bônus, não prioridade. */
+.entrada-celular-caixa { display: none; margin-top: 28px; position: relative; z-index: 1; }
+@media (min-height: 820px) {
+  .entrada-celular-caixa { display: flex; justify-content: flex-start; }
+  .entrada-celular-caixa .site-celular { width: min(260px, 80%); }
+  .entrada-celular-caixa .site-celular-tela { height: 300px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entrada-arte { animation: none; }
 }
 .entrada-arte h1 { font-size: 2.25rem; margin-bottom: 14px; line-height: 1.15; }
 .entrada-arte p { opacity: .85; font-size: 1.0625rem; max-width: 26rem; }
@@ -200,13 +243,41 @@ textarea { resize: vertical; min-height: 120px; line-height: 1.55; }
 }
 .entrada-caixa { width: 100%; max-width: 380px; }
 
-.abas { display: flex; gap: 4px; background: var(--fundo); padding: 4px; border-radius: var(--raio-p); margin-bottom: 24px; }
+/* Sem "gap": o indicador (abaixo) é uma faixa que desliza por baixo
+   dos dois botões, e o cálculo da posição dela (metade da largura,
+   sem mais nada) só fica simples se não houver respiro entre eles. */
+.abas { position: relative; display: flex; background: var(--fundo); padding: 4px; border-radius: var(--raio-p); margin-bottom: 24px; }
+.abas-indicador {
+  position: absolute; top: 4px; left: 4px; bottom: 4px;
+  width: calc(50% - 4px);
+  background: var(--papel); border-radius: 6px; box-shadow: var(--sombra);
+  transition: transform .25s cubic-bezier(.4,0,.2,1);
+}
+/* Reforço para navegadores com :has() — a fonte de verdade é o JS
+   (mostrarAba em app.js), que sempre define a mesma coisa via
+   style.transform diretamente; isto aqui só evita um pulo de 1 frame
+   nesses navegadores enquanto o JS ainda não rodou. */
+.abas:has(#aba-criar.ativa) .abas-indicador { transform: translateX(100%); }
 .abas button {
+  position: relative; z-index: 1;
   flex: 1; padding: 9px; border: 0; background: transparent;
   font: inherit; font-size: .875rem; font-weight: 600; color: var(--tinta-suave);
   border-radius: 6px; cursor: pointer;
+  transition: color .2s ease;
 }
-.abas button.ativa { background: var(--papel); color: var(--tinta); box-shadow: var(--sombra); }
+.abas button.ativa { color: var(--tinta); }
+
+/* Entrada suave ao trocar de aba — reiniciada via JS a cada troca
+   (removendo e recolocando a classe, ver mostrarAba em app.js), porque
+   um CSS puro em display:none→block não reanima sozinho. */
+@keyframes formularioEntrando {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.formulario-entrando { animation: formularioEntrando .3s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .formulario-entrando { animation: none; }
+}
 
 .marca-topo { display: flex; align-items: center; gap: 9px; font-weight: 750; font-size: 1.25rem; letter-spacing: -.02em; }
 .marca-ponto { width: 26px; height: 26px; border-radius: 8px; background: var(--marca); display: grid; place-items: center; color: #fff; font-size: .8125rem; font-weight: 800; }

@@ -7,6 +7,10 @@
 <meta name="description" content="Monte, conecte e mantenha o chatbot de WhatsApp da sua empresa pelo navegador. API oficial da Meta, no ar 24 horas por dia.">
 <meta name="theme-color" content="#0f9d76">
 <link rel="stylesheet" href="/css/estilo.css">
+<!-- site.css só acrescenta classes decorativas (blobs, celular
+     animado, tela de carregando) reaproveitadas de /site — não redefine
+     nada de estilo.css, então convive sem conflito com o resto do painel. -->
+<link rel="stylesheet" href="/css/site.css">
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" href="/favicon.png">
 <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
@@ -18,30 +22,66 @@
   dentro executaria na origem do painel. Todo comportamento vive em
   /js/*.js e se prende por addEventListener.
 -->
+<script type="module" src="/js/site.js"></script>
 <script type="module" src="/js/app.js"></script>
 </head>
 <body>
+
+<div id="site-carregando" aria-hidden="true">
+  <div class="site-carregando-marca">Z</div>
+  <div class="site-carregando-anel"></div>
+</div>
 
 <!-- ════════════════════════════════════════
      ENTRADA — login e cadastro
      ════════════════════════════════════════ -->
 <div id="tela-entrada">
   <div class="entrada-arte">
-    <div class="marca-topo" style="margin-bottom:36px">
+    <div class="site-blob site-blob-1" aria-hidden="true"></div>
+    <div class="site-blob site-blob-2" aria-hidden="true"></div>
+
+    <div class="marca-topo" style="margin-bottom:36px;position:relative;z-index:1">
       <img src="/img/zapfy-logo-branco.png" alt="Zapfy" class="marca-imagem" style="height:26px">
     </div>
-    <h1>Seu WhatsApp atendendo sozinho, 24 horas por dia.</h1>
-    <p>Monte o atendimento arrastando blocos, conecte seu número e pronto. Sem programar, sem servidor, sem QR Code para ler toda semana.</p>
-    <ul>
-      <li>API oficial da Meta — sem risco de banimento do seu número</li>
-      <li>Menus, botões, palavras-chave e perguntas</li>
-      <li>Teste o bot antes de conectar qualquer coisa</li>
-      <li>Histórico de conversas e transferência para atendente</li>
-      <li>Avisamos você se a conexão cair</li>
-    </ul>
-    <div class="grupo-botoes" style="margin-top:8px">
-      <a href="/site" style="color:#fff;font-weight:600;font-size:.875rem">Conheça o Zapfy →</a>
-      <a href="/demo" style="color:#fff;font-weight:600;font-size:.875rem">Testar o bot sem cadastrar →</a>
+    <div style="position:relative;z-index:1">
+      <h1>Seu WhatsApp atendendo sozinho, 24 horas por dia.</h1>
+      <p>Monte o atendimento arrastando blocos, conecte seu número e pronto. Sem programar, sem servidor, sem QR Code para ler toda semana.</p>
+      <ul>
+        <li>API oficial da Meta — sem risco de banimento do seu número</li>
+        <li>Menus, botões, palavras-chave e perguntas</li>
+        <li>Teste o bot antes de conectar qualquer coisa</li>
+        <li>Histórico de conversas e transferência para atendente</li>
+        <li>Avisamos você se a conexão cair</li>
+      </ul>
+      <div class="grupo-botoes" style="margin-top:8px">
+        <a href="/site" style="color:#fff;font-weight:600;font-size:.875rem">Conheça o Zapfy →</a>
+        <a href="/demo" style="color:#fff;font-weight:600;font-size:.875rem">Testar o bot sem cadastrar →</a>
+      </div>
+    </div>
+
+    <!-- Só aparece quando sobra altura de verdade (ver CSS): numa tela
+         de laptop comum, a prioridade é o formulário caber sem rolar,
+         não este enfeite. -->
+    <div class="entrada-celular-caixa" aria-hidden="true">
+      <div class="site-celular">
+        <div class="site-celular-tela">
+          <div class="site-celular-topo">
+            <div class="site-celular-avatar">Z</div>
+            <div>
+              <div class="site-celular-nome">Atendimento</div>
+              <div class="site-celular-status">online</div>
+            </div>
+          </div>
+          <div class="site-celular-msgs">
+            <div class="site-celular-balao deles" data-msg="0">Olá! 👋 Como posso ajudar?</div>
+            <div class="site-celular-balao nossa" data-msg="1">Quanto custa o plano?</div>
+            <div class="site-celular-balao deles" data-msg="2">Plano Pro — R$ 199/mês. Quer criar sua conta e testar 7 dias grátis?</div>
+            <div class="site-celular-balao nossa" data-msg="3">Quero sim!</div>
+            <div class="site-celular-balao deles" data-msg="4">Prontinho 🎉 Seu chatbot já está atendendo.</div>
+            <div class="site-celular-digitando" id="celular-digitando"><span></span><span></span><span></span></div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -52,6 +92,7 @@
       </div>
 
       <div class="abas">
+        <span class="abas-indicador" id="abas-indicador" aria-hidden="true"></span>
         <button type="button" id="aba-entrar" class="ativa">Entrar</button>
         <button type="button" id="aba-criar">Criar conta</button>
       </div>
@@ -60,11 +101,30 @@
       <form id="forma-entrar" autocomplete="on">
         <div class="campo">
           <label for="entrar-email">E-mail</label>
-          <input type="email" id="entrar-email" name="email" autocomplete="username" required>
+          <div class="campo-com-icone">
+            <svg class="campo-icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="5" width="18" height="14" rx="2.5"></rect>
+              <path d="m4 6.5 8 6 8-6"></path>
+            </svg>
+            <input type="email" id="entrar-email" name="email" autocomplete="username" required>
+          </div>
         </div>
         <div class="campo">
           <label for="entrar-senha">Senha</label>
-          <input type="password" id="entrar-senha" name="senha" autocomplete="current-password" required>
+          <div class="campo-com-icone tem-alternar">
+            <svg class="campo-icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="4.5" y="11" width="15" height="10" rx="2.4"></rect>
+              <path d="M8 11V7.5a4 4 0 0 1 8 0V11"></path>
+            </svg>
+            <input type="password" id="entrar-senha" name="senha" autocomplete="current-password" required>
+            <button type="button" class="campo-alternar-senha" data-alvo="entrar-senha" aria-label="Mostrar senha">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+                <line class="campo-alternar-risco oculto" x1="3.5" y1="3.5" x2="20.5" y2="20.5"></line>
+              </svg>
+            </button>
+          </div>
         </div>
         <button type="submit" class="botao largo" id="botao-entrar">Entrar</button>
       </form>
@@ -73,20 +133,51 @@
       <form id="forma-criar" class="oculto" autocomplete="on">
         <div class="campo">
           <label for="criar-nome">Seu nome</label>
-          <input type="text" id="criar-nome" name="nome" autocomplete="name" required>
+          <div class="campo-com-icone">
+            <svg class="campo-icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="8" r="3.4"></circle>
+              <path d="M4.5 20c0-3.6 2.9-6 7.5-6s7.5 2.4 7.5 6"></path>
+            </svg>
+            <input type="text" id="criar-nome" name="nome" autocomplete="name" required>
+          </div>
         </div>
         <div class="campo">
           <label for="criar-empresa">Nome da empresa</label>
-          <input type="text" id="criar-empresa" name="empresa" autocomplete="organization">
+          <div class="campo-com-icone">
+            <svg class="campo-icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="4" y="3.5" width="12" height="17" rx="1.2"></rect>
+              <path d="M16 9.5h4v11h-4M7.5 7.5h1M11.5 7.5h1M7.5 11h1M11.5 11h1M7.5 14.5h1M11.5 14.5h1"></path>
+            </svg>
+            <input type="text" id="criar-empresa" name="empresa" autocomplete="organization">
+          </div>
           <div class="dica">Aparece só para você, no painel.</div>
         </div>
         <div class="campo">
           <label for="criar-email">E-mail</label>
-          <input type="email" id="criar-email" name="email" autocomplete="username" required>
+          <div class="campo-com-icone">
+            <svg class="campo-icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="5" width="18" height="14" rx="2.5"></rect>
+              <path d="m4 6.5 8 6 8-6"></path>
+            </svg>
+            <input type="email" id="criar-email" name="email" autocomplete="username" required>
+          </div>
         </div>
         <div class="campo">
           <label for="criar-senha">Senha</label>
-          <input type="password" id="criar-senha" name="senha" autocomplete="new-password" required>
+          <div class="campo-com-icone tem-alternar">
+            <svg class="campo-icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="4.5" y="11" width="15" height="10" rx="2.4"></rect>
+              <path d="M8 11V7.5a4 4 0 0 1 8 0V11"></path>
+            </svg>
+            <input type="password" id="criar-senha" name="senha" autocomplete="new-password" required>
+            <button type="button" class="campo-alternar-senha" data-alvo="criar-senha" aria-label="Mostrar senha">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+                <line class="campo-alternar-risco oculto" x1="3.5" y1="3.5" x2="20.5" y2="20.5"></line>
+              </svg>
+            </button>
+          </div>
           <div class="dica">Pelo menos 8 caracteres.</div>
         </div>
         <button type="submit" class="botao largo" id="botao-criar">Criar minha conta</button>

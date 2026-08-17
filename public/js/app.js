@@ -18,10 +18,39 @@ function mostrarAba(qual) {
   $("aba-criar").classList.toggle("ativa", qual === "criar");
   $("forma-entrar").classList.toggle("oculto", qual !== "entrar");
   $("forma-criar").classList.toggle("oculto", qual !== "criar");
+
+  var indicador = $("abas-indicador");
+  if (indicador) indicador.style.transform = qual === "criar" ? "translateX(100%)" : "translateX(0)";
+
+  // Reanima a entrada do formulário que acabou de aparecer. Remover a
+  // classe, forçar um reflow (a leitura de offsetWidth) e recolocar é
+  // o que faz a MESMA animação rodar de novo — sem o reflow, o
+  // navegador veria "a classe já estava lá" e não reiniciaria nada.
+  var visivel = qual === "entrar" ? $("forma-entrar") : $("forma-criar");
+  visivel.classList.remove("formulario-entrando");
+  void visivel.offsetWidth;
+  visivel.classList.add("formulario-entrando");
 }
 
 $("aba-entrar").addEventListener("click", function () { mostrarAba("entrar"); });
 $("aba-criar").addEventListener("click", function () { mostrarAba("criar"); });
+
+// Mostrar/esconder senha. Um listener só, em todos os botões — os
+// dois formulários (entrar e criar conta) têm cada um o seu, e o
+// `data-alvo` de cada botão diz qual input ele controla.
+document.querySelectorAll(".campo-alternar-senha").forEach(function (botao) {
+  botao.addEventListener("click", function () {
+    var campo = $(botao.dataset.alvo);
+    var vaiMostrar = campo.type === "password";
+    campo.type = vaiMostrar ? "text" : "password";
+    // O olho riscado é o estado "mostrando texto puro" — o aviso de
+    // que um clique esconde de novo. Precisa ler o estado NOVO
+    // (vaiMostrar), não o antigo: usar a variável errada aqui deixa o
+    // ícone sempre um clique atrasado do que o campo realmente mostra.
+    botao.querySelector(".campo-alternar-risco").classList.toggle("oculto", !vaiMostrar);
+    botao.setAttribute("aria-label", vaiMostrar ? "Esconder senha" : "Mostrar senha");
+  });
+});
 
 // Chave própria, separada da sessão de cliente (CHAVE_TOKEN em base.js):
 // o /owner lê este valor para entrar direto, sem mostrar o formulário
