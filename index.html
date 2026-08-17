@@ -1128,7 +1128,19 @@
 
     <!-- PASSO 1: Formulário -->
     <div id="step-form" style="padding:28px;">
-      <div style="font-size:0.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1e8a40;margin-bottom:20px;">Seus dados</div>
+      <!-- Faixa só para quem chega pelo e-mail "falta criar sua senha",
+           depois de ter pago um link de venda sem ter conta. Sem ela a
+           pessoa vê um formulário com "Gerar pagamento" logo depois de
+           ter pago, e a primeira conclusão razoável é que vão cobrar de
+           novo. Quem liga é ela. Quem mostra é entrarNoModoPagou(). -->
+      <div id="aviso-ja-pago" style="display:none;background:#edfaf2;border:1.5px solid #86e0a6;border-radius:12px;padding:14px 16px;margin-bottom:18px;">
+        <div style="font-weight:800;color:#16622f;font-size:0.9rem;margin-bottom:4px;">Pagamento confirmado ✅</div>
+        <div style="font-size:0.8rem;color:#3a3d39;line-height:1.5;">
+          Falta só criar sua senha para entrar. <strong>Você não será cobrado de novo.</strong>
+        </div>
+      </div>
+
+      <div id="form-titulo" style="font-size:0.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1e8a40;margin-bottom:20px;">Seus dados</div>
 
       <div style="display:flex;flex-direction:column;gap:14px;">
         <!-- Nome -->
@@ -1205,7 +1217,7 @@
            Com a Stripe só dava cartão — Pix não cobra sozinho no mês
            seguinte — e a vitrine teve que deixar de prometer o meio que
            o cliente de padaria mais usa. -->
-      <div style="font-size:0.75rem;color:#6b7068;text-align:center;margin-top:10px;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Pix, cartão ou boleto · cancele quando quiser</div>
+      <div id="checkout-rodape" style="font-size:0.75rem;color:#6b7068;text-align:center;margin-top:10px;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Pix, cartão ou boleto · cancele quando quiser</div>
     </div>
 
     <!-- TRIAL: Escolher plano -->
@@ -1224,6 +1236,13 @@
         </div>
         <div style="font-size:.8rem;color:rgba(255,255,255,.75);line-height:1.5">Ponto digital, tarefas, validade de produtos e gestão de salários — tudo liberado agora, sem pedir cartão.</div>
       </div>
+
+      <!-- Este passo não tinha caixa de erro. mostrarErro() procura um
+           elemento com id terminado em "-erro" dentro do passo visível
+           e, não achando, caía no #form-erro — que fica no passo
+           anterior, escondido. Falhar em "Ativar meus 7 dias" não
+           mostrava nada na tela: o botão destravava e pronto. -->
+      <div id="trial-erro" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;font-size:.82rem;color:#dc2626;margin-bottom:12px"></div>
 
       <button id="btn-trial" onclick="ativarTrialGratis()" style="width:100%;background:linear-gradient(135deg,#1e8a40,#25b251);color:white;border:none;padding:16px;border-radius:12px;font-size:1rem;font-weight:800;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:14px;box-shadow:0 4px 14px rgba(30,138,64,.35)">
         <svg class=ico aria-hidden=true><use href=#i-rocket></use></svg> Ativar meus 7 dias grátis agora
@@ -1263,14 +1282,19 @@
     <!-- TRIAL: Ativado com sucesso -->
     <div id="step-trial-ok" style="display:none;padding:32px;text-align:center">
       <div style="font-size:3rem;margin-bottom:12px"><svg class=ico aria-hidden=true><use href=#i-gift></use></svg></div>
-      <div style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:#0a2e1a;margin-bottom:8px">Trial ativado!</div>
+      <!-- Os textos abaixo têm id porque quem PAGOU antes de se
+           cadastrar cai nesta mesma tela, e "trial de 7 dias" seria a
+           mensagem errada para quem acabou de comprar 30 dias. O
+           backend já responde plano_ja_pago; quem reescreve é
+           ajustarTelaDeSucesso(). -->
+      <div id="trial-ok-titulo" style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:#0a2e1a;margin-bottom:8px">Trial ativado!</div>
       <div style="font-size:.85rem;color:#6b7068;line-height:1.6;margin-bottom:20px">
-        Seu período de <strong>7 dias grátis</strong> começou agora.<br>
+        <span id="trial-ok-texto">Seu período de <strong>7 dias grátis</strong> começou agora.</span><br>
         <span id="trial-ok-renovacao">Quando expirar, você será avisado para renovar.</span>
       </div>
       <div style="background:#edfaf2;border-radius:12px;padding:16px;margin-bottom:20px">
-        <div style="font-size:.78rem;color:#16622f;font-weight:600"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg> Trial expira em:</div>
-        <div style="font-family:'Syne',sans-serif;font-size:1.8rem;font-weight:800;color:#1e8a40">7 dias</div>
+        <div id="trial-ok-rotulo" style="font-size:.78rem;color:#16622f;font-weight:600"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg> Trial expira em:</div>
+        <div id="trial-ok-prazo" style="font-family:'Syne',sans-serif;font-size:1.8rem;font-weight:800;color:#1e8a40">7 dias</div>
       </div>
       <a href="app/" style="display:block;width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;text-decoration:none;text-align:center">
         Acessar o Workap <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>
@@ -1596,8 +1620,13 @@ function resetModal() {
   document.getElementById('form-erro').style.display = 'none';
   document.getElementById('f-nome').value  = '';
   document.getElementById('f-doc').value   = '';
-  document.getElementById('f-email').value = '';
   document.getElementById('f-tel').value   = '';
+  // O e-mail sobrevive a fechar o modal quando a pessoa veio do e-mail
+  // "falta criar sua senha": é por ele que o pagamento já feito é
+  // encontrado, e o endereço não está mais na barra (foi limpo para o
+  // F5 não repetir a tela). Apagar aqui obrigaria a pessoa a digitar de
+  // memória o endereço exato — e errar significa não receber o acesso.
+  if (!jaPagouSemConta) document.getElementById('f-email').value = '';
   // O `#qrcode` foi embora junto com a tela de PIX. Esta linha
   // continuou aqui e chamava .innerHTML em null: resetModal() estourava
   // toda vez que o checkout era fechado, e tudo abaixo dela — inclusive
@@ -1929,6 +1958,18 @@ function tratarRetornoDoPagamento() {
   var p = new URLSearchParams(window.location.search);
   var resultado = p.get('assinatura');
   var cobranca  = p.get('cobranca');
+
+  // Endereço do e-mail "Pagamento confirmado — falta criar sua senha",
+  // mandado a quem pagou um link de venda sem ter conta no Workap.
+  // O nome do parâmetro evita a sequência "on...=" de propósito — ver
+  // convidarParaCriarConta() no backend.
+  var criarConta = p.get('criar-senha');
+  if (criarConta && criarConta.indexOf('@') > 0) {
+    history.replaceState(null, '', window.location.pathname);
+    entrarNoModoPagou(criarConta.trim());
+    return;
+  }
+
   if (!resultado && !cobranca) return;
 
   // Limpa o endereço para um F5 não repetir a mensagem.
@@ -2007,6 +2048,85 @@ function mostrarAvisoDeCobranca() {
  * Nada avisava: dois `function X()` no mesmo escopo não geram erro
  * nem aviso no console. Só o nome novo impede que volte a acontecer.
  */
+// ── Quem já pagou e ainda não tem conta ───────────────────────
+//
+// Caso do link de venda mandado por WhatsApp para quem nunca usou o
+// Workap: o dinheiro entra, mas não existe conta — logo, não existe
+// senha. O backend manda um e-mail com um endereço terminando em
+// ?criar-conta=<e-mail>, e é ele que cai aqui.
+//
+// Duas coisas mudam para essa pessoa:
+//   1. o e-mail vem preenchido, porque digitar OUTRO endereço é o
+//      único jeito de o pagamento não ser encontrado depois — a busca
+//      no servidor é por e-mail exato;
+//   2. a tela de "ganhe 7 dias grátis" é pulada. Oferecer teste grátis
+//      a quem acabou de pagar 30 dias é constrangedor, e o botão
+//      "Gerar pagamento" sugeriria uma segunda cobrança.
+//
+// O que ela faz é exatamente o cadastro normal: preenche os dados,
+// recebe o código, escolhe a senha. O plano pago entra sozinho quando
+// a conta nasce — o servidor procura pagamento pendente para aquele
+// e-mail em /verificar-codigo.
+var jaPagouSemConta = false;
+
+function entrarNoModoPagou(email) {
+  jaPagouSemConta = true;
+  abrirCheckout();
+  mostrarStep('form');
+
+  var campo = document.getElementById('f-email');
+  if (campo) campo.value = email;
+
+  var aviso = document.getElementById('aviso-ja-pago');
+  if (aviso) aviso.style.display = 'block';
+
+  var titulo = document.getElementById('form-titulo');
+  if (titulo) titulo.textContent = 'Criar sua senha';
+
+  // O botão não gera cobrança nenhuma neste caminho: leva ao código
+  // de verificação e à senha. Dizer "Gerar pagamento" seria mentira.
+  // Sem <span> aqui: escreverComIcones() converte só o formato exato do
+  // ícone e escapa todo o resto como texto — qualquer outra tag
+  // apareceria escrita na cara do botão.
+  var btn = document.getElementById('btn-gerar');
+  if (btn) escreverComIcones(btn, 'Continuar <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>');
+
+  // O resumo de preço e o campo de cupom são de quem está comprando.
+  // Para quem já comprou, os dois só levantam a dúvida "vou pagar de
+  // novo?" — e o cupom não teria onde ser aplicado.
+  ['resumo-preco', 'f-cupom'].forEach(function (id) {
+    var el = document.getElementById(id);
+    var caixa = el && el.closest('div[style*="margin-top"]');
+    if (caixa) caixa.style.display = 'none';
+  });
+
+  // Sobravam dois textos falando em cobrança: o subtítulo do cabeçalho
+  // ("Plano Completo · R$ 49,99/mês") e o rodapé do botão ("Pix, cartão
+  // ou boleto"). Numa tela cujo assunto é justamente "você já pagou",
+  // os dois contradizem a faixa verde logo acima.
+  var sub = document.getElementById('checkout-plano-nome');
+  if (sub) sub.textContent = 'Acesso já pago · falta só a senha';
+
+  var rodape = document.getElementById('checkout-rodape');
+  if (rodape) escreverComIcones(rodape,
+    '<svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Nenhuma cobrança nesta etapa');
+}
+
+// Reescreve a tela final para quem chegou com pagamento já feito.
+// O backend responde plano_ja_pago desde que o caminho existe, mas
+// ninguém lia: quem tinha comprado 30 dias saía lendo "trial de 7
+// dias grátis" e voltava perguntando se o pagamento tinha sumido.
+function ajustarTelaDeSucesso(planoPago) {
+  if (!planoPago) return;
+  var nomePlano = planoPago === 'pro' ? 'Plano Pro' : 'Plano Completo';
+  var def = function (id, txt) { var e = document.getElementById(id); if (e) e.textContent = txt; };
+  def('trial-ok-titulo', 'Tudo pronto!');
+  def('trial-ok-texto', 'Sua conta está criada e o acesso que você pagou já está liberado.');
+  def('trial-ok-renovacao', 'Nada será cobrado de novo.');
+  def('trial-ok-rotulo', 'Seu plano');
+  def('trial-ok-prazo', nomePlano);
+}
+
 function continuarParaOferta() {
   var nome  = ((document.getElementById('f-nome')||{}).value||'').trim();
   var email = ((document.getElementById('f-email')||{}).value||'').trim();
@@ -2033,6 +2153,15 @@ function continuarParaOferta() {
   // Passou dos dados: para a Meta, isto e "iniciou o cadastro". Sem
   // este evento ela otimiza por CLIQUE, e clique nao paga conta.
   avisarPixel('InitiateCheckout');
+
+  // Já pagou: pula a oferta de trial e vai direto ao código + senha.
+  // Ver entrarNoModoPagou().
+  if (jaPagouSemConta) {
+    var btnSeguir = document.getElementById('btn-gerar');
+    var liberarSeguir = botaoOcupado(btnSeguir, 'Enviando código...');
+    ativarTrialGratis().then(liberarSeguir, liberarSeguir);
+    return;
+  }
 
   mostrarStep('trial');
   var n=document.getElementById('trial-nome-dest');if(n)n.textContent=nome.split(' ')[0];
@@ -2109,6 +2238,12 @@ function escolherPlano(slug){
 
 // Escreve o preço do plano escolhido em todos os pontos do checkout.
 function aplicarPlanoNaTela(){
+  // Para quem já pagou, esta função escreveria preço por cima dos
+  // textos que entrarNoModoPagou() acabou de ajustar — e ela roda
+  // DEPOIS, porque espera GET /planos voltar. O resultado seria uma
+  // tela dizendo "você já pagou" no verde e "R$ 49,99/mês" no topo.
+  if (jaPagouSemConta) return;
+
   var p = planoAtual();
   if (!p) return;
   var texto = 'R$ ' + p.preco_reais;
@@ -2249,9 +2384,11 @@ async function ativarTrialGratis() {
     if (!data.ok) throw new Error(data.error || 'Erro');
   } catch(e) {
     liberarTrial();
-    var errEl = document.getElementById('trial-verify-erro');
-    if (errEl) { errEl.style.display='block'; errEl.textContent = 'Erro: ' + e.message; }
-    else alert('Erro: ' + e.message);
+    // mostrarErro() escreve na caixa do passo VISÍVEL. Escrever direto
+    // em #trial-verify-erro mandava a mensagem para um passo que ainda
+    // não apareceu — o envio do código falhava em silêncio, tanto para
+    // quem vem do trial quanto para quem já pagou e está no formulário.
+    mostrarErro('Erro: ' + e.message);
     return;
   }
   
@@ -2357,9 +2494,17 @@ async function confirmarTrialCodigo() {
   // ensina a quem mostrar o anuncio. "Lead" e nao "CompleteRegistration"
   // porque trial nao e venda — misturar os dois faria a otimizacao
   // perseguir cadastro em vez de cliente que paga.
-  avisarPixel('Lead', { content_name: 'Trial 7 dias' });
+  //
+  // Quem chegou aqui com pagamento ja feito nao e lead de trial: contar
+  // como tal ensinaria a Meta a procurar mais gente para testar de
+  // graca, usando como exemplo justamente quem comprou.
+  if (data.plano_ja_pago) avisarPixel('CompleteRegistration', { content_name: 'Conta apos pagamento' });
+  else avisarPixel('Lead', { content_name: 'Trial 7 dias' });
 
-  // Trial ativado!
+  // Reescreve os textos quando o acesso veio de pagamento, em vez de
+  // anunciar "7 dias gratis" para quem comprou 30.
+  ajustarTelaDeSucesso(data.plano_ja_pago);
+
   mostrarStep('trial-ok');
 }
 
