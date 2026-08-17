@@ -1134,9 +1134,9 @@
            ter pago, e a primeira conclusão razoável é que vão cobrar de
            novo. Quem liga é ela. Quem mostra é entrarNoModoPagou(). -->
       <div id="aviso-ja-pago" style="display:none;background:#edfaf2;border:1.5px solid #86e0a6;border-radius:12px;padding:14px 16px;margin-bottom:18px;">
-        <div style="font-weight:800;color:#16622f;font-size:0.9rem;margin-bottom:4px;">Pagamento confirmado ✅</div>
-        <div style="font-size:0.8rem;color:#3a3d39;line-height:1.5;">
-          Falta só criar sua senha para entrar. <strong>Você não será cobrado de novo.</strong>
+        <div id="aviso-ja-pago-titulo" style="font-weight:800;color:#16622f;font-size:0.9rem;margin-bottom:4px;">Pagamento confirmado ✅</div>
+        <div id="aviso-ja-pago-texto" style="font-size:0.8rem;color:#3a3d39;line-height:1.5;">
+          Falta só criar sua senha para entrar. Você não será cobrado de novo.
         </div>
       </div>
 
@@ -1964,9 +1964,9 @@ function tratarRetornoDoPagamento() {
   // O nome do parâmetro evita a sequência "on...=" de propósito — ver
   // convidarParaCriarConta() no backend.
   var criarConta = p.get('criar-senha');
-  if (criarConta && criarConta.indexOf('@') > 0) {
+  if (criarConta) {
     history.replaceState(null, '', window.location.pathname);
-    entrarNoModoPagou(criarConta.trim());
+    abrirConvite(criarConta.trim());
     return;
   }
 
@@ -2068,8 +2068,84 @@ function mostrarAvisoDeCobranca() {
 // a conta nasce — o servidor procura pagamento pendente para aquele
 // e-mail em /verificar-codigo.
 var jaPagouSemConta = false;
+var conviteAtual = null;   // token de uso único, quando veio por convite
 
-function entrarNoModoPagou(email) {
+// Abre o convite: pergunta ao servidor de quem é e o que libera.
+//
+// O valor na URL pode ser duas coisas. Token, nas cobranças criadas a
+// partir da versão do convite — é o caso normal, e é o único que vale
+// uma vez só. Ou o próprio e-mail, nas cobranças antigas, que não têm
+// token; para elas sobra o preenchimento, que é o comportamento que já
+// existia. Distinguir pelo "@" é suficiente: o token é base64url, que
+// não tem esse caractere.
+function abrirConvite(valor) {
+  if (valor.indexOf('@') > 0) { entrarNoModoPagou(valor, null); return; }
+
+  conviteAtual = valor;
+  fetch(API_BASE + '/convite/' + encodeURIComponent(valor))
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.ok) { avisarConviteInvalido(d && d.motivo); return; }
+      entrarNoModoPagou(d.email, d);
+      if (d.nome) {
+        var n = document.getElementById('f-nome');
+        if (n && !n.value) n.value = d.nome;
+      }
+    })
+    .catch(function () {
+      // Sem internet ou servidor dormindo: não dá para afirmar que o
+      // convite é inválido. Abre o cadastro normal em vez de acusar um
+      // link que provavelmente está bom.
+      conviteAtual = null;
+      abrirCheckout();
+    });
+}
+
+// Três desfechos, três conversas diferentes. "Link inválido" para os
+// três faria o cliente ligar sem que ninguém soubesse o que aconteceu.
+function avisarConviteInvalido(motivo) {
+  conviteAtual = null;
+  var titulo = motivo === 'usado'   ? 'Este link já foi usado'
+             : motivo === 'expirado' ? 'Este link venceu'
+             : 'Link não encontrado';
+  var texto  = motivo === 'usado'
+      ? 'A senha desta conta já foi criada. Entre com seu e-mail e senha — se não lembrar, use "Esqueci minha senha".'
+      : motivo === 'expirado'
+        ? 'Peça um link novo para quem te enviou a cobrança. Seu pagamento continua valendo.'
+        : 'Confira se o endereço foi copiado inteiro, ou peça outro para quem te enviou a cobrança.';
+
+  var caixa = document.createElement('div');
+  caixa.setAttribute('role', 'status');
+  caixa.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(10,46,26,0.72);' +
+    'backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:24px;';
+
+  var cartao = document.createElement('div');
+  cartao.style.cssText = 'max-width:400px;background:#fff;border-radius:20px;padding:32px 26px;' +
+    'text-align:center;box-shadow:0 32px 80px rgba(0,0,0,0.3);font-family:\'Inter\',sans-serif;';
+
+  var h = document.createElement('div');
+  h.style.cssText = 'font-family:\'Syne\',sans-serif;font-size:1.2rem;font-weight:800;color:#16622f;margin-bottom:10px;';
+  h.textContent = titulo;
+
+  var p = document.createElement('p');
+  p.style.cssText = 'font-size:0.88rem;color:#6b7068;line-height:1.55;margin-bottom:22px;';
+  p.textContent = texto;
+
+  var btn = document.createElement('button');
+  btn.style.cssText = 'width:100%;background:#1e8a40;color:#fff;border:none;padding:14px;' +
+    'border-radius:10px;font-size:0.95rem;font-weight:700;cursor:pointer;font-family:\'Inter\',sans-serif;';
+  btn.textContent = motivo === 'usado' ? 'Ir para o login' : 'Fechar';
+  btn.onclick = function () {
+    caixa.remove();
+    if (motivo === 'usado') abrirAcesso();
+  };
+
+  [h, p, btn].forEach(function (e) { cartao.appendChild(e); });
+  caixa.appendChild(cartao);
+  document.body.appendChild(caixa);
+}
+
+function entrarNoModoPagou(email, convite) {
   jaPagouSemConta = true;
   abrirCheckout();
   mostrarStep('form');
@@ -2079,6 +2155,20 @@ function entrarNoModoPagou(email) {
 
   var aviso = document.getElementById('aviso-ja-pago');
   if (aviso) aviso.style.display = 'block';
+
+  // O convite pode chegar ANTES de o pagamento cair — o dono manda os
+  // dois links na mesma mensagem. Dizer "pagamento confirmado" nesse
+  // caso seria mentira, e no Pix ou boleto é exatamente o que acontece.
+  if (convite && !convite.pago) {
+    var tit = document.getElementById('aviso-ja-pago-titulo');
+    var txt = document.getElementById('aviso-ja-pago-texto');
+    if (tit) tit.textContent = 'Crie sua senha';
+    if (txt) txt.textContent = 'Assim que o pagamento for confirmado, seu acesso abre sozinho — não precisa fazer mais nada aqui.';
+  } else if (convite && convite.plano_nome) {
+    var txt2 = document.getElementById('aviso-ja-pago-texto');
+    if (txt2) txt2.textContent = 'Você comprou ' + convite.plano_nome + ' por ' + convite.dias +
+      ' dias. Falta só criar sua senha — não será cobrado de novo.';
+  }
 
   var titulo = document.getElementById('form-titulo');
   if (titulo) titulo.textContent = 'Criar sua senha';
@@ -2104,8 +2194,12 @@ function entrarNoModoPagou(email) {
   // ("Plano Completo · R$ 49,99/mês") e o rodapé do botão ("Pix, cartão
   // ou boleto"). Numa tela cujo assunto é justamente "você já pagou",
   // os dois contradizem a faixa verde logo acima.
+  // "Já pago" só quando é verdade. O convite pode chegar antes do
+  // dinheiro — e no Pix e no boleto isso é a regra, não a exceção.
   var sub = document.getElementById('checkout-plano-nome');
-  if (sub) sub.textContent = 'Acesso já pago · falta só a senha';
+  if (sub) sub.textContent = (convite && !convite.pago)
+    ? 'Crie sua senha · o acesso abre com o pagamento'
+    : 'Acesso já pago · falta só a senha';
 
   var rodape = document.getElementById('checkout-rodape');
   if (rodape) escreverComIcones(rodape,
@@ -2434,6 +2528,10 @@ async function confirmarTrialCodigo() {
       // qual anúncio trouxe cliente que PAGA, e não só quem clica.
       body: JSON.stringify({
         email, codigo, nome, senha,
+        // O convite é conferido e GASTO no servidor. Mandar aqui é o
+        // que faz o "uso único" existir: sem isso ele seria só um
+        // parâmetro decorativo na URL.
+        convite: conviteAtual || undefined,
         origem: origemGravada(),
         telefone:  apenasDigitos(((document.getElementById('f-tel')||{}).value||'')),
         documento: apenasDigitos(((document.getElementById('f-doc')||{}).value||'')),
