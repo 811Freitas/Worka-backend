@@ -2718,6 +2718,83 @@ async function aplicarPlanoDoLink(link, empresa) {
 }
 
 /**
+ * Convite de senha: o endereço que o dono manda junto com a cobrança.
+ *
+ * Nasce com a cobrança que libera plano, e não depois do pagamento,
+ * porque é assim que a venda acontece de verdade: o dono manda os dois
+ * links na mesma mensagem do WhatsApp — "paga aqui" e "cria tua senha
+ * aqui" — em vez de o cliente esperar um e-mail que pode cair no spam.
+ *
+ * 32 bytes de aleatório real. Não é senha nem substitui o código de
+ * 6 dígitos: criar a conta continua exigindo o código enviado ao
+ * e-mail, então quem tiver só o endereço não passa do primeiro passo.
+ * O que ele faz é dizer QUEM está chegando e valer UMA vez.
+ *
+ * base64url porque o valor vai numa query string: base64 comum usa
+ * "+" e "/", que viram espaço e separador de caminho ao serem lidos.
+ */
+function gerarTokenConvite() {
+  return crypto.randomBytes(32).toString("base64url");
+}
+
+var CONVITE_DIAS_VALIDADE = 90;
+
+function urlDoConvite(token) {
+  return CONFIG.SITE_URL + "/?criar-senha=" + token;
+}
+
+/**
+ * Procura o convite e diz se ele ainda serve.
+ *
+ * Devolve sempre { ok, motivo, link } para quem chama decidir a
+ * mensagem. Separar "não existe" de "já usado" de "venceu" importa:
+ * são três conversas diferentes com o cliente, e responder "link
+ * inválido" para as três faz o dono receber a mesma ligação três vezes
+ * sem saber o que aconteceu.
+ */
+async function conviteValido(token) {
+  if (!token || typeof token !== "string" || token.length < 20 || token.length > 100) {
+    return { ok: false, motivo: "invalido" };
+  }
+  // Só caracteres do alfabeto base64url. Sem isto, um token com "&" ou
+  // "." construiria um filtro PostgREST diferente do pretendido.
+  if (!/^[A-Za-z0-9_-]+$/.test(token)) return { ok: false, motivo: "invalido" };
+
+  var busca = await DB.select("links_pagamento",
+    "token_senha=eq." + token + "&select=*"
+  ).catch(function () { return { body: [] }; });
+
+  var link = busca.body && busca.body[0];
+  if (!link) return { ok: false, motivo: "invalido" };
+  if (link.token_senha_usado_em) return { ok: false, motivo: "usado", link: link };
+  if (link.token_senha_expira_em && new Date(link.token_senha_expira_em) < new Date()) {
+    return { ok: false, motivo: "expirado", link: link };
+  }
+  return { ok: true, link: link };
+}
+
+/**
+ * Gasta o convite.
+ *
+ * O filtro repete "token_senha_usado_em=is.null": é ele que faz o uso
+ * único valer mesmo se dois cadastros chegarem no mesmo instante. Sem
+ * essa condição no UPDATE, os dois leriam "ainda não usado" antes de
+ * qualquer um gravar, e os dois passariam — o clássico intervalo entre
+ * conferir e escrever. Com ela, o banco decide, e o segundo não acha
+ * linha para atualizar.
+ */
+async function consumirConvite(link, empresaId) {
+  var r = await DB.update("links_pagamento",
+    "id=eq." + link.id + "&token_senha_usado_em=is.null",
+    { token_senha_usado_em: new Date().toISOString() }
+  );
+  var gastou = !!(r.body && r.body.length);
+  secLog(gastou ? "convite_consumido" : "convite_ja_estava_gasto",
+    { link_id: link.id, empresa_id: empresaId });
+  return gastou;
+}
+
+/**
  * Pagou um link que libera plano, mas não tem conta no Workap.
  *
  * Sem conta não há senha, e sem senha não há como entrar. O código
@@ -2738,12 +2815,28 @@ async function aplicarPlanoDoLink(link, empresa) {
 async function convidarParaCriarConta(link) {
   if (!link || !link.cliente_email || !link.plano_concedido) return false;
 
+  // Já usou o convite? Então a conta existe e a senha está criada — o
+  // caminho dessa pessoa é o login, não um convite novo. Mandar assim
+  // mesmo seria oferecer um link que responde "já foi usado".
+  if (link.token_senha_usado_em) {
+    secLog("convite_nao_reenviado_ja_usado", { link_id: link.id });
+    return false;
+  }
+
   var plano = (CONFIG.PLANOS[link.plano_concedido] || {}).nome || link.plano_concedido;
+
+  // O MESMO convite que o dono já recebeu ao criar a cobrança — não um
+  // segundo endereço. Dois links diferentes para a mesma coisa fariam
+  // "uso único" virar "uso duplo", e o cliente que recebeu os dois não
+  // saberia qual vale.
+  //
+  // Cobranças criadas antes desta versão não têm token; para elas
+  // sobra o preenchimento por e-mail, que é o comportamento antigo.
   // "criar-senha" e não "criar-conta": o segundo contém "onta=", que
-  // casa com o filtro /on\w+=/ usado contra onclick= e onerror=. Ficar
-  // longe do padrão evita que qualquer sanitização no caminho volte a
-  // comer o parâmetro sem ninguém perceber.
-  var destino = CONFIG.SITE_URL + "/?criar-senha=" + encodeURIComponent(link.cliente_email);
+  // casa com o filtro /on\w+=/ usado contra onclick= e onerror=.
+  var destino = link.token_senha
+    ? urlDoConvite(link.token_senha)
+    : CONFIG.SITE_URL + "/?criar-senha=" + encodeURIComponent(link.cliente_email);
 
   await enviarEmail(link.cliente_email,
     "✅ Pagamento confirmado — falta criar sua senha",
@@ -4292,6 +4385,37 @@ var server = http.createServer(async (req, res) => {
         }
       }
 
+      // Convite de senha, quando veio de /?criar-senha=<token>.
+      //
+      // Conferido AQUI, antes do OTP, pela mesma razão dos campos
+      // acima: um convite gasto não pode queimar o código de quem
+      // acabou de recebê-lo.
+      //
+      // O e-mail tem que bater com o da cobrança. Não é preciosismo: é
+      // por e-mail que o pagamento é encontrado depois, então deixar
+      // cadastrar com outro endereço criaria uma conta que nunca
+      // receberia o acesso comprado — com o convite gasto, e sem
+      // ninguém entendendo por quê.
+      var conviteUsado = null;
+      if (body.convite) {
+        var vConv = await conviteValido(String(body.convite));
+        if (!vConv.ok) {
+          var recado = vConv.motivo === "usado"
+            ? "Este link de criar senha já foi usado. Se a conta é sua, entre com seu e-mail e senha."
+            : vConv.motivo === "expirado"
+              ? "Este link de criar senha venceu. Peça um novo para quem te enviou a cobrança."
+              : "Link de criar senha inválido.";
+          secLog("convite_recusado", { motivo: vConv.motivo, ip });
+          return jsonErr(res, recado, vConv.motivo === "usado" ? 409 : 400);
+        }
+        if (vConv.link.cliente_email !== email) {
+          return jsonErr(res,
+            "Este link foi feito para " + vConv.link.cliente_email +
+            ". Use esse mesmo e-mail — é por ele que o acesso comprado é encontrado.");
+        }
+        conviteUsado = vConv.link;
+      }
+
       var otpResult = await verificarOTP(email, codigo);
       if (!otpResult.ok) return jsonErr(res, otpResult.erro);
 
@@ -4375,6 +4499,19 @@ var server = http.createServer(async (req, res) => {
         if (result.body[0]) {
           var emp = result.body[0];
           var token = jwtSign({ empresa_id: emp.id, email: emp.email, role: "dono" });
+
+          // Gasta o convite. Só aqui, depois de a conta EXISTIR: queimar
+          // antes deixaria o cliente sem link e sem conta se o insert
+          // falhasse — e ele não teria como tentar de novo.
+          if (conviteUsado) {
+            await consumirConvite(conviteUsado, emp.id).catch(function (e) {
+              // Não derruba um cadastro que já deu certo. O pior caso é
+              // um convite reutilizável, e reutilizar esbarra no
+              // "e-mail já cadastrado" logo na entrada.
+              registrarErro("pagamento", "Convite não pôde ser marcado como usado: " + e.message,
+                { rota: "/verificar-codigo", link_id: conviteUsado.id });
+            });
+          }
 
           // Já pagou antes de ter conta? É o caso de quem recebeu um
           // link de venda, pagou, e só depois se cadastrou. Sem isto o
@@ -4522,6 +4659,44 @@ var server = http.createServer(async (req, res) => {
         desconto_reais: centavosParaReais(checagem.desconto_centavos),
         valor_original: centavosParaReais(checagem.valor_original_centavos),
         valor_final:    centavosParaReais(checagem.valor_final_centavos)
+      });
+    }
+
+    // ── CONVITE DE SENHA (rota pública) ──────────────
+    // O site chama isto ao abrir /?criar-senha=<token>, para saber de
+    // quem é o convite e o que ele libera. Pública porque quem usa
+    // ainda não tem conta — é justamente esse o ponto.
+    //
+    // Devolve o mínimo: nome, e-mail, plano e prazo, tudo que o próprio
+    // dono já digitou sobre esse cliente e mandou para ele. Nada de
+    // valor pago, id da cobrança ou qualquer coisa que sirva para
+    // enumerar clientes se alguém tentar tokens no chute — e chute é
+    // caro: são 32 bytes de aleatório.
+    if (method === "GET" && path.startsWith("/convite/")) {
+      var tokenPedido = decodeURIComponent(path.slice("/convite/".length));
+      var conv = await conviteValido(tokenPedido);
+
+      if (!conv.ok) {
+        // 200 com ok:false, não 404: a tela precisa DISTINGUIR "já foi
+        // usado" (a conta existe, o caminho é o login) de "não existe"
+        // para dizer a coisa certa. Um 404 seco vira "link inválido"
+        // nos três casos e o cliente liga sem saber o que houve.
+        return jsonOk(res, { ok: false, motivo: conv.motivo });
+      }
+
+      var lkConv = conv.link;
+      return jsonOk(res, {
+        ok: true,
+        email: lkConv.cliente_email,
+        nome:  lkConv.cliente_nome || null,
+        plano: lkConv.plano_concedido,
+        plano_nome: (CONFIG.PLANOS[lkConv.plano_concedido] || {}).nome || null,
+        dias:  lkConv.dias_acesso,
+        // Antes de o dinheiro entrar o convite já abre o cadastro: a
+        // conta nasce e o plano entra sozinho quando o pagamento cair.
+        // A tela usa isto só para escolher entre "pagamento confirmado"
+        // e "assim que o pagamento cair, seu acesso abre".
+        pago: lkConv.status === "pago"
       });
     }
 
@@ -5918,6 +6093,12 @@ var server = http.createServer(async (req, res) => {
         // responder e a gravação falhar depois, existiria uma cobrança
         // real que o Workap não conhece — e um cliente pagando um link
         // que ninguém consegue rastrear.
+        // Convite de senha só existe para cobrança que libera plano.
+        // Numa cobrança avulsa (implantação, consultoria) não há acesso
+        // para abrir, e um link de "criar senha" ali só confundiria
+        // quem recebe.
+        var tokenConvite = planoLink ? gerarTokenConvite() : null;
+
         var criado = await DB.insert("links_pagamento", {
           descricao: descLink,
           valor_centavos: centavosLink,
@@ -5927,7 +6108,11 @@ var server = http.createServer(async (req, res) => {
           plano_concedido: planoLink,
           dias_acesso: diasLink,
           gateway: "cakto",
-          status: "aberto"
+          status: "aberto",
+          token_senha: tokenConvite,
+          token_senha_expira_em: tokenConvite
+            ? new Date(Date.now() + CONVITE_DIAS_VALIDADE * 24 * 60 * 60 * 1000).toISOString()
+            : null
         });
         linhaLink = criado.body && criado.body[0];
         if (!linhaLink) return jsonErr(res, "Não foi possível registrar a cobrança", 500);
@@ -5967,9 +6152,18 @@ var server = http.createServer(async (req, res) => {
         });
         secLog("link_pagamento_criado", {
           valor: centavosLink, metodos: metodosLink.join(","),
-          plano: planoLink || "nenhum", dias: diasLink, gateway: "cakto"
+          plano: planoLink || "nenhum", dias: diasLink, gateway: "cakto",
+          convite: tokenConvite ? "sim" : "nao"
         });
-        return jsonOk(res, { ok: true, id: linhaLink.id, url: cobrCk.url });
+        // Os dois endereços voltam juntos porque é assim que são
+        // mandados: uma mensagem só, "paga aqui" e "cria tua senha
+        // aqui". Fazer o dono procurar o segundo em outra tela é o tipo
+        // de passo que ele esquece — e aí o cliente paga e fica sem
+        // saber como entrar, que é o problema que o convite resolve.
+        return jsonOk(res, {
+          ok: true, id: linhaLink.id, url: cobrCk.url,
+          url_senha: tokenConvite ? urlDoConvite(tokenConvite) : null
+        });
       } catch (e) {
         if (linhaLink) await DB.update("links_pagamento", "id=eq." + linhaLink.id, { status: "cancelado" }).catch(function () {});
         registrarErro("pagamento", e.message, { rota: "/owner/links", metodo: "POST", status: e.status || null });
@@ -5998,7 +6192,17 @@ var server = http.createServer(async (req, res) => {
       if (["aberto", "pago", "expirado", "cancelado"].includes(filtroLink)) qLinks += "&status=eq." + filtroLink;
 
       var listaLinks = await DB.select("links_pagamento", qLinks).catch(function () { return { body: [] }; });
-      var linhas = listaLinks.body || [];
+      var linhas = (listaLinks.body || []).map(function (l) {
+        // O painel recebe o endereço pronto em vez do token cru: montar
+        // URL é trabalho de quem sabe qual é o site, e SITE_URL só
+        // existe aqui. Some depois de usado — oferecer "copiar" um link
+        // que já não funciona é convidar o dono a mandar de novo.
+        l.url_senha = (l.token_senha && !l.token_senha_usado_em)
+          ? urlDoConvite(l.token_senha) : null;
+        l.senha_criada = !!l.token_senha_usado_em;
+        delete l.token_senha;
+        return l;
+      });
 
       // Totais do que já entrou e do que está em aberto. Uma lista sem
       // isso obriga o owner a somar de cabeça para saber quanto tem a
