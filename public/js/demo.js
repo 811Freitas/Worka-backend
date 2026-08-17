@@ -93,7 +93,6 @@ function arrancar() {
   chamarMotor("");
 }
 
-document.getElementById("ano-rodape") &&
-  (document.getElementById("ano-rodape").textContent = new Date().getFullYear());
-
+// O rodapé (ano) e a tela de carregando são cuidados por site.js, que
+// esta página também carrega — não duplica aqui.
 arrancar();

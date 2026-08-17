@@ -7,6 +7,36 @@
  * telas com layouts bem diferentes entre si.
  */
 
+/* ════════════════════════════════════════
+   CARREGANDO (tela cheia, breve)
+   ════════════════════════════════════════
+   Cobre a página por uma fração de segundo enquanto ela assenta —
+   janela curta de propósito: um preloader que demora vira o oposto do
+   que promete, que é parecer rápido. site.js decide quando some.
+*/
+#site-carregando {
+  position: fixed; inset: 0; z-index: 999;
+  background: linear-gradient(150deg, var(--marca-escura), #0a5f47 70%, #084c39);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  transition: opacity .45s ease, visibility 0s linear .45s;
+}
+#site-carregando.escondido { opacity: 0; visibility: hidden; pointer-events: none; }
+.site-carregando-marca {
+  width: 60px; height: 60px; border-radius: 16px; background: #fff; color: var(--marca-escura);
+  display: grid; place-items: center; font-family: inherit; font-weight: 800; font-size: 1.5rem;
+  animation: pulsarMarca 1.1s ease-in-out infinite;
+}
+.site-carregando-anel {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 3px solid rgba(255,255,255,.25); border-top-color: #fff;
+  animation: girarAnel .8s linear infinite;
+}
+@keyframes pulsarMarca {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.08); }
+}
+@keyframes girarAnel { to { transform: rotate(360deg); } }
+
 /* ── Topo comum às páginas públicas ── */
 .site-topo {
   display: flex; align-items: center; justify-content: space-between;
@@ -15,10 +45,28 @@
   background: var(--papel);
   position: sticky; top: 0; z-index: 10;
 }
-.site-topo .marca-topo { text-decoration: none; flex-shrink: 0; }
+.site-topo .marca-topo { text-decoration: none; flex-shrink: 0; transition: transform .2s ease; }
+.site-topo .marca-topo:hover { transform: scale(1.04); }
+.site-topo .marca-topo .marca-ponto { transition: transform .3s ease; }
+.site-topo .marca-topo:hover .marca-ponto { transform: rotate(-8deg); }
+
 .site-nav { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; justify-content: flex-end; }
-.site-nav a:not(.botao) { color: var(--tinta-suave); font-weight: 600; font-size: .875rem; text-decoration: none; }
+.site-nav a:not(.botao) {
+  position: relative; color: var(--tinta-suave); font-weight: 600; font-size: .875rem; text-decoration: none;
+  transition: color .18s ease; padding-bottom: 2px;
+}
+.site-nav a:not(.botao)::after {
+  content: ""; position: absolute; left: 0; right: 100%; bottom: 0; height: 2px;
+  background: var(--marca); transition: right .22s ease;
+}
 .site-nav a:not(.botao):hover { color: var(--tinta); }
+.site-nav a:not(.botao):hover::after { right: 0; }
+
+/* Âncoras internas (#recursos, #como-funciona, #precos) deslizam até lá
+   em vez de saltar — é a diferença entre "a página trocou" e "a página
+   se moveu até o que eu pedi". prefers-reduced-motion desliga isto
+   junto com o resto (regra no fim do arquivo). */
+html { scroll-behavior: smooth; }
 
 /* Abaixo de ~700px os links de âncora (Recursos, Como funciona, Preços,
    Demonstração) somem — cabem mal ao lado da marca e do CTA, e quem
@@ -177,6 +225,18 @@
   transition: transform .25s ease;
 }
 .site-cartao:hover .site-icone { transform: scale(1.12) rotate(-4deg); }
+
+/* "Adesivos": ícone próprio em vez de emoji — mesmo traço em todos, sem
+   depender da fonte de emoji do sistema (que muda de aparência entre
+   Windows, Android e iOS, e às vezes nem carrega). Boiam devagar sozinhos,
+   parados; o giro de verdade só acontece no hover, ali em cima. */
+.site-adesivo svg { width: 22px; height: 22px; animation: boiarAdesivo 5s ease-in-out infinite; }
+.site-cartao:nth-child(2n) .site-adesivo svg { animation-delay: -1.6s; }
+.site-cartao:nth-child(3n) .site-adesivo svg { animation-delay: -3.1s; }
+@keyframes boiarAdesivo {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
 .site-cartao h3 { font-size: 1rem; margin: 0 0 6px; }
 .site-cartao p { font-size: .875rem; color: var(--tinta-suave); line-height: 1.5; margin: 0; }
 
@@ -256,19 +316,32 @@
 /* ════════════════════════════════════════
    BOTÕES: hover, pulso, flutuante
    ════════════════════════════════════════ */
-/* Todo .botao dentro de página pública ganha uma leve elevação ao
-   passar o mouse — sem sobrescrever a cor/base, que já vem de
-   estilo.css, só o movimento. */
-.site-topo .botao, .site-hero .botao, .site-secao .botao, .site-cta-demo .botao {
+/* TODO .botao destas páginas ganha o mesmo tratamento — elevação ao
+   passar o mouse, "afundar" ao clicar, e um brilho que atravessa o
+   botão no hover. Um seletor só (`.botao`, sem escopo por seção) de
+   propósito: "todos os botões" inclui o flutuante, os dos planos, os
+   do rodapé — qualquer um que apareça daqui pra frente entra de graça,
+   sem precisar lembrar de somar mais um seletor à lista. */
+.botao {
+  position: relative; overflow: hidden;
   transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease;
 }
-.site-topo .botao:hover, .site-hero .botao:hover, .site-secao .botao:hover, .site-cta-demo .botao:hover {
+.botao:hover {
   transform: translateY(-2px) scale(1.02);
   box-shadow: 0 10px 24px rgba(15,30,26,.18);
 }
-.site-topo .botao:active, .site-hero .botao:active, .site-secao .botao:active, .site-cta-demo .botao:active {
-  transform: translateY(0) scale(.98);
+.botao:active { transform: translateY(0) scale(.98); }
+
+/* O brilho: uma faixa diagonal clara que atravessa o botão da esquerda
+   para a direita quando o mouse chega. `overflow:hidden` no .botao (
+   acima) é o que a mantém dentro dos cantos arredondados. */
+.botao::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.35) 48%, transparent 62%);
+  transform: translateX(-120%); pointer-events: none;
 }
+.botao:hover::after { animation: brilhoBotao .7s ease forwards; }
+@keyframes brilhoBotao { to { transform: translateX(120%); } }
 
 /* O CTA principal do hero pulsa baixinho para chamar o olho primeiro,
    sem ser irritante — a animação para assim que o mouse chega perto. */
@@ -328,10 +401,20 @@
    qualquer regra de cima em cascata. */
 @media (prefers-reduced-motion: reduce) {
   .site-hero, .site-blob, .site-celular, .site-celular-balao, .site-cartao,
-  .site-plano, .site-flutuante, .js-pronto .reveal, .site-hero .grupo-botoes .botao.neutro {
+  .site-plano, .site-flutuante, .js-pronto .reveal, .site-hero .grupo-botoes .botao.neutro,
+  .site-adesivo svg, .site-carregando-marca, .site-carregando-anel, .botao {
     animation: none !important;
     transition: opacity .01ms linear !important;
   }
   .js-pronto .reveal { opacity: 1; transform: none; }
-  .site-cartao:hover, .site-plano:hover { transform: none; }
+  .site-cartao:hover, .site-plano:hover, .botao:hover, .botao:active { transform: none; }
+  .botao:hover::after { animation: none !important; }
+  /* A tela de carregando some quase na hora (site.js já usa tempo
+     mínimo 0 aqui) — sem o giro do anel, ficar visível por meio
+     segundo pareceria travamento, não intenção. */
+  #site-carregando { transition: opacity .01ms linear, visibility 0s linear; }
+  html { scroll-behavior: auto; }
+  .site-topo .marca-topo, .site-topo .marca-topo .marca-ponto,
+  .site-nav a:not(.botao)::after { transition: none !important; }
+  .site-topo .marca-topo:hover .marca-ponto { transform: none; }
 }

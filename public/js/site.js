@@ -16,6 +16,40 @@ var SEM_MOVIMENTO = window.matchMedia("(prefers-reduced-motion: reduce)").matche
 document.documentElement.classList.add("js-pronto");
 
 // ════════════════════════════════════════
+// TELA DE CARREGANDO
+// ════════════════════════════════════════
+// Some assim que a página está pronta (imagens, fontes, tudo — o
+// evento 'load', não o 'DOMContentLoaded') — mas nunca antes de um
+// tempo mínimo, senão vira um pisca-pisca em conexão rápida em vez de
+// uma transição. Sem JS ou com JS travado, o CSS sozinho não a
+// esconderia — por isso ela também seria removida se o tempo máximo se
+// esgotasse primeiro (rede de segurança abaixo).
+(function () {
+  var tela = document.getElementById("site-carregando");
+  if (!tela) return;
+
+  var jaEscondeu = false;
+  function esconder() {
+    if (jaEscondeu) return;
+    jaEscondeu = true;
+    tela.classList.add("escondido");
+  }
+
+  var minimo = SEM_MOVIMENTO ? 0 : 500;
+  var inicio = Date.now();
+
+  window.addEventListener("load", function () {
+    var faltam = Math.max(0, minimo - (Date.now() - inicio));
+    setTimeout(esconder, faltam);
+  });
+
+  // Rede de segurança: se 'load' nunca disparar (imagem presa, aba em
+  // segundo plano no celular), a tela não pode ficar presa para sempre
+  // bloqueando o site inteiro.
+  setTimeout(esconder, 4000);
+})();
+
+// ════════════════════════════════════════
 // REVELAR AO ROLAR
 // ════════════════════════════════════════
 (function () {
