@@ -2718,6 +2718,44 @@ async function aplicarPlanoDoLink(link, empresa) {
 }
 
 /**
+ * Pagou um link que libera plano, mas não tem conta no Workap.
+ *
+ * Sem conta não há senha, e sem senha não há como entrar. O código
+ * antigo só registrava "link_acesso_pendente" no log e seguia: o
+ * cliente pagava e ficava esperando um acesso que ninguém ia mandar,
+ * porque o único caminho que restava era ele adivinhar que precisava
+ * ir ao site se cadastrar — com o e-mail exato que o dono digitou no
+ * link, senão o pagamento não é encontrado depois.
+ *
+ * O convite resolve os dois lados disso: avisa que falta criar a
+ * senha, e leva a um endereço que já preenche o e-mail certo.
+ *
+ * O e-mail vai em encodeURIComponent porque "+" é caractere legítimo
+ * de endereço (joao+workap@gmail.com) e vira espaço quando o
+ * navegador lê a query string — o cadastro chegaria com o e-mail
+ * errado e o pagamento nunca casaria.
+ */
+async function convidarParaCriarConta(link) {
+  if (!link || !link.cliente_email || !link.plano_concedido) return false;
+
+  var plano = (CONFIG.PLANOS[link.plano_concedido] || {}).nome || link.plano_concedido;
+  // "criar-senha" e não "criar-conta": o segundo contém "onta=", que
+  // casa com o filtro /on\w+=/ usado contra onclick= e onerror=. Ficar
+  // longe do padrão evita que qualquer sanitização no caminho volte a
+  // comer o parâmetro sem ninguém perceber.
+  var destino = CONFIG.SITE_URL + "/?criar-senha=" + encodeURIComponent(link.cliente_email);
+
+  await enviarEmail(link.cliente_email,
+    "✅ Pagamento confirmado — falta criar sua senha",
+    EMAIL_TEMPLATES.criarContaAposPagamento(
+      link.cliente_nome, plano, link.dias_acesso || 30, destino)
+  );
+
+  secLog("convite_criar_conta_enviado", { link_id: link.id });
+  return true;
+}
+
+/**
  * Avisa o dono da Workap que entrou dinheiro.
  *
  * Chamada SEM await, de propósito. O webhook da Cakto precisa responder
@@ -3100,6 +3138,45 @@ var EMAIL_TEMPLATES = {
     </div>
     <div style="background:#fffbeb;border-radius:12px;padding:16px;border-left:4px solid #f59e0b">
       <p style="margin:0;font-size:13px;color:#78350f">⏰ Trial termina em <strong>${new Date(trialFim).toLocaleDateString("pt-BR")}</strong>. Após: R$ 49,99/mês.</p>
+    </div>`),
+
+  /**
+   * Pagou, mas ainda não tem conta — então também não tem senha.
+   *
+   * Este é o caso do link de venda que o dono manda por WhatsApp para
+   * quem nunca usou o Workap. O dinheiro entra, o webhook procura a
+   * empresa pelo e-mail do link e não acha nada, porque a conta nunca
+   * existiu. Antes deste e-mail a história terminava aí: a pessoa
+   * pagava e ficava sem saber o que fazer, sem senha e sem aviso
+   * nenhum. O acesso só abria se ela adivinhasse sozinha que precisava
+   * ir ao site e se cadastrar com o e-mail EXATO do link.
+   *
+   * O link leva ao cadastro com o e-mail já preenchido — justamente
+   * porque digitar outro e-mail é o único jeito de o pagamento não
+   * encontrar a conta depois.
+   */
+  criarContaAposPagamento: (nome, plano, dias, link) => emailBase(`
+    <h2 style="margin:0 0 8px;color:#0a2e1a;font-size:22px;font-weight:800">Pagamento confirmado ✅</h2>
+    <p style="color:#5a6b5a;font-size:15px;margin:0 0 20px;line-height:1.6">Olá, <strong>${SANITIZE.string(nome || "tudo bem")}</strong>! Recebemos seu pagamento. Falta <strong>um passo</strong> para você entrar.</p>
+    <div style="background:linear-gradient(135deg,#0a2e1a,#25b251);border-radius:16px;padding:24px;margin:0 0 24px;color:#fff">
+      <div style="font-size:13px;color:rgba(255,255,255,.7)">Você comprou</div>
+      <div style="font-size:20px;font-weight:900;color:#3dd669">${SANITIZE.string(plano)}</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:4px">${SANITIZE.string(String(dias))} dias de acesso</div>
+    </div>
+    <p style="color:#5a6b5a;font-size:15px;margin:0 0 20px;line-height:1.6">Você ainda não tem conta no Workap. Crie a sua senha no botão abaixo — o acesso que você pagou é liberado na hora, sem pagar de novo.</p>
+    <!-- O endereço NÃO passa por SANITIZE.string aqui, e isso é
+         deliberado: aquele filtro apaga tudo que casa com /on\w+=/ para
+         matar onclick=/onerror=, e "criar-c<b>onta=</b>" casava com a
+         regra. O botão saía com o link mutilado e não levava a lugar
+         nenhum — o teste pegou isso.
+         Seguro porque quem monta a URL somos nós: a base vem de
+         CONFIG.SITE_URL (variável de ambiente, não de usuário) e o
+         e-mail vai em encodeURIComponent, que já remove < > " '. -->
+    <div style="text-align:center;margin:0 0 24px">
+      <a href="${link}" style="display:inline-block;background:#1e8a40;color:#fff;text-decoration:none;font-weight:800;font-size:16px;padding:16px 32px;border-radius:12px">Criar minha senha</a>
+    </div>
+    <div style="background:#fffbeb;border-radius:12px;padding:16px;border-left:4px solid #f59e0b">
+      <p style="margin:0;font-size:13px;color:#78350f">⚠ Use <strong>este mesmo e-mail</strong> no cadastro. É por ele que o sistema encontra o seu pagamento.</p>
     </div>`),
 
   pagamentoConfirmado: (nome, valor) => emailBase(`
@@ -4660,7 +4737,23 @@ var server = http.createServer(async (req, res) => {
                   "email=eq." + encodeURIComponent(lkCk.cliente_email) + "&select=id,nome,email,assinatura_ate");
                 var eCk = empCk.body && empCk.body[0];
                 if (eCk) await aplicarPlanoDoLink(lkCk, eCk);
-                else secLog("link_acesso_pendente", { link_id: idLinkCk });
+                else {
+                  // Pagou sem ter conta. Convida a criar a senha em vez
+                  // de só anotar no log — ver convidarParaCriarConta.
+                  //
+                  // Sem await e com catch próprio: a Cakto corta o
+                  // webhook em 5 segundos e reenvia o que não respondeu.
+                  // Falhar aqui não pode desfazer um pagamento que já
+                  // está gravado; o owner enxerga o caso na aba
+                  // Cobranças ("Pago, mas sem conta ainda") de qualquer
+                  // jeito, e agora também vê se o convite saiu.
+                  secLog("link_acesso_pendente", { link_id: idLinkCk });
+                  convidarParaCriarConta(lkCk).catch(function (e) {
+                    registrarErro("pagamento",
+                      "Pagamento recebido de quem não tem conta, e o convite para criar a senha falhou: " + e.message,
+                      { rota: "/webhook/cakto", link_id: idLinkCk, cliente: lkCk.cliente_email });
+                  });
+                }
               }
 
               // Aviso ao dono da Workap. Sem await: a Cakto espera
