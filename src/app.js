@@ -138,6 +138,14 @@ app.use("/api/demo", require("./modulos/demo/rotas"));
 app.use("/api/pagamentos", pagamentos.router);
 
 // ════════════════════════════════════════
+// SEO (sitemap.xml, robots.txt)
+// ════════════════════════════════════════
+// Antes dos arquivos estáticos: sem isto, um sitemap.xml colado à mão
+// em public/ um dia ficaria esquecido e desatualizado. Gerado na hora
+// a partir de PUBLIC_URL, sempre.
+app.use(require("./modulos/site/rotas"));
+
+// ════════════════════════════════════════
 // PAINEL (arquivos estáticos)
 // ════════════════════════════════════════
 app.use(express.static(path.join(__dirname, "..", "public"), {

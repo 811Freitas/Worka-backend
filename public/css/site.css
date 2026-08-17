@@ -46,7 +46,6 @@
   position: sticky; top: 0; z-index: 10;
 }
 .site-topo .marca-topo { text-decoration: none; flex-shrink: 0; transition: transform .2s ease; }
-.site-topo .marca-topo:hover { transform: scale(1.04); }
 
 .site-nav { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; justify-content: flex-end; }
 .site-nav a:not(.botao) {
@@ -57,8 +56,6 @@
   content: ""; position: absolute; left: 0; right: 100%; bottom: 0; height: 2px;
   background: var(--marca); transition: right .22s ease;
 }
-.site-nav a:not(.botao):hover { color: var(--tinta); }
-.site-nav a:not(.botao):hover::after { right: 0; }
 
 /* Âncoras internas (#recursos, #como-funciona, #precos) deslizam até lá
    em vez de saltar — é a diferença entre "a página trocou" e "a página
@@ -212,17 +209,11 @@ html { scroll-behavior: smooth; }
   padding: 24px; box-shadow: var(--sombra);
   transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
 }
-.site-cartao:hover {
-  transform: translateY(-6px);
-  box-shadow: var(--sombra-alta);
-  border-color: var(--marca);
-}
 .site-cartao .site-icone {
   width: 42px; height: 42px; border-radius: 10px; background: var(--marca-clara);
   color: var(--marca-escura); display: grid; place-items: center; font-size: 1.25rem; margin-bottom: 14px;
   transition: transform .25s ease;
 }
-.site-cartao:hover .site-icone { transform: scale(1.12) rotate(-4deg); }
 
 /* "Adesivos": ícone próprio em vez de emoji — mesmo traço em todos, sem
    depender da fonte de emoji do sistema (que muda de aparência entre
@@ -259,9 +250,7 @@ html { scroll-behavior: smooth; }
   padding: 28px 24px; display: flex; flex-direction: column; gap: 14px;
 }
 .site-plano { transition: transform .25s ease, box-shadow .25s ease; }
-.site-plano:hover { transform: translateY(-4px); box-shadow: var(--sombra-alta); }
 .site-plano.destaque { border-color: var(--marca); box-shadow: 0 0 0 3px var(--marca-clara); position: relative; }
-.site-plano.destaque:hover { box-shadow: 0 0 0 3px var(--marca-clara), var(--sombra-alta); }
 .site-plano-selo {
   position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
   background: var(--marca); color: #fff; font-size: .6875rem; font-weight: 700;
@@ -324,10 +313,6 @@ html { scroll-behavior: smooth; }
   position: relative; overflow: hidden;
   transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease;
 }
-.botao:hover {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 10px 24px rgba(15,30,26,.18);
-}
 .botao:active { transform: translateY(0) scale(.98); }
 
 /* O brilho: uma faixa diagonal clara que atravessa o botão da esquerda
@@ -338,15 +323,14 @@ html { scroll-behavior: smooth; }
   background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.35) 48%, transparent 62%);
   transform: translateX(-120%); pointer-events: none;
 }
-.botao:hover::after { animation: brilhoBotao .7s ease forwards; }
 @keyframes brilhoBotao { to { transform: translateX(120%); } }
 
 /* O CTA principal do hero pulsa baixinho para chamar o olho primeiro,
-   sem ser irritante — a animação para assim que o mouse chega perto. */
+   sem ser irritante — a animação para assim que o mouse chega perto
+   (só em quem tem mouse: ver o bloco (hover:hover) mais abaixo). */
 .site-hero .grupo-botoes .botao.neutro {
   animation: pulsarCta 2.6s ease-in-out infinite;
 }
-.site-hero .grupo-botoes .botao.neutro:hover { animation-play-state: paused; }
 @keyframes pulsarCta {
   0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,.45); }
   50%      { box-shadow: 0 0 0 10px rgba(255,255,255,0); }
@@ -366,7 +350,7 @@ html { scroll-behavior: smooth; }
 @media (max-width: 700px) {
   /* Menor e mais perto do canto: o mesmo lembrete, cobrindo menos
      texto de quem está lendo a página embaixo dele. */
-  .site-flutuante { right: 12px; bottom: 12px; padding: 9px 14px; font-size: .8125rem; }
+  .site-flutuante { right: 12px; bottom: 12px; padding: 11px 14px; font-size: .8125rem; }
 }
 
 /* ════════════════════════════════════════
@@ -394,6 +378,43 @@ html { scroll-behavior: smooth; }
 .js-pronto .site-planos .reveal:nth-child(1) { transition-delay: .05s; }
 .js-pronto .site-planos .reveal:nth-child(2) { transition-delay: .18s; }
 
+/* ════════════════════════════════════════
+   EFEITOS SÓ DE MOUSE
+   ════════════════════════════════════════
+   Todo ":hover" decorativo (elevar botão/card, girar ícone, brilho,
+   sublinhado do menu, pausar o pulso) mora aqui dentro, e só aqui —
+   nunca solto no meio do arquivo. O motivo é um bug de verdade, não
+   estética: sem esta guarda, TOCAR num botão no celular liga o estado
+   ":hover" e ele fica "preso" ligado até a pessoa tocar em outra
+   coisa, porque telas de toque não têm o "mouse saiu" que desliga o
+   hover num computador — o botão parece quebrado, brilhando ou
+   flutuando sozinho depois do toque. `pointer: fine` fecha o cerco:
+   até um mouse ruim (trackpad de tablet 2-em-1) não entra aqui se o
+   sistema também expõe toque como entrada primária. */
+@media (hover: hover) and (pointer: fine) {
+  .site-topo .marca-topo:hover { transform: scale(1.04); }
+
+  .site-nav a:not(.botao):hover { color: var(--tinta); }
+  .site-nav a:not(.botao):hover::after { right: 0; }
+
+  .site-cartao:hover {
+    transform: translateY(-6px);
+    box-shadow: var(--sombra-alta);
+    border-color: var(--marca);
+  }
+  .site-cartao:hover .site-icone { transform: scale(1.12) rotate(-4deg); }
+
+  .site-plano:hover { transform: translateY(-4px); box-shadow: var(--sombra-alta); }
+  .site-plano.destaque:hover { box-shadow: 0 0 0 3px var(--marca-clara), var(--sombra-alta); }
+
+  .botao:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 10px 24px rgba(15,30,26,.18);
+  }
+  .botao:hover::after { animation: brilhoBotao .7s ease forwards; }
+  .site-hero .grupo-botoes .botao.neutro:hover { animation-play-state: paused; }
+}
+
 /* Quem pede menos movimento recebe menos movimento — de verdade, não
    só "mais rápido". Isto vem por último de propósito, para vencer
    qualquer regra de cima em cascata. */
@@ -405,7 +426,11 @@ html { scroll-behavior: smooth; }
     transition: opacity .01ms linear !important;
   }
   .js-pronto .reveal { opacity: 1; transform: none; }
-  .site-cartao:hover, .site-plano:hover, .botao:hover, .botao:active { transform: none; }
+  .botao:active { transform: none; }
+  /* Ainda dentro do bloco (hover:hover) lá em cima — reforçado aqui,
+     por cima, para quem tem mouse E pediu menos movimento não ver
+     nem o salto instantâneo (sem transição) do hover. */
+  .site-cartao:hover, .site-plano:hover, .botao:hover { transform: none !important; }
   .botao:hover::after { animation: none !important; }
   /* A tela de carregando some quase na hora (site.js já usa tempo
      mínimo 0 aqui) — sem o giro do anel, ficar visível por meio

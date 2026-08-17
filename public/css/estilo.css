@@ -141,7 +141,10 @@ textarea { resize: vertical; min-height: 120px; line-height: 1.55; }
 .botao.discreto { background: transparent; color: var(--tinta-suave); padding: 6px 10px; }
 .botao.discreto:hover:not(:disabled) { background: var(--fundo); color: var(--tinta); }
 
-.botao.pequeno { padding: 6px 11px; font-size: .8125rem; }
+/* 9px verticais (não 6) para o alvo de toque passar de ~34px para
+   ~40px — perto do mínimo de 44px recomendado sem inchar o botão numa
+   tela onde ele já é pequeno de propósito. */
+.botao.pequeno { padding: 9px 12px; font-size: .8125rem; }
 .botao.largo { width: 100%; }
 
 .grupo-botoes { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -366,7 +369,7 @@ textarea { resize: vertical; min-height: 120px; line-height: 1.55; }
 
 .balao-botoes { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
 .balao-botoes button {
-  padding: 7px; border: 1px solid #cfd8d4; background: var(--papel);
+  padding: 10px 12px; border: 1px solid #cfd8d4; background: var(--papel);
   border-radius: 7px; font: inherit; font-size: .8125rem; font-weight: 600;
   color: var(--marca-escura); cursor: pointer;
 }
