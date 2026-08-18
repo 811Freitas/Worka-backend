@@ -2734,6 +2734,177 @@ tr:hover td{background:var(--g50)}
 // falhando só na tela que ninguém testou naquele dia.
 var API_BASE = 'https://worka-backend-awng.onrender.com';
 
+// ═══════════════════════════════════
+// ACESSO ENCERRADO — o funil de assinatura
+// ═══════════════════════════════════
+//
+// O backend responde 423 quando o teste acabou, a assinatura venceu ou
+// a conta foi suspensa. Antes disso o status era gravado no banco e
+// nunca conferido: o teste de 7 dias durava para sempre, e o e-mail de
+// "seu trial expirou" chegava com o app funcionando normalmente.
+//
+// A checagem é feita EMBRULHANDO window.fetch, uma vez, em vez de
+// tratar 423 em cada chamada. São 112 chamadas neste arquivo e nenhum
+// wrapper comum: a próxima tela que alguém escrever esqueceria o
+// tratamento, e essa tela seria um buraco no bloqueio. Assim não há o
+// que esquecer.
+//
+// 423 e não 402 porque 402 já significa outra coisa aqui ("seu plano
+// não inclui esta tela", no espelho de ponto e na jornada). Misturar
+// os dois faria a tela de upgrade do Pro aparecer para quem, na
+// verdade, está com o teste vencido.
+var bloqueioNaTela = false;
+
+(function () {
+  var fetchOriginal = window.fetch.bind(window);
+  window.fetch = function (entrada, opcoes) {
+    return fetchOriginal(entrada, opcoes).then(function (resposta) {
+      if (resposta.status === 423) {
+        // clone() porque quem chamou ainda vai ler o corpo. Ler aqui o
+        // original deixaria a resposta vazia lá na frente.
+        resposta.clone().json().then(function (d) {
+          if (d && d.bloqueado) mostrarAcessoEncerrado(d);
+        }).catch(function () {});
+      }
+      return resposta;
+    });
+  };
+})();
+
+// Texto de cada motivo. O que muda é só a primeira frase — o resto do
+// funil é igual, porque a saída é a mesma nos três casos.
+var MOTIVOS_BLOQUEIO = {
+  trial_expirado:     ['Seu teste terminou', 'Os 7 dias grátis acabaram. Assine para voltar a usar o Workap.'],
+  assinatura_vencida: ['Sua assinatura venceu', 'O pagamento do período atual não foi identificado. Renove para voltar a usar.'],
+  suspensa:           ['Conta suspensa', 'Fale com a gente para reativar sua conta.'],
+  cancelada:          ['Conta cancelada', 'Sua assinatura foi encerrada. Assine de novo quando quiser.']
+};
+
+function mostrarAcessoEncerrado(d) {
+  if (bloqueioNaTela) return;   // várias chamadas em paralelo levam 423 juntas
+  bloqueioNaTela = true;
+
+  var texto = MOTIVOS_BLOQUEIO[d.motivo] || MOTIVOS_BLOQUEIO.trial_expirado;
+
+  var fundo = document.createElement('div');
+  fundo.id = 'acesso-encerrado';
+  fundo.setAttribute('role', 'dialog');
+  fundo.setAttribute('aria-modal', 'true');
+  fundo.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(10,46,26,.93);' +
+    'backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;' +
+    'padding:20px;overflow-y:auto;font-family:Inter,system-ui,sans-serif';
+
+  var cartao = document.createElement('div');
+  cartao.style.cssText = 'background:#fff;border-radius:20px;padding:32px 26px;width:100%;' +
+    'max-width:440px;box-shadow:0 32px 80px rgba(0,0,0,.4);margin:auto';
+
+  function nova(tag, css, txt) {
+    var e = document.createElement(tag);
+    if (css) e.style.cssText = css;
+    if (txt) e.textContent = txt;
+    return e;
+  }
+
+  cartao.appendChild(nova('div', 'font-size:2.4rem;text-align:center;margin-bottom:6px', '🔒'));
+  cartao.appendChild(nova('div',
+    "font-family:'Syne',sans-serif;font-size:1.35rem;font-weight:800;color:#0a2e1a;text-align:center;margin-bottom:8px",
+    texto[0]));
+  cartao.appendChild(nova('p',
+    'font-size:.9rem;color:#6b7068;line-height:1.55;text-align:center;margin:0 0 18px',
+    texto[1]));
+
+  // A frase que tira o medo de assinar. É a objeção real de quem
+  // testou por 7 dias: "vou perder o que já cadastrei?".
+  var salvo = nova('div',
+    'background:#f0faf2;border-left:4px solid #3dd669;border-radius:10px;padding:12px 14px;' +
+    'font-size:.82rem;color:#2d5a2d;line-height:1.5;margin-bottom:20px');
+  salvo.textContent = 'Nada foi apagado. Seus funcionários, pontos e tarefas voltam exatamente como estavam.';
+  cartao.appendChild(salvo);
+
+  if (d.pode_assinar) {
+    // Um cartão por plano, com o preço vindo do servidor.
+    (d.planos || []).forEach(function (p, i) {
+      var linha = nova('button', 'width:100%;text-align:left;border:1.5px solid ' +
+        (i === 0 ? '#1e8a40' : '#e3e6e3') + ';background:' + (i === 0 ? '#f7fdf9' : '#fff') +
+        ';border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;' +
+        'display:flex;align-items:center;justify-content:space-between;gap:12px;font-family:inherit');
+      var esq = nova('span', 'display:block');
+      esq.appendChild(nova('span', 'display:block;font-weight:800;color:#0a2e1a;font-size:.95rem', p.nome));
+      esq.appendChild(nova('span', 'display:block;font-size:.76rem;color:#6b7068;margin-top:2px', p.resumo || ''));
+      var dir = nova('span', 'flex:none;text-align:right');
+      dir.appendChild(nova('span', "display:block;font-family:'Syne',sans-serif;font-weight:800;color:#1e8a40;font-size:1.05rem", 'R$ ' + p.preco_reais));
+      dir.appendChild(nova('span', 'display:block;font-size:.7rem;color:#9aab9a', '/mês'));
+      linha.appendChild(esq); linha.appendChild(dir);
+      linha.onclick = function () { assinarDoBloqueio(p.slug, linha, d); };
+      cartao.appendChild(linha);
+    });
+
+    var erro = nova('div', 'display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;' +
+      'padding:10px 12px;font-size:.8rem;color:#dc2626;margin-bottom:10px');
+    erro.id = 'bloqueio-erro';
+    cartao.appendChild(erro);
+  } else {
+    // Funcionário não tem como assinar: quem paga é o dono. Mandá-lo ao
+    // checkout seria pedir que ele pague a conta do patrão.
+    var aviso = nova('div',
+      'background:#fffbeb;border-left:4px solid #f59e0b;border-radius:10px;padding:14px;' +
+      'font-size:.85rem;color:#78350f;line-height:1.55;margin-bottom:18px');
+    aviso.textContent = 'Avise o responsável pela conta da empresa: só ele consegue reativar o acesso.';
+    cartao.appendChild(aviso);
+  }
+
+  if (d.whatsapp) {
+    var zap = document.createElement('a');
+    zap.href = 'https://wa.me/' + d.whatsapp +
+      '?text=' + encodeURIComponent('Olá! Sou do ' + (d.empresa_nome || 'Workap') +
+        ' e quero falar sobre a assinatura do Workap.');
+    zap.target = '_blank'; zap.rel = 'noopener';
+    zap.style.cssText = 'display:block;text-align:center;border:1.5px solid #1e8a40;color:#1e8a40;' +
+      'border-radius:12px;padding:13px;font-weight:700;font-size:.9rem;text-decoration:none;margin-top:4px';
+    zap.textContent = d.pode_assinar ? 'Prefere negociar? Falar no WhatsApp' : 'Falar no WhatsApp';
+    cartao.appendChild(zap);
+  }
+
+  var sair = nova('button', 'display:block;width:100%;background:none;border:none;color:#9aab9a;' +
+    'font-size:.78rem;margin-top:16px;cursor:pointer;text-decoration:underline;font-family:inherit',
+    'Sair da conta');
+  sair.onclick = function () { fundo.remove(); bloqueioNaTela = false; fazerLogout(); };
+  cartao.appendChild(sair);
+
+  fundo.appendChild(cartao);
+  document.body.appendChild(fundo);
+}
+
+// Leva ao pagamento sem sair da tela de bloqueio.
+//
+// /assinatura/checkout é rota pública e recebe o e-mail — o mesmo
+// caminho do site. Não dá para reaproveitar nada de dentro do app aqui,
+// porque tudo lá dentro está, por definição, bloqueado.
+function assinarDoBloqueio(slug, botao, dados) {
+  var erro = document.getElementById('bloqueio-erro');
+  if (erro) erro.style.display = 'none';
+  var rotulo = botao.innerHTML;
+  botao.disabled = true;
+  botao.style.opacity = '.6';
+
+  fetch(API_BASE + '/assinatura/checkout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: dados.empresa_email, plano: slug })
+  })
+  .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+  .then(function (res) {
+    if (!res.ok || !res.j.url) throw new Error(res.j.error || 'Não consegui abrir o pagamento.');
+    window.location.href = res.j.url;
+  })
+  .catch(function (e) {
+    botao.disabled = false;
+    botao.style.opacity = '';
+    botao.innerHTML = rotulo;
+    if (erro) { erro.textContent = e.message; erro.style.display = 'block'; }
+  });
+}
+
 var usuarioAtual = null;
 var sessaoWorka = null; // { token, teamId, empresaId } — preenchido após login real via /login/empresa
 var tipoLogin = 'dono';

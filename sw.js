@@ -8,6 +8,9 @@
 // o sistema não tem. Login biométrico continua sendo uma feature em
 // aberto (exige WebAuthn + tabela de credenciais no banco).
 
+// v30: o teste gratis passou a BLOQUEAR de verdade quando acaba —
+// tela de assinatura no app, e o e-mail de fim de trial ganhou botao
+// de pagar e WhatsApp de vendas.
 // v29: a cobranca que libera plano ja nasce com um link de criar
 // senha, de uso unico, para o dono mandar junto no WhatsApp.
 // v28: quem paga um link de venda sem ter conta agora recebe e-mail
@@ -46,7 +49,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v29';
+var CACHE = 'workap-v30';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';

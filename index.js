@@ -78,6 +78,18 @@ const CONFIG = {
 
   // Para onde o gateway devolve o cliente depois do pagamento.
   SITE_URL:              env("SITE_URL") || "https://workap.com.br",
+
+  // WhatsApp de vendas, para quem prefere negociar a assinar sozinho.
+  // Aparece no e-mail de fim de trial e na tela de bloqueio.
+  //
+  // Isto e so o PADRAO: o valor que vale e o gravado em
+  // config_plataforma.whatsapp_vendas, editavel no painel Owner sem
+  // deploy. O padrao existe para o numero funcionar antes de alguem
+  // configurar — um botao "falar com vendas" que abre conversa vazia e
+  // pior do que nao ter botao.
+  //
+  // So digitos, com o 55 na frente: e o formato que o wa.me exige.
+  WHATSAPP_VENDAS:       env("WHATSAPP_VENDAS") || "5598985238435",
   // ENCRYPT_SECRET foi removida: nenhuma linha deste projeto lia esse
   // valor. Manter a variável no CONFIG só faria a próxima pessoa
   // procurar onde ela é usada — e não achar.
@@ -1321,6 +1333,165 @@ async function gravarConfigPlataforma(chave, valor) {
     await supabase("POST", "config_plataforma", { body: corpo });
   }
   cacheConfig.expiraEm = 0;   // força releitura na próxima consulta
+}
+
+// ════════════════════════════════════════
+// ACESSO EXPIRADO — o portão do trial
+// ════════════════════════════════════════
+//
+// O trial de 7 dias virava status "inadimplente" numa rotina noturna e
+// paravam por aí: o valor era gravado, contado no painel do owner, e
+// NUNCA conferido em rota nenhuma. Na prática o teste grátis era
+// vitalício — quem cadastrava usava para sempre sem pagar, e o e-mail
+// de "seu trial expirou" chegava enquanto o app seguia funcionando,
+// o que ensina o cliente a ignorar o aviso.
+//
+// Aqui o acesso passa a ser conferido a cada requisição autenticada.
+
+/**
+ * Diz se a empresa perdeu o acesso, e por quê.
+ *
+ * Confere trial_fim DIRETO em vez de confiar no status gravado. A
+ * rotina que troca "trial" por "inadimplente" roda de hora em hora:
+ * confiar só nela deixaria uma janela em que o trial já acabou no
+ * relógio e o app ainda abre. Quem decide é a data.
+ *
+ * assinatura_ate cobre quem comprou por link avulso — aquele acesso
+ * tem prazo e não renova sozinho (cancelamento_agendado), então vencer
+ * ali também fecha a porta.
+ */
+function motivoDeBloqueio(empresa) {
+  if (!empresa) return null;
+  var agora = Date.now();
+
+  if (empresa.status === "cancelada")  return "cancelada";
+  if (empresa.status === "suspensa")   return "suspensa";
+
+  var fimTrial = empresa.trial_fim ? new Date(empresa.trial_fim).getTime() : null;
+  if (empresa.status === "trial") {
+    return (fimTrial && fimTrial < agora) ? "trial_expirado" : null;
+  }
+
+  if (empresa.status === "inadimplente") return "trial_expirado";
+
+  if (empresa.status === "ativa") {
+    var ate = empresa.assinatura_ate ? new Date(empresa.assinatura_ate).getTime() : null;
+    // Sem data é assinatura recorrente em dia: o gateway avisa quando
+    // parar de pagar. Bloquear por falta de data derrubaria quem paga.
+    if (ate && ate < agora) return "assinatura_vencida";
+    return null;
+  }
+
+  return null;
+}
+
+/**
+ * Cache do estado de acesso, por empresa.
+ *
+ * Sem ele, TODA requisição autenticada viraria uma consulta a mais no
+ * banco só para perguntar "esta conta pode entrar?" — numa instância
+ * grátis da Render isso é sentido. 60 segundos é curto o bastante para
+ * o bloqueio valer quase de imediato e longo o bastante para sumir da
+ * conta.
+ *
+ * Quem paga não espera esses 60s: liberarAcesso() limpa a entrada na
+ * hora. O atraso só existe para FECHAR a porta, nunca para abrir — e é
+ * nessa direção que um minuto a mais não custa nada.
+ */
+var cacheAcesso = new Map();
+var ACESSO_TTL = 60 * 1000;
+
+function esquecerAcesso(empresaId) {
+  if (empresaId) cacheAcesso.delete(String(empresaId));
+}
+
+async function estadoDeAcesso(empresaId) {
+  var chave = String(empresaId);
+  var emCache = cacheAcesso.get(chave);
+  if (emCache && emCache.expiraEm > Date.now()) return emCache.estado;
+
+  var r = await DB.select("empresas",
+    "id=eq." + chave + "&select=id,nome,email,status,plano,trial_fim,assinatura_ate"
+  ).catch(function () { return { body: [] }; });
+
+  var emp = r.body && r.body[0];
+  // Empresa não encontrada não vira bloqueio: seria transformar uma
+  // falha de leitura do banco em "sua conta acabou" para todo mundo,
+  // ao mesmo tempo. Quem trata conta inexistente é a rota.
+  var estado = emp
+    ? { motivo: motivoDeBloqueio(emp), empresa: emp }
+    : { motivo: null, empresa: null };
+
+  cacheAcesso.set(chave, { estado: estado, expiraEm: Date.now() + ACESSO_TTL });
+  return estado;
+}
+
+/**
+ * Rotas que continuam abertas com a conta bloqueada.
+ *
+ * A lista é curta de propósito, e cada item está aqui por um motivo
+ * que se perde se ninguém escrever:
+ *
+ *  - /assinatura*  — é onde se PAGA. Bloquear a porta de saída do
+ *    bloqueio seria cobrar de alguém e não deixar pagar.
+ *  - /suporte/*    — quem não consegue mais entrar precisa poder
+ *    reclamar. Fechar isso troca um chamado por um estorno.
+ *  - /me           — o app lê o próprio estado para saber o que
+ *    mostrar. Sem isso a tela de bloqueio não sabe o que dizer.
+ *  - /planos, /config-publica — públicas, já passaram longe daqui.
+ *  - /me, /logout  — encerrar sessão tem que funcionar sempre.
+ */
+function rotaLiberadaMesmoBloqueado(metodo, caminho) {
+  if (caminho.indexOf("/assinatura") === 0) return true;
+  if (caminho.indexOf("/suporte/") === 0)   return true;
+  // /me é como o app descobre em que estado a conta está — é ele que
+  // alimenta a tela de bloqueio. Barrar aqui deixaria o app sem saber
+  // sequer o que mostrar.
+  if (caminho === "/me" || caminho === "/logout") return true;
+  return false;
+}
+
+/**
+ * O WhatsApp que aparece para quem está bloqueado.
+ * Painel primeiro, variável de ambiente como rede de segurança.
+ */
+async function whatsappDeVendas() {
+  var cfg = await lerConfigPlataforma().catch(function () { return {}; });
+  var doPainel = (cfg && cfg.whatsapp_vendas) || "";
+  return String(doPainel || CONFIG.WHATSAPP_VENDAS || "").replace(/\D/g, "") || null;
+}
+
+/**
+ * O corpo do 423, que é o que a tela de bloqueio desenha.
+ *
+ * Traz preço e WhatsApp junto porque a tela precisa dos dois para
+ * existir, e uma segunda ida ao servidor no momento em que o app
+ * acabou de ser barrado é uma chance a mais de a tela aparecer pela
+ * metade — justamente na hora de converter.
+ */
+async function corpoDoBloqueio(motivo, empresa, role) {
+  var planos = Object.keys(CONFIG.PLANOS).map(function (slug) {
+    return {
+      slug: slug,
+      nome: CONFIG.PLANOS[slug].nome,
+      resumo: CONFIG.PLANOS[slug].resumo,
+      preco_reais: centavosParaReais(CONFIG.PLANOS[slug].centavos)
+    };
+  });
+
+  return {
+    error: "Acesso encerrado",
+    bloqueado: true,
+    motivo: motivo,
+    // Funcionário não assina nada: quem resolve é o dono. Mandar um
+    // ajudante de padaria para o checkout é pedir para ele pagar a
+    // conta do patrão — a tela dele diz outra coisa por causa disto.
+    pode_assinar: role === "dono",
+    empresa_nome:  empresa ? empresa.nome  : null,
+    empresa_email: empresa ? empresa.email : null,
+    whatsapp: await whatsappDeVendas(),
+    planos: planos
+  };
 }
 
 // ════════════════════════════════════════
@@ -2625,6 +2796,10 @@ async function aplicarAssinaturaCakto(empresaId, dados, planoMeta) {
   if (planoValido(planoMeta)) mudancas.plano = planoMeta;
 
   await DB.update("empresas", "id=eq." + empresaId, mudancas);
+  // Pagou: a porta abre AGORA. Sem isto o cliente esperaria o cache de
+  // 60s vencer olhando a tela de bloqueio depois de ter pago — que e o
+  // pior minuto possivel para o produto parecer quebrado.
+  esquecerAcesso(empresaId);
   secLog("assinatura_atualizada", {
     empresa_id: empresaId, gateway: "cakto", ate: mudancas.assinatura_ate
   });
@@ -2705,6 +2880,7 @@ async function aplicarPlanoDoLink(link, empresa) {
     empresa_id: empresa.id
   });
 
+  esquecerAcesso(empresa.id);
   secLog("acesso_liberado_por_link", {
     empresa_id: empresa.id, plano: link.plano_concedido, dias: dias, ate: ate.toISOString()
   });
@@ -3334,13 +3510,49 @@ var EMAIL_TEMPLATES = {
       O trial acaba em <strong>${SANITIZE.string(terminaEm, 30)}</strong>. É a janela para falar com essa pessoa.
     </p>`),
 
-  trialAcabando: (nome, dias) => emailBase(`
-    <h2 style="text-align:center;margin:0 0 8px;color:#0a2e1a;font-weight:800">Seu trial acaba em ${SANITIZE.int(dias, 0, 30)} dia(s)! ⏰</h2>
-    <p style="color:#5a6b5a;text-align:center">Olá, <strong>${SANITIZE.string(nome)}</strong>! Renove por R$ 49,99/mês para não perder o acesso.</p>`),
+  // Os dois e-mails abaixo terminam em AÇÃO: um botão que leva ao
+  // pagamento e um WhatsApp para quem prefere negociar. Antes diziam
+  // "renove por R$ 49,99/mês" e paravam ali — um aviso sem caminho de
+  // saída, que obriga a pessoa a procurar sozinha onde se paga. Quem
+  // procura, some.
+  //
+  // O preço vem de CONFIG.PLANOS, nunca escrito à mão: preço em dois
+  // lugares é preço que um dia diverge do que a cobrança faz.
+  //
+  // ${botao} e ${zap} chegam prontos de quem chama, porque só lá se
+  // sabe o endereço do site e o número configurado no painel.
+  trialAcabando: (nome, dias, preco, botao, zap) => emailBase(`
+    <h2 style="margin:0 0 8px;color:#0a2e1a;font-size:22px;font-weight:800">Seu teste acaba em ${SANITIZE.int(dias, 0, 30)} dia(s) ⏰</h2>
+    <p style="color:#5a6b5a;font-size:15px;line-height:1.6;margin:0 0 20px">Olá, <strong>${SANITIZE.string(nome)}</strong>! Quando o teste terminar, o app deixa de abrir até a assinatura ser feita. Seus dados continuam salvos.</p>
+    <div style="background:#f7f9f7;border-radius:16px;padding:20px;margin:0 0 24px;text-align:center">
+      <div style="font-size:13px;color:#6b7a6b">Para continuar usando</div>
+      <div style="font-size:26px;font-weight:900;color:#1e8a40">R$ ${SANITIZE.string(preco)}<span style="font-size:14px;font-weight:600;color:#6b7a6b">/mês</span></div>
+    </div>
+    ${botao}
+    ${zap}`),
 
-  trialExpirado: (nome) => emailBase(`
-    <h2 style="text-align:center;margin:0 0 8px;color:#0a2e1a;font-weight:800">Seu trial expirou 😢</h2>
-    <p style="color:#5a6b5a;text-align:center">Olá, <strong>${SANITIZE.string(nome)}</strong>! Seus dados estão salvos. Reative por R$ 49,99/mês.</p>`),
+  trialExpirado: (nome, preco, botao, zap) => emailBase(`
+    <h2 style="margin:0 0 8px;color:#0a2e1a;font-size:22px;font-weight:800">Seu teste terminou</h2>
+    <p style="color:#5a6b5a;font-size:15px;line-height:1.6;margin:0 0 20px">Olá, <strong>${SANITIZE.string(nome)}</strong>! O acesso ao Workap está pausado. <strong>Nada foi apagado</strong> — seus funcionários, pontos e tarefas voltam exatamente como estavam assim que a assinatura for feita.</p>
+    <div style="background:#f7f9f7;border-radius:16px;padding:20px;margin:0 0 24px;text-align:center">
+      <div style="font-size:13px;color:#6b7a6b">Para reativar</div>
+      <div style="font-size:26px;font-weight:900;color:#1e8a40">R$ ${SANITIZE.string(preco)}<span style="font-size:14px;font-weight:600;color:#6b7a6b">/mês</span></div>
+    </div>
+    ${botao}
+    ${zap}`),
+
+  // Botão e faixa de WhatsApp, montados uma vez e usados nos dois
+  // e-mails. Separados para o dia em que o texto mudar num só lugar.
+  botaoAssinar: (url) => `
+    <div style="text-align:center;margin:0 0 20px">
+      <a href="${url}" style="display:inline-block;background:#1e8a40;color:#fff;text-decoration:none;font-weight:800;font-size:16px;padding:16px 34px;border-radius:12px">Assinar agora</a>
+    </div>`,
+
+  faixaWhatsapp: (numero) => numero ? `
+    <div style="background:#f0faf2;border-radius:12px;padding:16px;border-left:4px solid #3dd669;text-align:center">
+      <p style="margin:0 0 8px;font-size:14px;color:#2d5a2d">Prefere negociar ou tem alguma dúvida?</p>
+      <a href="https://wa.me/${SANITIZE.string(numero, 20)}" style="color:#16622f;font-weight:800;font-size:16px;text-decoration:none">Falar no WhatsApp ${formatarTelefone(String(numero).replace(/^55/, ""))}</a>
+    </div>` : "",
 
   // Comunicado da plataforma para as empresas clientes. O texto vem do
   // painel Owner, então passa por SANITIZE.string antes de entrar no
@@ -3519,7 +3731,31 @@ function jsonErr(res, msg, status = 400) {
 // ════════════════════════════════════════
 // CRON — verificar trials expirando
 // ════════════════════════════════════════
+/**
+ * Peças que os e-mails de fim de trial precisam e que só existem em
+ * tempo de execução: o preço do plano, o endereço do site e o WhatsApp
+ * configurado no painel.
+ *
+ * Montado uma vez por rodada do cron, e não por e-mail: whatsappDeVendas()
+ * lê a configuração da plataforma, e chamar isso dentro do laço faria
+ * uma consulta por empresa avisada.
+ */
+async function pecasDoAvisoDeTrial() {
+  var plano = CONFIG.PLANOS[CONFIG.PLANO_PADRAO] || Object.values(CONFIG.PLANOS)[0];
+  var preco = centavosParaReais(plano.centavos);
+  var zap   = await whatsappDeVendas().catch(function () { return null; });
+  return {
+    preco: preco,
+    botao: EMAIL_TEMPLATES.botaoAssinar(CONFIG.SITE_URL + "/?assinar=1"),
+    zap:   EMAIL_TEMPLATES.faixaWhatsapp(zap)
+  };
+}
+
 async function verificarTrials() {
+  var pecas = await pecasDoAvisoDeTrial().catch(function () {
+    return { preco: "", botao: "", zap: "" };
+  });
+
   try {
     var em2dias = await DB.select("empresas",
       "status=eq.trial" +
@@ -3529,8 +3765,12 @@ async function verificarTrials() {
     );
     for (var emp of (em2dias.body || [])) {
       var dias = Math.ceil((new Date(emp.trial_fim) - Date.now()) / (1000*60*60*24));
-      await enviarEmail(emp.email, `⏰ Seu trial acaba em ${dias} dia(s)!`, EMAIL_TEMPLATES.trialAcabando(emp.nome, dias));
-      enviarPush(emp.id, { title: "Seu trial está acabando", body: `Faltam ${dias} dia(s). Renove para não perder o acesso.`, url: "./" }).catch(() => {});
+      await enviarEmail(emp.email, `⏰ Seu teste acaba em ${dias} dia(s)`,
+        EMAIL_TEMPLATES.trialAcabando(emp.nome, dias, pecas.preco, pecas.botao, pecas.zap));
+      // O push diz o que ACONTECE, não "renove": a pessoa precisa saber
+      // que o app para de abrir, senão o aviso não compete com o resto
+      // da tela de notificações.
+      enviarPush(emp.id, { title: "Seu teste acaba em " + dias + " dia(s)", body: "Depois disso o app deixa de abrir. Assine para continuar.", url: "./" }).catch(() => {});
       await DB.update("empresas", "id=eq." + emp.id, { aviso_trial_sent: true });
       secLog("trial_aviso_enviado", { empresa_id: emp.id, dias });
     }
@@ -3539,8 +3779,10 @@ async function verificarTrials() {
       "status=eq.trial&trial_fim=lt." + new Date().toISOString() + "&aviso_expirado_sent=is.false"
     );
     for (var emp of (expirados.body || [])) {
-      await enviarEmail(emp.email, "😢 Seu trial do Workap expirou", EMAIL_TEMPLATES.trialExpirado(emp.nome));
+      await enviarEmail(emp.email, "Seu teste do Workap terminou",
+        EMAIL_TEMPLATES.trialExpirado(emp.nome, pecas.preco, pecas.botao, pecas.zap));
       await DB.update("empresas", "id=eq." + emp.id, { status: "inadimplente", aviso_expirado_sent: true });
+      esquecerAcesso(emp.id);
       secLog("trial_expirado", { empresa_id: emp.id });
     }
   } catch(e) {
@@ -3569,11 +3811,20 @@ async function verificarAssinaturasVencidas() {
     var vencidas = await DB.select("empresas",
       "status=eq.ativa&assinatura_ate=not.is.null&assinatura_ate=lt." + limite + "&select=id,nome,email");
 
+    // Mesmas peças do aviso de trial: preço, botão e WhatsApp. Fora do
+    // laço porque ler a configuração da plataforma por empresa seria
+    // uma consulta a mais para cada assinatura vencida.
+    var pecasVenc = await pecasDoAvisoDeTrial().catch(function () {
+      return { preco: "", botao: "", zap: "" };
+    });
+
     for (var emp of (vencidas.body || [])) {
       await DB.update("empresas", "id=eq." + emp.id, { status: "inadimplente" });
+      esquecerAcesso(emp.id);
       secLog("assinatura_vencida", { empresa_id: emp.id });
       enviarEmail(emp.email, "Sua assinatura do Workap venceu",
-        EMAIL_TEMPLATES.trialExpirado(emp.nome)).catch(function () {});
+        EMAIL_TEMPLATES.trialExpirado(emp.nome, pecasVenc.preco, pecasVenc.botao, pecasVenc.zap)
+      ).catch(function () {});
     }
   } catch (e) {
     secLog("cron_error", { job: "assinaturas", message: e.message });
@@ -5042,6 +5293,31 @@ var server = http.createServer(async (req, res) => {
     if (!authPayload) {
       secLog("auth_required", { ip, path });
       return jsonErr(res, "Autenticação necessária", 401);
+    }
+
+    // ── PORTÃO DO ACESSO ─────────────────────────────
+    // Trial vencido, assinatura vencida ou conta suspensa param aqui.
+    // Antes disto o status era gravado e nunca conferido: o teste
+    // grátis durava para sempre.
+    //
+    // 423 (Locked) e não 402: o app já usa 402 para "seu plano não
+    // inclui esta tela" (espelho de ponto, jornada), e reaproveitar o
+    // código faria a tela de upgrade do Pro aparecer no lugar do aviso
+    // de trial vencido. Dois problemas diferentes, dois códigos.
+    //
+    // O owner da Workap nunca é barrado: o token dele carrega
+    // EMPRESA_NENHUMA, que não é conta de cliente e não tem trial.
+    if (authPayload.empresa_id && authPayload.empresa_id !== EMPRESA_NENHUMA &&
+        !rotaLiberadaMesmoBloqueado(method, path)) {
+      var acesso = await estadoDeAcesso(authPayload.empresa_id);
+      if (acesso.motivo) {
+        secLog("acesso_bloqueado", {
+          empresa_id: authPayload.empresa_id, motivo: acesso.motivo, path: path
+        });
+        res.writeHead(423, { "Content-Type": "application/json" });
+        return res.end(JSON.stringify(
+          await corpoDoBloqueio(acesso.motivo, acesso.empresa, authPayload.role)));
+      }
     }
 
     // ═══════════════════════════════════════════════
