@@ -96,6 +96,36 @@ const CONFIG = {
     return (isNaN(n) || n < 0 || n > 5000) ? 99 : n;
   })(),
 
+  // ── INTELIGÊNCIA ARTIFICIAL ──
+  //
+  // Sem a chave, tudo que é de IA simplesmente não aparece e nada
+  // quebra: o resumo diário não sai e o botão "escrever com IA" some
+  // da tela. É recurso opcional, não dependência.
+  ANTHROPIC_API_KEY: env("ANTHROPIC_API_KEY"),
+
+  // Haiku 4.5 é o modelo mais barato da família (US$ 1 por milhão de
+  // tokens de entrada, US$ 5 de saída) e dá conta de sobra do que
+  // pedimos aqui: resumir números que já vêm mastigados e escrever um
+  // aviso de três linhas. Não é tarefa de raciocínio.
+  //
+  // A escolha foi por CUSTO, a pedido do dono, e está aqui em vez de
+  // enterrada no código justamente para poder mudar: trocar por
+  // "claude-sonnet-5" no Render melhora a escrita e multiplica a conta
+  // por três. Um resumo diário custa ~US$ 0,003 no Haiku.
+  IA_MODELO: env("IA_MODELO") || "claude-haiku-4-5",
+
+  // Teto de gasto por empresa, por mês, em micro-dólares.
+  // 50000 = US$ 0,05 = cerca de 15 resumos diários + escrita à vontade.
+  //
+  // Existe porque IA é o único custo que cresce com o uso: sem teto,
+  // uma conta que usa muito não aparece em lugar nenhum até chegar a
+  // fatura. Estourou, o recurso para para AQUELA empresa e volta no
+  // mês seguinte — o resto do sistema continua igual.
+  IA_TETO_MES_MICRODOLARES: (function () {
+    var v = parseInt(env("IA_TETO_MES_MICRODOLARES") || "", 10);
+    return (isNaN(v) || v < 0) ? 50000 : v;
+  })(),
+
   // WhatsApp de vendas, para quem prefere negociar a assinar sozinho.
   // Aparece no e-mail de fim de trial e na tela de bloqueio.
   //
@@ -923,7 +953,7 @@ function supabase(method, table, options = {}) {
     "dispositivos_confiaveis", "comunicados_plataforma",
     "owners_plataforma", "webauthn_credentials", "webauthn_challenges",
     "config_plataforma", "utmify_envios",
-    "anotacoes",
+    "anotacoes", "ia_usos",
     "comunicados", "cargos", "config_faltas", "contas_pagar",
     "mensagens", "periodos_afastamento", "metas",
     "config_jornada", "erros_plataforma", "eventos_pagamento",
@@ -1390,6 +1420,144 @@ async function gravarConfigPlataforma(chave, valor) {
     await supabase("POST", "config_plataforma", { body: corpo });
   }
   cacheConfig.expiraEm = 0;   // força releitura na próxima consulta
+}
+
+// ════════════════════════════════════════
+// INTELIGÊNCIA ARTIFICIAL
+// ════════════════════════════════════════
+//
+// Dois usos, os dois de custo FECHADO:
+//
+//   1. resumo diário do dono — roda uma vez por dia, com números que
+//      já vêm prontos do banco;
+//   2. escrever com IA — o dono pede "aviso sobre o novo horário" e
+//      sai o texto do comunicado.
+//
+// O que NÃO existe aqui, de propósito: chat aberto com o cliente. É o
+// único uso sem teto natural — cada turno reenvia o histórico inteiro,
+// e o gasto cresce sozinho. Num produto de R$ 49,99 isso vira prejuízo
+// silencioso antes de alguém perceber. Se um dia entrar, entra com
+// limite por conta e medido antes.
+//
+// TUDO aqui degrada em silêncio: sem chave da API, o resumo não sai e
+// o botão some da tela. Nenhuma rota do produto depende disto.
+
+var anthropic = null;
+function clienteIA() {
+  if (!CONFIG.ANTHROPIC_API_KEY) return null;
+  if (!anthropic) {
+    var Anthropic = require("@anthropic-ai/sdk");
+    anthropic = new Anthropic({ apiKey: CONFIG.ANTHROPIC_API_KEY });
+  }
+  return anthropic;
+}
+
+// Preço por MILHÃO de tokens, em micro-dólares, para calcular o custo
+// de cada chamada sem ponto flutuante.
+//
+// Se o modelo do Render não estiver nesta tabela, cai no mais CARO da
+// lista: errar para cima faz o teto proteger antes da hora; errar para
+// baixo faz o teto não proteger nada, que é o erro que custa dinheiro.
+var PRECO_IA = {
+  "claude-haiku-4-5": { entrada: 1000000,  saida: 5000000  },
+  "claude-sonnet-5":  { entrada: 3000000,  saida: 15000000 },
+  "claude-opus-5":    { entrada: 5000000,  saida: 25000000 }
+};
+
+function custoEmMicrodolares(modelo, tokensEntrada, tokensSaida) {
+  var p = PRECO_IA[modelo] || { entrada: 5000000, saida: 25000000 };
+  return Math.round(
+    (tokensEntrada * p.entrada + tokensSaida * p.saida) / 1000000
+  );
+}
+
+/**
+ * Quanto esta empresa já gastou de IA no mês corrente.
+ */
+async function gastoDeIaNoMes(empresaId) {
+  var inicio = new Date();
+  inicio.setDate(1); inicio.setHours(0, 0, 0, 0);
+
+  var r = await DB.select("ia_usos",
+    "empresa_id=eq." + empresaId +
+    "&criado_em=gte." + inicio.toISOString() +
+    "&select=custo_microdolares&limit=5000"
+  ).catch(function () { return { body: [] }; });
+
+  return (r.body || []).reduce(function (soma, l) {
+    return soma + (l.custo_microdolares || 0);
+  }, 0);
+}
+
+/**
+ * Chama o modelo e registra o que custou.
+ *
+ * Devolve { ok, texto, motivo }. Nunca lança: quem chama é um cron ou
+ * um botão de conveniência, e derrubar a rotina da noite porque a API
+ * de IA está fora do ar seria trocar um recurso opcional por um
+ * incidente.
+ *
+ * O teto é conferido ANTES de gastar, não depois — conferir depois é
+ * descobrir o estouro já tendo pago por ele.
+ */
+async function chamarIA(empresaId, tipo, sistema, pergunta, maxTokens) {
+  var cliente = clienteIA();
+  if (!cliente) return { ok: false, motivo: "sem_chave" };
+
+  if (CONFIG.IA_TETO_MES_MICRODOLARES > 0) {
+    var gasto = await gastoDeIaNoMes(empresaId);
+    if (gasto >= CONFIG.IA_TETO_MES_MICRODOLARES) {
+      secLog("ia_teto_atingido", { empresa_id: empresaId, gasto: gasto, tipo: tipo });
+      return { ok: false, motivo: "teto_do_mes" };
+    }
+  }
+
+  try {
+    var resposta = await cliente.messages.create({
+      model: CONFIG.IA_MODELO,
+      max_tokens: maxTokens || 1024,
+      system: sistema,
+      messages: [{ role: "user", content: pergunta }]
+    });
+
+    // content é uma lista de blocos; só os de texto interessam.
+    var texto = (resposta.content || [])
+      .filter(function (b) { return b.type === "text"; })
+      .map(function (b) { return b.text; })
+      .join("\n").trim();
+
+    var entrada = (resposta.usage && resposta.usage.input_tokens) || 0;
+    var saida   = (resposta.usage && resposta.usage.output_tokens) || 0;
+    var custo   = custoEmMicrodolares(CONFIG.IA_MODELO, entrada, saida);
+
+    // Sem await: registrar o gasto não pode atrasar a resposta ao
+    // dono. Se falhar, o pior caso é uma chamada não contabilizada.
+    DB.insert("ia_usos", {
+      empresa_id: empresaId, tipo: tipo,
+      tokens_entrada: entrada, tokens_saida: saida,
+      custo_microdolares: custo, modelo: CONFIG.IA_MODELO
+    }).catch(function () {});
+
+    secLog("ia_chamada", {
+      empresa_id: empresaId, tipo: tipo, modelo: CONFIG.IA_MODELO,
+      entrada: entrada, saida: saida, custo_microdolares: custo
+    });
+
+    if (!texto) return { ok: false, motivo: "resposta_vazia" };
+    return { ok: true, texto: texto, custo_microdolares: custo };
+
+  } catch (e) {
+    // O nome da classe do erro diz se adianta tentar de novo. Um 429
+    // (limite) passa; um 401 (chave errada) não melhora sozinho.
+    var classe = (e && e.constructor && e.constructor.name) || "erro";
+    secLog("ia_falhou", { empresa_id: empresaId, tipo: tipo, classe: classe,
+                          status: (e && e.status) || null });
+    if (e && e.status === 401) {
+      registrarErro("ia", "Chave da IA recusada (401). O resumo diário e o botão de escrever estão parados.",
+        { rota: "chamarIA" });
+    }
+    return { ok: false, motivo: "falha_na_api" };
+  }
 }
 
 // ════════════════════════════════════════
@@ -3684,6 +3852,15 @@ var EMAIL_TEMPLATES = {
       <p style="margin:0;font-size:12px;color:#9aab9a">Você recebeu este aviso porque tem uma conta no Workap.</p>
     </div>`),
 
+  // Resumo diário escrito pela IA. O texto vem em linhas soltas; o
+  // white-space:pre-wrap preserva as quebras sem precisar montar HTML
+  // a partir do que o modelo escreveu.
+  resumoDiario: (nomeEmpresa, texto) => emailBase(`
+    <h2 style="margin:0 0 6px;color:#0a2e1a;font-size:22px;font-weight:800">Seu resumo de hoje</h2>
+    <p style="color:#9aab9a;font-size:13px;margin:0 0 20px">${SANITIZE.string(nomeEmpresa)} · ${new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}</p>
+    <div style="background:#f7f9f7;border-radius:16px;padding:22px 24px;color:#3a3d39;font-size:15px;line-height:1.65;white-space:pre-wrap">${SANITIZE.string(texto, 3000)}</div>
+    <p style="color:#9aab9a;font-size:12px;text-align:center;margin:20px 0 0">Resumo automático do Workap, a partir dos dados do seu app.</p>`),
+
   // Lembrete de anotação, no dia que o dono marcou.
   lembreteAnotacao: (nomeEmpresa, titulo, texto, sobre) => emailBase(`
     <h2 style="margin:0 0 8px;color:#0a2e1a;font-size:22px;font-weight:800">Lembrete</h2>
@@ -4199,6 +4376,138 @@ async function avisarPeriodoAquisitivo() {
 // Uma vez por dia: a janela é de um dia, e rodar de hora em hora
 // mandaria o mesmo aviso 24 vezes.
 setInterval(avisarPeriodoAquisitivo, 24 * 60 * 60 * 1000);
+
+/**
+ * Resumo diário do dono, escrito pela IA.
+ *
+ * A ideia: o dono abre o e-mail de manhã e sabe o que precisa de
+ * atenção HOJE, sem abrir sete telas. O app já tem todos os números —
+ * o que faltava era alguém juntar e dizer o que importa.
+ *
+ * O custo é fechado porque a IA NÃO consulta nada: ela recebe os
+ * números já apurados aqui e só escreve. Entrada de ~500 tokens,
+ * saída de ~250. No Haiku dá cerca de US$ 0,003 por empresa por dia —
+ * uns R$ 0,50 por mês.
+ *
+ * Só para quem tem acesso: conta bloqueada não recebe. Mandar resumo
+ * diário para quem está com o trial vencido é pagar IA para lembrar
+ * alguém de um sistema que ele não consegue abrir.
+ */
+async function coletarNumerosDoDia(empresaId) {
+  var agora = new Date();
+  var inicioDoDia = new Date(agora); inicioDoDia.setHours(0, 0, 0, 0);
+  var hojeTexto = agora.toISOString().substring(0, 10);
+  var em7dias = new Date(agora.getTime() + 7 * 86400000).toISOString().substring(0, 10);
+
+  var eq = "empresa_id=eq." + empresaId;
+  var resultados = await Promise.all([
+    DB.select("funcionarios", eq + "&status=eq.ativo&select=id,nome"),
+    DB.select("registros_ponto", eq + "&created_at=gte." + inicioDoDia.toISOString() + "&select=tipo,funcionario_id"),
+    DB.select("tarefas", eq + "&status=neq.concluida&select=titulo,prazo,status&limit=100"),
+    DB.select("produtos_validade", eq + "&validade=lte." + em7dias + "&select=nome,validade&limit=50"),
+    DB.select("ausencias", eq + "&data=eq." + hojeTexto + "&select=tipo,funcionario_id"),
+    DB.select("contas_pagar", eq + "&status=eq.pendente&vencimento=lte." + em7dias + "&select=descricao,valor,vencimento&limit=30")
+  ].map(function (p) { return p.catch(function () { return { body: [] }; }); }));
+
+  var funcs      = resultados[0].body || [];
+  var pontos     = resultados[1].body || [];
+  var tarefas    = resultados[2].body || [];
+  var vencendo   = resultados[3].body || [];
+  var ausencias  = resultados[4].body || [];
+  var contas     = resultados[5].body || [];
+
+  var nome = {};
+  funcs.forEach(function (f) { nome[f.id] = f.nome; });
+
+  // Quem entrou e não registrou saída — o furo que mais aparece no
+  // fechamento do mês, e que só dá para corrigir no mesmo dia.
+  var entrou = {}, saiu = {};
+  pontos.forEach(function (p) {
+    if (p.tipo === "entrada") entrou[p.funcionario_id] = true;
+    if (p.tipo === "saida")   saiu[p.funcionario_id] = true;
+  });
+  var semSaida = Object.keys(entrou).filter(function (id) { return !saiu[id]; })
+                       .map(function (id) { return nome[id] || "funcionário"; });
+
+  var atrasadas = tarefas.filter(function (t) {
+    return t.prazo && new Date(t.prazo) < agora;
+  });
+
+  return {
+    equipe: funcs.length,
+    bateram_ponto: Object.keys(entrou).length,
+    sem_saida: semSaida,
+    faltaram: ausencias.map(function (a) { return nome[a.funcionario_id] || "funcionário"; }),
+    tarefas_abertas: tarefas.length,
+    tarefas_atrasadas: atrasadas.map(function (t) { return t.titulo; }).slice(0, 5),
+    produtos_vencendo: vencendo.map(function (v) {
+      return v.nome + " (" + String(v.validade).substring(0, 10).split("-").reverse().join("/") + ")";
+    }).slice(0, 5),
+    contas_a_vencer: contas.map(function (c) {
+      return c.descricao + " R$ " + Number(c.valor).toFixed(2).replace(".", ",");
+    }).slice(0, 5)
+  };
+}
+
+var SISTEMA_RESUMO =
+  "Você escreve o resumo diário para o dono de um pequeno negócio no Brasil " +
+  "(padaria, barbearia, mercadinho). Ele tem trinta segundos e está com o " +
+  "celular na mão.\n\n" +
+  "Regras:\n" +
+  "- Comece pelo que precisa de AÇÃO hoje. Se nada precisa, diga isso em uma linha e pare.\n" +
+  "- No máximo 5 linhas curtas. Sem introdução, sem despedida, sem 'segue o resumo'.\n" +
+  "- Cite nomes de pessoas e de produtos quando os dados trouxerem.\n" +
+  "- Não invente número nenhum: use só o que está nos dados. Se um dado não veio, não fale dele.\n" +
+  "- Português do Brasil, direto, como um sócio falaria. Nada de linguagem corporativa.";
+
+async function enviarResumosDiarios() {
+  if (!CONFIG.ANTHROPIC_API_KEY) return;   // recurso desligado
+
+  try {
+    var empresas = await DB.select("empresas",
+      "select=id,nome,email,status,trial_fim,assinatura_ate&limit=500"
+    ).catch(function () { return { body: [] }; });
+
+    for (var emp of (empresas.body || [])) {
+      // Conta sem acesso não recebe — ver motivoDeBloqueio().
+      if (motivoDeBloqueio(emp)) continue;
+
+      var dados = await coletarNumerosDoDia(emp.id);
+
+      // Dia sem nada não vira e-mail. Um resumo que chega todo dia
+      // dizendo "tudo tranquilo" é um e-mail que se aprende a ignorar —
+      // e aí o dia que importa passa junto.
+      var temAssunto = dados.sem_saida.length || dados.faltaram.length ||
+                       dados.tarefas_atrasadas.length || dados.produtos_vencendo.length ||
+                       dados.contas_a_vencer.length;
+      if (!temAssunto) continue;
+
+      var r = await chamarIA(emp.id, "resumo_diario", SISTEMA_RESUMO,
+        "Dados de hoje (" + new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }) +
+        ") do negócio " + emp.nome + ":\n\n" + JSON.stringify(dados, null, 1),
+        400);
+
+      if (!r.ok) continue;
+
+      await enviarEmail(emp.email, "Seu resumo de hoje — " + emp.nome,
+        EMAIL_TEMPLATES.resumoDiario(emp.nome, r.texto)
+      ).catch(function (e) { secLog("email_error", { type: "resumo_diario", message: e.message }); });
+
+      enviarPush(emp.id, {
+        title: "Seu resumo de hoje",
+        body: r.texto.split("\n")[0].slice(0, 120),
+        url: "app/"
+      }).catch(function () {});
+
+      secLog("resumo_diario_enviado", { empresa_id: emp.id });
+    }
+  } catch (e) {
+    secLog("cron_error", { job: "resumo_diario", message: e.message });
+  }
+}
+// Uma vez por dia. Numa instância que dorme (Render grátis) o horário
+// exato depende de quando ela acordou — o que importa é ser uma vez.
+setInterval(enviarResumosDiarios, 24 * 60 * 60 * 1000);
 
 // Uma rodada logo depois de subir, além da de hora em hora.
 //
@@ -5968,7 +6277,13 @@ var server = http.createServer(async (req, res) => {
       // texto livre em `ramo` ("alimentação", "Padaria da esquina") e o
       // app precisa de um slug conhecido para escolher o vocabulário.
       meEmpresa.ramo = ramoDaEmpresa(meEmpresa.ramo);
-      return jsonOk(res, { empresa: meEmpresa, trial: meTrialInfo, ramo: configDoRamo(meEmpresa.ramo) });
+      // O app usa isto para mostrar ou esconder o botão "escrever com
+      // IA". Sem a chave configurada, o botão não aparece — melhor não
+      // existir do que existir e responder erro.
+      return jsonOk(res, {
+        empresa: meEmpresa, trial: meTrialInfo, ramo: configDoRamo(meEmpresa.ramo),
+        ia: { disponivel: !!CONFIG.ANTHROPIC_API_KEY }
+      });
     }
 
     // ── MÉTRICAS DA PLATAFORMA (somente owner) ───────
@@ -9104,6 +9419,82 @@ var server = http.createServer(async (req, res) => {
 
       await DB.delete("periodos_afastamento", `id=eq.${idAf}`);
       return jsonOk(res, { ok: true });
+    }
+
+    // ════════════════════════════════════════
+    // ESCREVER COM IA
+    // ════════════════════════════════════════
+    // O dono digita "aviso sobre o novo horário de sábado" e recebe o
+    // texto pronto para colar no comunicado, na anotação ou na tarefa.
+    //
+    // Resolve uma dor real de quem tem negócio pequeno: escrever um
+    // aviso que não soe rude leva mais tempo do que a tarefa que o
+    // aviso descreve.
+    //
+    // Devolve o texto e NÃO grava nada: quem decide se aquilo vira
+    // comunicado é o dono, na tela seguinte. Gravar aqui criaria
+    // rascunho que ninguém pediu.
+
+    if (method === "POST" && path === "/ia/escrever") {
+      // Mesma permissão de quem publica no mural: se a pessoa não pode
+      // comunicar nada, também não precisa de ajuda para redigir.
+      if (!hasPermission(authPayload, "mural:write")) {
+        return jsonErr(res, "Sem permissão para usar isto", 403);
+      }
+      if (!CONFIG.ANTHROPIC_API_KEY) {
+        return jsonErr(res, "Recurso de IA não está configurado.", 503);
+      }
+
+      var rawIa = await getBody(req);
+      var bodyIa = parseBody(rawIa);
+      if (!bodyIa) return jsonErr(res, "Dados inválidos");
+
+      var pedido = SANITIZE.string(bodyIa.pedido || "", 500);
+      if (!pedido || pedido.length < 5) {
+        return jsonErr(res, "Escreva em poucas palavras o que você quer comunicar.");
+      }
+
+      // O formato muda o TOM, não só o tamanho: um comunicado fala com
+      // a equipe, uma anotação fala com o próprio dono no futuro.
+      var FORMATOS = {
+        comunicado: "um comunicado curto para a equipe ler no mural do app",
+        anotacao:   "uma anotação interna, que só o dono e os gerentes leem",
+        tarefa:     "a descrição de uma tarefa, dizendo o que precisa ser feito e como saber que terminou",
+        mensagem:   "uma mensagem curta e cordial para mandar a um funcionário"
+      };
+      var formato = FORMATOS[bodyIa.formato] ? bodyIa.formato : "comunicado";
+
+      var empIa = await DB.select("empresas",
+        "id=eq." + authPayload.empresa_id + "&select=nome,ramo");
+      var negocio = (empIa.body && empIa.body[0]) || {};
+      var ramoIa = RAMOS[negocio.ramo] ? RAMOS[negocio.ramo].nome : null;
+
+      var sistemaIa =
+        "Você escreve textos curtos para o dono de um pequeno negócio no Brasil" +
+        (ramoIa ? " (" + ramoIa + ")" : "") + ".\n\n" +
+        "Regras:\n" +
+        "- Escreva " + FORMATOS[formato] + ".\n" +
+        "- Português do Brasil, simples e direto. Nada de linguagem corporativa.\n" +
+        "- No máximo 4 frases.\n" +
+        "- Devolva SÓ o texto final, sem título, sem aspas e sem explicar o que você fez.\n" +
+        "- Não invente datas, horários, nomes ou valores que não estejam no pedido.";
+
+      var saida = await chamarIA(authPayload.empresa_id, "escrever", sistemaIa, pedido, 500);
+
+      if (!saida.ok) {
+        // Cada motivo tem uma saída diferente para o dono. "Erro ao
+        // gerar" nos três casos faria ele tentar de novo justamente
+        // quando tentar de novo não resolve.
+        if (saida.motivo === "teto_do_mes") {
+          return jsonErr(res, "Você usou toda a cota de IA deste mês. Ela volta na virada do mês.", 429);
+        }
+        if (saida.motivo === "sem_chave") {
+          return jsonErr(res, "Recurso de IA não está configurado.", 503);
+        }
+        return jsonErr(res, "Não consegui escrever agora. Tente de novo em instantes.", 502);
+      }
+
+      return jsonOk(res, { texto: saida.texto });
     }
 
     // ════════════════════════════════════════

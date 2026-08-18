@@ -1572,9 +1572,18 @@ tr:hover td{background:var(--g50)}
           </div>
           <div style="font-size:.75rem;color:var(--gray500);margin-top:-6px">Todo mundo da equipe recebe uma notificação no celular.</div>
           <div class="login-erro" id="mural-erro">Preencha título e mensagem.</div>
-          <button class="btn btn-primary" id="mural-btn" onclick="publicarComunicado()" style="margin-top:12px">
-            <svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg> Publicar
-          </button>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:center">
+            <button class="btn btn-primary" id="mural-btn" onclick="publicarComunicado()">
+              <svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg> Publicar
+            </button>
+            <!-- Só aparece quando o servidor diz que a IA está
+                 configurada (GET /me → ia.disponivel). Botão que existe
+                 e responde erro é pior que botão que não existe. -->
+            <button class="btn btn-secondary" id="btn-ia-mural" onclick="escreverComIA()" style="display:none">
+              ✨ Escrever com IA
+            </button>
+            <span id="ia-mural-aviso" style="font-size:.76rem;color:var(--gray500);display:none"></span>
+          </div>
         </div>
       </div>
 
@@ -9589,6 +9598,65 @@ async function removerAfastamento(id){
 }
 
 // ═══════════════════════════════════
+// ESCREVER COM IA
+// ═══════════════════════════════════
+//
+// O dono digita "aviso sobre o novo horário de sábado" no campo de
+// mensagem e recebe o texto pronto. A IA escreve, ele revisa e publica
+// — o texto NUNCA é publicado direto.
+var iaDisponivel = false;
+
+// Chamado depois do login, com o que GET /me respondeu.
+function ligarBotoesDeIA(info) {
+  iaDisponivel = !!(info && info.ia && info.ia.disponivel);
+  var btn = document.getElementById('btn-ia-mural');
+  if (btn) btn.style.display = iaDisponivel ? '' : 'none';
+}
+
+function avisoIA(msg, cor) {
+  var el = document.getElementById('ia-mural-aviso');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.style.color = cor || 'var(--gray500)';
+  el.style.display = msg ? '' : 'none';
+}
+
+async function escreverComIA() {
+  var campo = document.getElementById('mural-mensagem');
+  var titulo = document.getElementById('mural-titulo');
+  if (!campo) return;
+
+  // O pedido é o que já está escrito: no campo de mensagem, ou no
+  // título quando a mensagem está vazia. Assim não há um segundo campo
+  // "diga o que você quer" — o dono escreve onde já ia escrever.
+  var pedido = (campo.value || '').trim() || (titulo && titulo.value || '').trim();
+  if (pedido.length < 5) {
+    avisoIA('Escreva em poucas palavras o que quer comunicar e clique de novo.', '#9a3412');
+    campo.focus();
+    return;
+  }
+
+  avisoIA('');
+  var liberar = botaoOcupado(document.getElementById('btn-ia-mural'), 'Escrevendo...');
+  try {
+    var r = await fetch(API_BASE + '/ia/escrever', {
+      method: 'POST', headers: cabecalhoAuth(),
+      body: JSON.stringify({ pedido: pedido, formato: 'comunicado' })
+    });
+    var d = await r.json().catch(function () { return {}; });
+    liberar();
+
+    if (!r.ok) { avisoIA(d.error || 'Não consegui escrever agora.', '#dc2626'); return; }
+
+    campo.value = d.texto;
+    avisoIA('Escrito pela IA — confira antes de publicar.');
+  } catch (e) {
+    liberar();
+    avisoIA('Erro de conexão.', '#dc2626');
+  }
+}
+
+// ═══════════════════════════════════
 // ANOTAÇÕES
 // ═══════════════════════════════════
 var ESTILO_DA_ANOTACAO = {
@@ -11116,6 +11184,10 @@ window.addEventListener('DOMContentLoaded', function(){
         return;
       }
       entrarComoDono(tokenSalvo, data.empresa, data.trial, data.ramo);
+      // Mostra ou esconde o botão de IA conforme o servidor. Sem esta
+      // linha a função existiria e nunca rodaria — o botão ficaria
+      // escondido para todo mundo, inclusive com a chave configurada.
+      ligarBotoesDeIA(data);
     })
     .catch(function(){
       // Falha de rede ao restaurar sessão — deixa a tela de login
