@@ -9,6 +9,8 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v34: entrou IA — resumo diario do dono por e-mail e botao "escrever
+// com IA" no mural, com teto de gasto por empresa. Sem chave, some.
 // v33: entrou a aba de Anotacoes (memoria do dono sobre a equipe, com
 // lembrete que avisa no dia) e o aviso de periodo aquisitivo de ferias,
 // 30 dias antes de cada aniversario de admissao.
@@ -59,7 +61,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v33';
+var CACHE = 'workap-v34';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
