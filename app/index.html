@@ -2659,9 +2659,20 @@ tr:hover td{background:var(--g50)}
     <div id="add-func-erro" style="display:none;background:#fef2f2;color:#dc2626;border-radius:8px;padding:10px 12px;font-size:.82rem;margin-bottom:10px"></div>
     <div class="form-grid">
       <div class="field form-full"><label>Nome completo</label><input id="af-nome" placeholder="Nome do funcionário"></div>
-      <div class="field"><label>E-mail</label><input id="af-email" type="email" placeholder="email@email.com"></div>
       <div class="field"><label>Telefone</label><input id="af-telefone" placeholder="(00) 00000-0000"></div>
-      <div class="field"><label>Senha inicial</label><input id="af-senha" type="password" placeholder="••••••••"></div>
+      <div class="field"><label>E-mail (opcional)</label><input id="af-email" type="email" placeholder="deixe em branco se não souber"></div>
+      <!-- A senha ERA obrigatória, e o dono tinha que inventar uma para
+           cada pessoa e comunicar na mão. Agora o padrão é mandar um
+           link: quem entra escolhe a própria senha. O campo continua
+           aqui, escondido, para quem já tem o hábito antigo. -->
+      <div class="field form-full" id="af-bloco-senha" style="display:none">
+        <label>Senha inicial</label>
+        <input id="af-senha" type="password" placeholder="••••••••">
+      </div>
+      <div class="form-full" style="font-size:.78rem;color:var(--gray500)">
+        Ele recebe um link para criar a própria senha.
+        <a href="#" onclick="mostrarSenhaManual();return false;" id="af-link-senha" style="color:var(--g500)">Prefiro definir a senha eu mesmo</a>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="fecharModal('modal-add-func')">Cancelar</button>
@@ -4151,12 +4162,15 @@ function salvarNovoFuncionario(){
   var telefone = document.getElementById('af-telefone').value.trim();
   var senha = document.getElementById('af-senha').value;
 
-  if(!nome || !email || !senha){
-    erroEl.textContent = 'Preencha nome, e-mail e senha.';
+  // Só o nome é obrigatório. Dono de padaria sabe o nome e o telefone
+  // do ajudante — exigir e-mail ali trava o cadastro na primeira
+  // pessoa, e é justamente o cadastro que destrava o app inteiro.
+  if(!nome){
+    erroEl.textContent = 'Informe o nome do funcionário.';
     erroEl.style.display = 'block';
     return;
   }
-  if(senha.length < 8){
+  if(senha && senha.length < 8){
     erroEl.textContent = 'A senha precisa ter no mínimo 8 caracteres.';
     erroEl.style.display = 'block';
     return;
@@ -4173,7 +4187,11 @@ function salvarNovoFuncionario(){
       'Content-Type': 'application/json',
       'Authorization': 'Bearer ' + sessaoWorka.token
     },
-    body: JSON.stringify({ teamId: sessaoWorka.teamId, nome: nome, email: email, telefone: telefone, senha: senha })
+    // Campos vazios saem como undefined e somem do JSON: mandar
+    // string vazia faria o servidor tentar validar "" como e-mail.
+    body: JSON.stringify({ teamId: sessaoWorka.teamId, nome: nome,
+      email: email || undefined, telefone: telefone || undefined,
+      senha: senha || undefined })
   })
   .then(function(r){ return r.json().then(function(data){ return { status:r.status, data:data }; }); })
   .then(function(res){
@@ -4184,12 +4202,20 @@ function salvarNovoFuncionario(){
       erroEl.style.display = 'block';
       return;
     }
-    // Limpar campos e fechar modal
     document.getElementById('af-nome').value = '';
     document.getElementById('af-email').value = '';
     document.getElementById('af-telefone').value = '';
     document.getElementById('af-senha').value = '';
-    fecharModal('modal-add-func');
+
+    // Com convite, o modal NÃO fecha: mostra o link para o dono copiar
+    // e mandar no WhatsApp. Fechar aqui esconderia justamente a coisa
+    // que faz o cadastro valer alguma — e ele teria que procurar
+    // depois, se lembrasse.
+    if(res.data.url_convite){
+      mostrarConviteDoFuncionario(nome, res.data.url_convite);
+    } else {
+      fecharModal('modal-add-func');
+    }
     if(typeof carregarFuncionariosReais === 'function') carregarFuncionariosReais();
   })
   .catch(function(){
@@ -9598,6 +9624,198 @@ async function removerAfastamento(id){
 }
 
 // ═══════════════════════════════════
+// CONVITE DO FUNCIONÁRIO
+// ═══════════════════════════════════
+
+function mostrarSenhaManual() {
+  var bloco = document.getElementById('af-bloco-senha');
+  var link  = document.getElementById('af-link-senha');
+  if (bloco) bloco.style.display = '';
+  if (link)  link.style.display = 'none';
+  var campo = document.getElementById('af-senha');
+  if (campo) campo.focus();
+}
+
+// Mostra o link recém-criado dentro do próprio modal, com um botão que
+// copia a mensagem pronta para o WhatsApp — o dono não precisa
+// escrever nada nem lembrar o que explicar.
+function mostrarConviteDoFuncionario(nome, url) {
+  var modal = document.querySelector('#modal-add-func .modal');
+  if (!modal) return;
+
+  var caixa = document.createElement('div');
+  caixa.style.cssText = 'background:#edfaf2;border:1.5px solid #86e0a6;border-radius:12px;' +
+    'padding:16px;margin-top:14px';
+
+  function linha(tag, css, txt) {
+    var e = document.createElement(tag);
+    if (css) e.style.cssText = css;
+    if (txt) e.textContent = txt;
+    return e;
+  }
+
+  caixa.appendChild(linha('div', 'font-weight:800;color:#16622f;font-size:.9rem;margin-bottom:4px',
+    nome + ' foi cadastrado'));
+  caixa.appendChild(linha('div', 'font-size:.8rem;color:var(--gray600);line-height:1.5;margin-bottom:10px',
+    'Mande este link para ele. Vale uma vez só, e é ele quem escolhe a senha.'));
+  caixa.appendChild(linha('div',
+    'font-family:ui-monospace,Menlo,monospace;font-size:.72rem;word-break:break-all;' +
+    'background:#fff;padding:10px;border-radius:8px;margin-bottom:10px', url));
+
+  var acoes = document.createElement('div');
+  acoes.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap';
+
+  var btnMsg = document.createElement('button');
+  btnMsg.className = 'btn btn-primary btn-sm';
+  btnMsg.textContent = 'Copiar mensagem pronta';
+  btnMsg.onclick = function () {
+    var msg = 'Oi, ' + nome + '! Criei seu acesso ao app da equipe.\n\n' +
+              'Abre este link e escolhe sua senha:\n' + url + '\n\n' +
+              '(o link vale uma vez só)';
+    copiarTextoSimples(msg, btnMsg, 'Copiar mensagem pronta');
+  };
+
+  var btnLink = document.createElement('button');
+  btnLink.className = 'btn btn-secondary btn-sm';
+  btnLink.textContent = 'Copiar só o link';
+  btnLink.onclick = function () { copiarTextoSimples(url, btnLink, 'Copiar só o link'); };
+
+  var btnFim = document.createElement('button');
+  btnFim.className = 'btn btn-secondary btn-sm';
+  btnFim.textContent = 'Fechar';
+  btnFim.onclick = function () { caixa.remove(); fecharModal('modal-add-func'); };
+
+  [btnMsg, btnLink, btnFim].forEach(function (b) { acoes.appendChild(b); });
+  caixa.appendChild(acoes);
+
+  var antiga = modal.querySelector('.caixa-convite');
+  if (antiga) antiga.remove();
+  caixa.className = 'caixa-convite';
+  modal.appendChild(caixa);
+}
+
+function copiarTextoSimples(texto, botao, rotulo) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(texto).then(function () {
+      botao.textContent = 'Copiado';
+      setTimeout(function () { botao.textContent = rotulo; }, 1800);
+    }, function () { botao.textContent = 'Copie à mão'; });
+  } else {
+    botao.textContent = 'Copie à mão';
+  }
+}
+
+// ── A tela que o FUNCIONÁRIO vê ao abrir o link ──────────────
+//
+// Roda antes de qualquer outra coisa: quem chega por aqui não tem
+// conta, então a tela de login normal só atrapalharia.
+function tratarConviteDeFuncionario() {
+  var token = new URLSearchParams(window.location.search).get('convite');
+  if (!token) return false;
+
+  history.replaceState(null, '', window.location.pathname);
+
+  fetch(API_BASE + '/convite-funcionario/' + encodeURIComponent(token))
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.ok) { telaDeConvite(null, null, token, d && d.motivo); return; }
+      telaDeConvite(d.nome, d.empresa, token, null);
+    })
+    .catch(function () { telaDeConvite(null, null, token, 'erro'); });
+
+  return true;
+}
+
+function telaDeConvite(nome, empresa, token, motivo) {
+  var fundo = document.createElement('div');
+  fundo.style.cssText = 'position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#0a2e1a,#16622f);' +
+    'display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto;' +
+    'font-family:Inter,system-ui,sans-serif';
+
+  var card = document.createElement('div');
+  card.style.cssText = 'background:#fff;border-radius:20px;padding:32px 26px;width:100%;max-width:400px;' +
+    'box-shadow:0 32px 80px rgba(0,0,0,.4);margin:auto';
+
+  function nova(tag, css, txt) {
+    var e = document.createElement(tag);
+    if (css) e.style.cssText = css;
+    if (txt) e.textContent = txt;
+    return e;
+  }
+
+  if (motivo) {
+    var titulo = motivo === 'usado'    ? 'Este convite já foi usado'
+               : motivo === 'expirado' ? 'Este convite venceu'
+               : 'Convite não encontrado';
+    var texto  = motivo === 'usado'
+        ? 'Sua senha já foi criada. Entre com seu e-mail e senha na tela de login.'
+        : 'Peça um link novo para o responsável pela equipe.';
+    card.appendChild(nova('div', 'font-size:2.4rem;text-align:center;margin-bottom:8px', '🔒'));
+    card.appendChild(nova('div', "font-family:'Syne',sans-serif;font-size:1.25rem;font-weight:800;color:#0a2e1a;text-align:center;margin-bottom:8px", titulo));
+    card.appendChild(nova('p', 'font-size:.88rem;color:#6b7068;line-height:1.55;text-align:center;margin:0 0 20px', texto));
+    var btnOk = nova('button', 'width:100%;background:#1e8a40;color:#fff;border:none;padding:14px;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit', 'Ir para o login');
+    btnOk.onclick = function () { fundo.remove(); };
+    card.appendChild(btnOk);
+    fundo.appendChild(card); document.body.appendChild(fundo);
+    return;
+  }
+
+  card.appendChild(nova('div', "font-family:'Syne',sans-serif;font-size:1.35rem;font-weight:800;color:#16622f;text-align:center;margin-bottom:6px",
+    'Olá, ' + (nome || '') + '!'));
+  card.appendChild(nova('p', 'font-size:.9rem;color:#6b7068;line-height:1.5;text-align:center;margin:0 0 22px',
+    (empresa ? empresa + ' te adicionou à equipe. ' : '') + 'Escolha uma senha para entrar.'));
+
+  var campoSenha = document.createElement('input');
+  campoSenha.type = 'password'; campoSenha.placeholder = 'Sua senha (mínimo 8 caracteres)';
+  campoSenha.style.cssText = 'width:100%;padding:13px 14px;border:1.5px solid #eff0ef;border-radius:10px;font-size:.95rem;font-family:inherit;outline:none;margin-bottom:10px';
+  card.appendChild(campoSenha);
+
+  var campoEmail = document.createElement('input');
+  campoEmail.type = 'email'; campoEmail.placeholder = 'Seu e-mail (opcional)';
+  campoEmail.style.cssText = campoSenha.style.cssText;
+  card.appendChild(campoEmail);
+  card.appendChild(nova('div', 'font-size:.74rem;color:#9aab9a;margin:-4px 0 16px',
+    'Serve para recuperar a senha se você esquecer.'));
+
+  var erro = nova('div', 'display:none;background:#fef2f2;border-radius:8px;padding:10px;font-size:.8rem;color:#dc2626;margin-bottom:12px');
+  card.appendChild(erro);
+
+  var btn = nova('button', 'width:100%;background:#1e8a40;color:#fff;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:inherit', 'Criar minha senha e entrar');
+  btn.onclick = function () {
+    erro.style.display = 'none';
+    if ((campoSenha.value || '').length < 8) {
+      erro.textContent = 'A senha precisa ter no mínimo 8 caracteres.';
+      erro.style.display = 'block'; return;
+    }
+    btn.disabled = true; btn.textContent = 'Criando...';
+    fetch(API_BASE + '/convite-funcionario/' + encodeURIComponent(token), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ senha: campoSenha.value, email: campoEmail.value || undefined })
+    })
+    .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+    .then(function (res) {
+      if (!res.ok) {
+        btn.disabled = false; btn.textContent = 'Criar minha senha e entrar';
+        erro.textContent = res.j.error || 'Não consegui criar a senha.';
+        erro.style.display = 'block'; return;
+      }
+      // Já vem logado: mandar para a tela de login logo depois de
+      // escolher a senha seria pedir que digitasse duas vezes.
+      localStorage.setItem('worka_token', res.j.token);
+      window.location.href = window.location.pathname;
+    })
+    .catch(function () {
+      btn.disabled = false; btn.textContent = 'Criar minha senha e entrar';
+      erro.textContent = 'Erro de conexão.'; erro.style.display = 'block';
+    });
+  };
+  card.appendChild(btn);
+
+  fundo.appendChild(card);
+  document.body.appendChild(fundo);
+}
+
+// ═══════════════════════════════════
 // ESCREVER COM IA
 // ═══════════════════════════════════
 //
@@ -11160,6 +11378,12 @@ window.addEventListener('DOMContentLoaded', function(){
   // Antes disso, mesmo com token válido salvo, a pessoa sempre caía
   // na tela de login pedindo credenciais de novo — o token nunca era
   // aproveitado em lugar nenhum.
+  // Convite de funcionário vem ANTES de tudo: quem chega por aqui não
+  // tem conta, e a tela de login normal só atrapalharia. Sem esta
+  // chamada a tela existiria no código e nunca apareceria — o defeito
+  // mais comum deste projeto.
+  if (tratarConviteDeFuncionario()) return;
+
   var tokenSalvo = localStorage.getItem('worka_token');
   if(tokenSalvo){
     fetch(API_BASE + '/me', {

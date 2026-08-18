@@ -3238,6 +3238,39 @@ async function conviteValido(token) {
 }
 
 /**
+ * Procura o convite de um FUNCIONÁRIO e diz se ainda serve.
+ *
+ * Espelha conviteValido() (o da cobrança) de propósito: mesmas três
+ * respostas — não existe, já usado, venceu — porque são três conversas
+ * diferentes com quem abriu o link, e "convite inválido" nas três faz
+ * o dono receber a mesma ligação sem saber o que houve.
+ *
+ * Traz a empresa junto: a tela precisa dizer de qual negócio é o
+ * convite ("Padaria do Zé está te chamando"), senão o funcionário
+ * recebe um link no WhatsApp sem saber de quem veio.
+ */
+async function conviteDeFuncionario(token) {
+  if (!token || typeof token !== "string" || token.length < 20 || token.length > 100) {
+    return { ok: false, motivo: "invalido" };
+  }
+  if (!/^[A-Za-z0-9_-]+$/.test(token)) return { ok: false, motivo: "invalido" };
+
+  var busca = await DB.select("funcionarios", "token_convite=eq." + token + "&select=*")
+    .catch(function () { return { body: [] }; });
+  var f = busca.body && busca.body[0];
+  if (!f) return { ok: false, motivo: "invalido" };
+  if (f.token_convite_usado_em) return { ok: false, motivo: "usado" };
+  if (f.token_convite_expira_em && new Date(f.token_convite_expira_em) < new Date()) {
+    return { ok: false, motivo: "expirado" };
+  }
+
+  var e = await DB.select("empresas", "id=eq." + f.empresa_id + "&select=id,nome,team_id")
+    .catch(function () { return { body: [] }; });
+
+  return { ok: true, funcionario: f, empresa: (e.body && e.body[0]) || null };
+}
+
+/**
  * Gasta o convite.
  *
  * O filtro repete "token_senha_usado_em=is.null": é ele que faz o uso
@@ -4729,13 +4762,25 @@ var server = http.createServer(async (req, res) => {
       var funcionario = func && func.body && func.body[0];
 
       var senhaOk = false;
-      if (funcionario) {
+      // senha_hash NULO = convidado que ainda não criou senha. Compara
+      // contra o hash de mentira mesmo assim: pular a comparação faria
+      // esse login responder mais rápido que os outros, e essa
+      // diferença de tempo revela quais e-mails ainda não entraram.
+      if (funcionario && funcionario.senha_hash) {
         senhaOk = await verificarSenha(v.data.senha, funcionario.senha_hash);
       } else {
         await bcrypt.compare(v.data.senha, SENHA_DUMMY);
       }
 
       if (!empresa || !funcionario || !senhaOk) {
+        // Quem foi convidado e ainda não criou a senha recebe o recado
+        // certo: sem isso ele fica tentando adivinhar uma senha que
+        // nunca existiu, e liga para o patrão dizendo que não entra.
+        if (funcionario && !funcionario.senha_hash && funcionario.token_convite) {
+          secLog("login_func_sem_senha", { funcionario_id: funcionario.id });
+          return jsonErr(res,
+            "Você ainda não criou sua senha. Abra o link que o responsável te enviou.", 403);
+        }
         secLog("login_func_falhou", { ip });
         return jsonErr(res, "Credenciais inválidas", 401);
       }
@@ -5503,6 +5548,102 @@ var server = http.createServer(async (req, res) => {
         desconto_reais: centavosParaReais(checagem.desconto_centavos),
         valor_original: centavosParaReais(checagem.valor_original_centavos),
         valor_final:    centavosParaReais(checagem.valor_final_centavos)
+      });
+    }
+
+    // ── CONVITE DO FUNCIONÁRIO (rotas públicas) ──────
+    // O funcionário abre o link que o patrão mandou no WhatsApp e cria
+    // a própria senha. Públicas porque quem usa ainda não tem conta —
+    // é exatamente esse o ponto.
+
+    if (method === "GET" && path.startsWith("/convite-funcionario/")) {
+      var tkFunc = decodeURIComponent(path.slice("/convite-funcionario/".length));
+      var convFunc = await conviteDeFuncionario(tkFunc);
+      if (!convFunc.ok) return jsonOk(res, { ok: false, motivo: convFunc.motivo });
+
+      // O mínimo para a tela dizer de quem é o convite. Nada de
+      // salário, telefone ou e-mail: um link vazado não pode virar
+      // ficha de funcionário.
+      return jsonOk(res, {
+        ok: true,
+        nome: convFunc.funcionario.nome,
+        empresa: convFunc.empresa ? convFunc.empresa.nome : null,
+        team_id: convFunc.empresa ? convFunc.empresa.team_id : null
+      });
+    }
+
+    if (method === "POST" && path.startsWith("/convite-funcionario/")) {
+      var tkPost = decodeURIComponent(path.slice("/convite-funcionario/".length));
+      var convPost = await conviteDeFuncionario(tkPost);
+      if (!convPost.ok) {
+        var recadoFunc = convPost.motivo === "usado"
+          ? "Este convite já foi usado. Entre com seu e-mail e senha."
+          : convPost.motivo === "expirado"
+            ? "Este convite venceu. Peça um novo para o responsável."
+            : "Convite inválido.";
+        return jsonErr(res, recadoFunc, convPost.motivo === "usado" ? 409 : 400);
+      }
+
+      var rawSenha = await getBody(req);
+      var bodySenha = parseBody(rawSenha);
+      if (!bodySenha) return jsonErr(res, "Dados inválidos");
+
+      var senhaNova = SANITIZE.senha(bodySenha.senha);
+      if (!senhaNova) return jsonErr(res, "A senha precisa ter no mínimo 8 caracteres, sem espaços.");
+
+      // O e-mail é opcional: quem foi cadastrado só com telefone tem um
+      // endereço interno (@workap.local) que não recebe mensagem. Se a
+      // pessoa informar um de verdade agora, passa a valer — é o que
+      // permite recuperar a senha depois.
+      // O token PERMANECE gravado, e o que marca o consumo é a data.
+      // Apagá-lo faria a busca não achar nada no reuso, e a pessoa
+      // receberia "convite inválido" em vez de "já foi usado, entre
+      // com sua senha" — que é a única das duas que diz o que fazer.
+      // Mesmo padrão do convite de cobrança (migração 022).
+      var mudancaFunc = {
+        senha_hash: await hashSenha(senhaNova),
+        status: "ativo",
+        token_convite_usado_em: new Date().toISOString()
+      };
+      if (bodySenha.email) {
+        var emailInformado = SANITIZE.email(bodySenha.email);
+        if (!emailInformado) return jsonErr(res, "E-mail inválido.");
+        var jaUsado = await DB.select("funcionarios",
+          "email=eq." + encodeURIComponent(emailInformado) + "&select=id");
+        if (jaUsado.body && jaUsado.body[0] && jaUsado.body[0].id !== convPost.funcionario.id) {
+          return jsonErr(res, "Este e-mail já está em uso nesta equipe.");
+        }
+        mudancaFunc.email = emailInformado;
+      }
+
+      // O filtro repete token_convite=not.is.null pela mesma razão do
+      // convite de cobrança: é o banco que decide quem chegou primeiro
+      // se dois cliques acontecerem juntos.
+      var gravou = await DB.update("funcionarios",
+        "id=eq." + convPost.funcionario.id + "&token_convite_usado_em=is.null", mudancaFunc);
+      if (!(gravou.body && gravou.body[0])) {
+        return jsonErr(res, "Este convite já foi usado. Entre com seu e-mail e senha.", 409);
+      }
+
+      secLog("convite_funcionario_usado", {
+        empresa_id: convPost.funcionario.empresa_id,
+        funcionario_id: convPost.funcionario.id
+      });
+
+      // Já entra logado: mandar a pessoa para a tela de login logo
+      // depois de ela ter criado a senha é pedir que digite duas vezes
+      // o que acabou de escolher.
+      var tokenSessao = jwtSign({
+        empresa_id: convPost.funcionario.empresa_id,
+        funcionario_id: convPost.funcionario.id,
+        email: mudancaFunc.email || convPost.funcionario.email,
+        role: "funcionario"
+      });
+
+      return jsonOk(res, {
+        ok: true, token: tokenSessao,
+        funcionario: { id: convPost.funcionario.id, nome: convPost.funcionario.nome },
+        team_id: convPost.empresa ? convPost.empresa.team_id : null
       });
     }
 
@@ -7386,31 +7527,77 @@ var server = http.createServer(async (req, res) => {
       var body = parseBody(raw);
       if (!body) return jsonErr(res, "Dados inválidos");
 
+      // A senha virou OPCIONAL. Sem ela, o funcionário é CONVIDADO: sai
+      // um link de uso único e ele cria a própria senha.
+      //
+      // O motivo é o produto, não o cadastro: antes, o dono inventava
+      // uma senha para cada pessoa e comunicava na mão. Numa padaria
+      // com oito funcionários isso é uma barreira que trava o app
+      // inteiro — sem gente entrando, ninguém bate ponto, e sem ponto
+      // o espelho não tem o que imprimir.
       var v = validate(body, {
         teamId: v => SANITIZE.teamId(v),
-        nome:   v => SANITIZE.string(v, 120) || null,
-        email:  v => SANITIZE.email(v),
-        senha:  v => SANITIZE.senha(v),
+        nome:   v => SANITIZE.string(v, 120) || null
       });
       if (!v.ok) return jsonErr(res, `Campos inválidos: ${v.erros.join(", ")}`);
 
       var emp = await DB.select("empresas", `team_id=eq.${encodeURIComponent(v.data.teamId)}&select=id`);
       if (!emp.body || !emp.body[0]) return jsonErr(res, "Equipe não encontrada", 404);
 
-      var senhaHash = await hashSenha(v.data.senha);
-      var result = await DB.insert("funcionarios", {
+      // Quando o dono digita a senha (jeito antigo), continua valendo:
+      // quem já tem o hábito não é obrigado a mudar.
+      var senhaDigitada = body.senha ? SANITIZE.senha(body.senha) : null;
+      if (body.senha && !senhaDigitada) {
+        return jsonErr(res, "A senha precisa ter no mínimo 8 caracteres, sem espaços.");
+      }
+
+      // E-mail é chave de login e continua obrigatório no banco. Só que
+      // dono de padaria sabe o telefone do ajudante, não o e-mail —
+      // então, sem e-mail, geramos um interno que nunca recebe
+      // mensagem e serve apenas de chave. Ele entra pelo LINK.
+      var emailFunc = body.email ? SANITIZE.email(body.email) : null;
+      if (body.email && !emailFunc) return jsonErr(res, "E-mail inválido.");
+      var semEmailReal = !emailFunc;
+      if (semEmailReal) emailFunc = "convite-" + crypto.randomUUID() + "@workap.local";
+
+      var novoFunc = {
         empresa_id: emp.body[0].id,
         nome:       v.data.nome,
-        email:      v.data.email,
-        senha_hash: senhaHash,
+        email:      emailFunc,
         telefone:   SANITIZE.string(body.telefone || "", 20),
         status:     "pendente"
+      };
+
+      var tokenFunc = null;
+      if (senhaDigitada) {
+        novoFunc.senha_hash = await hashSenha(senhaDigitada);
+      } else {
+        // senha_hash fica NULO: é o que distingue "convidado, ainda não
+        // entrou" de "tem conta". Gravar uma senha falsa criaria uma
+        // credencial de verdade esperando ser descoberta.
+        tokenFunc = gerarTokenConvite();
+        novoFunc.token_convite = tokenFunc;
+        novoFunc.token_convite_expira_em =
+          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      }
+
+      var result = await DB.insert("funcionarios", novoFunc);
+      var func = result.body[0];
+      if (!func) return jsonErr(res, "Não foi possível cadastrar", 500);
+      delete func.senha_hash;
+      delete func.token_convite;
+
+      secLog("funcionario_cadastrado", {
+        empresa_id: emp.body[0].id, funcionario_id: func.id,
+        por_convite: !!tokenFunc, sem_email: semEmailReal
       });
 
-      var func = result.body[0];
-      delete func.senha_hash;
-      secLog("funcionario_cadastrado", { empresa_id: emp.body[0].id, funcionario_id: func.id });
-      return jsonOk(res, { funcionario: func }, 201);
+      return jsonOk(res, {
+        funcionario: func,
+        // O link vai junto na resposta para o painel poder mostrar
+        // "copiar convite" na hora, sem uma segunda chamada.
+        url_convite: tokenFunc ? (CONFIG.SITE_URL + "/app/?convite=" + tokenFunc) : null
+      }, 201);
     }
 
     if (method === "GET" && path === "/funcionarios") {
@@ -9419,6 +9606,109 @@ var server = http.createServer(async (req, res) => {
 
       await DB.delete("periodos_afastamento", `id=eq.${idAf}`);
       return jsonOk(res, { ok: true });
+    }
+
+    // ════════════════════════════════════════
+    // FICHA DA PESSOA — exclusivo do Plano Pro
+    // ════════════════════════════════════════
+    //
+    // Junta ponto, faltas, tarefas e anotações dos últimos 90 dias de
+    // UMA pessoa e devolve em três linhas.
+    //
+    // Existe para o momento em que se decide promover, advertir ou
+    // desligar alguém. Hoje o dono responde "o que aconteceu nos
+    // últimos meses?" de memória — e memória vira discussão. Os dados
+    // estão todos no app, espalhados por cinco telas que ninguém abre
+    // ao mesmo tempo.
+    //
+    // É Pro porque é exatamente o tipo de coisa que separa "app de
+    // ponto" de "sistema de gestão": o Pro tinha um motivo só (o
+    // módulo do contador), e um motivo só não sustenta +80% no preço.
+    //
+    // Custo: entrada de ~800 tokens, saída de ~250. No Haiku dá cerca
+    // de US$ 0,002 por consulta, e o teto mensal por empresa vale aqui
+    // como em qualquer outro uso.
+
+    if (method === "GET" && /^\/funcionarios\/[^/]+\/ficha$/.test(path)) {
+      if (!hasPermission(authPayload, "funcionarios:read")) {
+        return jsonErr(res, "Sem permissão", 403);
+      }
+      // Salário e desempenho de colega não é assunto de colega.
+      if (authPayload.role === "funcionario") {
+        return jsonErr(res, "Apenas o dono e gerentes veem a ficha", 403);
+      }
+      if (await exigirPro(res, authPayload.empresa_id, "A ficha da pessoa")) return;
+      if (!CONFIG.ANTHROPIC_API_KEY) {
+        return jsonErr(res, "Recurso de IA não está configurado.", 503);
+      }
+
+      var idFicha = path.split("/")[2];
+      if (!SANITIZE.uuid(idFicha)) return jsonErr(res, "Funcionário inválido");
+
+      // O empresa_id no filtro é o que impede pedir a ficha de alguém
+      // de outra conta com um id adivinhado.
+      var buscaF = await DB.select("funcionarios",
+        "id=eq." + idFicha + "&empresa_id=eq." + authPayload.empresa_id +
+        "&select=id,nome,data_admissao,status");
+      var pessoa = buscaF.body && buscaF.body[0];
+      if (!pessoa) return jsonErr(res, "Funcionário não encontrado", 404);
+
+      var desde = new Date(Date.now() - 90 * 86400000).toISOString();
+      var eqF = "funcionario_id=eq." + idFicha;
+      var partes = await Promise.all([
+        DB.select("registros_ponto", eqF + "&created_at=gte." + desde + "&select=tipo,created_at&limit=500"),
+        DB.select("ausencias",  eqF + "&data=gte." + desde.substring(0,10) + "&select=tipo,data&limit=100"),
+        DB.select("tarefas",    eqF + "&select=titulo,status,prazo&limit=100"),
+        DB.select("anotacoes",  eqF + "&select=titulo,texto,categoria,created_at&limit=50")
+      ].map(function (x) { return x.catch(function () { return { body: [] }; }); }));
+
+      var pontos    = partes[0].body || [];
+      var ausencias = partes[1].body || [];
+      var tarefas   = partes[2].body || [];
+      var notas     = partes[3].body || [];
+
+      var entradas = pontos.filter(function (x) { return x.tipo === "entrada"; });
+      var dados = {
+        nome: pessoa.nome,
+        na_empresa_desde: pessoa.data_admissao ? String(pessoa.data_admissao).substring(0, 10) : null,
+        dias_com_ponto_batido: entradas.length,
+        faltas_e_ausencias: ausencias.map(function (a) { return a.tipo + " em " + a.data; }),
+        tarefas_concluidas: tarefas.filter(function (t) { return t.status === "concluida"; }).length,
+        tarefas_em_aberto:  tarefas.filter(function (t) { return t.status !== "concluida"; }).length,
+        tarefas_atrasadas:  tarefas.filter(function (t) {
+          return t.status !== "concluida" && t.prazo && new Date(t.prazo) < new Date();
+        }).length,
+        anotacoes: notas.map(function (n) {
+          return { quando: String(n.created_at).substring(0, 10), tipo: n.categoria,
+                   o_que: n.titulo + (n.texto ? " — " + String(n.texto).slice(0, 200) : "") };
+        })
+      };
+
+      var sistemaFicha =
+        "Você resume o histórico de um funcionário para o dono de um pequeno negócio no Brasil, " +
+        "que está decidindo algo sobre essa pessoa (promover, conversar, advertir ou desligar).\n\n" +
+        "Regras:\n" +
+        "- No máximo 4 linhas curtas. Sem introdução e sem despedida.\n" +
+        "- Diga o que os dados MOSTRAM, com números. Nunca recomende demitir, advertir ou promover — " +
+        "a decisão é do dono, e você não conhece o contexto de fora do app.\n" +
+        "- Se houver pontos positivos e negativos, cite os dois. Não escreva um retrato só de um lado.\n" +
+        "- Não invente nada: use apenas os dados recebidos. Se o período tem pouca informação, diga isso.\n" +
+        "- Português do Brasil, direto.";
+
+      var ficha = await chamarIA(authPayload.empresa_id, "ficha_pessoa", sistemaFicha,
+        "Últimos 90 dias de " + pessoa.nome + ":\n\n" + JSON.stringify(dados, null, 1), 500);
+
+      if (!ficha.ok) {
+        if (ficha.motivo === "teto_do_mes") {
+          return jsonErr(res, "Você usou toda a cota de IA deste mês. Ela volta na virada do mês.", 429);
+        }
+        return jsonErr(res, "Não consegui montar a ficha agora. Tente de novo em instantes.", 502);
+      }
+
+      // Os números vão junto com o texto: o dono confere no que a IA
+      // se baseou em vez de acreditar. Resumo sem os dados por trás é
+      // opinião de máquina, e ninguém decide sobre gente com isso.
+      return jsonOk(res, { resumo: ficha.texto, numeros: dados });
     }
 
     // ════════════════════════════════════════
