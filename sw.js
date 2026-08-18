@@ -8,6 +8,9 @@
 // o sistema não tem. Login biométrico continua sendo uma feature em
 // aberto (exige WebAuthn + tabela de credenciais no banco).
 
+// v31: o Pro passou a ser anunciado como 89,99 e o valor enviado a
+// Cakto desconta os 99 centavos que ela acrescenta — o cliente fecha
+// exatamente no preco do site.
 // v30: o teste gratis passou a BLOQUEAR de verdade quando acaba —
 // tela de assinatura no app, e o e-mail de fim de trial ganhou botao
 // de pagar e WhatsApp de vendas.
@@ -49,7 +52,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v30';
+var CACHE = 'workap-v31';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';

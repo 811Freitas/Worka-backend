@@ -79,6 +79,23 @@ const CONFIG = {
   // Para onde o gateway devolve o cliente depois do pagamento.
   SITE_URL:              env("SITE_URL") || "https://workap.com.br",
 
+  // Quanto a Cakto ACRESCENTA por conta dela na tela de pagamento.
+  //
+  // O cliente e cobrado no valor que enviamos MAIS este acrescimo. Para
+  // ele fechar a conta exatamente no preco anunciado (R$ 49,99), o que
+  // sai daqui e R$ 49,00 — ver centavosParaCobrarNoGateway().
+  //
+  // Fica em variavel de ambiente porque e o gateway que decide isso: no
+  // dia em que a Cakto mudar a taxa, ou a taxa for diferente por forma
+  // de pagamento, isto muda no Render sem esperar deploy de codigo.
+  // Zero desliga o ajuste e volta a mandar o preco cheio.
+  GATEWAY_ACRESCIMO_CENTAVOS: (function () {
+    var v = env("GATEWAY_ACRESCIMO_CENTAVOS");
+    if (v === undefined || v === null || v === "") return 99;
+    var n = parseInt(v, 10);
+    return (isNaN(n) || n < 0 || n > 5000) ? 99 : n;
+  })(),
+
   // WhatsApp de vendas, para quem prefere negociar a assinar sozinho.
   // Aparece no e-mail de fim de trial e na tela de bloqueio.
   //
@@ -131,7 +148,10 @@ const CONFIG = {
     },
     pro: {
       nome: "Plano Pro",
-      centavos: 8990,
+      // 8999 e nao 8990: o preco anunciado passou a terminar em 99 para
+      // casar com o acrescimo do gateway — ver
+      // centavosParaCobrarNoGateway(). O Completo ja terminava assim.
+      centavos: 8999,
       resumo: "Tudo do Completo + espelho de ponto, banco de horas e relatórios prontos para o contador."
     }
   },
@@ -2894,6 +2914,41 @@ async function aplicarPlanoDoLink(link, empresa) {
 }
 
 /**
+ * Quanto ENVIAR ao gateway para o cliente pagar o preço anunciado.
+ *
+ * A Cakto acrescenta um valor próprio na tela de pagamento. Mandar o
+ * preço cheio faria o cliente pagar mais do que o site prometeu: ele
+ * lê "R$ 49,99/mês", chega no checkout e fecha em R$ 50,98. Cobrar
+ * acima do anunciado é o tipo de surpresa que vira estorno e
+ * reclamação, não venda.
+ *
+ * Então o preço anunciado continua sendo 4999 em CONFIG.PLANOS — é ele
+ * que aparece no site, no app, no e-mail e nos dados estruturados — e
+ * só o que sai para o gateway leva o desconto do acréscimo.
+ *
+ * A REGRA que isso preserva: o total que o cliente paga é igual ao
+ * preço anunciado. Não é economia de centavos, é a conta fechar.
+ *
+ * ⚠️ O acréscimo de 99 centavos NÃO foi confirmado contra a
+ * documentação da Cakto (bloqueada nesta rede) — veio de observação do
+ * dono. Se ele variar por forma de pagamento (boleto costuma ter taxa
+ * diferente de Pix), um número fixo aqui acerta uma e erra as outras.
+ * Conferir com uma cobrança real de cada método antes de confiar.
+ */
+function centavosParaCobrarNoGateway(centavosAnunciados) {
+  var acrescimo = CONFIG.GATEWAY_ACRESCIMO_CENTAVOS || 0;
+  var enviar = centavosAnunciados - acrescimo;
+
+  // Um plano mais barato que o próprio acréscimo mandaria zero ou
+  // negativo, e o gateway recusaria a cobrança inteira. Preferir o
+  // preço cheio: o cliente paga alguns centavos a mais, mas a venda
+  // acontece — e uma cobrança recusada não vira dinheiro nenhum.
+  if (enviar < 100) return centavosAnunciados;
+
+  return enviar;
+}
+
+/**
  * Convite de senha: o endereço que o dono manda junto com a cobrança.
  *
  * Nasce com a cobrança que libera plano, e não depois do pagamento,
@@ -5052,7 +5107,9 @@ var server = http.createServer(async (req, res) => {
           var cobrancaCk = await criarCobrancaCakto({
             nome: "Workap — " + infoPlano.nome,
             descricao: infoPlano.resumo,
-            centavos: infoPlano.centavos,
+            // Desconta o acréscimo do gateway para o cliente fechar
+            // exatamente no preço anunciado — ver a função.
+            centavos: centavosParaCobrarNoGateway(infoPlano.centavos),
             recorrente: true,
             metodos: ["pix", "credit_card", "boleto"],
             // É por aqui que o webhook liga o pagamento à empresa sem
