@@ -9,6 +9,9 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v33: entrou a aba de Anotacoes (memoria do dono sobre a equipe, com
+// lembrete que avisa no dia) e o aviso de periodo aquisitivo de ferias,
+// 30 dias antes de cada aniversario de admissao.
 // v32: a vitrine ganhou a lista das 50 funcionalidades do Pro, e a
 // jornada/banco de horas passou a exigir o plano Pro de verdade —
 // era vendida como Pro e funcionava no Completo.
@@ -56,7 +59,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v32';
+var CACHE = 'workap-v33';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';

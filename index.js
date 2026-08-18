@@ -615,6 +615,9 @@ var PERMISSOES_DONO = [
   "cargos:read", "cargos:write",
   "chat:usar",
   "afastamentos:read", "afastamentos:write",
+  // Anotações são a memória do dono sobre a equipe. O funcionário NÃO
+  // entra nesta lista de propósito — ver a rota.
+  "anotacoes:read", "anotacoes:write",
   "metas:read", "metas:write",
   "logs:read",
   "config:write"
@@ -655,6 +658,10 @@ var ROLE_PERMISSIONS = {
     "tarefas:read", "tarefas:write",
     "validade:read", "validade:write",
     "ausencias:read", "ausencias:write",
+    // O gerente anota e lê: é ele quem está no salão vendo o que
+    // acontece, e uma ocorrência que só o dono pode registrar é uma
+    // ocorrência que ninguém registra.
+    "anotacoes:read", "anotacoes:write",
     "escala:read", "escala:write",
     "mural:read", "mural:write",
     "cargos:read",          // vê os cargos, mas quem cria é o dono
@@ -916,6 +923,7 @@ function supabase(method, table, options = {}) {
     "dispositivos_confiaveis", "comunicados_plataforma",
     "owners_plataforma", "webauthn_credentials", "webauthn_challenges",
     "config_plataforma", "utmify_envios",
+    "anotacoes",
     "comunicados", "cargos", "config_faltas", "contas_pagar",
     "mensagens", "periodos_afastamento", "metas",
     "config_jornada", "erros_plataforma", "eventos_pagamento",
@@ -2943,6 +2951,34 @@ async function aplicarPlanoDoLink(link, empresa) {
 }
 
 /**
+ * Valida a data de um lembrete de anotação.
+ *
+ * Devolve a data (AAAA-MM-DD), null quando não há lembrete, ou FALSE
+ * quando veio algo que não é data — três respostas diferentes porque
+ * "não quero lembrete" e "digitei errado" não podem virar a mesma
+ * coisa: a primeira salva a anotação, a segunda tem que avisar.
+ *
+ * Sem teto de 10 anos, um dedo escorregado em 20260 criaria um
+ * lembrete que nunca chega e fica para sempre no índice.
+ */
+function dataDeLembrete(valor) {
+  if (valor === null || valor === undefined || valor === "") return null;
+  if (typeof valor !== "string") return false;
+
+  var texto = valor.trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(texto)) return false;
+
+  var d = new Date(texto + "T12:00:00Z");
+  if (isNaN(d.getTime())) return false;
+
+  var limite = new Date();
+  limite.setFullYear(limite.getFullYear() + 10);
+  if (d > limite) return false;
+
+  return texto;
+}
+
+/**
  * Quanto ENVIAR ao gateway para o cliente pagar o preço anunciado.
  *
  * A Cakto acrescenta um valor próprio na tela de pagamento. Mandar o
@@ -3648,6 +3684,35 @@ var EMAIL_TEMPLATES = {
       <p style="margin:0;font-size:12px;color:#9aab9a">Você recebeu este aviso porque tem uma conta no Workap.</p>
     </div>`),
 
+  // Lembrete de anotação, no dia que o dono marcou.
+  lembreteAnotacao: (nomeEmpresa, titulo, texto, sobre) => emailBase(`
+    <h2 style="margin:0 0 8px;color:#0a2e1a;font-size:22px;font-weight:800">Lembrete</h2>
+    <p style="color:#5a6b5a;font-size:15px;margin:0 0 20px">Você marcou este lembrete para hoje${sobre ? ", sobre <strong>" + SANITIZE.string(sobre) + "</strong>" : ""}.</p>
+    <div style="background:#f7f9f7;border-radius:16px;padding:24px">
+      <div style="font-weight:800;color:#0a2e1a;font-size:16px;margin-bottom:${texto ? "10px" : "0"}">${SANITIZE.string(titulo, 120)}</div>
+      ${texto ? '<div style="color:#3a3d39;line-height:1.6;white-space:pre-wrap;font-size:14px">' + SANITIZE.string(texto, 2000) + '</div>' : ""}
+    </div>
+    <p style="color:#9aab9a;font-size:12px;text-align:center;margin:20px 0 0">Anotação de ${SANITIZE.string(nomeEmpresa)} no Workap</p>`),
+
+  // Período aquisitivo de férias: 30 dias antes do aniversário de
+  // admissão. O valor deste e-mail é o PRAZO que vem depois — passar
+  // do período concessivo custa férias em dobro (CLT art. 137).
+  periodoAquisitivo: (nomeEmpresa, pessoas) => emailBase(`
+    <h2 style="margin:0 0 8px;color:#0a2e1a;font-size:22px;font-weight:800">Férias: mais um ano completo em 30 dias</h2>
+    <p style="color:#5a6b5a;font-size:15px;line-height:1.6;margin:0 0 20px">Olá, <strong>${SANITIZE.string(nomeEmpresa)}</strong>! ${pessoas.length === 1 ? "Um funcionário completa" : pessoas.length + " funcionários completam"} mais um ano de casa em 30 dias:</p>
+    <div style="background:#f7f9f7;border-radius:16px;padding:20px 24px;margin:0 0 20px">
+      <table width="100%" style="font-size:14px">
+        ${pessoas.map(function (p) {
+          return '<tr><td style="padding:6px 0;color:#0a2e1a;font-weight:700">' + SANITIZE.string(p.nome, 80) +
+                 '</td><td style="padding:6px 0;text-align:right;color:#5a6b5a">' + SANITIZE.int(p.anos, 1, 60) +
+                 ' ano(s) em ' + SANITIZE.string(String(p.em).split("-").reverse().join("/"), 12) + '</td></tr>';
+        }).join("")}
+      </table>
+    </div>
+    <div style="background:#fffbeb;border-radius:12px;padding:16px;border-left:4px solid #f59e0b">
+      <p style="margin:0;font-size:13px;color:#78350f;line-height:1.55">Depois que o período aquisitivo fecha, a empresa tem <strong>12 meses</strong> para conceder as férias. Passar desse prazo obriga a pagar em dobro (CLT, art. 137) — vale combinar as datas com antecedência.</p>
+    </div>`),
+
   // Lembrete de conta a pagar. Traz valor, data e o quanto falta —
   // um e-mail que só diz "você tem uma conta" obriga a abrir o app
   // para descobrir qual, e por isso não é lido.
@@ -3999,6 +4064,141 @@ async function verificarContasVencendo() {
   }
 }
 setInterval(verificarContasVencendo, 60 * 60 * 1000);
+
+/**
+ * Lembretes de anotação.
+ *
+ * É o que separa um caderno de anotações de um sistema: o caderno não
+ * avisa nada. "Conversar sobre o uniforme na segunda" só vale se a
+ * segunda chegar junto com o aviso.
+ *
+ * Pega o que venceu e ainda não avisou — inclusive datas passadas, e
+ * não só a de hoje. Se o servidor ficou fora do ar no dia (na Render
+ * grátis a instância dorme), avisar só "hoje" perderia o lembrete
+ * para sempre, em silêncio.
+ */
+async function verificarLembretesDeAnotacao() {
+  try {
+    var hoje = new Date().toISOString().substring(0, 10);
+    var vencidas = await DB.select("anotacoes",
+      "lembrar_em=lte." + hoje + "&lembrete_enviado=is.false&select=*&limit=200"
+    ).catch(function () { return { body: [] }; });
+
+    for (var nota of (vencidas.body || [])) {
+      var empN = await DB.select("empresas", "id=eq." + nota.empresa_id + "&select=id,nome,email")
+        .catch(function () { return { body: [] }; });
+      var empresaN = empN.body && empN.body[0];
+
+      // Empresa sumiu (conta apagada): marca como avisado para a linha
+      // não ficar sendo relida em toda rodada, para sempre.
+      if (!empresaN) {
+        await DB.update("anotacoes", "id=eq." + nota.id, { lembrete_enviado: true });
+        continue;
+      }
+
+      var sobre = "";
+      if (nota.funcionario_id) {
+        var fN = await DB.select("funcionarios", "id=eq." + nota.funcionario_id + "&select=nome")
+          .catch(function () { return { body: [] }; });
+        if (fN.body && fN.body[0]) sobre = fN.body[0].nome;
+      }
+
+      await enviarEmail(empresaN.email, "Lembrete: " + String(nota.titulo).slice(0, 60),
+        EMAIL_TEMPLATES.lembreteAnotacao(empresaN.nome, nota.titulo, nota.texto, sobre)
+      ).catch(function (e) { secLog("email_error", { type: "lembrete_anotacao", message: e.message }); });
+
+      enviarPush(empresaN.id, {
+        title: "Lembrete",
+        body:  String(nota.titulo).slice(0, 80) + (sobre ? " — " + sobre : ""),
+        url:   "app/"
+      }).catch(function () {});
+
+      await DB.update("anotacoes", "id=eq." + nota.id, { lembrete_enviado: true });
+      secLog("lembrete_anotacao_enviado", { empresa_id: empresaN.id });
+    }
+  } catch (e) {
+    secLog("cron_error", { job: "lembretes_anotacao", message: e.message });
+  }
+}
+setInterval(verificarLembretesDeAnotacao, 60 * 60 * 1000);
+
+/**
+ * Aviso de período aquisitivo de férias.
+ *
+ * Na CLT, o direito a férias nasce depois de 12 meses de trabalho, e
+ * se renova a cada 12. Depois disso o empregador tem 12 meses para
+ * concedê-las; passar disso custa férias EM DOBRO (art. 137).
+ *
+ * Quem tem cinco funcionários não acompanha cinco datas de admissão de
+ * cabeça — e o sistema já sabe todas elas. Deixar esse dado parado no
+ * cadastro, sem avisar, é o tipo de coisa que só aparece quando já
+ * virou custo.
+ *
+ * Avisa 30 dias ANTES de cada aniversário de admissão: tempo de
+ * combinar as férias com a pessoa em vez de descobrir o prazo depois
+ * de estourado.
+ *
+ * Não grava "já avisei": a janela é de um dia por ano por pessoa, e o
+ * mesmo aviso repetido dentro dela é melhor que uma coluna a mais no
+ * banco para controlar algo que acontece uma vez por ano.
+ */
+async function avisarPeriodoAquisitivo() {
+  try {
+    var hoje = new Date();
+    var ativos = await DB.select("funcionarios",
+      "status=eq.ativo&data_admissao=not.is.null&select=id,nome,empresa_id,data_admissao&limit=500"
+    ).catch(function () { return { body: [] }; });
+
+    var porEmpresa = {};
+    for (var f of (ativos.body || [])) {
+      var adm = new Date(f.data_admissao);
+      if (isNaN(adm.getTime())) continue;
+
+      // Próximo aniversário de admissão a partir de hoje.
+      var prox = new Date(adm);
+      prox.setFullYear(hoje.getFullYear());
+      if (prox < hoje) prox.setFullYear(hoje.getFullYear() + 1);
+
+      var faltam = Math.round((prox - hoje) / 86400000);
+      if (faltam !== 30) continue;   // a janela é UM dia
+
+      var anos = prox.getFullYear() - adm.getFullYear();
+      if (anos < 1) continue;
+
+      (porEmpresa[f.empresa_id] = porEmpresa[f.empresa_id] || []).push({
+        nome: f.nome, anos: anos, em: prox.toISOString().substring(0, 10)
+      });
+    }
+
+    for (var idEmp of Object.keys(porEmpresa)) {
+      var empA = await DB.select("empresas", "id=eq." + idEmp + "&select=id,nome,email")
+        .catch(function () { return { body: [] }; });
+      var empresaA = empA.body && empA.body[0];
+      if (!empresaA) continue;
+
+      var pessoas = porEmpresa[idEmp];
+      await enviarEmail(empresaA.email,
+        "Férias: " + pessoas.length + " funcionário(s) completam mais um ano em 30 dias",
+        EMAIL_TEMPLATES.periodoAquisitivo(empresaA.nome, pessoas)
+      ).catch(function (e) { secLog("email_error", { type: "periodo_aquisitivo", message: e.message }); });
+
+      enviarPush(empresaA.id, {
+        title: "Período aquisitivo de férias",
+        body:  pessoas.length === 1
+          ? pessoas[0].nome + " completa " + pessoas[0].anos + " ano(s) em 30 dias"
+          : pessoas.length + " funcionários completam mais um ano em 30 dias",
+        url: "app/"
+      }).catch(function () {});
+
+      secLog("aviso_periodo_aquisitivo", { empresa_id: empresaA.id, pessoas: pessoas.length });
+    }
+  } catch (e) {
+    secLog("cron_error", { job: "periodo_aquisitivo", message: e.message });
+  }
+}
+// Uma vez por dia: a janela é de um dia, e rodar de hora em hora
+// mandaria o mesmo aviso 24 vezes.
+setInterval(avisarPeriodoAquisitivo, 24 * 60 * 60 * 1000);
 
 // Uma rodada logo depois de subir, além da de hora em hora.
 //
@@ -8903,6 +9103,156 @@ var server = http.createServer(async (req, res) => {
       if (!achadoAf.body || !achadoAf.body[0]) return jsonErr(res, "Período não encontrado", 404);
 
       await DB.delete("periodos_afastamento", `id=eq.${idAf}`);
+      return jsonOk(res, { ok: true });
+    }
+
+    // ════════════════════════════════════════
+    // ANOTAÇÕES
+    // ════════════════════════════════════════
+    // A memória do dono sobre a equipe e o negócio: o que hoje vive no
+    // WhatsApp dele ou num caderno atrás do balcão.
+    //
+    // NÃO é o mural nem o chat. Aqueles servem para FALAR com a
+    // equipe; aqui o funcionário não entra — nem para ler o que foi
+    // escrito sobre ele. Uma anotação de ocorrência que a pessoa
+    // anotada consegue ler não é escrita com franqueza, e um registro
+    // sem franqueza não serve para decidir nada depois.
+    //
+    // Por isso "anotacoes:read" está em dono e gerente, e fora de
+    // funcionario — o portão é a permissão, não a tela.
+
+    var CATEGORIAS_ANOTACAO = ["geral", "ocorrencia", "elogio", "ideia", "lembrete"];
+
+    if (method === "GET" && path === "/anotacoes") {
+      if (!hasPermission(authPayload, "anotacoes:read")) {
+        return jsonErr(res, "Sem permissão para ver anotações", 403);
+      }
+
+      var qAnot = "empresa_id=eq." + authPayload.empresa_id +
+                  "&order=fixada.desc,created_at.desc&limit=300";
+
+      // "O que já foi anotado sobre esta pessoa" — a consulta que se
+      // faz antes de promover, advertir ou desligar alguém.
+      var funcAnot = SANITIZE.uuid(url.searchParams.get("funcionario_id"));
+      if (funcAnot) qAnot += "&funcionario_id=eq." + funcAnot;
+
+      var catAnot = SANITIZE.string(url.searchParams.get("categoria") || "", 20);
+      if (CATEGORIAS_ANOTACAO.includes(catAnot)) qAnot += "&categoria=eq." + catAnot;
+
+      var listaAnot = await DB.select("anotacoes", qAnot)
+        .catch(function () { return { body: [] }; });
+
+      // Busca por texto no servidor seria ilike com o termo do usuário
+      // dentro da URL do PostgREST — um lugar onde um "*" ou um "&"
+      // mudam a consulta. Como o teto é 300 anotações, filtrar aqui é
+      // mais simples e não tem essa aresta.
+      var termo = SANITIZE.string(url.searchParams.get("q") || "", 60).toLowerCase();
+      var linhasAnot = listaAnot.body || [];
+      if (termo) {
+        linhasAnot = linhasAnot.filter(function (a) {
+          return (String(a.titulo || "") + " " + String(a.texto || ""))
+                 .toLowerCase().indexOf(termo) >= 0;
+        });
+      }
+
+      return jsonOk(res, linhasAnot);
+    }
+
+    if (method === "POST" && path === "/anotacoes") {
+      if (!hasPermission(authPayload, "anotacoes:write")) {
+        return jsonErr(res, "Sem permissão para criar anotações", 403);
+      }
+      var rawAnot = await getBody(req);
+      var bodyAnot = parseBody(rawAnot);
+      if (!bodyAnot) return jsonErr(res, "Dados inválidos");
+
+      var tituloAnot = SANITIZE.string(bodyAnot.titulo || "", 120);
+      if (!tituloAnot) return jsonErr(res, "Escreva um título para a anotação.");
+
+      var novaAnot = {
+        empresa_id: authPayload.empresa_id,
+        titulo:     tituloAnot,
+        texto:      SANITIZE.string(bodyAnot.texto || "", 4000) || null,
+        categoria:  CATEGORIAS_ANOTACAO.includes(bodyAnot.categoria) ? bodyAnot.categoria : "geral",
+        fixada:     bodyAnot.fixada === true,
+        autor:      SANITIZE.string(authPayload.email || "", 120) || null
+      };
+
+      // Anotação SOBRE alguém. O uuid é conferido contra a própria
+      // empresa: sem isso, mandar o id de um funcionário de outra
+      // conta ligaria a anotação a uma pessoa de fora.
+      var alvoAnot = SANITIZE.uuid(bodyAnot.funcionario_id);
+      if (alvoAnot) {
+        var confereFunc = await DB.select("funcionarios",
+          "id=eq." + alvoAnot + "&empresa_id=eq." + authPayload.empresa_id + "&select=id");
+        if (!(confereFunc.body && confereFunc.body[0])) {
+          return jsonErr(res, "Funcionário não encontrado nesta empresa.");
+        }
+        novaAnot.funcionario_id = alvoAnot;
+      }
+
+      var lembrete = dataDeLembrete(bodyAnot.lembrar_em);
+      if (lembrete === false) return jsonErr(res, "Data do lembrete inválida.");
+      if (lembrete) novaAnot.lembrar_em = lembrete;
+
+      var criadaAnot = await DB.insert("anotacoes", novaAnot);
+      var linhaAnot = criadaAnot.body && criadaAnot.body[0];
+      if (!linhaAnot) return jsonErr(res, "Não foi possível salvar a anotação", 500);
+
+      secLog("anotacao_criada", {
+        empresa_id: authPayload.empresa_id, categoria: novaAnot.categoria,
+        sobre_funcionario: !!novaAnot.funcionario_id, com_lembrete: !!novaAnot.lembrar_em
+      });
+      return jsonOk(res, linhaAnot, 201);
+    }
+
+    if (method === "PUT" && path.startsWith("/anotacoes/")) {
+      if (!hasPermission(authPayload, "anotacoes:write")) {
+        return jsonErr(res, "Sem permissão para editar anotações", 403);
+      }
+      var idAnot = path.split("/")[2];
+      if (!SANITIZE.uuid(idAnot)) return jsonErr(res, "Anotação inválida");
+
+      var rawEd = await getBody(req);
+      var bodyEd = parseBody(rawEd);
+      if (!bodyEd) return jsonErr(res, "Dados inválidos");
+
+      var mudEd = { updated_at: new Date().toISOString() };
+      if (typeof bodyEd.titulo === "string") {
+        var t = SANITIZE.string(bodyEd.titulo, 120);
+        if (!t) return jsonErr(res, "O título não pode ficar vazio.");
+        mudEd.titulo = t;
+      }
+      if (typeof bodyEd.texto === "string") mudEd.texto = SANITIZE.string(bodyEd.texto, 4000) || null;
+      if (CATEGORIAS_ANOTACAO.includes(bodyEd.categoria)) mudEd.categoria = bodyEd.categoria;
+      if (typeof bodyEd.fixada === "boolean") mudEd.fixada = bodyEd.fixada;
+
+      if ("lembrar_em" in bodyEd) {
+        var novoLembrete = dataDeLembrete(bodyEd.lembrar_em);
+        if (novoLembrete === false) return jsonErr(res, "Data do lembrete inválida.");
+        mudEd.lembrar_em = novoLembrete;
+        // Data nova, aviso novo: sem zerar isto, remarcar um lembrete
+        // que já disparou não avisaria de novo.
+        mudEd.lembrete_enviado = false;
+      }
+
+      // O empresa_id no filtro é o que impede editar anotação de outra
+      // conta com um id adivinhado.
+      var edAnot = await DB.update("anotacoes",
+        "id=eq." + idAnot + "&empresa_id=eq." + authPayload.empresa_id, mudEd);
+      if (!(edAnot.body && edAnot.body[0])) return jsonErr(res, "Anotação não encontrada", 404);
+      return jsonOk(res, edAnot.body[0]);
+    }
+
+    if (method === "DELETE" && path.startsWith("/anotacoes/")) {
+      if (!hasPermission(authPayload, "anotacoes:write")) {
+        return jsonErr(res, "Sem permissão para apagar anotações", 403);
+      }
+      var idDel = path.split("/")[2];
+      if (!SANITIZE.uuid(idDel)) return jsonErr(res, "Anotação inválida");
+      await DB.delete("anotacoes",
+        "id=eq." + idDel + "&empresa_id=eq." + authPayload.empresa_id);
+      secLog("anotacao_apagada", { empresa_id: authPayload.empresa_id });
       return jsonOk(res, { ok: true });
     }
 
