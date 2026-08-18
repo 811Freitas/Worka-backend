@@ -590,6 +590,62 @@
       transition: transform var(--dur-slow) var(--ease-out);
     }
     .pricing-card:hover { transform: translateY(-4px); }
+    /* Lista completa de funcionalidades (seção #recursos-pro).
+       <details> nativo: abre e fecha sem uma linha de JavaScript, e
+       funciona com o teclado e com leitor de tela de graça. */
+    .rec-caixa {
+      border: 1.5px solid var(--gray-200, #e3e6e3);
+      border-radius: 16px;
+      background: #fff;
+      overflow: hidden;
+    }
+    .rec-caixa > summary {
+      cursor: pointer; list-style: none;
+      padding: 18px 24px;
+      font-weight: 700; font-size: .95rem;
+      color: var(--green-700, #16622f);
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .rec-caixa > summary::-webkit-details-marker { display: none; }
+    .rec-caixa > summary::after {
+      content: "▾"; font-size: .9rem; transition: transform .2s;
+    }
+    .rec-caixa[open] > summary::after { transform: rotate(180deg); }
+    .rec-caixa > summary:hover { background: var(--gray-50, #f7f9f7); }
+
+    .rec-grid {
+      display: grid; gap: 24px 32px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      padding: 8px 24px 28px;
+      border-top: 1px solid var(--gray-200, #e3e6e3);
+    }
+    .rec-grupo h3 {
+      font-size: .78rem; font-weight: 800; letter-spacing: .5px;
+      text-transform: uppercase; color: var(--green-600, #1e8a40);
+      margin: 16px 0 10px;
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .rec-tag {
+      background: var(--green-600, #1e8a40); color: #fff;
+      font-size: .62rem; font-weight: 800; letter-spacing: .4px;
+      padding: 3px 8px; border-radius: 999px; text-transform: uppercase;
+    }
+    .rec-grupo ul { list-style: none; margin: 0; padding: 0; }
+    .rec-grupo li {
+      position: relative; padding: 5px 0 5px 22px;
+      font-size: .85rem; line-height: 1.5;
+      color: var(--gray-700, #3a3d39);
+    }
+    /* O "check" é desenhado no CSS para não depender de fonte de ícone
+       nem de emoji, que mudam de cara em cada sistema. */
+    .rec-grupo li::before {
+      content: ""; position: absolute; left: 0; top: 11px;
+      width: 11px; height: 6px;
+      border-left: 2px solid var(--green-500, #25b251);
+      border-bottom: 2px solid var(--green-500, #25b251);
+      transform: rotate(-45deg);
+    }
+
     .price-amount {
       font-family: var(--font-display);
       font-size: 3.5rem; font-weight: 800;
@@ -1106,6 +1162,144 @@
       O <strong>Plano Pro</strong> entrega essa conta pronta: as horas já somadas, o espelho
       em PDF para o funcionário assinar e a planilha para o escritório de contabilidade.
     </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     TUDO QUE O PLANO PRO INCLUI
+
+     As 50 funcionalidades ficam AQUI, e não no cartão de preço.
+     Um cartão com 50 marcadores não vende mais que um com oito:
+     ele deixa de ser lido, e o visitante perde de vista o que separa
+     um plano do outro. O cartão segue com os argumentos mais fortes;
+     quem quiser a lista inteira abre esta seção.
+
+     Cada item foi conferido contra o código antes de entrar aqui —
+     rota, tela ou tabela que existe de verdade. Lista de venda com
+     recurso inventado não é otimismo, é propaganda enganosa: quem
+     paga R$ 89,99 por algo que não existe pede o dinheiro de volta,
+     e tem razão.
+
+     Mexeu no produto? Atualize esta lista junto.
+══════════════════════════════════════════ -->
+<section class="pricing" id="recursos-pro" style="padding-top:0">
+  <div class="section-inner">
+    <div style="text-align:center">
+      <div class="section-eyebrow">Funcionalidades</div>
+      <h2 class="section-title" style="text-align:center">Tudo que o Plano Pro inclui</h2>
+      <p class="section-sub" style="margin:0 auto 32px;text-align:center">50 funcionalidades, sem cobrança por funcionário e sem módulo cobrado à parte.</p>
+    </div>
+
+    <details class="rec-caixa reveal">
+      <summary>Ver as 50 funcionalidades</summary>
+      <div class="rec-grid">
+          <div class="rec-grupo">
+            <h3>Fechamento do mês<span class="rec-tag">só no Pro</span></h3>
+            <ul>
+            <li>Espelho de ponto do mês em PDF, pronto para assinar</li>
+            <li>Horas trabalhadas somadas por funcionário, sem conta na mão</li>
+            <li>Horas extras apuradas automaticamente</li>
+            <li>Atrasos e faltas identificados no fechamento</li>
+            <li>Banco de horas com saldo acumulado por pessoa</li>
+            <li>Jornada configurável por funcionário: entrada, saída e intervalo</li>
+            <li>Tolerância de atraso definida por você</li>
+            <li>Planilha para o contador em um clique</li>
+            <li>Cada funcionário confere o próprio espelho antes de assinar</li>
+            </ul>
+          </div>
+          <div class="rec-grupo">
+            <h3>Ponto digital</h3>
+            <ul>
+            <li>Registro de ponto pelo celular, sem relógio na parede</li>
+            <li>Localização GPS gravada em cada batida</li>
+            <li>Entrada, intervalo e saída registrados separadamente</li>
+            <li>Painel de quem está trabalhando agora</li>
+            <li>Ajuste manual de ponto pelo dono ou gerente</li>
+            <li>Histórico completo de batidas por período</li>
+            </ul>
+          </div>
+          <div class="rec-grupo">
+            <h3>Equipe</h3>
+            <ul>
+            <li>Funcionários ilimitados, sem cobrança por pessoa</li>
+            <li>Cargos com permissões próprias</li>
+            <li>Três níveis de acesso: dono, gerente e funcionário</li>
+            <li>Código de equipe para o funcionário entrar sozinho</li>
+            <li>Desativar funcionário sem apagar o histórico</li>
+            </ul>
+          </div>
+          <div class="rec-grupo">
+            <h3>Escala, férias e ausências</h3>
+            <ul>
+            <li>Escala semanal por funcionário</li>
+            <li>Turnos com horário de entrada e saída</li>
+            <li>Registro de férias</li>
+            <li>Afastamentos por INSS ou licença médica</li>
+            <li>Ausências com ou sem desconto</li>
+            <li>Regra de desconto por falta configurável</li>
+            </ul>
+          </div>
+          <div class="rec-grupo">
+            <h3>Folha e salários</h3>
+            <ul>
+            <li>Folha de pagamento da equipe</li>
+            <li>Histórico de salários por funcionário</li>
+            <li>Reajuste com a data registrada</li>
+            </ul>
+          </div>
+          <div class="rec-grupo">
+            <h3>Tarefas</h3>
+            <ul>
+            <li>Tarefas com responsável e prazo</li>
+            <li>Comprovação por foto</li>
+            <li>Aviso de tarefa atrasada</li>
+            </ul>
+          </div>
+          <div class="rec-grupo">
+            <h3>Estoque e validade</h3>
+            <ul>
+            <li>Controle de validade dos produtos</li>
+            <li>Alerta automático de vencimento</li>
+            <li>Foto no cadastro do produto</li>
+            <li>Campos que mudam conforme o segmento do negócio</li>
+            </ul>
+          </div>
+          <div class="rec-grupo">
+            <h3>Financeiro</h3>
+            <ul>
+            <li>Contas a pagar com vencimento</li>
+            <li>Lembrete por e-mail antes de vencer</li>
+            <li>Lançamentos de entrada e saída</li>
+            <li>Resumo financeiro do período</li>
+            </ul>
+          </div>
+          <div class="rec-grupo">
+            <h3>Metas</h3>
+            <ul>
+            <li>Metas por funcionário com alvo definido</li>
+            <li>Acompanhamento do progresso em tempo real</li>
+            </ul>
+          </div>
+          <div class="rec-grupo">
+            <h3>Comunicação</h3>
+            <ul>
+            <li>Chat interno da equipe</li>
+            <li>Mural de comunicados</li>
+            <li>Notificação no celular</li>
+            </ul>
+          </div>
+          <div class="rec-grupo">
+            <h3>Sua marca e acesso</h3>
+            <ul>
+            <li>App com a sua marca: nome, logo e paleta de cores</li>
+            <li>Instala no celular como aplicativo, sem passar por loja</li>
+            <li>Entrada por Face ID ou digital</li>
+            <li>Aparelho novo confirma por código no e-mail</li>
+            <li>Central de suporte dentro do app</li>
+            </ul>
+          </div>
+      </div>
+    </details>
   </div>
 </section>
 

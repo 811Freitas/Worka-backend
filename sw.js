@@ -1,13 +1,17 @@
 // Workap PWA — Service Worker
 // Cache offline + push notifications
 //
-// NOTA: este cabeçalho dizia "Face ID support", mas nunca houve
-// nenhuma implementação de biometria no projeto — não existe WebAuthn,
-// navigator.credentials nem tabela de credenciais em lugar nenhum do
-// código. O comentário foi removido para não sugerir uma proteção que
-// o sistema não tem. Login biométrico continua sendo uma feature em
-// aberto (exige WebAuthn + tabela de credenciais no banco).
+// NOTA (corrigida): esta nota dizia que biometria "nunca foi
+// implementada". Isso ficou verdadeiro por um tempo e hoje está
+// errado — existem as rotas /webauthn/registrar/* e /webauthn/login/*,
+// a tabela webauthn_credentials, e o app usa as duas. Entrada por
+// Face ID/digital É uma funcionalidade real e está na lista de venda
+// do site; deixar a nota como estava faria a próxima pessoa remover
+// da vitrine um recurso que o produto tem.
 
+// v32: a vitrine ganhou a lista das 50 funcionalidades do Pro, e a
+// jornada/banco de horas passou a exigir o plano Pro de verdade —
+// era vendida como Pro e funcionava no Completo.
 // v31: o Pro passou a ser anunciado como 89,99 e o valor enviado a
 // Cakto desconta os 99 centavos que ela acrescenta — o cliente fecha
 // exatamente no preco do site.
@@ -52,7 +56,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v31';
+var CACHE = 'workap-v32';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';

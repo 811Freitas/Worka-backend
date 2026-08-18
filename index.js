@@ -537,6 +537,35 @@ function planoAvancado(nome) {
 }
 
 /**
+ * Barra a rota quando a conta não é Pro. Devolve true quando JÁ
+ * respondeu — quem chama sai na hora.
+ *
+ * Virou função porque o módulo do contador é mais de uma rota, e a
+ * checagem estava em uma só: /espelho-ponto conferia o plano, /jornada
+ * não. Na prática o banco de horas e a jornada configurável — que a
+ * vitrine vende como Pro — funcionavam no plano de R$ 49,99. Quem
+ * lesse a página de preços e assinasse o Pro por causa disso estaria
+ * pagando por algo que já tinha.
+ *
+ * 402 é o código que o app entende como "seu plano não inclui", e é
+ * diferente do 423 de conta bloqueada.
+ */
+async function exigirPro(res, empresaId, oQue) {
+  // O owner da Workap navega o produto inteiro com as telas vazias —
+  // é assim que ele confere o que o cliente vê. O token dele carrega
+  // EMPRESA_NENHUMA, que não é conta de cliente e não tem plano: sem
+  // esta saída ele levaria 402 em telas que precisa poder abrir.
+  if (!empresaId || empresaId === EMPRESA_NENHUMA) return false;
+
+  var emp = await DB.select("empresas", "id=eq." + empresaId + "&select=plano")
+    .catch(function () { return { body: [] }; });
+  var linha = emp.body && emp.body[0];
+  if (linha && planoAvancado(linha.plano)) return false;
+  jsonErr(res, oQue + " faz parte do Plano Pro.", 402);
+  return true;
+}
+
+/**
  * Filtra os atributos enviados pelo cliente contra os campos que o
  * ramo declara.
  *
@@ -8089,11 +8118,9 @@ var server = http.createServer(async (req, res) => {
         return jsonErr(res, "Sem permissão para ver o espelho de ponto", 403);
       }
 
+      if (await exigirPro(res, authPayload.empresa_id, "O espelho de ponto")) return;
       var empEsp = await DB.select("empresas", `id=eq.${authPayload.empresa_id}&select=id,nome,plano`);
       var donoEsp = empEsp.body && empEsp.body[0];
-      if (!donoEsp || !planoAvancado(donoEsp.plano)) {
-        return jsonErr(res, "O espelho de ponto faz parte do Plano Pro.", 402);
-      }
 
       // Mês no formato AAAA-MM. Sem mês, o mês corrente.
       var mesTxt = String(url.searchParams.get("mes") || "").trim();
@@ -8263,7 +8290,11 @@ var server = http.createServer(async (req, res) => {
       });
 
       return jsonOk(res, {
-        empresa: donoEsp.nome,
+        // donoEsp é nulo quando quem abre é o owner da Workap, que não
+        // tem empresa. Ele navega o produto com as telas vazias, e um
+        // .nome em cima de nulo derrubava a rota com 500 — erro de
+        // servidor numa tela que só precisava aparecer sem dados.
+        empresa: donoEsp ? donoEsp.nome : null,
         mes: String(ano) + "-" + String(mes + 1).padStart(2, "0"),
         dias_no_mes: diasNoMes,
         gerado_em: new Date().toISOString(),
@@ -8276,6 +8307,7 @@ var server = http.createServer(async (req, res) => {
       if (!hasPermission(authPayload, "espelho:read")) {
         return jsonErr(res, "Sem permissão", 403);
       }
+      if (await exigirPro(res, authPayload.empresa_id, "A jornada configurável")) return;
       var jr = await DB.select("config_jornada", `empresa_id=eq.${authPayload.empresa_id}&select=*`);
       return jsonOk(res, jr.body || []);
     }
@@ -8287,6 +8319,9 @@ var server = http.createServer(async (req, res) => {
         secLog("permission_denied", { role: authPayload.role, action: "jornada:write" });
         return jsonErr(res, "Só o dono da conta pode definir a jornada", 403);
       }
+      // Gravar também é Pro: sem isto, quem não tem o plano continuaria
+      // configurando a jornada — só não conseguiria ler de volta.
+      if (await exigirPro(res, authPayload.empresa_id, "A jornada configurável")) return;
       var rawJ = await getBody(req);
       var bodyJ = parseBody(rawJ);
       if (!bodyJ) return jsonErr(res, "Dados inválidos");
