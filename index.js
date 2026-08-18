@@ -648,6 +648,7 @@ var PERMISSOES_DONO = [
   // Anotações são a memória do dono sobre a equipe. O funcionário NÃO
   // entra nesta lista de propósito — ver a rota.
   "anotacoes:read", "anotacoes:write",
+  "contatos:read", "contatos:write",
   "metas:read", "metas:write",
   "logs:read",
   "config:write"
@@ -692,6 +693,7 @@ var ROLE_PERMISSIONS = {
     // acontece, e uma ocorrência que só o dono pode registrar é uma
     // ocorrência que ninguém registra.
     "anotacoes:read", "anotacoes:write",
+    "contatos:read", "contatos:write",
     "escala:read", "escala:write",
     "mural:read", "mural:write",
     "cargos:read",          // vê os cargos, mas quem cria é o dono
@@ -953,7 +955,7 @@ function supabase(method, table, options = {}) {
     "dispositivos_confiaveis", "comunicados_plataforma",
     "owners_plataforma", "webauthn_credentials", "webauthn_challenges",
     "config_plataforma", "utmify_envios",
-    "anotacoes", "ia_usos",
+    "anotacoes", "ia_usos", "contatos",
     "comunicados", "cargos", "config_faltas", "contas_pagar",
     "mensagens", "periodos_afastamento", "metas",
     "config_jornada", "erros_plataforma", "eventos_pagamento",
@@ -9229,8 +9231,23 @@ var server = http.createServer(async (req, res) => {
         return jsonErr(res, "Informe a data de vencimento.");
       }
 
+      // De quem é a conta. Opcional, e conferido contra a própria
+      // empresa: sem isso, mandar o id de um contato de outra conta
+      // ligaria a despesa a um fornecedor de fora.
+      var contatoDaConta = null;
+      if (bodyConta.contato_id) {
+        contatoDaConta = SANITIZE.uuid(bodyConta.contato_id);
+        if (!contatoDaConta) return jsonErr(res, "Fornecedor inválido");
+        var confereCon = await DB.select("contatos",
+          "id=eq." + contatoDaConta + "&empresa_id=eq." + authPayload.empresa_id + "&select=id");
+        if (!(confereCon.body && confereCon.body[0])) {
+          return jsonErr(res, "Fornecedor não encontrado nesta empresa.");
+        }
+      }
+
       var novaConta = await DB.insert("contas_pagar", {
         empresa_id:  authPayload.role === "owner_saas" ? null : authPayload.empresa_id,
+        contato_id:  contatoDaConta,
         descricao:   descConta,
         valor:       valConta,
         vencimento:  vencConta,
@@ -9785,6 +9802,179 @@ var server = http.createServer(async (req, res) => {
       }
 
       return jsonOk(res, { texto: saida.texto });
+    }
+
+    // ════════════════════════════════════════
+    // CONTATOS — a agenda do negócio
+    // ════════════════════════════════════════
+    // Fornecedor, contador, prestador de serviço, banco. Hoje isso vive
+    // na agenda do celular do dono: ninguém mais da empresa acessa, e
+    // some junto com o aparelho.
+    //
+    // O gerente também escreve: é ele que liga para o fornecedor
+    // quando falta mercadoria, e uma agenda que só o dono edita fica
+    // desatualizada no primeiro mês.
+
+    var CATEGORIAS_CONTATO = ["fornecedor", "contador", "cliente", "servico", "banco", "outro"];
+
+    if (method === "GET" && path === "/contatos") {
+      if (!hasPermission(authPayload, "contatos:read")) {
+        return jsonErr(res, "Sem permissão para ver os contatos", 403);
+      }
+
+      // Favoritos no topo, depois alfabética — é a ordem de quem
+      // procura "o fornecedor de sempre" e a de quem procura um nome.
+      var qCon = "empresa_id=eq." + authPayload.empresa_id +
+                 "&order=favorito.desc,nome.asc&limit=500";
+
+      var catCon = SANITIZE.string(url.searchParams.get("categoria") || "", 20);
+      if (CATEGORIAS_CONTATO.includes(catCon)) qCon += "&categoria=eq." + catCon;
+
+      // Inativo some da lista por padrão, mas continua no banco: o
+      // fornecedor que você parou de usar ainda aparece no histórico
+      // das contas que ele emitiu.
+      if (url.searchParams.get("incluir_inativos") !== "1") qCon += "&ativo=is.true";
+
+      var lista = await DB.select("contatos", qCon).catch(function () { return { body: [] }; });
+      var linhas = lista.body || [];
+
+      // Busca no servidor seria ilike com o termo do usuário dentro da
+      // URL do PostgREST — onde um "*" muda a consulta. Com teto de 500
+      // linhas, filtrar aqui é mais simples e não tem essa aresta.
+      var termo = SANITIZE.string(url.searchParams.get("q") || "", 60).toLowerCase();
+      if (termo) {
+        linhas = linhas.filter(function (c) {
+          return [c.nome, c.razao_social, c.fornece, c.telefone, c.documento, c.observacoes]
+            .map(function (x) { return String(x || ""); }).join(" ")
+            .toLowerCase().indexOf(termo) >= 0;
+        });
+      }
+
+      return jsonOk(res, linhas);
+    }
+
+    if ((method === "POST" && path === "/contatos") ||
+        (method === "PUT"  && path.startsWith("/contatos/"))) {
+      if (!hasPermission(authPayload, "contatos:write")) {
+        return jsonErr(res, "Sem permissão para editar contatos", 403);
+      }
+      var rawCon = await getBody(req);
+      var bodyCon = parseBody(rawCon);
+      if (!bodyCon) return jsonErr(res, "Dados inválidos");
+
+      var editando = method === "PUT";
+      var idCon = editando ? path.split("/")[2] : null;
+      if (editando && !SANITIZE.uuid(idCon)) return jsonErr(res, "Contato inválido");
+
+      var dados = {};
+
+      // No POST o nome é obrigatório; no PUT só muda o que veio. Um
+      // formulário de edição que não manda um campo não deve apagá-lo.
+      if (!editando || typeof bodyCon.nome === "string") {
+        var nomeCon = SANITIZE.string(bodyCon.nome || "", 120);
+        if (!nomeCon) return jsonErr(res, "Informe o nome do contato.");
+        dados.nome = nomeCon;
+      }
+
+      // Campos de texto simples, todos opcionais.
+      [["razao_social", 160], ["email", 160], ["site", 200], ["endereco", 200],
+       ["cidade", 80], ["fornece", 200], ["entrega", 100],
+       ["prazo_pagamento", 100], ["observacoes", 2000]].forEach(function (par) {
+        if (typeof bodyCon[par[0]] === "string") {
+          dados[par[0]] = SANITIZE.string(bodyCon[par[0]], par[1]) || null;
+        }
+      });
+
+      if (typeof bodyCon.uf === "string") {
+        var uf = SANITIZE.string(bodyCon.uf, 2).toUpperCase();
+        dados.uf = /^[A-Z]{2}$/.test(uf) ? uf : null;
+      }
+
+      if (CATEGORIAS_CONTATO.includes(bodyCon.categoria)) dados.categoria = bodyCon.categoria;
+      if (typeof bodyCon.favorito === "boolean") dados.favorito = bodyCon.favorito;
+      if (typeof bodyCon.ativo === "boolean")    dados.ativo = bodyCon.ativo;
+
+      // Telefone guardado só em dígitos, como o resto do projeto: é
+      // assim que ele vira link de wa.me sem tratamento na tela.
+      // Aceita fixo (10) e celular (11) — e também o formato com 55 na
+      // frente, que é como algumas pessoas copiam do WhatsApp.
+      ["telefone", "telefone2"].forEach(function (campo) {
+        if (typeof bodyCon[campo] === "string") {
+          var so = bodyCon[campo].replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, "");
+          if (!so) { dados[campo] = null; return; }
+          if (so.length < 10 || so.length > 11) {
+            dados[campo] = "__invalido__";   // sinalizado abaixo
+            return;
+          }
+          dados[campo] = so;
+        }
+      });
+      if (dados.telefone === "__invalido__" || dados.telefone2 === "__invalido__") {
+        return jsonErr(res, "Telefone inválido. Use DDD + número (ex.: 11 98765-4321).");
+      }
+
+      // Documento aceita CNPJ e CPF. Diferente do cadastro da empresa,
+      // NÃO confere dígito verificador: aqui é dado de terceiro, muitas
+      // vezes copiado de uma nota, e recusar por um dígito trocado
+      // impediria salvar o contato inteiro por causa de um campo
+      // opcional.
+      if (typeof bodyCon.documento === "string") {
+        var doc = bodyCon.documento.replace(/\D/g, "");
+        if (doc && doc.length !== 11 && doc.length !== 14) {
+          return jsonErr(res, "CPF deve ter 11 dígitos ou CNPJ 14.");
+        }
+        dados.documento = doc || null;
+      }
+
+      if (editando) {
+        dados.atualizado_em = new Date().toISOString();
+        // O empresa_id no filtro é o que impede editar contato de outra
+        // conta com um id adivinhado.
+        var ed = await DB.update("contatos",
+          "id=eq." + idCon + "&empresa_id=eq." + authPayload.empresa_id, dados);
+        if (!(ed.body && ed.body[0])) return jsonErr(res, "Contato não encontrado", 404);
+        return jsonOk(res, ed.body[0]);
+      }
+
+      dados.empresa_id = authPayload.empresa_id;
+      var criado = await DB.insert("contatos", dados);
+      if (!(criado.body && criado.body[0])) return jsonErr(res, "Não foi possível salvar", 500);
+      secLog("contato_criado", {
+        empresa_id: authPayload.empresa_id, categoria: dados.categoria || "fornecedor"
+      });
+      return jsonOk(res, criado.body[0], 201);
+    }
+
+    if (method === "DELETE" && path.startsWith("/contatos/")) {
+      if (!hasPermission(authPayload, "contatos:write")) {
+        return jsonErr(res, "Sem permissão para apagar contatos", 403);
+      }
+      var idDelCon = path.split("/")[2];
+      if (!SANITIZE.uuid(idDelCon)) return jsonErr(res, "Contato inválido");
+
+      // Fornecedor com conta a pagar no histórico NÃO é apagado: vira
+      // inativo. Apagar deixaria contas órfãs e tiraria do caixa do mês
+      // a resposta para "de quem era essa conta de R$ 800?".
+      var temConta = await DB.select("contas_pagar",
+        "contato_id=eq." + idDelCon + "&select=id&limit=1"
+      ).catch(function () { return { body: [] }; });
+
+      if (temConta.body && temConta.body[0]) {
+        var arq = await DB.update("contatos",
+          "id=eq." + idDelCon + "&empresa_id=eq." + authPayload.empresa_id,
+          { ativo: false, atualizado_em: new Date().toISOString() });
+        if (!(arq.body && arq.body[0])) return jsonErr(res, "Contato não encontrado", 404);
+        secLog("contato_inativado", { empresa_id: authPayload.empresa_id });
+        return jsonOk(res, {
+          ok: true, inativado: true,
+          aviso: "Este contato tem contas no histórico, então foi apenas desativado."
+        });
+      }
+
+      await DB.delete("contatos",
+        "id=eq." + idDelCon + "&empresa_id=eq." + authPayload.empresa_id);
+      secLog("contato_apagado", { empresa_id: authPayload.empresa_id });
+      return jsonOk(res, { ok: true, inativado: false });
     }
 
     // ════════════════════════════════════════

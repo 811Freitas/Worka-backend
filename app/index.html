@@ -1403,6 +1403,105 @@ tr:hover td{background:var(--g50)}
     </div>
 
     <!-- METAS — da empresa (sem responsável) ou de uma pessoa. -->
+    <!-- CONTATOS — a agenda do negócio.
+         Fornecedor, contador, prestador. Hoje isso vive na agenda do
+         celular do dono: ninguém mais da empresa acessa, e some junto
+         com o aparelho.
+
+         O telefone vira link de WhatsApp de um toque — é assim que se
+         fala com fornecedor no Brasil, e "copiar número, abrir o
+         WhatsApp, colar" é o atrito que faz o dono voltar para a
+         agenda do celular. -->
+    <div class="page" id="pg-contatos">
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-head">
+          <div>
+            <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-users></use></svg> Agenda do negócio</div>
+            <div class="card-sub" id="ct-resumo">Carregando...</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="abrirContato(null)">+ Novo contato</button>
+        </div>
+        <div class="card-body">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+            <input id="ct-busca" class="input" style="flex:1;min-width:150px;font-size:.85rem"
+              placeholder="Buscar por nome, telefone ou o que fornece..." oninput="carregarContatos()">
+            <select id="ct-filtro" class="input" style="width:auto;font-size:.85rem" onchange="carregarContatos()">
+              <option value="">Todos</option>
+              <option value="fornecedor">Fornecedores</option>
+              <option value="contador">Contador</option>
+              <option value="cliente">Clientes</option>
+              <option value="servico">Prestadores</option>
+              <option value="banco">Bancos</option>
+              <option value="outro">Outros</option>
+            </select>
+          </div>
+          <div id="ct-lista">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Formulário em modal: a lista é o que se usa todo dia; o
+         cadastro completo é ocasional e não precisa ocupar meia tela. -->
+    <div class="modal-overlay" id="modal-contato">
+      <div class="modal">
+        <div class="modal-title" id="ct-titulo-modal">Novo contato</div>
+        <div id="ct-erro" class="login-erro"></div>
+        <div class="form-grid">
+          <div class="field form-full"><label>Nome *</label>
+            <input id="ct-nome" maxlength="120" placeholder="Como você chama esse contato"></div>
+
+          <div class="field"><label>Tipo</label>
+            <select id="ct-categoria">
+              <option value="fornecedor">Fornecedor</option>
+              <option value="contador">Contador</option>
+              <option value="cliente">Cliente</option>
+              <option value="servico">Prestador de serviço</option>
+              <option value="banco">Banco</option>
+              <option value="outro">Outro</option>
+            </select></div>
+          <div class="field"><label>WhatsApp</label>
+            <input id="ct-telefone" placeholder="(00) 00000-0000"></div>
+
+          <div class="field"><label>Outro telefone</label>
+            <input id="ct-telefone2" placeholder="Fixo, ou o do vendedor"></div>
+          <div class="field"><label>E-mail</label>
+            <input id="ct-email" type="email" placeholder="email@email.com"></div>
+
+          <div class="field form-full"><label>O que fornece / faz</label>
+            <input id="ct-fornece" maxlength="200" placeholder="Ex.: Pão, leite e frios"></div>
+
+          <div class="field"><label>Quando entrega</label>
+            <input id="ct-entrega" maxlength="100" placeholder="Ex.: toda terça e sexta"></div>
+          <div class="field"><label>Prazo de pagamento</label>
+            <input id="ct-prazo" maxlength="100" placeholder="Ex.: 28 dias"></div>
+
+          <div class="field"><label>CNPJ ou CPF</label>
+            <input id="ct-documento" maxlength="18" placeholder="00.000.000/0001-00"></div>
+          <div class="field"><label>Razão social</label>
+            <input id="ct-razao" maxlength="160" placeholder="Nome na nota fiscal"></div>
+
+          <div class="field form-full"><label>Endereço</label>
+            <input id="ct-endereco" maxlength="200" placeholder="Rua, número, bairro"></div>
+          <div class="field"><label>Cidade</label>
+            <input id="ct-cidade" maxlength="80"></div>
+          <div class="field"><label>UF</label>
+            <input id="ct-uf" maxlength="2" placeholder="SP" style="text-transform:uppercase"></div>
+
+          <div class="field form-full"><label>Observações</label>
+            <textarea id="ct-obs" rows="2" maxlength="2000" placeholder="Ex.: falar com o Marcos, não atende depois das 17h"
+              style="width:100%;padding:11px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-size:.9rem;font-family:var(--font);outline:none;background:var(--gray50);resize:vertical"></textarea></div>
+
+          <label class="form-full" style="display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer">
+            <input id="ct-favorito" type="checkbox" style="width:auto"> Fixar no topo da lista
+          </label>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="fecharModal('modal-contato')">Cancelar</button>
+          <button class="btn btn-primary" id="ct-btn-salvar" onclick="salvarContato()">Salvar contato</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ANOTAÇÕES — a memória do dono sobre a equipe e o negócio.
          Não é o mural nem o chat: aqueles servem para FALAR com a
          equipe. Aqui o funcionário não entra, nem para ler o que foi
@@ -3163,6 +3262,7 @@ var menus = {
     {id:'ferias',icon:'<svg class=ico aria-hidden=true><use href=#i-calendar></use></svg>',label:'Férias e Folgas'},
     {id:'metas',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Metas'},
     {id:'anotacoes',icon:'<svg class=ico aria-hidden=true><use href=#i-clipboard></use></svg>',label:'Anotações'},
+    {id:'contatos',icon:'<svg class=ico aria-hidden=true><use href=#i-users></use></svg>',label:'Contatos'},
     {id:'financeiro',icon:'<svg class=ico aria-hidden=true><use href=#i-money></use></svg>',label:'Financeiro'},
     {id:'relatorios',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Relatórios'},
     {id:'espelho',icon:'<svg class=ico aria-hidden=true><use href=#i-clipboard></use></svg>',label:'Espelho de Ponto'},
@@ -3211,6 +3311,7 @@ var menus = {
     {id:'ferias',icon:'<svg class=ico aria-hidden=true><use href=#i-calendar></use></svg>',label:'Férias e Folgas'},
     {id:'metas',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Metas'},
     {id:'anotacoes',icon:'<svg class=ico aria-hidden=true><use href=#i-clipboard></use></svg>',label:'Anotações'},
+    {id:'contatos',icon:'<svg class=ico aria-hidden=true><use href=#i-users></use></svg>',label:'Contatos'},
     {id:'financeiro',icon:'<svg class=ico aria-hidden=true><use href=#i-money></use></svg>',label:'Financeiro'},
     {id:'relatorios',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Relatórios'},
     {id:'espelho',icon:'<svg class=ico aria-hidden=true><use href=#i-clipboard></use></svg>',label:'Espelho de Ponto'},
@@ -4677,7 +4778,7 @@ function abrirPagina(id) {
     'salarios':'Salários e Pagamentos','ausencias':'Ausências e Faltas',
     'escala':'Escala de Trabalho','relatorios':'Relatórios','mural':'Mural / Comunicados',
     'financeiro':'Financeiro','chat':'Chat da Equipe','ferias':'Férias e Folgas','metas':'Metas',
-    'anotacoes':'Anotações',
+    'anotacoes':'Anotações','contatos':'Contatos',
     'cupons':'Cupons de Desconto','comunicados':'Enviar Comunicado',
     'espelho':'Espelho de Ponto','jornada':'Jornada de Trabalho',
     'suporte':'Suporte'
@@ -4708,6 +4809,7 @@ function abrirPagina(id) {
   if(id==='ferias'     && typeof carregarAfastamentos  === 'function') carregarAfastamentos();
   if(id==='metas'      && typeof carregarMetas         === 'function') carregarMetas();
   if(id==='anotacoes'  && typeof carregarAnotacoes    === 'function') carregarAnotacoes();
+  if(id==='contatos'   && typeof carregarContatos     === 'function') carregarContatos();
   if(id==='escala'     && typeof carregarEscala      === 'function') carregarEscala();
   if(id==='relatorios' && typeof carregarRelatorios  === 'function') carregarRelatorios();
   if(id==='cargos' && typeof carregarCargos === 'function') carregarCargos();
@@ -9872,6 +9974,220 @@ async function escreverComIA() {
     liberar();
     avisoIA('Erro de conexão.', '#dc2626');
   }
+}
+
+// ═══════════════════════════════════
+// CONTATOS — a agenda do negócio
+// ═══════════════════════════════════
+var ESTILO_CONTATO = {
+  fornecedor: ['Fornecedor', '#1e40af', '#eef2ff'],
+  contador:   ['Contador',   '#166534', '#edfaf2'],
+  cliente:    ['Cliente',    '#78350f', '#fffbeb'],
+  servico:    ['Prestador',  '#9a3412', '#fff4ed'],
+  banco:      ['Banco',      '#3730a3', '#eef2ff'],
+  outro:      ['Outro',      '#6b7068', '#f2f4f2']
+};
+
+var contatoEmEdicao = null;
+
+function carregarContatos() {
+  if (!sessaoWorka || !sessaoWorka.token) return;
+  var lista = document.getElementById('ct-lista');
+  var resumo = document.getElementById('ct-resumo');
+  if (!lista) return;
+
+  var q = (document.getElementById('ct-busca') || {}).value || '';
+  var cat = (document.getElementById('ct-filtro') || {}).value || '';
+  var url = API_BASE + '/contatos?';
+  if (q)   url += 'q=' + encodeURIComponent(q) + '&';
+  if (cat) url += 'categoria=' + encodeURIComponent(cat);
+
+  fetch(url, { headers: cabecalhoAuth() })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      lista.textContent = '';
+      if (!d) { resumo.textContent = 'Não consegui carregar.'; return; }
+
+      resumo.textContent = d.length === 0 ? 'Nenhum contato ainda'
+        : d.length === 1 ? '1 contato' : d.length + ' contatos';
+
+      if (!d.length) {
+        lista.style.color = 'var(--gray500)'; lista.style.fontSize = '.86rem';
+        lista.textContent = q || cat
+          ? 'Nada encontrado com esse filtro.'
+          : 'Guarde aqui quem você liga: fornecedor, contador, quem conserta a geladeira. Fica com a empresa, não com o celular de uma pessoa.';
+        return;
+      }
+      lista.style.color = ''; lista.style.fontSize = '';
+      d.forEach(function (c) { lista.appendChild(cartaoDeContato(c)); });
+    })
+    .catch(function () { resumo.textContent = 'Erro de conexão.'; });
+}
+
+function cartaoDeContato(c) {
+  var est = ESTILO_CONTATO[c.categoria] || ESTILO_CONTATO.outro;
+
+  var card = document.createElement('div');
+  card.style.cssText = 'border:1px solid var(--gray200,#e3e6e3);border-left:3px solid ' + est[1] +
+    ';border-radius:10px;padding:12px 14px;margin-bottom:10px;background:' +
+    (c.favorito ? 'var(--gray50,#f7f9f7)' : '#fff');
+
+  function nova(tag, css, txt) {
+    var e = document.createElement(tag);
+    if (css) e.style.cssText = css;
+    if (txt) e.textContent = txt;
+    return e;
+  }
+
+  var topo = document.createElement('div');
+  topo.style.cssText = 'display:flex;align-items:flex-start;justify-content:space-between;gap:10px';
+  var nomeEl = nova('div', 'font-weight:700;color:var(--gray800,#0a2e1a);font-size:.95rem;line-height:1.3',
+    (c.favorito ? '📌 ' : '') + c.nome);
+  topo.appendChild(nomeEl);
+  var tag = nova('span', 'flex:none;font-size:.66rem;font-weight:700;padding:3px 8px;border-radius:5px;background:' +
+    est[2] + ';color:' + est[1], est[0]);
+  topo.appendChild(tag);
+  card.appendChild(topo);
+
+  if (c.fornece) card.appendChild(nova('div',
+    'font-size:.84rem;color:var(--gray600,#3a3d39);margin-top:4px', c.fornece));
+
+  var detalhes = [];
+  if (c.entrega) detalhes.push('Entrega: ' + c.entrega);
+  if (c.prazo_pagamento) detalhes.push('Pagamento: ' + c.prazo_pagamento);
+  if (c.cidade) detalhes.push(c.cidade + (c.uf ? '/' + c.uf : ''));
+  if (detalhes.length) card.appendChild(nova('div',
+    'font-size:.76rem;color:var(--gray500,#6b7068);margin-top:4px', detalhes.join(' · ')));
+
+  if (c.observacoes) card.appendChild(nova('div',
+    'font-size:.78rem;color:var(--gray500,#6b7068);margin-top:4px;font-style:italic', c.observacoes));
+
+  // As AÇÕES são o ponto da tela. Guardar telefone não resolve nada se
+  // usar exige copiar, abrir outro app e colar — que é exatamente o
+  // motivo de o dono continuar na agenda do celular.
+  var acoes = document.createElement('div');
+  acoes.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:10px';
+
+  function botao(texto, cor, aoClicar, href) {
+    var el = document.createElement(href ? 'a' : 'span');
+    el.textContent = texto;
+    el.style.cssText = 'font-size:.78rem;font-weight:600;color:' + cor +
+      ';cursor:pointer;text-decoration:none;border:1px solid ' + cor +
+      '33;padding:5px 10px;border-radius:7px';
+    if (href) { el.href = href; el.target = '_blank'; el.rel = 'noopener'; }
+    else el.onclick = aoClicar;
+    return el;
+  }
+
+  if (c.telefone) {
+    // wa.me exige 55 + DDD + número. O banco guarda só os dígitos com
+    // DDD, então o 55 entra aqui.
+    acoes.appendChild(botao('WhatsApp', '#1e8a40', null, 'https://wa.me/55' + c.telefone));
+    acoes.appendChild(botao('Ligar', '#3a3d39', null, 'tel:+55' + c.telefone));
+  }
+  if (c.telefone2) acoes.appendChild(botao('Ligar (2º)', '#6b7068', null, 'tel:+55' + c.telefone2));
+  if (c.email)    acoes.appendChild(botao('E-mail', '#3a3d39', null, 'mailto:' + c.email));
+
+  acoes.appendChild(botao('Editar', '#1e8a40', function () { abrirContato(c); }));
+  acoes.appendChild(botao(c.favorito ? 'Desafixar' : 'Fixar', '#6b7068', function () {
+    fetch(API_BASE + '/contatos/' + c.id, {
+      method: 'PUT', headers: cabecalhoAuth(),
+      body: JSON.stringify({ favorito: !c.favorito })
+    }).then(carregarContatos).catch(function () {});
+  }));
+  acoes.appendChild(botao('Apagar', '#dc2626', function () { apagarContato(c); }));
+
+  card.appendChild(acoes);
+
+  if (c.telefone) {
+    card.appendChild(nova('div', 'font-size:.74rem;color:var(--gray500,#6b7068);margin-top:6px',
+      formatarTelefoneBR(c.telefone) + (c.email ? ' · ' + c.email : '')));
+  }
+  return card;
+}
+
+// Só para LER na tela. O banco guarda dígitos — quem guarda máscara
+// acaba com o mesmo número em três formatos.
+function formatarTelefoneBR(d) {
+  var s = String(d || '').replace(/\D/g, '');
+  if (s.length === 11) return '(' + s.slice(0,2) + ') ' + s.slice(2,7) + '-' + s.slice(7);
+  if (s.length === 10) return '(' + s.slice(0,2) + ') ' + s.slice(2,6) + '-' + s.slice(6);
+  return s;
+}
+
+var CAMPOS_CONTATO = {
+  'ct-nome':'nome', 'ct-categoria':'categoria', 'ct-telefone':'telefone',
+  'ct-telefone2':'telefone2', 'ct-email':'email', 'ct-fornece':'fornece',
+  'ct-entrega':'entrega', 'ct-prazo':'prazo_pagamento', 'ct-documento':'documento',
+  'ct-razao':'razao_social', 'ct-endereco':'endereco', 'ct-cidade':'cidade',
+  'ct-uf':'uf', 'ct-obs':'observacoes'
+};
+
+function abrirContato(c) {
+  contatoEmEdicao = c || null;
+  document.getElementById('ct-titulo-modal').textContent = c ? 'Editar contato' : 'Novo contato';
+  var erro = document.getElementById('ct-erro');
+  if (erro) erro.style.display = 'none';
+
+  Object.keys(CAMPOS_CONTATO).forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.value = c ? (c[CAMPOS_CONTATO[id]] || '') : (id === 'ct-categoria' ? 'fornecedor' : '');
+  });
+  // O telefone é guardado em dígitos; na tela aparece formatado.
+  if (c && c.telefone)  document.getElementById('ct-telefone').value  = formatarTelefoneBR(c.telefone);
+  if (c && c.telefone2) document.getElementById('ct-telefone2').value = formatarTelefoneBR(c.telefone2);
+  document.getElementById('ct-favorito').checked = !!(c && c.favorito);
+
+  abrirModal('modal-contato');
+}
+
+function salvarContato() {
+  var erro = document.getElementById('ct-erro');
+  erro.style.display = 'none';
+
+  var corpo = {};
+  Object.keys(CAMPOS_CONTATO).forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) corpo[CAMPOS_CONTATO[id]] = (el.value || '').trim();
+  });
+  corpo.favorito = document.getElementById('ct-favorito').checked;
+
+  if (!corpo.nome) {
+    erro.textContent = 'Informe o nome do contato.';
+    erro.style.display = 'block';
+    return;
+  }
+
+  var editando = !!contatoEmEdicao;
+  var liberar = botaoOcupado(document.getElementById('ct-btn-salvar'), 'Salvando...');
+
+  fetch(API_BASE + '/contatos' + (editando ? '/' + contatoEmEdicao.id : ''), {
+    method: editando ? 'PUT' : 'POST',
+    headers: cabecalhoAuth(),
+    body: JSON.stringify(corpo)
+  })
+  .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+  .then(function (res) {
+    liberar();
+    if (!res.ok) { erro.textContent = res.j.error || 'Não consegui salvar.'; erro.style.display = 'block'; return; }
+    fecharModal('modal-contato');
+    carregarContatos();
+  })
+  .catch(function () { liberar(); erro.textContent = 'Erro de conexão.'; erro.style.display = 'block'; });
+}
+
+function apagarContato(c) {
+  if (!confirm('Apagar "' + c.nome + '"?')) return;
+  fetch(API_BASE + '/contatos/' + c.id, { method: 'DELETE', headers: cabecalhoAuth() })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      // O servidor INATIVA em vez de apagar quando há contas no
+      // histórico. Dizer isso é o que evita o dono achar que o botão
+      // não funcionou e clicar de novo.
+      if (d && d.inativado) alert(d.aviso || 'Contato desativado por ter histórico financeiro.');
+      carregarContatos();
+    })
+    .catch(function () {});
 }
 
 // ═══════════════════════════════════
