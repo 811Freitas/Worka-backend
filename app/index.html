@@ -1403,6 +1403,101 @@ tr:hover td{background:var(--g50)}
     </div>
 
     <!-- METAS — da empresa (sem responsável) ou de uma pessoa. -->
+    <!-- ANOTAÇÕES — a memória do dono sobre a equipe e o negócio.
+         Não é o mural nem o chat: aqueles servem para FALAR com a
+         equipe. Aqui o funcionário não entra, nem para ler o que foi
+         escrito sobre ele — o item nem aparece no menu dele, e o
+         backend recusa por permissão de qualquer jeito. -->
+    <div class="page" id="pg-anotacoes">
+      <div class="grid-2">
+        <div>
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-clipboard></use></svg> Nova anotação</div>
+                <div class="card-sub">Só você e seus gerentes veem isto.</div>
+              </div>
+            </div>
+            <div class="card-body">
+              <!-- .field é o padrão de formulário deste app: a label
+                   vai DENTRO da div, e o CSS cuida do resto. As classes
+                   que eu tinha usado antes (lbl, input, hint) não
+                   existem em lugar nenhum — o formulário saía sem
+                   estilo, com os campos colados uns nos outros. -->
+              <div class="field">
+                <label>Título *</label>
+                <input id="an-titulo" maxlength="120" placeholder="Ex.: Trocar o fornecedor de pão">
+              </div>
+
+              <div class="field">
+                <label>Detalhes</label>
+                <textarea id="an-texto" rows="4" maxlength="4000" placeholder="O que aconteceu, o que ficou combinado..."
+                  style="width:100%;padding:11px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-size:.9rem;font-family:var(--font);outline:none;background:var(--gray50);resize:vertical"></textarea>
+              </div>
+
+              <div class="form-grid">
+                <div class="field">
+                  <label>Tipo</label>
+                  <select id="an-categoria">
+                    <option value="geral">Geral</option>
+                    <option value="ocorrencia">Ocorrência</option>
+                    <option value="elogio">Elogio</option>
+                    <option value="ideia">Ideia</option>
+                    <option value="lembrete">Lembrete</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>Sobre quem</label>
+                  <select id="an-funcionario">
+                    <option value="">Ninguém em especial</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="field">
+                <label>Me lembrar em (opcional)</label>
+                <input id="an-lembrar" type="date">
+                <div style="font-size:.74rem;color:var(--gray500);margin-top:5px">No dia, chega um aviso no celular e no e-mail.</div>
+              </div>
+
+              <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer;margin-bottom:14px">
+                <input id="an-fixada" type="checkbox" style="width:auto"> Fixar no topo
+              </label>
+
+              <div id="an-erro" class="login-erro"></div>
+              <button class="btn-full" id="btn-anotar" onclick="salvarAnotacao()">Salvar anotação</button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-clipboard></use></svg> Anotações</div>
+                <div class="card-sub" id="an-resumo">Carregando...</div>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="carregarAnotacoes()"><svg class=ico aria-hidden=true><use href=#i-refresh></use></svg></button>
+            </div>
+            <div class="card-body">
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+                <input id="an-busca" class="input" style="flex:1;min-width:140px;font-size:.85rem" placeholder="Buscar..." oninput="carregarAnotacoes()">
+                <select id="an-filtro" class="input" style="width:auto;font-size:.85rem" onchange="carregarAnotacoes()">
+                  <option value="">Todos os tipos</option>
+                  <option value="geral">Geral</option>
+                  <option value="ocorrencia">Ocorrência</option>
+                  <option value="elogio">Elogio</option>
+                  <option value="ideia">Ideia</option>
+                  <option value="lembrete">Lembrete</option>
+                </select>
+              </div>
+              <div id="an-lista">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="page" id="pg-metas">
       <div class="card" style="margin-bottom:16px" id="metas-editor">
         <div class="card-header"><div class="card-title">Nova meta</div></div>
@@ -3047,6 +3142,7 @@ var menus = {
     {id:'chat',icon:'<svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg>',label:'Chat da Equipe'},
     {id:'ferias',icon:'<svg class=ico aria-hidden=true><use href=#i-calendar></use></svg>',label:'Férias e Folgas'},
     {id:'metas',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Metas'},
+    {id:'anotacoes',icon:'<svg class=ico aria-hidden=true><use href=#i-clipboard></use></svg>',label:'Anotações'},
     {id:'financeiro',icon:'<svg class=ico aria-hidden=true><use href=#i-money></use></svg>',label:'Financeiro'},
     {id:'relatorios',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Relatórios'},
     {id:'espelho',icon:'<svg class=ico aria-hidden=true><use href=#i-clipboard></use></svg>',label:'Espelho de Ponto'},
@@ -3094,6 +3190,7 @@ var menus = {
     {id:'chat',icon:'<svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg>',label:'Chat da Equipe'},
     {id:'ferias',icon:'<svg class=ico aria-hidden=true><use href=#i-calendar></use></svg>',label:'Férias e Folgas'},
     {id:'metas',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Metas'},
+    {id:'anotacoes',icon:'<svg class=ico aria-hidden=true><use href=#i-clipboard></use></svg>',label:'Anotações'},
     {id:'financeiro',icon:'<svg class=ico aria-hidden=true><use href=#i-money></use></svg>',label:'Financeiro'},
     {id:'relatorios',icon:'<svg class=ico aria-hidden=true><use href=#i-report></use></svg>',label:'Relatórios'},
     {id:'espelho',icon:'<svg class=ico aria-hidden=true><use href=#i-clipboard></use></svg>',label:'Espelho de Ponto'},
@@ -4545,6 +4642,7 @@ function abrirPagina(id) {
     'salarios':'Salários e Pagamentos','ausencias':'Ausências e Faltas',
     'escala':'Escala de Trabalho','relatorios':'Relatórios','mural':'Mural / Comunicados',
     'financeiro':'Financeiro','chat':'Chat da Equipe','ferias':'Férias e Folgas','metas':'Metas',
+    'anotacoes':'Anotações',
     'cupons':'Cupons de Desconto','comunicados':'Enviar Comunicado',
     'espelho':'Espelho de Ponto','jornada':'Jornada de Trabalho',
     'suporte':'Suporte'
@@ -4574,6 +4672,7 @@ function abrirPagina(id) {
   if(id!=='chat'       && typeof pararTimerChat        === 'function') pararTimerChat();
   if(id==='ferias'     && typeof carregarAfastamentos  === 'function') carregarAfastamentos();
   if(id==='metas'      && typeof carregarMetas         === 'function') carregarMetas();
+  if(id==='anotacoes'  && typeof carregarAnotacoes    === 'function') carregarAnotacoes();
   if(id==='escala'     && typeof carregarEscala      === 'function') carregarEscala();
   if(id==='relatorios' && typeof carregarRelatorios  === 'function') carregarRelatorios();
   if(id==='cargos' && typeof carregarCargos === 'function') carregarCargos();
@@ -9487,6 +9586,209 @@ async function removerAfastamento(id){
     await fetch(API_BASE + '/afastamentos/' + id, { method:'DELETE', headers: cabecalhoAuth() });
     carregarAfastamentos();
   } catch(e) { alert('Não foi possível remover agora.'); }
+}
+
+// ═══════════════════════════════════
+// ANOTAÇÕES
+// ═══════════════════════════════════
+var ESTILO_DA_ANOTACAO = {
+  geral:      ['Geral',      '#6b7068', '#f2f4f2'],
+  ocorrencia: ['Ocorrência', '#9a3412', '#fff4ed'],
+  elogio:     ['Elogio',     '#166534', '#edfaf2'],
+  ideia:      ['Ideia',      '#1e40af', '#eef2ff'],
+  lembrete:   ['Lembrete',   '#78350f', '#fffbeb']
+};
+
+// Nomes dos funcionários para o seletor "sobre quem" e para mostrar na
+// lista. Guardado aqui para não pedir /funcionarios a cada anotação
+// desenhada.
+var nomesDosFuncionarios = {};
+
+function carregarAnotacoes() {
+  if (!sessaoWorka || !sessaoWorka.token) return;
+  var lista = document.getElementById('an-lista');
+  var resumo = document.getElementById('an-resumo');
+  if (!lista) return;
+
+  var q = (document.getElementById('an-busca') || {}).value || '';
+  var cat = (document.getElementById('an-filtro') || {}).value || '';
+  var url = API_BASE + '/anotacoes?';
+  if (q)   url += 'q=' + encodeURIComponent(q) + '&';
+  if (cat) url += 'categoria=' + encodeURIComponent(cat);
+
+  preencherFuncionariosDaAnotacao();
+
+  fetch(url, { headers: cabecalhoAuth() })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      lista.textContent = '';
+      if (!d) { resumo.textContent = 'Não consegui carregar.'; return; }
+
+      resumo.textContent = d.length === 0 ? 'Nenhuma anotação ainda'
+        : d.length === 1 ? '1 anotação' : d.length + ' anotações';
+
+      if (!d.length) {
+        lista.style.color = 'var(--gray500)';
+        lista.style.fontSize = '.86rem';
+        lista.textContent = q || cat
+          ? 'Nada encontrado com esse filtro.'
+          : 'Anote aqui o que não pode ser esquecido: uma ocorrência, um elogio, uma ideia para o negócio.';
+        return;
+      }
+      lista.style.color = ''; lista.style.fontSize = '';
+      d.forEach(function (a) { lista.appendChild(cartaoDeAnotacao(a)); });
+    })
+    .catch(function () { resumo.textContent = 'Erro de conexão.'; });
+}
+
+function cartaoDeAnotacao(a) {
+  var cat = ESTILO_DA_ANOTACAO[a.categoria] || ESTILO_DA_ANOTACAO.geral;
+
+  var card = document.createElement('div');
+  card.style.cssText = 'border:1px solid var(--gray200,#e3e6e3);border-left:3px solid ' + cat[1] +
+    ';border-radius:10px;padding:12px 14px;margin-bottom:10px;background:' +
+    (a.fixada ? 'var(--gray50,#f7f9f7)' : '#fff');
+
+  var topo = document.createElement('div');
+  topo.style.cssText = 'display:flex;align-items:flex-start;justify-content:space-between;gap:10px';
+
+  var titulo = document.createElement('div');
+  titulo.style.cssText = 'font-weight:700;color:var(--gray800,#0a2e1a);font-size:.92rem;line-height:1.35';
+  titulo.textContent = (a.fixada ? '📌 ' : '') + a.titulo;
+  topo.appendChild(titulo);
+
+  var etiqueta = document.createElement('span');
+  etiqueta.textContent = cat[0];
+  etiqueta.style.cssText = 'flex:none;font-size:.66rem;font-weight:700;padding:3px 8px;border-radius:5px;background:' +
+    cat[2] + ';color:' + cat[1];
+  topo.appendChild(etiqueta);
+  card.appendChild(topo);
+
+  if (a.texto) {
+    var corpo = document.createElement('div');
+    corpo.style.cssText = 'font-size:.84rem;color:var(--gray600,#3a3d39);line-height:1.5;margin-top:6px;white-space:pre-wrap';
+    corpo.textContent = a.texto;
+    card.appendChild(corpo);
+  }
+
+  var rodape = document.createElement('div');
+  rodape.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:.74rem;color:var(--gray500,#6b7068)';
+
+  if (a.funcionario_id) {
+    var quem = document.createElement('span');
+    quem.textContent = '👤 ' + (nomesDosFuncionarios[a.funcionario_id] || 'funcionário');
+    rodape.appendChild(quem);
+  }
+  if (a.lembrar_em) {
+    var lembra = document.createElement('span');
+    // O lembrete já disparado é informação diferente do que ainda vem:
+    // um diz "aconteceu", o outro "está marcado".
+    lembra.textContent = (a.lembrete_enviado ? '🔔 avisado em ' : '⏰ lembrar em ') + dataBR(a.lembrar_em);
+    rodape.appendChild(lembra);
+  }
+  if (a.created_at) {
+    var quando = document.createElement('span');
+    quando.textContent = dataBR(String(a.created_at).substring(0, 10));
+    rodape.appendChild(quando);
+  }
+
+  var fixar = document.createElement('span');
+  fixar.textContent = a.fixada ? 'Desafixar' : 'Fixar';
+  fixar.style.cssText = 'color:var(--green600,#1e8a40);cursor:pointer;text-decoration:underline';
+  fixar.onclick = function () { alternarFixada(a); };
+  rodape.appendChild(fixar);
+
+  var apagar = document.createElement('span');
+  apagar.textContent = 'Apagar';
+  apagar.style.cssText = 'color:#dc2626;cursor:pointer;text-decoration:underline';
+  apagar.onclick = function () { apagarAnotacao(a); };
+  rodape.appendChild(apagar);
+
+  card.appendChild(rodape);
+  return card;
+}
+
+// AAAA-MM-DD → DD/MM/AAAA sem passar por new Date(): uma data pura
+// interpretada como UTC vira o dia anterior em qualquer fuso a oeste
+// de Greenwich, que é o caso do Brasil inteiro.
+function dataBR(iso) {
+  var p = String(iso || '').split('-');
+  return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : String(iso || '');
+}
+
+function preencherFuncionariosDaAnotacao() {
+  var sel = document.getElementById('an-funcionario');
+  if (!sel || sel.dataset.pronto === '1') return;
+
+  fetch(API_BASE + '/funcionarios', { headers: cabecalhoAuth() })
+    .then(function (r) { return r.ok ? r.json() : []; })
+    .then(function (lista) {
+      (lista || []).forEach(function (f) {
+        nomesDosFuncionarios[f.id] = f.nome;
+        var o = document.createElement('option');
+        o.value = f.id; o.textContent = f.nome;
+        sel.appendChild(o);
+      });
+      sel.dataset.pronto = '1';
+      // A lista pode ter sido desenhada antes dos nomes chegarem.
+      if (document.querySelectorAll('#an-lista > div').length) carregarAnotacoes();
+    })
+    .catch(function () {});
+}
+
+function erroAnotacao(msg) {
+  var el = document.getElementById('an-erro');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.style.display = msg ? 'block' : 'none';
+}
+
+function salvarAnotacao() {
+  erroAnotacao('');
+  var titulo = (document.getElementById('an-titulo').value || '').trim();
+  if (!titulo) { erroAnotacao('Escreva um título para a anotação.'); return; }
+
+  var corpo = {
+    titulo: titulo,
+    texto: (document.getElementById('an-texto').value || '').trim() || null,
+    categoria: document.getElementById('an-categoria').value,
+    funcionario_id: document.getElementById('an-funcionario').value || null,
+    lembrar_em: document.getElementById('an-lembrar').value || null,
+    fixada: document.getElementById('an-fixada').checked
+  };
+
+  var liberar = botaoOcupado(document.getElementById('btn-anotar'), 'Salvando...');
+  fetch(API_BASE + '/anotacoes', {
+    method: 'POST', headers: cabecalhoAuth(), body: JSON.stringify(corpo)
+  })
+  .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+  .then(function (res) {
+    liberar();
+    if (!res.ok) { erroAnotacao(res.j.error || 'Não consegui salvar.'); return; }
+    ['an-titulo', 'an-texto', 'an-lembrar'].forEach(function (id) {
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('an-fixada').checked = false;
+    document.getElementById('an-funcionario').value = '';
+    carregarAnotacoes();
+  })
+  .catch(function () { liberar(); erroAnotacao('Erro de conexão. Tente de novo.'); });
+}
+
+function alternarFixada(a) {
+  fetch(API_BASE + '/anotacoes/' + a.id, {
+    method: 'PUT', headers: cabecalhoAuth(),
+    body: JSON.stringify({ fixada: !a.fixada })
+  }).then(carregarAnotacoes).catch(function () {});
+}
+
+function apagarAnotacao(a) {
+  // Anotação apagada não volta, e o valor dela é justamente ser o
+  // registro do que aconteceu — confirmar aqui custa um clique e evita
+  // perder meses de histórico por um toque errado no celular.
+  if (!confirm('Apagar "' + a.titulo + '"?\nIsso não pode ser desfeito.')) return;
+  fetch(API_BASE + '/anotacoes/' + a.id, { method: 'DELETE', headers: cabecalhoAuth() })
+    .then(carregarAnotacoes).catch(function () {});
 }
 
 // ═══════════════════════════════════
