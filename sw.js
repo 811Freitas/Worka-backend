@@ -9,6 +9,8 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v36: entrou a aba de Contatos — fornecedor, contador e prestador,
+// com WhatsApp de um toque, e a conta a pagar agora sabe de quem e.
 // v35: o funcionario cria a propria senha por link de uso unico — o
 // dono nao inventa mais senha para cada um. E o Pro ganhou a ficha da
 // pessoa pela IA (ponto, faltas, tarefas e anotacoes em 4 linhas).
@@ -64,7 +66,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v35';
+var CACHE = 'workap-v36';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
