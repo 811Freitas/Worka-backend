@@ -718,6 +718,20 @@
          "Entrar". Fica só o símbolo, que já é a marca. */
       .nav-logo .nav-logo-txt { display: none; }
       .nav-cta { padding: 9px 13px; font-size: 0.78rem; }
+
+      /* 16px nos campos. Abaixo disso o Safari do iPhone da zoom
+         sozinho quando a pessoa toca no campo, e nao volta: a pagina
+         fica maior que a tela e o resto do formulario sai de vista.
+         Acontecia no cadastro — exatamente onde a venda se fecha.
+         O !important e necessario e nao e preguica: o tamanho esta no
+         style="" de cada um dos 14 campos, e style inline ganha de
+         qualquer folha de estilo. So o !important alcanca. */
+      input[type=text], input[type=email], input[type=password],
+      input[type=tel], input[type=number], input[type=date],
+      /* input:not([type]) porque campo sem o atributo type e text na
+         pratica, mas input[type=text] nao o alcanca no CSS. */
+      input[type=search], input:not([type]),
+      select, textarea { font-size: 16px !important; }
     }
   
 /* ── ÍCONES SVG ──────────────────────────────────────────
