@@ -955,7 +955,7 @@ function supabase(method, table, options = {}) {
     "dispositivos_confiaveis", "comunicados_plataforma",
     "owners_plataforma", "webauthn_credentials", "webauthn_challenges",
     "config_plataforma", "utmify_envios",
-    "anotacoes", "ia_usos", "contatos",
+    "anotacoes", "ia_usos", "contatos", "visitas_funil",
     "comunicados", "cargos", "config_faltas", "contas_pagar",
     "mensagens", "periodos_afastamento", "metas",
     "config_jornada", "erros_plataforma", "eventos_pagamento",
@@ -1422,6 +1422,62 @@ async function gravarConfigPlataforma(chave, valor) {
     await supabase("POST", "config_plataforma", { body: corpo });
   }
   cacheConfig.expiraEm = 0;   // força releitura na próxima consulta
+}
+
+// ════════════════════════════════════════
+// FUNIL DO SITE — quem chega e onde desiste
+// ════════════════════════════════════════
+//
+// Cinco etapas, do primeiro acesso à conta criada. Serve para uma
+// pergunta só, e é a que decide o dinheiro de anúncio: de cada 100 que
+// entram, quantos viram cliente e ONDE se perde o resto.
+//
+// Antes disto o painel só sabia contar quem terminou. Quem abriu o
+// site e foi embora — que é quem custou o clique — não aparecia.
+//
+// NÃO guarda IP. Guarda hash com sal secreto: dá para contar pessoas
+// distintas sem saber quem são, que é exatamente o necessário e nada
+// além. IP é dado pessoal sob a LGPD.
+
+var ETAPAS_FUNIL = ["visita", "abriu_cadastro", "preencheu_dados", "pediu_codigo", "criou_conta"];
+
+function hashDoIP(ip) {
+  // JWT_SECRET como sal: já é um segredo que existe e nunca sai do
+  // servidor. Sem sal, um hash de IP é reversível em segundos — são só
+  // 4 bilhões de possibilidades, e qualquer um com o banco na mão faz
+  // essa varredura numa tarde.
+  return crypto.createHash("sha256")
+    .update(String(ip || "?") + "|" + CONFIG.JWT_SECRET)
+    .digest("hex").substring(0, 32);
+}
+
+/**
+ * Marca uma etapa do funil. Fire-and-forget SEMPRE.
+ *
+ * Nada aqui pode atrasar ou derrubar o que o visitante está fazendo:
+ * é estatística, e estatística que quebra cadastro é pior que
+ * estatística que falta. Por isso quem chama nunca dá await.
+ *
+ * O erro de chave duplicada (a mesma pessoa na mesma etapa no mesmo
+ * dia) é ESPERADO e engolido — é ele que faz a conta ser de pessoas em
+ * vez de cliques.
+ */
+function marcarEtapaDoFunil(etapa, ip, origem) {
+  if (!ETAPAS_FUNIL.includes(etapa)) return;
+
+  var linha = {
+    etapa: etapa,
+    ip_hash: hashDoIP(ip),
+    dia: new Date().toISOString().substring(0, 10)
+  };
+  if (origem && origem.utm_source)   linha.utm_source   = String(origem.utm_source).slice(0, 120);
+  if (origem && origem.utm_campaign) linha.utm_campaign = String(origem.utm_campaign).slice(0, 200);
+
+  DB.insert("visitas_funil", linha).catch(function () {
+    // Duplicata (mesma pessoa, mesma etapa, mesmo dia) cai aqui e é
+    // exatamente o comportamento desejado. Não vira log: encheria o
+    // log de "erro" que é funcionamento normal.
+  });
 }
 
 // ════════════════════════════════════════
@@ -5193,6 +5249,7 @@ var server = http.createServer(async (req, res) => {
 
     // ── ENVIAR CÓDIGO OTP ───────────────────────────
     if (method === "POST" && path === "/enviar-codigo") {
+      marcarEtapaDoFunil("pediu_codigo", ip);
       // Rate limiting já aplicado no bloco global (checkRateLimit acima),
       // via RATE_LIMITS["/enviar-codigo"] = 3/10min — mesma janela que
       // havia aqui duplicada sob uma chave diferente ("otp:"+ip).
@@ -5391,6 +5448,10 @@ var server = http.createServer(async (req, res) => {
           var emp = result.body[0];
           var token = jwtSign({ empresa_id: emp.id, email: emp.email, role: "dono" });
 
+          // Última etapa do funil. Aqui, e não antes: só existe conta
+          // criada depois do insert dar certo.
+          marcarEtapaDoFunil("criou_conta", ip, origem);
+
           // Gasta o convite. Só aqui, depois de a conta EXISTIR: queimar
           // antes deixaria o cliente sem link e sem conta se o insert
           // falhasse — e ele não teria como tentar de novo.
@@ -5551,6 +5612,28 @@ var server = http.createServer(async (req, res) => {
         valor_original: centavosParaReais(checagem.valor_original_centavos),
         valor_final:    centavosParaReais(checagem.valor_final_centavos)
       });
+    }
+
+    // ── ETAPA DO FUNIL (rota pública) ────────────────
+    // Duas etapas só a tela conhece: abrir o cadastro e preencher os
+    // dados. O servidor não vê nenhuma das duas — não há requisição
+    // envolvida até o pedido do código.
+    //
+    // Aceita SÓ os nomes de etapa da lista, e nunca um número: sem
+    // isso, virava um endereço onde qualquer um escreve o que quiser
+    // na tabela de estatística.
+    if (method === "POST" && path === "/funil") {
+      var rawFn = await getBody(req);
+      var bodyFn = parseBody(rawFn);
+      if (!bodyFn) return jsonOk(res, { ok: true });   // nunca atrapalha o site
+
+      var etapaFn = String(bodyFn.etapa || "");
+      // As três primeiras só: pediu_codigo e criou_conta são marcadas
+      // pelo próprio servidor, onde não dá para mentir.
+      if (["abriu_cadastro", "preencheu_dados"].includes(etapaFn)) {
+        marcarEtapaDoFunil(etapaFn, ip, origemDoCadastro(bodyFn.origem));
+      }
+      return jsonOk(res, { ok: true });
     }
 
     // ── CONVITE DO FUNCIONÁRIO (rotas públicas) ──────
@@ -5719,6 +5802,11 @@ var server = http.createServer(async (req, res) => {
     // ligar. Nenhum segredo passa por aqui — os que são segredo (chaves
     // da Cakto, do Resend) continuam só em variável de ambiente.
     if (method === "GET" && path === "/config-publica") {
+      // Sinal de VISITA. Esta rota é chamada só pelo site (o app não a
+      // usa), e em toda abertura de página — então é o lugar exato
+      // para contar quem chegou, sem pedir nada a mais do navegador.
+      marcarEtapaDoFunil("visita", ip);
+
       var cfgPub = await lerConfigPlataforma();
       return jsonOk(res, {
         meta_pixel_id:   cfgPub.meta_pixel_id || null,
@@ -6434,6 +6522,95 @@ var server = http.createServer(async (req, res) => {
     // (47 empresas, R$ 1.170 de MRR, 312 usuários, 94% de retenção).
     // Eram números de maquete, mas apareciam com a mesma cara de dado
     // real — e a decisão de ligar tráfego pago sairia de olhar isso.
+    if (method === "GET" && path === "/owner/funil") {
+      if (!hasPermission(authPayload, "saas:read")) {
+        return jsonErr(res, "Apenas o owner da Workap pode ver isso", 403);
+      }
+
+      var diasFunil = SANITIZE.int(url.searchParams.get("dias"), 1, 90) || 30;
+      var desdeFunil = new Date(Date.now() - diasFunil * 86400000)
+        .toISOString().substring(0, 10);
+
+      var linhasFunil = await DB.select("visitas_funil",
+        "dia=gte." + desdeFunil + "&select=etapa,dia,utm_source,utm_campaign&limit=20000"
+      ).catch(function () { return { body: [] }; });
+
+      var eventos = linhasFunil.body || [];
+      var porEtapa = {};
+      ETAPAS_FUNIL.forEach(function (e) { porEtapa[e] = 0; });
+      eventos.forEach(function (l) {
+        if (porEtapa[l.etapa] !== undefined) porEtapa[l.etapa]++;
+      });
+
+      // O funil montado como o dono lê: cada linha com quantos
+      // chegaram, quantos SEGUIRAM e quantos DESISTIRAM ali.
+      //
+      // A desistência é o número que ele pediu, e é o que aponta onde
+      // mexer: 80% saindo no formulário é problema de formulário, 80%
+      // saindo na primeira tela é problema de anúncio ou de promessa.
+      var ROTULOS = {
+        visita:          "Entraram no site",
+        abriu_cadastro:  "Abriram o cadastro",
+        preencheu_dados: "Preencheram os dados",
+        pediu_codigo:    "Pediram o código",
+        criou_conta:     "Criaram a conta"
+      };
+
+      var etapas = ETAPAS_FUNIL.map(function (nome, i) {
+        var quantos = porEtapa[nome];
+        var anterior = i === 0 ? quantos : porEtapa[ETAPAS_FUNIL[i - 1]];
+        var desistiram = i === 0 ? 0 : Math.max(0, anterior - quantos);
+        return {
+          etapa: nome,
+          rotulo: ROTULOS[nome],
+          pessoas: quantos,
+          desistiram: desistiram,
+          // Percentual em relação a QUEM CHEGOU NA ETAPA ANTERIOR, não
+          // ao topo: é assim que se enxerga qual passo específico está
+          // perdendo gente. Comparado ao topo, toda etapa final parece
+          // ruim e nenhuma aponta o problema.
+          seguiram_pct: anterior > 0 ? Math.round((quantos / anterior) * 100) : 0
+        };
+      });
+
+      var visitas = porEtapa.visita;
+      var contas  = porEtapa.criou_conta;
+
+      // Por dia, para ver se o anúncio de ontem trouxe gente.
+      var porDia = {};
+      eventos.forEach(function (l) {
+        if (l.etapa !== "visita") return;
+        porDia[l.dia] = (porDia[l.dia] || 0) + 1;
+      });
+      var diario = Object.keys(porDia).sort().map(function (d) {
+        return { dia: d, visitas: porDia[d] };
+      });
+
+      // De qual campanha veio quem CRIOU CONTA — o cruzamento que diz
+      // qual anúncio traz cliente, e não só clique.
+      var porCampanha = {};
+      eventos.forEach(function (l) {
+        if (l.etapa !== "criou_conta" || !l.utm_campaign) return;
+        porCampanha[l.utm_campaign] = (porCampanha[l.utm_campaign] || 0) + 1;
+      });
+
+      return jsonOk(res, {
+        dias: diasFunil,
+        etapas: etapas,
+        visitas: visitas,
+        contas_criadas: contas,
+        // A taxa que importa: de cada 100 que entram, quantos viram
+        // conta. É o número que se compara com o custo do clique.
+        conversao_pct: visitas > 0 ? Math.round((contas / visitas) * 1000) / 10 : 0,
+        // Quem entrou no site e NÃO criou conta.
+        desistiram_total: Math.max(0, visitas - contas),
+        por_dia: diario,
+        por_campanha: Object.keys(porCampanha).map(function (c) {
+          return { campanha: c, contas: porCampanha[c] };
+        }).sort(function (a, b) { return b.contas - a.contas; }).slice(0, 10)
+      });
+    }
+
     if (method === "GET" && path === "/owner/metricas") {
       if (!hasPermission(authPayload, "saas:read")) {
         return jsonErr(res, "Apenas o owner da Workap pode ver isso", 403);

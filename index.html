@@ -1796,6 +1796,7 @@ function botaoOcupado(btn, texto) {
 
 // ── Abrir / fechar modal ──────────────────────────────────────
 function abrirCheckout() {
+  marcarEtapa('abriu_cadastro');
   document.getElementById('checkout-overlay').style.display = 'block';
   document.body.style.overflow = 'hidden';
   carregarRamosNoCadastro();
@@ -2148,6 +2149,21 @@ async function irParaPagamento(liberarDoChamador) {
 
 // Volta do checkout. O acesso quem libera é o webhook — esta tela só
 // conta ao cliente o que aconteceu, sem prometer nada que não sabe.
+// Avisa o servidor de uma etapa do funil.
+//
+// Fire-and-forget e com catch vazio de propósito: é estatística. Se
+// falhar, o visitante não pode nem perceber — e o pior caso é um
+// número menor no painel, nunca um cadastro travado.
+function marcarEtapa(etapa) {
+  try {
+    fetch(API_BASE + '/funil', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ etapa: etapa, origem: origemGravada() })
+    }).catch(function () {});
+  } catch (e) {}
+}
+
 function tratarRetornoDoPagamento() {
   var p = new URLSearchParams(window.location.search);
   var resultado = p.get('assinatura');
@@ -2441,6 +2457,10 @@ function continuarParaOferta() {
   // Passou dos dados: para a Meta, isto e "iniciou o cadastro". Sem
   // este evento ela otimiza por CLIQUE, e clique nao paga conta.
   avisarPixel('InitiateCheckout');
+  // O mesmo momento que a Meta já recebe, agora também no nosso funil:
+  // sem isto o painel não distingue quem abriu o formulário e desistiu
+  // de quem preencheu tudo e travou no código.
+  marcarEtapa('preencheu_dados');
 
   // Já pagou: pula a oferta de trial e vai direto ao código + senha.
   // Ver entrarNoModoPagou().

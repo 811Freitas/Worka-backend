@@ -1948,6 +1948,7 @@ tr:hover td{background:var(--g50)}
         <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('plataforma')"><svg class=ico aria-hidden=true><use href=#i-settings></use></svg> Plataforma</button>
         <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('suporte')"><svg class=ico aria-hidden=true><use href=#i-support></use></svg> Suporte</button>
         <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('marketing')"><svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg> Marketing</button>
+        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('funil')"><svg class=ico aria-hidden=true><use href=#i-report></use></svg> Funil</button>
         <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('logs')"><svg class=ico aria-hidden=true><use href=#i-tasks></use></svg> Logs</button>
         <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('api')"><svg class=ico aria-hidden=true><use href=#i-plug></use></svg> API</button>
         <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('cobrancas')"><svg class=ico aria-hidden=true><use href=#i-link></use></svg> Cobranças</button>
@@ -2121,7 +2122,62 @@ tr:hover td{background:var(--g50)}
       </div>
 
       <!-- ABA: MARKETING -->
-      <div id="owner-marketing" style="display:none">
+      <!-- FUNIL — quem chega no site e onde desiste.
+     Responde a pergunta que decide o dinheiro de anúncio: de cada 100
+     que entram, quantos viram cliente e ONDE se perde o resto.
+     O painel só sabia contar quem TERMINOU o cadastro; quem abriu e
+     foi embora — que é quem custou o clique — não aparecia. -->
+<div id="owner-funil" style="display:none">
+  <div class="stats-grid" style="margin-bottom:16px">
+    <div class="stat-card">
+      <div class="stat-card-num" id="fn-visitas">—</div>
+      <div class="stat-card-lbl">Entraram no site</div>
+      <div class="stat-card-sub" id="fn-visitas-sub">pessoas diferentes</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-num" id="fn-contas">—</div>
+      <div class="stat-card-lbl">Criaram a conta</div>
+      <div class="stat-card-sub" id="fn-conversao">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-num" id="fn-desistiram" style="color:#9a3412">—</div>
+      <div class="stat-card-lbl">Desistiram</div>
+      <div class="stat-card-sub">entraram e não criaram conta</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-head">
+      <div>
+        <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-report></use></svg> Onde você perde gente</div>
+        <div class="card-sub" id="fn-periodo">últimos 30 dias</div>
+      </div>
+      <select id="fn-dias" class="input" style="width:auto;font-size:.8rem;padding:6px 10px" onchange="carregarFunil()">
+        <option value="7">7 dias</option>
+        <option value="30" selected>30 dias</option>
+        <option value="90">90 dias</option>
+      </select>
+    </div>
+    <div class="card-body" id="fn-etapas">—</div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-head"><div class="card-title">Visitas por dia</div></div>
+    <div class="card-body" id="fn-dias-lista">—</div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <div class="card-title">Qual campanha virou cliente</div>
+        <div class="card-sub">contas criadas por campanha do anúncio</div>
+      </div>
+    </div>
+    <div class="card-body" id="fn-campanhas">—</div>
+  </div>
+</div>
+
+<div id="owner-marketing" style="display:none">
         <!-- Fontes de aquisição e UTMs vinham escritas no HTML
              (instagram_stories_jun, whatsapp_dono_mai...). A coluna utm
              existe em pagamentos_pix e é preenchida na cobrança, mas
@@ -5896,13 +5952,14 @@ function ownerTab(tab) {
   // rodá-los faz chamadas de verdade — quem decide é o botão.
   if(tab === 'suporte' && typeof carregarFilaSuporte === 'function') carregarFilaSuporte();
   if(tab === 'cobrancas' && typeof carregarLinks === 'function') carregarLinks();
+  if(tab === 'funil' && typeof carregarFunil === 'function') carregarFunil();
   if(tab === 'diagnostico') {
     if(typeof carregarSeguranca === 'function') carregarSeguranca();
     if(typeof carregarErros     === 'function') carregarErros();
   }
 
   // Esconder todas as abas
-  ['assinantes','financeiro','plataforma','suporte','marketing','logs','api','cobrancas','diagnostico','configuracoes'].forEach(function(t){
+  ['assinantes','financeiro','plataforma','suporte','marketing','funil','logs','api','cobrancas','diagnostico','configuracoes'].forEach(function(t){
     var el = document.getElementById('owner-'+t);
     if(el) el.style.display = 'none';
   });
@@ -9974,6 +10031,174 @@ async function escreverComIA() {
     liberar();
     avisoIA('Erro de conexão.', '#dc2626');
   }
+}
+
+// ═══════════════════════════════════
+// FUNIL DO SITE (painel Owner)
+// ═══════════════════════════════════
+function carregarFunil() {
+  var dias = (document.getElementById('fn-dias') || {}).value || '30';
+
+  fetch(API_BASE + '/owner/funil?dias=' + encodeURIComponent(dias), { headers: cabecalhoOwner() })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      if (!d) { escreverTexto('fn-etapas', 'Não consegui carregar.'); return; }
+
+      escreverTexto('fn-visitas', String(d.visitas));
+      escreverTexto('fn-contas', String(d.contas_criadas));
+      escreverTexto('fn-desistiram', String(d.desistiram_total));
+      escreverTexto('fn-conversao', d.conversao_pct + '% de quem entrou');
+      escreverTexto('fn-periodo', 'últimos ' + d.dias + ' dias');
+
+      desenharEtapasDoFunil(d.etapas);
+      desenharVisitasPorDia(d.por_dia);
+      desenharCampanhas(d.por_campanha);
+    })
+    .catch(function () { escreverTexto('fn-etapas', 'Erro de conexão.'); });
+}
+
+function desenharEtapasDoFunil(etapas) {
+  var caixa = document.getElementById('fn-etapas');
+  if (!caixa) return;
+  caixa.textContent = '';
+
+  if (!etapas || !etapas.length || !etapas[0].pessoas) {
+    caixa.style.color = 'var(--gray500)'; caixa.style.fontSize = '.86rem';
+    caixa.textContent = 'Nenhuma visita registrada ainda. Os números começam a aparecer assim que alguém abrir o site.';
+    return;
+  }
+  caixa.style.color = ''; caixa.style.fontSize = '';
+
+  var topo = etapas[0].pessoas || 1;
+
+  etapas.forEach(function (e, i) {
+    var linha = document.createElement('div');
+    linha.style.cssText = 'margin-bottom:14px';
+
+    var cab = document.createElement('div');
+    cab.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:5px';
+
+    var rot = document.createElement('span');
+    rot.style.cssText = 'font-size:.86rem;font-weight:600;color:var(--gray800,#0a2e1a)';
+    rot.textContent = e.rotulo;
+    cab.appendChild(rot);
+
+    var num = document.createElement('span');
+    num.style.cssText = 'font-size:.86rem;font-weight:800;color:var(--green600,#1e8a40)';
+    num.textContent = e.pessoas + (i > 0 ? '  (' + e.seguiram_pct + '%)' : '');
+    cab.appendChild(num);
+    linha.appendChild(cab);
+
+    // A barra é proporcional ao TOPO do funil: é o que deixa a queda
+    // visível de bater o olho, sem ler número nenhum.
+    var trilho = document.createElement('div');
+    trilho.style.cssText = 'height:10px;background:var(--gray100,#eff0ef);border-radius:5px;overflow:hidden';
+    var barra = document.createElement('div');
+    var pct = Math.round((e.pessoas / topo) * 100);
+    barra.style.cssText = 'height:100%;width:' + pct + '%;background:var(--green500,#25b251);border-radius:5px';
+    trilho.appendChild(barra);
+    linha.appendChild(trilho);
+
+    // A desistência de CADA passo é o número que aponta onde mexer:
+    // muita gente saindo no formulário é problema de formulário; muita
+    // saindo na primeira tela é problema de anúncio ou de promessa.
+    if (i > 0 && e.desistiram > 0) {
+      var perda = document.createElement('div');
+      perda.style.cssText = 'font-size:.74rem;color:#9a3412;margin-top:3px';
+      perda.textContent = '↓ ' + e.desistiram + ' desistiram aqui';
+      linha.appendChild(perda);
+    }
+
+    caixa.appendChild(linha);
+  });
+}
+
+function desenharVisitasPorDia(dias) {
+  var caixa = document.getElementById('fn-dias-lista');
+  if (!caixa) return;
+  caixa.textContent = '';
+
+  if (!dias || !dias.length) {
+    caixa.style.color = 'var(--gray500)'; caixa.style.fontSize = '.86rem';
+    caixa.textContent = 'Sem visitas no período.';
+    return;
+  }
+  caixa.style.color = ''; caixa.style.fontSize = '';
+
+  var maior = Math.max.apply(null, dias.map(function (d) { return d.visitas; })) || 1;
+
+  // Do mais recente para o mais antigo: a pergunta é sempre "e ontem,
+  // como foi?".
+  dias.slice().reverse().forEach(function (d) {
+    var linha = document.createElement('div');
+    linha.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:6px';
+
+    var data = document.createElement('span');
+    data.style.cssText = 'font-size:.78rem;color:var(--gray500);width:74px;flex:none';
+    data.textContent = String(d.dia).split('-').reverse().join('/');
+    linha.appendChild(data);
+
+    var trilho = document.createElement('div');
+    trilho.style.cssText = 'flex:1;height:8px;background:var(--gray100,#eff0ef);border-radius:4px;overflow:hidden';
+    var barra = document.createElement('div');
+    barra.style.cssText = 'height:100%;width:' + Math.round((d.visitas / maior) * 100) +
+      '%;background:var(--green400,#3dd669);border-radius:4px';
+    trilho.appendChild(barra);
+    linha.appendChild(trilho);
+
+    var n = document.createElement('span');
+    n.style.cssText = 'font-size:.78rem;font-weight:700;color:var(--gray700);width:34px;text-align:right;flex:none';
+    n.textContent = String(d.visitas);
+    linha.appendChild(n);
+
+    caixa.appendChild(linha);
+  });
+}
+
+// A campanha chega como "nome|id" do Meta — mas o NOME também costuma
+// ter barras ("WK | Mensagens | Frio|120210000123"). Cortar no primeiro
+// "|" deixaria só "WK", e todas as campanhas apareceriam iguais na
+// tela. O id é o pedaço depois do ÚLTIMO pipe, e só quando for número.
+//
+// Mesmo tratamento que linhasDaOrigem() faz no backend — foi lá que
+// este erro apareceu primeiro.
+function nomeDaCampanha(bruto) {
+  var texto = String(bruto || '').trim();
+  var corte = texto.lastIndexOf('|');
+  if (corte < 0) return texto;
+  var id = texto.slice(corte + 1).trim();
+  if (!/^\d{3,}$/.test(id)) return texto;
+  return texto.slice(0, corte).trim();
+}
+
+function desenharCampanhas(campanhas) {
+  var caixa = document.getElementById('fn-campanhas');
+  if (!caixa) return;
+  caixa.textContent = '';
+
+  if (!campanhas || !campanhas.length) {
+    caixa.style.color = 'var(--gray500)'; caixa.style.fontSize = '.86rem';
+    caixa.textContent = 'Nenhuma conta veio de campanha identificada ainda. Os parâmetros UTM do anúncio aparecem aqui quando alguém se cadastrar por eles.';
+    return;
+  }
+  caixa.style.color = ''; caixa.style.fontSize = '';
+
+  campanhas.forEach(function (c) {
+    var linha = document.createElement('div');
+    linha.style.cssText = 'display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--gray100,#eff0ef);font-size:.84rem';
+
+    var nome = document.createElement('span');
+    nome.style.cssText = 'color:var(--gray700,#3a3d39);word-break:break-word';
+    nome.textContent = nomeDaCampanha(c.campanha);
+    linha.appendChild(nome);
+
+    var n = document.createElement('span');
+    n.style.cssText = 'font-weight:800;color:var(--green600,#1e8a40);flex:none';
+    n.textContent = c.contas + (c.contas === 1 ? ' conta' : ' contas');
+    linha.appendChild(n);
+
+    caixa.appendChild(linha);
+  });
 }
 
 // ═══════════════════════════════════
