@@ -182,7 +182,7 @@ const CONFIG = {
       // casar com o acrescimo do gateway — ver
       // centavosParaCobrarNoGateway(). O Completo ja terminava assim.
       centavos: 8999,
-      resumo: "Tudo do Completo + espelho de ponto, banco de horas e relatórios prontos para o contador."
+      resumo: "Tudo do Completo + espelho de ponto, banco de horas, relatórios para o contador e API para integrar com o PDV."
     }
   },
   // Plano padrão de quem se cadastra sem escolher.
@@ -960,9 +960,20 @@ function supabase(method, table, options = {}) {
     "mensagens", "periodos_afastamento", "metas",
     "config_jornada", "erros_plataforma", "eventos_pagamento",
     "links_pagamento",
-    "chamados", "chamado_mensagens"
+    "chamados", "chamado_mensagens",
+    "chaves_api", "movimentos_estoque"
   ];
-  if (!ALLOWED_TABLES.includes(table)) {
+  // Procedimento do banco (PostgREST expõe em /rest/v1/rpc/nome).
+  // Tem lista própria, separada da de tabelas, pelo mesmo motivo de
+  // existir a de tabelas: o nome vai direto para a URL, e um nome vindo
+  // de fora chamaria qualquer função do banco.
+  var PROCEDIMENTOS_PERMITIDOS = ["api_movimentar_estoque"];
+  var ehProcedimento = table.indexOf("rpc/") === 0;
+  if (ehProcedimento) {
+    if (!PROCEDIMENTOS_PERMITIDOS.includes(table.slice(4))) {
+      return Promise.reject(new Error(`Procedimento não permitido: ${table}`));
+    }
+  } else if (!ALLOWED_TABLES.includes(table)) {
     return Promise.reject(new Error(`Tabela não permitida: ${table}`));
   }
 
@@ -1069,7 +1080,12 @@ const DB = {
   select: (t, q)     => supabase("GET",    t, { query: q }),
   insert: (t, d)     => supabase("POST",   t, { body: d }),
   update: (t, q, d)  => supabase("PATCH",  t, { query: q, body: d }),
-  delete: (t, q)     => supabase("DELETE", t, { query: q })
+  delete: (t, q)     => supabase("DELETE", t, { query: q }),
+  // Procedimento no banco. Existe para o que precisa ser UMA transação:
+  // movimentar estoque é ler o saldo, conferir e gravar, e fazer isso em
+  // três chamadas daqui deixa dois caixas venderem a mesma unidade.
+  // O nome passa pela lista de procedimentos permitidos em supabase().
+  rpc:    (nome, args) => supabase("POST", "rpc/" + nome, { body: args })
 };
 
 // ════════════════════════════════════════
@@ -4618,6 +4634,135 @@ setTimeout(function () {
 // ════════════════════════════════════════
 // SERVIDOR HTTP
 // ════════════════════════════════════════
+// ════════════════════════════════════════════════════════════
+// API DO CLIENTE — integração com PDV / sistema de estoque
+// ════════════════════════════════════════════════════════════
+// Recurso do plano Pro. Existe porque "acessar API" era vendido como
+// permissão de cargo e API nenhuma existia.
+//
+// A chave NÃO é um JWT de propósito. Token que expira obriga quem
+// integra a implementar renovação, e o PDV de uma loja pequena roda
+// meses sem ninguém tocar. Chave que vale até ser revogada é o que
+// esses sistemas sabem usar.
+
+var API_PREFIXO = "wk_";
+
+function gerarChaveApi() {
+  // 32 bytes de aleatório real. O prefixo serve para a chave ser
+  // reconhecível num log ou num repositório — varredura de segredo
+  // vazado procura por padrão, e sem prefixo a chave passa batida.
+  return API_PREFIXO + crypto.randomBytes(32).toString("base64url");
+}
+
+function hashDaChave(chave) {
+  return crypto.createHash("sha256").update(String(chave)).digest("hex");
+}
+
+/**
+ * Resposta de erro da API — sempre com um código estável em `erro`.
+ *
+ * Quem integra escreve `if (erro === "saldo_insuficiente")`. Se a única
+ * coisa devolvida for a frase em português, qualquer ajuste de texto
+ * quebra a integração de todos os clientes ao mesmo tempo. A frase é
+ * para a pessoa lendo o log; o código é para o programa.
+ */
+function apiErro(res, status, codigo, mensagem, extra) {
+  res.writeHead(status);
+  res.end(JSON.stringify(Object.assign({ erro: codigo, mensagem: mensagem }, extra || {})));
+}
+
+function apiOk(res, dados, status) {
+  res.writeHead(status || 200);
+  res.end(JSON.stringify(dados));
+}
+
+/**
+ * Identifica a chave da requisição.
+ *
+ * Aceita `Authorization: Bearer wk_...` e `X-API-Key: wk_...`. Os dois
+ * porque metade dos sistemas de PDV só deixa configurar um cabeçalho
+ * avulso, e a outra metade só manda Bearer.
+ *
+ * Devolve { ok:false, status, codigo, mensagem } ou
+ *         { ok:true, empresa_id, chave_id, escrita }.
+ */
+async function autenticarChaveApi(req) {
+  var bruto = req.headers["x-api-key"] ||
+              String(req.headers["authorization"] || "").replace(/^Bearer\s+/i, "");
+  bruto = String(bruto || "").trim();
+
+  if (!bruto) {
+    return { ok: false, status: 401, codigo: "chave_ausente",
+             mensagem: "Envie a chave em 'Authorization: Bearer wk_...' ou no cabeçalho 'X-API-Key'." };
+  }
+  if (bruto.indexOf(API_PREFIXO) !== 0) {
+    return { ok: false, status: 401, codigo: "chave_invalida",
+             mensagem: "Chave em formato desconhecido. As chaves do Workap começam com 'wk_'." };
+  }
+
+  var achado = await DB.select("chaves_api",
+    `chave_hash=eq.${hashDaChave(bruto)}&select=id,empresa_id,escrita,revogada_em,usos&limit=1`
+  ).catch(function () { return { body: null, falhou: true }; });
+
+  if (achado.falhou) {
+    return { ok: false, status: 503, codigo: "banco_indisponivel",
+             mensagem: "Não foi possível validar a chave agora. Tente de novo em instantes." };
+  }
+
+  var chave = achado.body && achado.body[0];
+  if (!chave) {
+    secLog("api_chave_desconhecida", {});
+    return { ok: false, status: 401, codigo: "chave_invalida",
+             mensagem: "Chave não reconhecida." };
+  }
+  if (chave.revogada_em) {
+    secLog("api_chave_revogada", { empresa_id: chave.empresa_id });
+    return { ok: false, status: 401, codigo: "chave_revogada",
+             mensagem: "Esta chave foi revogada. Gere uma nova em Integrações." };
+  }
+
+  // A checagem de plano e de conta em dia fica AQUI, e não em cada
+  // rota, para não existir endpoint que alguém esqueceu de proteger.
+  var emp = await DB.select("empresas",
+    "id=eq." + chave.empresa_id + "&select=plano,status,trial_fim,assinatura_ate")
+    .catch(function () { return { body: [] }; });
+  var empresa = emp.body && emp.body[0];
+  if (!empresa) {
+    return { ok: false, status: 401, codigo: "chave_invalida", mensagem: "Chave não reconhecida." };
+  }
+
+  // Mesma regra do resto do sistema: assinatura vencida, conta
+  // suspensa ou trial acabado fecham a porta. Sem isto a API seria a
+  // única entrada que continuava aberta depois de a conta parar de
+  // pagar — e seria a mais valiosa das que restariam.
+  var bloqueio = motivoDeBloqueio(empresa);
+  if (bloqueio) {
+    return { ok: false, status: 402, codigo: "conta_bloqueada",
+             mensagem: "A conta está com o acesso suspenso (" + bloqueio + "). Regularize para voltar a usar a API." };
+  }
+  if (!planoAvancado(empresa.plano)) {
+    return { ok: false, status: 402, codigo: "plano_insuficiente",
+             mensagem: "A API faz parte do Plano Pro." };
+  }
+
+  // Carimbo de uso. Não é await: a integração não pode ficar mais lenta
+  // por causa de um dado de tela, e perder um carimbo não quebra nada.
+  DB.update("chaves_api", "id=eq." + chave.id, {
+    ultimo_uso: new Date().toISOString(),
+    usos: (Number(chave.usos) || 0) + 1
+  }).catch(function () {});
+
+  return { ok: true, empresa_id: chave.empresa_id, chave_id: chave.id, escrita: !!chave.escrita };
+}
+
+/** Número que veio de fora, para quantidade de estoque. */
+function numeroDaApi(v) {
+  if (v === null || v === undefined || v === "") return null;
+  var n = Number(String(v).replace(",", "."));
+  if (!isFinite(n)) return null;
+  return n;
+}
+
 var server = http.createServer(async (req, res) => {
   var ip     = getIP(req);
   var origin = req.headers["origin"] || "";
@@ -4664,6 +4809,254 @@ var server = http.createServer(async (req, res) => {
         return jsonErr(res, "Push não configurado neste servidor", 503);
       }
       return jsonOk(res, { publicKey: CONFIG.VAPID_PUBLIC });
+    }
+
+    // ── API DO CLIENTE (/api/v1) ─────────────────────
+    // Bloco inteiro antes da autenticação por JWT: quem entra aqui traz
+    // chave de API, que é outro mecanismo. Cair na checagem de sessão
+    // devolveria "faça login" para um PDV, que não tem como fazer login.
+    if (path.indexOf("/api/v1/") === 0 || path === "/api/v1") {
+
+      // CORS aberto SÓ neste bloco. É seguro porque a autenticação é um
+      // cabeçalho explícito, não cookie: o navegador não anexa a chave
+      // sozinho, então site nenhum consegue agir em nome do cliente. É
+      // também o que torna a API utilizável por PDV que roda no
+      // navegador — a lista fixa de origens do resto do sistema
+      // barraria qualquer loja.
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key");
+
+      var aut = await autenticarChaveApi(req);
+      if (!aut.ok) return apiErro(res, aut.status, aut.codigo, aut.mensagem);
+
+      // Limite por CHAVE, não por IP: uma loja inteira sai de um IP só,
+      // e limitar por IP puniria o cliente movimentado. 600/min cobre
+      // com folga o pico de um caixa e ainda barra laço maluco.
+      var lim = rateLimit("api:" + aut.chave_id, 600, 60 * 1000);
+      if (lim.blocked) {
+        res.setHeader("Retry-After", lim.retryAfter);
+        return apiErro(res, 429, "limite_excedido",
+          "Muitas chamadas. Tente de novo em " + lim.retryAfter + "s.");
+      }
+
+      // Escrita exige chave de escrita. Chave só-leitura é o padrão
+      // para painel e BI, onde vazar não deixa ninguém mexer no estoque.
+      var querEscrever = (method === "POST" || method === "PATCH");
+      if (querEscrever && !aut.escrita) {
+        return apiErro(res, 403, "somente_leitura",
+          "Esta chave é somente leitura. Gere uma chave com permissão de escrita em Integrações.");
+      }
+
+      var corpoApi = null;
+      if (querEscrever) {
+        corpoApi = parseBody(await getBody(req));
+        if (!corpoApi) return apiErro(res, 400, "json_invalido", "O corpo da requisição não é um JSON válido.");
+      }
+
+      // ── Teste de chave ──
+      // Primeira coisa que quem integra chama. Sem isto, o único jeito
+      // de saber se a chave funciona é tentar uma operação de verdade e
+      // torcer para o erro ser de chave e não de outra coisa.
+      if (method === "GET" && (path === "/api/v1/ping" || path === "/api/v1")) {
+        var empPing = await DB.select("empresas",
+          "id=eq." + aut.empresa_id + "&select=nome,ramo").catch(function(){ return { body: [] }; });
+        return apiOk(res, {
+          ok: true,
+          empresa: (empPing.body && empPing.body[0] && empPing.body[0].nome) || null,
+          permissao: aut.escrita ? "leitura e escrita" : "somente leitura",
+          agora: new Date().toISOString()
+        });
+      }
+
+      // ── Produtos ──
+      if (method === "GET" && path === "/api/v1/produtos") {
+        var qProd = "empresa_id=eq." + aut.empresa_id +
+                    "&select=id,codigo,nome,categoria,quantidade,unidade,lote,data_vencimento,status";
+        var codBusca = SANITIZE.string(url.searchParams.get("codigo") || "", 120);
+        if (codBusca) qProd += "&codigo=eq." + encodeURIComponent(codBusca);
+        var catBusca = SANITIZE.string(url.searchParams.get("categoria") || "", 60);
+        if (catBusca) qProd += "&categoria=eq." + encodeURIComponent(catBusca);
+
+        var porPagina = Math.min(Math.max(parseInt(url.searchParams.get("por_pagina"), 10) || 100, 1), 500);
+        var pagina    = Math.max(parseInt(url.searchParams.get("pagina"), 10) || 1, 1);
+        qProd += "&order=nome.asc&limit=" + porPagina + "&offset=" + ((pagina - 1) * porPagina);
+
+        var prods = await DB.select("produtos_validade", qProd);
+        return apiOk(res, { pagina: pagina, por_pagina: porPagina, produtos: prods.body || [] });
+      }
+
+      // Cadastrar ou atualizar pelo código do cliente.
+      //
+      // Upsert de propósito: a primeira carga de um catálogo é sempre
+      // reenviada — cai a conexão, o operador roda de novo. Se a
+      // segunda tentativa desse "já existe", quem integra teria que
+      // escrever lógica de conciliação antes de conseguir a primeira
+      // sincronização.
+      if (method === "POST" && path === "/api/v1/produtos") {
+        var codNovo = SANITIZE.string(corpoApi.codigo || "", 120);
+        if (!codNovo) {
+          return apiErro(res, 400, "codigo_obrigatorio",
+            "Envie 'codigo' — é o código do produto no seu sistema (SKU ou código de barras).");
+        }
+        var nomeNovo = SANITIZE.string(corpoApi.nome || "", 200);
+
+        var jaTem = await DB.select("produtos_validade",
+          "empresa_id=eq." + aut.empresa_id + "&codigo=eq." + encodeURIComponent(codNovo) + "&select=id&limit=1");
+
+        var campos = {};
+        if (nomeNovo) campos.nome = nomeNovo;
+        if (corpoApi.categoria !== undefined) campos.categoria = SANITIZE.string(corpoApi.categoria || "", 60) || null;
+        if (corpoApi.unidade  !== undefined) campos.unidade  = SANITIZE.string(corpoApi.unidade || "", 20) || null;
+        if (corpoApi.lote     !== undefined) campos.lote     = SANITIZE.string(corpoApi.lote || "", 60) || null;
+        if (corpoApi.quantidade !== undefined) {
+          var qNova = numeroDaApi(corpoApi.quantidade);
+          if (qNova === null) return apiErro(res, 400, "quantidade_invalida", "'quantidade' precisa ser um número.");
+          campos.quantidade = qNova;
+        }
+        if (corpoApi.validade !== undefined) {
+          var dv = SANITIZE.string(corpoApi.validade || "", 10);
+          if (dv && !/^\d{4}-\d{2}-\d{2}$/.test(dv)) {
+            return apiErro(res, 400, "validade_invalida", "'validade' precisa estar no formato AAAA-MM-DD.");
+          }
+          campos.data_vencimento = dv || null;
+        }
+
+        if (jaTem.body && jaTem.body[0]) {
+          if (Object.keys(campos).length) {
+            await DB.update("produtos_validade", "id=eq." + jaTem.body[0].id, campos);
+          }
+          return apiOk(res, { ok: true, criado: false, id: jaTem.body[0].id, codigo: codNovo });
+        }
+
+        if (!nomeNovo) {
+          return apiErro(res, 400, "nome_obrigatorio",
+            "Produto novo precisa de 'nome'.");
+        }
+        campos.empresa_id = aut.empresa_id;
+        campos.codigo     = codNovo;
+        if (campos.quantidade === undefined) campos.quantidade = 0;
+        var criado = await DB.insert("produtos_validade", campos);
+        return apiOk(res, {
+          ok: true, criado: true,
+          id: (criado.body && criado.body[0] && criado.body[0].id) || null,
+          codigo: codNovo
+        }, 201);
+      }
+
+      // ── Movimento de estoque ──
+      // O procedimento no banco faz trava, idempotência e extrato numa
+      // transação só. Fazer isso aqui em três chamadas separadas
+      // perderia venda em caixa concorrido.
+      if (method === "POST" && path === "/api/v1/estoque/movimento") {
+        var codMov = SANITIZE.string(corpoApi.codigo || "", 120);
+        if (!codMov) return apiErro(res, 400, "codigo_obrigatorio", "Envie 'codigo' do produto.");
+        var qtdMov = numeroDaApi(corpoApi.quantidade);
+        if (qtdMov === null) return apiErro(res, 400, "quantidade_invalida", "'quantidade' precisa ser um número.");
+        var tipoMov = String(corpoApi.tipo || "saida").toLowerCase();
+
+        var rMov = await DB.rpc("api_movimentar_estoque", {
+          p_empresa_id: aut.empresa_id,
+          p_codigo:     codMov,
+          p_tipo:       tipoMov,
+          p_quantidade: qtdMov,
+          p_referencia: SANITIZE.string(corpoApi.referencia || "", 120) || null,
+          p_observacao: SANITIZE.string(corpoApi.observacao || "", 300) || null,
+          p_chave_id:   aut.chave_id,
+          p_permitir_negativo: corpoApi.permitir_negativo === true
+        });
+
+        var mov = rMov.body;
+        if (!mov || mov.ok !== true) {
+          var cod = (mov && mov.erro) || "falha_no_movimento";
+          var MENSAGENS = {
+            produto_nao_encontrado: "Nenhum produto com esse código. Cadastre em POST /api/v1/produtos.",
+            saldo_insuficiente:     "Estoque menor que a quantidade pedida. Use 'permitir_negativo': true para registrar assim mesmo.",
+            quantidade_invalida:    "'quantidade' precisa ser maior que zero.",
+            tipo_invalido:          "'tipo' precisa ser entrada, saida ou ajuste."
+          };
+          var st = cod === "produto_nao_encontrado" ? 404 : 409;
+          return apiErro(res, st, cod, MENSAGENS[cod] || "Não foi possível movimentar o estoque.",
+            mov && mov.saldo !== undefined ? { saldo: mov.saldo } : null);
+        }
+        return apiOk(res, mov);
+      }
+
+      // ── Venda com vários itens ──
+      // Um cupom fiscal tem N itens. Obrigar N chamadas faz a integração
+      // depender de N respostas darem certo — e quando a quinta falha,
+      // as quatro primeiras já baixaram e ninguém sabe o que refazer.
+      // Aqui vai uma chamada só, e cada item carrega sua própria
+      // referência ("cupom:codigo"), então reenviar o cupom inteiro não
+      // desconta nada duas vezes.
+      if (method === "POST" && path === "/api/v1/estoque/venda") {
+        var itens = Array.isArray(corpoApi.itens) ? corpoApi.itens : null;
+        if (!itens || !itens.length) {
+          return apiErro(res, 400, "itens_obrigatorios", "Envie 'itens': [{ codigo, quantidade }].");
+        }
+        if (itens.length > 200) {
+          return apiErro(res, 400, "itens_demais", "Máximo de 200 itens por venda.");
+        }
+        var refVenda = SANITIZE.string(corpoApi.referencia || "", 120) || null;
+        var resultados = [];
+        for (var iv = 0; iv < itens.length; iv++) {
+          var it = itens[iv] || {};
+          var codIt = SANITIZE.string(it.codigo || "", 120);
+          var qtdIt = numeroDaApi(it.quantidade);
+          if (!codIt || qtdIt === null) {
+            resultados.push({ codigo: codIt || null, ok: false, erro: "item_invalido" });
+            continue;
+          }
+          var rIt = await DB.rpc("api_movimentar_estoque", {
+            p_empresa_id: aut.empresa_id,
+            p_codigo:     codIt,
+            p_tipo:       "saida",
+            p_quantidade: qtdIt,
+            p_referencia: refVenda ? (refVenda + ":" + codIt) : null,
+            p_observacao: SANITIZE.string(corpoApi.observacao || "", 300) || null,
+            p_chave_id:   aut.chave_id,
+            p_permitir_negativo: corpoApi.permitir_negativo === true
+          }).catch(function () { return { body: { ok: false, erro: "falha_no_movimento" } }; });
+          var b = rIt.body || { ok: false, erro: "falha_no_movimento" };
+          resultados.push(Object.assign({ codigo: codIt }, b));
+        }
+        var falhas = resultados.filter(function (r) { return r.ok !== true; }).length;
+        // 207: parte deu certo e parte não. Responder 200 esconderia a
+        // falha de quem só olha o status; responder 400 faria o PDV
+        // reenviar a venda inteira, e aí sobra confiar na idempotência
+        // para não duplicar o que já entrou.
+        return apiOk(res, {
+          ok: falhas === 0, itens: resultados,
+          total: resultados.length, com_falha: falhas
+        }, falhas === 0 ? 200 : 207);
+      }
+
+      // ── Extrato do estoque ──
+      if (method === "GET" && path === "/api/v1/estoque/movimentos") {
+        var qExt = "empresa_id=eq." + aut.empresa_id +
+                   "&select=id,produto_id,tipo,quantidade,saldo_depois,referencia,observacao,criado_em" +
+                   "&order=criado_em.desc";
+        var limExt = Math.min(Math.max(parseInt(url.searchParams.get("limite"), 10) || 100, 1), 500);
+        qExt += "&limit=" + limExt;
+        var desde = SANITIZE.string(url.searchParams.get("desde") || "", 30);
+        if (desde) qExt += "&criado_em=gte." + encodeURIComponent(desde);
+        var ext = await DB.select("movimentos_estoque", qExt);
+        return apiOk(res, { movimentos: ext.body || [] });
+      }
+
+      // ── Funcionários (leitura) ──
+      // Quem tem PDV costuma querer casar a venda com quem estava no
+      // caixa. Sem salário nem documento: a chave fica configurada num
+      // terminal de loja, e terminal de loja é o lugar mais fácil de
+      // alguém copiar um segredo.
+      if (method === "GET" && path === "/api/v1/funcionarios") {
+        var fun = await DB.select("funcionarios",
+          "empresa_id=eq." + aut.empresa_id + "&status=eq.ativo&select=id,nome,email&order=nome.asc");
+        return apiOk(res, { funcionarios: fun.body || [] });
+      }
+
+      return apiErro(res, 404, "rota_desconhecida",
+        "Endereço não existe nesta API. Veja a lista em Integrações, dentro do app.");
     }
 
     // ── CADASTRO DE EMPRESA ──────────────────────────
@@ -8207,9 +8600,22 @@ var server = http.createServer(async (req, res) => {
       var fotoGrande = SANITIZE.fotoDataUrl(body.foto, 260 * 1024);
       var fotoMini   = SANITIZE.fotoDataUrl(body.foto_thumb, 24 * 1024);
 
+      // O código é o que liga este produto ao PDV do cliente. Fica
+      // opcional: quem não integra nunca vê o campo preenchido, e
+      // exigi-lo quebraria o cadastro de quem já usa o Workap.
+      var codigoProduto = SANITIZE.string(body.codigo || "", 120) || null;
+      if (codigoProduto) {
+        var codRepetido = await DB.select("produtos_validade",
+          `empresa_id=eq.${authPayload.empresa_id}&codigo=eq.${encodeURIComponent(codigoProduto)}&select=id&limit=1`);
+        if (codRepetido.body && codRepetido.body[0]) {
+          return jsonErr(res, "Já existe um produto com esse código.");
+        }
+      }
+
       var result = await DB.insert("produtos_validade", {
         empresa_id:       authPayload.empresa_id,
         nome,
+        codigo:           codigoProduto,
         lote:             SANITIZE.string(body.lote || "", 50),
         categoria:        SANITIZE.string(body.categoria || "", 80),
         unidade:          SANITIZE.string(body.unidade || "unidades", 30),
@@ -8240,7 +8646,7 @@ var server = http.createServer(async (req, res) => {
       // produtos fotografados transformaria esta listagem em vários MB
       // baixados no 4G a cada abertura da tela — a miniatura basta
       // para a lista, e a foto grande tem rota própria.
-      var COLUNAS_LISTA = "id,nome,lote,categoria,quantidade,unidade,data_vencimento,dias_aviso,status,created_at,foto_thumb,atributos";
+      var COLUNAS_LISTA = "id,nome,codigo,lote,categoria,quantidade,unidade,data_vencimento,dias_aviso,status,created_at,foto_thumb,atributos";
       var result = await DB.select("produtos_validade",
         `empresa_id=eq.${authPayload.empresa_id}&select=${COLUNAS_LISTA}&order=data_vencimento.asc`
       );
@@ -8706,6 +9112,79 @@ var server = http.createServer(async (req, res) => {
 
       await DB.delete("escalas", `id=eq.${idEsc}`);
       return jsonOk(res, { ok: true });
+    }
+
+    // ════════════════════════════════════════
+    // CHAVES DE API — gerenciadas pelo dono, no app
+    // ════════════════════════════════════════
+    // Só o DONO cria e revoga. Não é o mesmo que a permissão
+    // "acessar API" que existe na tela de cargos: uma chave de API
+    // atravessa o sistema de papéis inteiro — quem a tem lê o estoque
+    // e dá baixa sem ser gerente nem funcionário. Deixar um gerente
+    // emitir uma seria deixá-lo criar para si um acesso maior do que
+    // o dele próprio.
+    if (path === "/integracoes/chaves" || path.indexOf("/integracoes/chaves/") === 0) {
+      if (authPayload.role !== "dono") {
+        secLog("permission_denied", { role: authPayload.role, action: "chaves_api" });
+        return jsonErr(res, "Só o dono da conta gerencia as chaves de integração.", 403);
+      }
+      if (await exigirPro(res, authPayload.empresa_id, "A integração por API")) return;
+
+      if (method === "GET" && path === "/integracoes/chaves") {
+        var lista = await DB.select("chaves_api",
+          `empresa_id=eq.${authPayload.empresa_id}&select=id,nome,prefixo,escrita,ultimo_uso,usos,revogada_em,criada_em&order=criada_em.desc`);
+        return jsonOk(res, { chaves: lista.body || [] });
+      }
+
+      if (method === "POST" && path === "/integracoes/chaves") {
+        var bodyCh = parseBody(await getBody(req));
+        if (!bodyCh) return jsonErr(res, "Dados inválidos");
+        var nomeCh = SANITIZE.string(bodyCh.nome || "", 60) || "Integração";
+
+        // Teto por empresa. Chave esquecida é chave que ninguém revoga:
+        // sem limite, anos de "vou testar de novo" viram dezenas de
+        // acessos vivos que o dono não sabe mais de quem são.
+        var vivas = await DB.select("chaves_api",
+          `empresa_id=eq.${authPayload.empresa_id}&revogada_em=is.null&select=id`);
+        if ((vivas.body || []).length >= 10) {
+          return jsonErr(res, "Limite de 10 chaves ativas. Revogue uma que não usa mais.", 409);
+        }
+
+        var chaveTexto = gerarChaveApi();
+        var criada = await DB.insert("chaves_api", {
+          empresa_id: authPayload.empresa_id,
+          nome:       nomeCh,
+          chave_hash: hashDaChave(chaveTexto),
+          // Só o suficiente para reconhecer a linha na tela.
+          prefixo:    chaveTexto.slice(0, 11),
+          escrita:    bodyCh.escrita === true
+        });
+        secLog("chave_api_criada", { empresa_id: authPayload.empresa_id, escrita: bodyCh.escrita === true });
+
+        // A chave em texto aparece AQUI e nunca mais. O banco guarda só
+        // o hash, então nem nós conseguimos mostrá-la de novo — e é
+        // isso que faz o vazamento do banco não abrir o estoque de
+        // ninguém. A tela avisa que é a única vez.
+        return jsonOk(res, {
+          chave: chaveTexto,
+          registro: (criada.body && criada.body[0]) || null,
+          aviso: "Guarde agora: esta chave não será mostrada de novo."
+        }, 201);
+      }
+
+      if (method === "DELETE" && path.indexOf("/integracoes/chaves/") === 0) {
+        var idCh = path.split("/")[3];
+        if (!SANITIZE.uuid(idCh)) return jsonErr(res, "Chave inválida");
+        // Revoga, não apaga: o extrato do estoque aponta para a chave
+        // que fez cada baixa, e apagar a linha apagaria a resposta de
+        // "quem descontou isso aqui".
+        var alvo = await DB.select("chaves_api",
+          `id=eq.${idCh}&empresa_id=eq.${authPayload.empresa_id}&select=id&limit=1`);
+        if (!alvo.body || !alvo.body[0]) return jsonErr(res, "Chave não encontrada", 404);
+        await DB.update("chaves_api", `id=eq.${idCh}`, { revogada_em: new Date().toISOString() });
+        secLog("chave_api_revogada", { empresa_id: authPayload.empresa_id });
+        return jsonOk(res, { ok: true });
+      }
     }
 
     // ════════════════════════════════════════

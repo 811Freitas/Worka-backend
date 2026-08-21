@@ -9,6 +9,10 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v39: entrou a API do cliente (plano Pro). A venda no PDV da loja
+// baixa o estoque aqui sozinha, achando o produto pelo código de
+// barras que o sistema dele ja usa. Reenviar o mesmo cupom nao
+// desconta duas vezes. Tela de Integracoes com chave e documentacao.
 // v38: o app passou a funcionar no celular. O menu sanduiche NUNCA
 // abria (o mesmo toque que abria a gaveta fechava ela no listener de
 // 'clicar fora'), cinco telas rolavam de lado com metade cortada, as
@@ -74,7 +78,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v38';
+var CACHE = 'workap-v39';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';

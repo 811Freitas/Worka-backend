@@ -446,6 +446,34 @@ tr:hover td{background:var(--g50)}
 .progress-fill{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--g500),var(--g300));transition:width var(--dur-slow) var(--ease-out)}
 .avatar-stack{display:flex}
 .avatar-stack .av{width:28px;height:28px;border-radius:50%;border:2px solid white;margin-left:-8px;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;color:white;flex-shrink:0}
+/* ── INTEGRAÇÕES / API ── */
+.api-doc{display:flex;flex-direction:column;gap:20px}
+.api-passo{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start}
+.api-passo-n{width:26px;height:26px;border-radius:50%;background:var(--g500);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;flex-shrink:0}
+.api-passo h4{margin:0 0 4px;font-size:.9rem;font-weight:700;color:var(--gray900)}
+.api-passo p{margin:0 0 8px;font-size:.84rem;color:var(--gray500);line-height:1.6}
+/* A chamada tem que poder ser copiada inteira: quebrar a linha no meio
+   de uma URL faz quem cola no terminal receber um erro que não tem nada
+   a ver com a integração. Por isso rola de lado em vez de quebrar. */
+.api-code{background:var(--brand-bg);color:#c8f5d8;border-radius:10px;padding:12px 14px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.76rem;line-height:1.65;
+  overflow-x:auto;white-space:pre;margin:0}
+.api-obs{font-size:.8rem;color:var(--gray500);margin-top:8px!important;line-height:1.6}
+.api-doc code,.card-body code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:.82em;background:var(--gray50);border:1px solid var(--gray100);
+  border-radius:5px;padding:1px 5px}
+/* A chave aparece UMA vez. Grande, monoespaçada e selecionável de
+   propósito — a pessoa vai copiar isto para outro sistema, e um texto
+   pequeno num campo apertado é onde nasce o "copiei errado". */
+.chave-nova{background:var(--brand-bg);color:#eafff1;border-radius:12px;padding:16px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82rem;
+  word-break:break-all;user-select:all;line-height:1.6}
+.chave-linha{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:12px 0;border-bottom:1px solid var(--gray100);flex-wrap:wrap}
+.chave-linha:last-child{border-bottom:none}
+.chave-nome{font-weight:600;font-size:.88rem}
+.chave-meta{font-size:.76rem;color:var(--gray500);font-family:ui-monospace,monospace}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
 /* Mesma armadilha do .main-content, agora em grid: a coluna nasce com
@@ -1259,6 +1287,113 @@ tr:hover td{background:var(--g50)}
 
     <!-- ── CUPONS DE DESCONTO (somente owner da Workap) ── -->
     <!-- ── COMUNICADOS DA PLATAFORMA (somente owner) ── -->
+    <!-- INTEGRAÇÕES (API) — plano Pro -->
+    <div class="page" id="pg-integracoes">
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header">
+          <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-plug></use></svg> Chaves de integração</div>
+          <button class="btn btn-primary btn-sm" onclick="abrirNovaChave()">+ Nova chave</button>
+        </div>
+        <div class="card-body">
+          <p style="font-size:.86rem;color:var(--gray500);margin-bottom:16px;line-height:1.6">
+            Ligue o Workap ao seu PDV ou ao seu sistema de estoque. Quando o caixa
+            registra a venda, o estoque aqui baixa sozinho — sem ninguém digitar duas vezes.
+          </p>
+          <div id="lista-chaves"><div class="skel skel-text" style="width:60%"></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Como ligar no seu sistema</div>
+        </div>
+        <div class="card-body" style="overflow-x:auto">
+          <p style="font-size:.86rem;color:var(--gray500);margin-bottom:14px;line-height:1.6">
+            Entregue esta página para quem cuida do seu PDV. Funciona com qualquer
+            sistema que saiba fazer chamada de internet — não é preciso ser um
+            programa específico.
+          </p>
+
+          <div class="api-doc">
+            <div class="api-passo">
+              <div class="api-passo-n">1</div>
+              <div>
+                <h4>Testar a chave</h4>
+                <p>Confirma que a chave está valendo antes de mexer em estoque.</p>
+                <pre class="api-code">curl -H "Authorization: Bearer SUA_CHAVE" \
+  <span id="api-base-1">https://…</span>/api/v1/ping</pre>
+              </div>
+            </div>
+
+            <div class="api-passo">
+              <div class="api-passo-n">2</div>
+              <div>
+                <h4>Mandar o catálogo</h4>
+                <p>O <strong>código</strong> é o mesmo que o seu sistema já usa — código de
+                barras ou SKU. É por ele que a baixa encontra o produto, então
+                você não precisa guardar nenhum número nosso.</p>
+                <pre class="api-code">curl -X POST -H "Authorization: Bearer SUA_CHAVE" \
+  -H "Content-Type: application/json" \
+  -d '{"codigo":"7891234567890","nome":"Coca 2L","quantidade":24}' \
+  <span class="api-base">https://…</span>/api/v1/produtos</pre>
+                <p class="api-obs">Mandar o mesmo código de novo atualiza o produto em vez de duplicar.</p>
+              </div>
+            </div>
+
+            <div class="api-passo">
+              <div class="api-passo-n">3</div>
+              <div>
+                <h4>Dar baixa na venda</h4>
+                <p>Uma chamada por cupom, com todos os itens juntos.</p>
+                <pre class="api-code">curl -X POST -H "Authorization: Bearer SUA_CHAVE" \
+  -H "Content-Type: application/json" \
+  -d '{"referencia":"CUPOM-1042",
+       "itens":[{"codigo":"7891234567890","quantidade":2}]}' \
+  <span class="api-base">https://…</span>/api/v1/estoque/venda</pre>
+                <p class="api-obs"><strong>A referência é a parte que mais importa.</strong> Se a
+                internet cair depois que a venda entrou, seu PDV vai reenviar o mesmo
+                cupom — e com a referência preenchida o Workap devolve o resultado de
+                antes em vez de descontar duas vezes. Use o número do cupom.</p>
+              </div>
+            </div>
+          </div>
+
+          <h4 style="margin:24px 0 10px;font-size:.9rem">Todos os endereços</h4>
+          <table>
+            <thead><tr><th>Método</th><th>Endereço</th><th>Para quê</th></tr></thead>
+            <tbody>
+              <tr><td>GET</td><td><code>/api/v1/ping</code></td><td>Testar a chave</td></tr>
+              <tr><td>GET</td><td><code>/api/v1/produtos</code></td><td>Listar o estoque</td></tr>
+              <tr><td>POST</td><td><code>/api/v1/produtos</code></td><td>Cadastrar ou atualizar produto</td></tr>
+              <tr><td>POST</td><td><code>/api/v1/estoque/venda</code></td><td>Baixar vários itens de um cupom</td></tr>
+              <tr><td>POST</td><td><code>/api/v1/estoque/movimento</code></td><td>Entrada, saída ou ajuste de um item</td></tr>
+              <tr><td>GET</td><td><code>/api/v1/estoque/movimentos</code></td><td>Extrato do estoque</td></tr>
+              <tr><td>GET</td><td><code>/api/v1/funcionarios</code></td><td>Equipe ativa</td></tr>
+            </tbody>
+          </table>
+
+          <h4 style="margin:24px 0 10px;font-size:.9rem">Quando dá errado</h4>
+          <p style="font-size:.84rem;color:var(--gray500);margin-bottom:10px;line-height:1.6">
+            A resposta sempre traz um campo <code>erro</code> com um nome fixo. Programe
+            em cima do nome, não da frase — a frase pode mudar, o nome não.
+          </p>
+          <table>
+            <thead><tr><th>erro</th><th>O que houve</th></tr></thead>
+            <tbody>
+              <tr><td><code>chave_invalida</code></td><td>Chave errada ou apagada</td></tr>
+              <tr><td><code>chave_revogada</code></td><td>Foi revogada aqui nesta tela</td></tr>
+              <tr><td><code>somente_leitura</code></td><td>A chave não tem permissão de escrever</td></tr>
+              <tr><td><code>plano_insuficiente</code></td><td>A conta não está no Pro</td></tr>
+              <tr><td><code>conta_bloqueada</code></td><td>Assinatura vencida ou conta suspensa</td></tr>
+              <tr><td><code>produto_nao_encontrado</code></td><td>Nenhum produto com aquele código</td></tr>
+              <tr><td><code>saldo_insuficiente</code></td><td>Estoque menor que o pedido</td></tr>
+              <tr><td><code>limite_excedido</code></td><td>Passou de 600 chamadas por minuto</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <div class="page" id="pg-comunicados">
       <div class="grid-2">
         <div class="card">
@@ -3044,6 +3179,47 @@ tr:hover td{background:var(--g50)}
 </div>
 
 <!-- Modal add cargo -->
+<div class="modal-overlay" id="modal-nova-chave">
+  <div class="modal">
+    <h3 style="margin:0 0 18px;font-family:var(--display);font-size:1.15rem">Nova chave de integração</h3>
+
+    <div id="chave-form">
+      <div class="field">
+        <label>Onde vai ser usada</label>
+        <input id="ch-nome" maxlength="60" placeholder="Ex.: PDV do caixa 1">
+      </div>
+      <div class="field">
+        <label>O que esta chave pode fazer</label>
+        <select id="ch-escrita">
+          <option value="nao">Só ler (estoque, produtos, equipe)</option>
+          <option value="sim">Ler e dar baixa no estoque</option>
+        </select>
+      </div>
+      <p style="font-size:.8rem;color:var(--gray500);line-height:1.6;margin:0 0 16px">
+        Se o sistema só mostra números — um painel, um relatório — use “só ler”.
+        Se ele registra vendas e precisa baixar o estoque, use “ler e dar baixa”.
+      </p>
+      <div class="login-erro" id="ch-erro">Não foi possível criar a chave.</div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+        <button class="btn btn-secondary" onclick="fecharModal('modal-nova-chave')">Cancelar</button>
+        <button class="btn btn-primary" id="ch-btn-criar" onclick="criarChaveApi()">Gerar chave</button>
+      </div>
+    </div>
+
+    <div id="chave-pronta" style="display:none">
+      <p style="font-size:.86rem;color:var(--gray700);line-height:1.6;margin:0 0 12px">
+        <strong>Copie agora.</strong> Esta chave não aparece de novo — nem para nós.
+        Se perder, é só revogar e gerar outra.
+      </p>
+      <div class="chave-nova" id="ch-texto"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap">
+        <button class="btn btn-secondary" id="ch-btn-copiar" onclick="copiarChaveApi()">Copiar</button>
+        <button class="btn btn-primary" onclick="fecharModal('modal-nova-chave');carregarChavesApi()">Guardei</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-add-cargo">
   <div class="modal">
     <!-- Antes este modal não tinha id no campo de nome nem botão de
@@ -3415,6 +3591,7 @@ var menus = {
     {id:'jornada',icon:'<svg class=ico aria-hidden=true><use href=#i-clock></use></svg>',label:'Jornada de Trabalho'},
     {id:'visual',icon:'<svg class=ico aria-hidden=true><use href=#i-palette></use></svg>',label:'Identidade Visual'},
     {id:'notificacoes',icon:'<svg class=ico aria-hidden=true><use href=#i-bell></use></svg>',label:'Notificações'},
+    {id:'integracoes',icon:'<svg class=ico aria-hidden=true><use href=#i-plug></use></svg>',label:'Integrações (API)'},
     {id:'suporte',icon:'<svg class=ico aria-hidden=true><use href=#i-support></use></svg>',label:'Suporte'},
   ],
   funcionario: [
@@ -4922,6 +5099,7 @@ function abrirPagina(id) {
     'anotacoes':'Anotações','contatos':'Contatos',
     'cupons':'Cupons de Desconto','comunicados':'Enviar Comunicado',
     'espelho':'Espelho de Ponto','jornada':'Jornada de Trabalho',
+    'integracoes':'Integrações (API)',
     'suporte':'Suporte'
   };
   document.getElementById('topbar-title').textContent = labels[id]||id;
@@ -4951,6 +5129,7 @@ function abrirPagina(id) {
   if(id==='metas'      && typeof carregarMetas         === 'function') carregarMetas();
   if(id==='anotacoes'  && typeof carregarAnotacoes    === 'function') carregarAnotacoes();
   if(id==='contatos'   && typeof carregarContatos     === 'function') carregarContatos();
+  if(id==='integracoes'&& typeof carregarChavesApi    === 'function') carregarChavesApi();
   if(id==='escala'     && typeof carregarEscala      === 'function') carregarEscala();
   if(id==='relatorios' && typeof carregarRelatorios  === 'function') carregarRelatorios();
   if(id==='cargos' && typeof carregarCargos === 'function') carregarCargos();
@@ -10311,6 +10490,198 @@ var ESTILO_CONTATO = {
 };
 
 var contatoEmEdicao = null;
+
+// ═══════════════════════════════════
+// INTEGRAÇÕES (API) — chaves do cliente
+// ═══════════════════════════════════
+// Tudo montado com createElement e textContent. O nome da chave é
+// escrito pela pessoa e volta do servidor; jogar isso em innerHTML
+// seria deixar um nome de chave virar script na tela do dono.
+
+var chaveRecemCriada = null;
+
+function abrirNovaChave(){
+  // O modal fica aberto entre um uso e outro, e sem reiniciar ele
+  // abriria mostrando a chave da vez passada.
+  chaveRecemCriada = null;
+  var f = document.getElementById('chave-form');
+  var p = document.getElementById('chave-pronta');
+  if(f) f.style.display = 'block';
+  if(p) p.style.display = 'none';
+  var erro = document.getElementById('ch-erro');
+  if(erro) erro.style.display = 'none';
+  var nome = document.getElementById('ch-nome');
+  if(nome) nome.value = '';
+  var esc = document.getElementById('ch-escrita');
+  if(esc) esc.value = 'nao';
+  var btn = document.getElementById('ch-btn-criar');
+  if(btn){ btn.disabled = false; btn.textContent = 'Gerar chave'; }
+  abrirModal('modal-nova-chave');
+}
+
+async function criarChaveApi(){
+  var btn  = document.getElementById('ch-btn-criar');
+  var erro = document.getElementById('ch-erro');
+  if(erro) erro.style.display = 'none';
+  if(btn){ btn.disabled = true; btn.textContent = 'Gerando...'; }
+
+  try {
+    var r = await fetch(API_BASE + '/integracoes/chaves', {
+      method: 'POST',
+      headers: cabecalhoAuth(),
+      body: JSON.stringify({
+        nome:    (document.getElementById('ch-nome').value || '').trim(),
+        escrita: document.getElementById('ch-escrita').value === 'sim'
+      })
+    });
+    var d = await r.json();
+    if(!r.ok || !d.chave){
+      if(erro){
+        erro.textContent = d.error || 'Não foi possível criar a chave.';
+        erro.style.display = 'block';
+      }
+      if(btn){ btn.disabled = false; btn.textContent = 'Gerar chave'; }
+      return;
+    }
+    chaveRecemCriada = d.chave;
+    document.getElementById('ch-texto').textContent = d.chave;
+    document.getElementById('chave-form').style.display   = 'none';
+    document.getElementById('chave-pronta').style.display = 'block';
+  } catch(e){
+    if(erro){ erro.textContent = 'Sem conexão com o servidor.'; erro.style.display = 'block'; }
+    if(btn){ btn.disabled = false; btn.textContent = 'Gerar chave'; }
+  }
+}
+
+function copiarChaveApi(){
+  if(!chaveRecemCriada) return;
+  var btn = document.getElementById('ch-btn-copiar');
+  function avisar(txt){ if(btn){ btn.textContent = txt; setTimeout(function(){ btn.textContent = 'Copiar'; }, 2000); } }
+  // navigator.clipboard não existe fora de HTTPS nem em navegador
+  // antigo, e é exatamente onde uma loja pode estar. Sem a saída pelo
+  // execCommand, o botão não faria nada e ninguém saberia por quê.
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(chaveRecemCriada)
+      .then(function(){ avisar('Copiado!'); })
+      .catch(function(){ avisar('Copie na mão'); });
+    return;
+  }
+  try {
+    var campo = document.createElement('textarea');
+    campo.value = chaveRecemCriada;
+    campo.style.position = 'fixed'; campo.style.opacity = '0';
+    document.body.appendChild(campo);
+    campo.select();
+    document.execCommand('copy');
+    document.body.removeChild(campo);
+    avisar('Copiado!');
+  } catch(e){ avisar('Copie na mão'); }
+}
+
+function dataCurtaApi(iso){
+  if(!iso) return '—';
+  var d = new Date(iso);
+  if(isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit' });
+}
+
+async function carregarChavesApi(){
+  var alvo = document.getElementById('lista-chaves');
+  if(!alvo || !sessaoWorka || !sessaoWorka.token) return;
+
+  // Preenche o endereço do servidor nos exemplos. Sem isto a
+  // documentação mostraria "https://…" e quem integra teria que
+  // adivinhar para onde mandar.
+  //
+  // O fallback para a origem da página cobre o dia em que o app for
+  // servido do mesmo endereço da API: ali API_BASE é vazio, e sem isto
+  // os exemplos sairiam com o endereço em branco — documentação que
+  // parece pronta e não funciona é pior que documentação faltando.
+  var base = API_BASE || window.location.origin;
+  var um = document.getElementById('api-base-1');
+  if(um) um.textContent = base;
+  [].forEach.call(document.querySelectorAll('.api-base'), function(el){ el.textContent = base; });
+
+  alvo.textContent = 'Carregando...';
+  var chaves = [];
+  try {
+    var r = await fetch(API_BASE + '/integracoes/chaves', { headers: cabecalhoAuth() });
+    if(r.status === 402){
+      alvo.textContent = '';
+      var pro = document.createElement('p');
+      pro.style.cssText = 'font-size:.86rem;color:var(--gray500);line-height:1.6';
+      pro.textContent = 'A integração por API faz parte do Plano Pro.';
+      alvo.appendChild(pro);
+      return;
+    }
+    if(!r.ok) throw new Error('falhou');
+    var d = await r.json();
+    chaves = d.chaves || [];
+  } catch(e){
+    alvo.textContent = 'Não foi possível carregar as chaves agora.';
+    return;
+  }
+
+  alvo.textContent = '';
+  if(!chaves.length){
+    var vazio = document.createElement('p');
+    vazio.style.cssText = 'font-size:.86rem;color:var(--gray500);line-height:1.6';
+    vazio.textContent = 'Nenhuma chave ainda. Crie uma e entregue ao responsável pelo seu PDV.';
+    alvo.appendChild(vazio);
+    return;
+  }
+
+  chaves.forEach(function(c){
+    var linha = document.createElement('div');
+    linha.className = 'chave-linha';
+
+    var esq = document.createElement('div');
+    esq.style.minWidth = '0';
+
+    var nome = document.createElement('div');
+    nome.className = 'chave-nome';
+    nome.textContent = c.nome || 'Integração';
+    if(c.revogada_em){
+      nome.style.textDecoration = 'line-through';
+      nome.style.color = 'var(--gray500)';
+    }
+    esq.appendChild(nome);
+
+    var meta = document.createElement('div');
+    meta.className = 'chave-meta';
+    var partes = [ (c.prefixo || '') + '…' ];
+    partes.push(c.escrita ? 'lê e escreve' : 'só leitura');
+    if(c.revogada_em)      partes.push('revogada em ' + dataCurtaApi(c.revogada_em));
+    else if(c.ultimo_uso)  partes.push('último uso ' + dataCurtaApi(c.ultimo_uso) + ' · ' + (c.usos || 0) + ' chamadas');
+    else                   partes.push('nunca usada');
+    meta.textContent = partes.join(' · ');
+    esq.appendChild(meta);
+
+    linha.appendChild(esq);
+
+    if(!c.revogada_em){
+      var bt = document.createElement('button');
+      bt.className = 'btn btn-secondary btn-sm';
+      bt.textContent = 'Revogar';
+      bt.onclick = function(){ revogarChaveApi(c.id, c.nome || 'Integração'); };
+      linha.appendChild(bt);
+    }
+    alvo.appendChild(linha);
+  });
+}
+
+async function revogarChaveApi(id, nome){
+  // Confirmação com o nome dentro: revogar a chave errada derruba o
+  // caixa de uma loja no meio do expediente, e não tem como desfazer.
+  if(!confirm('Revogar a chave "' + nome + '"?\n\nQualquer sistema usando ela para de funcionar na hora, e não dá para reativar.')) return;
+  try {
+    var r = await fetch(API_BASE + '/integracoes/chaves/' + id, {
+      method: 'DELETE', headers: cabecalhoAuth()
+    });
+    if(!r.ok){ alert('Não foi possível revogar agora.'); return; }
+    carregarChavesApi();
+  } catch(e){ alert('Sem conexão com o servidor.'); }
+}
 
 function carregarContatos() {
   if (!sessaoWorka || !sessaoWorka.token) return;
