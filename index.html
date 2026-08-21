@@ -154,6 +154,13 @@
 
     html { scroll-behavior: smooth; }
 
+    /* A nav é fixed, então quem clica em "Preço" no menu chega com o
+       título escondido atrás dela. Isso valia para os três links do
+       menu desde sempre; o scroll-margin manda o navegador parar antes,
+       deixando o cabeçalho da seção à vista. */
+    section[id], div[id].section-inner { scroll-margin-top: 96px; }
+    @media (max-width: 560px) { section[id] { scroll-margin-top: 80px; } }
+
     body {
       font-family: var(--font-body);
       background: var(--white);
@@ -201,6 +208,135 @@
     .reveal-stagger.in-view > *:nth-child(4) { animation-delay: 210ms; }
     .reveal-stagger.in-view > *:nth-child(5) { animation-delay: 280ms; }
     .reveal-stagger.in-view > *:nth-child(6) { animation-delay: 350ms; }
+
+    /* ══════════════════════════════════════════
+       SEÇÃO INTERATIVA — o app na língua do seu ramo
+
+       A objeção número um de quem olha um sistema genérico é "isso
+       serve para o MEU negócio?". Texto nenhum responde isso tão bem
+       quanto ver a própria tela mudar. Os dados aqui são os mesmos do
+       catálogo de ramos do servidor — não é maquete inventada.
+    ══════════════════════════════════════════ */
+    .ramo-sec { background: var(--gray-50); }
+
+    .ramo-chips {
+      display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+      max-width: 900px; margin: 0 auto 32px;
+    }
+    .ramo-chip {
+      display: inline-flex; align-items: center; gap: 7px;
+      background: var(--white); border: 1.5px solid var(--gray-200);
+      color: var(--gray-700); font-family: var(--font-body);
+      font-size: .82rem; font-weight: 600; padding: 9px 14px;
+      border-radius: 100px; cursor: pointer;
+      transition: border-color .18s, background .18s, color .18s, transform .18s;
+    }
+    .ramo-chip:hover { border-color: var(--green-300); transform: translateY(-1px); }
+    .ramo-chip:focus-visible { outline: 2px solid var(--green-500); outline-offset: 2px; }
+    .ramo-chip[aria-selected="true"] {
+      background: var(--green-900); border-color: var(--green-900); color: var(--white);
+    }
+    .ramo-chip .ico { width: 15px; height: 15px; flex-shrink: 0; }
+
+    .ramo-palco {
+      display: grid; grid-template-columns: 1.15fr .85fr; gap: 28px;
+      align-items: start; max-width: 980px; margin: 0 auto;
+    }
+
+    /* A "tela" do app. Sem moldura de celular: o dono usa isto no
+       computador e no telefone, e desenhar um iPhone aqui sugeriria
+       que só serve no celular. */
+    .ramo-tela {
+      background: var(--white); border: 1px solid var(--gray-200);
+      border-radius: var(--radius-lg); overflow: hidden;
+      box-shadow: 0 1px 2px rgba(10,46,26,.05), 0 18px 40px -22px rgba(10,46,26,.28);
+    }
+    .ramo-tela-topo {
+      background: var(--green-900); color: var(--white);
+      padding: 13px 18px; display: flex; align-items: center; gap: 10px;
+    }
+    .ramo-tela-titulo {
+      font-family: var(--font-display); font-weight: 800; font-size: .95rem;
+      letter-spacing: -.2px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ramo-tela-topo .ico { width: 17px; height: 17px; flex-shrink: 0; color: var(--green-300); }
+    .ramo-tela-corpo { padding: 18px; display: flex; flex-direction: column; gap: 18px; }
+
+    .ramo-bloco-rot {
+      font-size: .68rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+      color: var(--gray-500); margin-bottom: 9px;
+    }
+    .ramo-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ramo-pill {
+      background: var(--green-50); color: var(--green-600);
+      border: 1px solid var(--green-100);
+      font-size: .74rem; font-weight: 600; padding: 4px 10px; border-radius: 100px;
+    }
+    .ramo-campos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .ramo-campo {
+      border: 1.5px solid var(--gray-100); border-radius: 9px;
+      padding: 7px 10px; background: var(--gray-50);
+      font-size: .74rem; color: var(--gray-500);
+    }
+    .ramo-campo strong { display: block; color: var(--gray-700); font-size: .7rem; font-weight: 700; margin-bottom: 1px; }
+    .ramo-botao {
+      background: var(--green-500); color: var(--white); border: none;
+      border-radius: 10px; padding: 10px 16px; font-family: var(--font-body);
+      font-size: .82rem; font-weight: 700; width: 100%; text-align: center;
+    }
+
+    /* O que muda quando o ramo troca. Isto é o argumento — sem esta
+       lista, o visitante vê a tela mexer e não percebe o que ganhou. */
+    .ramo-notas { display: flex; flex-direction: column; gap: 14px; align-self: center; }
+    .ramo-nota { display: grid; grid-template-columns: auto 1fr; gap: 11px; align-items: start; }
+    .ramo-nota .ico { width: 17px; height: 17px; color: var(--green-500); margin-top: 3px; flex-shrink: 0; }
+    .ramo-nota h4 { margin: 0 0 2px; font-size: .87rem; font-weight: 700; color: var(--gray-900); }
+    .ramo-nota p { margin: 0; font-size: .82rem; color: var(--gray-500); line-height: 1.6; }
+    .ramo-nota em { font-style: normal; color: var(--green-600); font-weight: 700; }
+
+    /* A troca de conteúdo pisca de leve para o olho perceber que mudou.
+       Sem isto a tela troca de texto sem que ninguém note que foi um
+       clique que fez aquilo. */
+    @keyframes ramoEntra { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+    .ramo-anima { animation: ramoEntra .34s var(--ease-out) both; }
+
+    @media (max-width: 900px) {
+      .ramo-palco { grid-template-columns: 1fr; gap: 22px; }
+    }
+    @media (max-width: 560px) {
+      .ramo-chips { justify-content: flex-start; }
+      /* Uma coluna, mas o campo encolhe: com seis campos empilhados na
+         altura do desktop, a concessionária virava uma rolagem sem fim
+         no celular e o visitante nunca chegava aos cargos. */
+      .ramo-campos { grid-template-columns: 1fr; gap: 6px; }
+      .ramo-campo { padding: 6px 9px; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+      .ramo-campo strong { margin-bottom: 0; }
+    }
+
+    /* ── BARRA DE PROGRESSO DA LEITURA ──
+       Presa no topo, cresce conforme a página desce. É a única
+       animação de rolagem que não depende de o elemento entrar na
+       tela — serve para dizer "falta pouco" numa página longa. */
+    .progresso-leitura {
+      position: fixed; top: 0; left: 0; height: 3px; width: 100%;
+      transform: scaleX(0); transform-origin: 0 50%;
+      background: linear-gradient(90deg, var(--green-500), var(--green-300));
+      z-index: 200; pointer-events: none;
+    }
+
+    /* Reveal com direção. Usado com parcimônia: em bloco de duas
+       colunas, cada lado entrando do seu lado explica a composição;
+       usado em tudo vira enjoo. */
+    .reveal-esq { opacity: 0; transform: translateX(-26px); transition: opacity var(--dur-slow) var(--ease-out), transform var(--dur-slow) var(--ease-out); }
+    .reveal-dir { opacity: 0; transform: translateX(26px); transition: opacity var(--dur-slow) var(--ease-out), transform var(--dur-slow) var(--ease-out); }
+    .reveal-esq.in-view, .reveal-dir.in-view { opacity: 1; transform: none; }
+    /* Em tela estreita o bloco ocupa a largura toda, e deslocá-lo 26px
+       para o lado empurra a PÁGINA para fora antes de ele aparecer — a
+       vitrine passava a rolar de lado, com a nav vazando 8px. Aqui o
+       mesmo reveal entra de baixo, que não tem para onde empurrar. */
+    @media (max-width: 900px) {
+      .reveal-esq, .reveal-dir { transform: translateY(26px); }
+    }
 
     /* ── NAV ── */
     nav {
@@ -750,6 +886,7 @@
 </style>
 </head>
 <body>
+<div class="progresso-leitura" id="progresso-leitura" aria-hidden="true"></div>
 <!-- ══════════════════════════════════════════════════════════
      SISTEMA DE ÍCONES — SVG sprite
      ══════════════════════════════════════════════════════════
@@ -839,7 +976,7 @@
 <symbol id="i-hand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v7M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2a8 8 0 0 1-8-8v-1a2 2 0 1 1 4 0"/></symbol>
 </svg>
 
-<noscript><style>.reveal{opacity:1!important;transform:none!important}</style></noscript>
+<noscript><style>.reveal,.reveal-esq,.reveal-dir{opacity:1!important;transform:none!important}</style></noscript>
 
 <!-- NAV -->
 <nav>
@@ -973,6 +1110,129 @@
   </div>
 </section>
 
+
+<!-- ══════════════════════════════════════════
+     O APP NA LÍNGUA DO SEU RAMO — parte interativa
+
+     A objeção número um de quem olha um sistema genérico é "isso serve
+     para o MEU negócio?". Nenhum parágrafo responde isso tão bem
+     quanto ver a própria tela mudar na frente.
+
+     Os dados desta seção são os MESMOS do catálogo de ramos do
+     servidor (RAMOS, em index.js): nome da página de estoque,
+     categorias, campos do item e cargos sugeridos. Mexeu lá? Mexa
+     aqui — uma demonstração que promete o que o produto não entrega
+     é pior do que não ter demonstração.
+══════════════════════════════════════════ -->
+<section class="ramo-sec" id="seu-negocio">
+  <div class="section-inner">
+    <div class="section-head reveal">
+      <div class="section-eyebrow">Veja funcionando</div>
+      <h2 class="section-title">O Workap fala a língua do seu negócio</h2>
+      <p class="section-sub">Toque no seu ramo e veja a tela mudar. Não é ilustração: é o que aparece na sua conta assim que você se cadastra.</p>
+    </div>
+
+    <div class="ramo-chips reveal" role="tablist" aria-label="Escolha o ramo do seu negócio">
+        <button class="ramo-chip" role="tab" id="chip-restaurante" data-ramo="restaurante" aria-selected="true" tabindex="0" aria-controls="ramo-tela">
+          <svg class=ico aria-hidden=true><use href=#i-utensils></use></svg> Restaurante
+        </button>
+        <button class="ramo-chip" role="tab" id="chip-padaria" data-ramo="padaria" aria-selected="false" tabindex="-1" aria-controls="ramo-tela">
+          <svg class=ico aria-hidden=true><use href=#i-coffee></use></svg> Padaria
+        </button>
+        <button class="ramo-chip" role="tab" id="chip-mercado" data-ramo="mercado" aria-selected="false" tabindex="-1" aria-controls="ramo-tela">
+          <svg class=ico aria-hidden=true><use href=#i-package></use></svg> Mercado
+        </button>
+        <button class="ramo-chip" role="tab" id="chip-farmacia" data-ramo="farmacia" aria-selected="false" tabindex="-1" aria-controls="ramo-tela">
+          <svg class=ico aria-hidden=true><use href=#i-pill></use></svg> Farmácia
+        </button>
+        <button class="ramo-chip" role="tab" id="chip-loja_roupa" data-ramo="loja_roupa" aria-selected="false" tabindex="-1" aria-controls="ramo-tela">
+          <svg class=ico aria-hidden=true><use href=#i-bag></use></svg> Loja de roupa
+        </button>
+        <button class="ramo-chip" role="tab" id="chip-salao" data-ramo="salao" aria-selected="false" tabindex="-1" aria-controls="ramo-tela">
+          <svg class=ico aria-hidden=true><use href=#i-scissors></use></svg> Salão de beleza
+        </button>
+        <button class="ramo-chip" role="tab" id="chip-clinica" data-ramo="clinica" aria-selected="false" tabindex="-1" aria-controls="ramo-tela">
+          <svg class=ico aria-hidden=true><use href=#i-hospital></use></svg> Clínica
+        </button>
+        <button class="ramo-chip" role="tab" id="chip-petshop" data-ramo="petshop" aria-selected="false" tabindex="-1" aria-controls="ramo-tela">
+          <svg class=ico aria-hidden=true><use href=#i-droplet></use></svg> Pet shop
+        </button>
+        <button class="ramo-chip" role="tab" id="chip-academia" data-ramo="academia" aria-selected="false" tabindex="-1" aria-controls="ramo-tela">
+          <svg class=ico aria-hidden=true><use href=#i-zap></use></svg> Academia
+        </button>
+        <button class="ramo-chip" role="tab" id="chip-oficina" data-ramo="oficina" aria-selected="false" tabindex="-1" aria-controls="ramo-tela">
+          <svg class=ico aria-hidden=true><use href=#i-wrench></use></svg> Oficina mecânica
+        </button>
+        <button class="ramo-chip" role="tab" id="chip-concessionaria" data-ramo="concessionaria" aria-selected="false" tabindex="-1" aria-controls="ramo-tela">
+          <svg class=ico aria-hidden=true><use href=#i-card></use></svg> Concessionária
+        </button>
+        <button class="ramo-chip" role="tab" id="chip-outro" data-ramo="outro" aria-selected="false" tabindex="-1" aria-controls="ramo-tela">
+          <svg class=ico aria-hidden=true><use href=#i-building></use></svg> Outro tipo de negócio
+        </button>
+    </div>
+
+    <div class="ramo-palco reveal">
+      <div class="ramo-tela" id="ramo-tela" role="tabpanel" aria-live="polite">
+        <div class="ramo-tela-topo">
+          <svg class=ico aria-hidden=true><use href=#i-package id="ramo-icone-uso"></use></svg>
+          <span class="ramo-tela-titulo" id="ramo-titulo">Estoque e Validade</span>
+        </div>
+        <div class="ramo-tela-corpo">
+          <div>
+            <div class="ramo-bloco-rot">Categorias já criadas</div>
+            <div class="ramo-pills" id="ramo-categorias"></div>
+          </div>
+          <div>
+            <div class="ramo-bloco-rot" id="ramo-campos-rot">Campos do cadastro</div>
+            <div class="ramo-campos" id="ramo-campos"></div>
+          </div>
+          <div>
+            <div class="ramo-bloco-rot">Cargos sugeridos para a equipe</div>
+            <div class="ramo-pills" id="ramo-cargos"></div>
+          </div>
+          <button class="ramo-botao" id="ramo-botao" type="button" disabled>Cadastrar insumo</button>
+        </div>
+      </div>
+
+      <div class="ramo-notas">
+        <div class="ramo-nota">
+          <svg class=ico aria-hidden=true><use href=#i-edit></use></svg>
+          <div>
+            <h4>O nome das coisas muda</h4>
+            <p id="nota-vocab">A tela de estoque vira <em>Estoque e Validade</em>, e o que você cadastra são <em>insumos</em>.</p>
+          </div>
+        </div>
+        <div class="ramo-nota">
+          <svg class=ico aria-hidden=true><use href=#i-package></use></svg>
+          <div>
+            <h4>As categorias já vêm prontas</h4>
+            <p id="nota-cat">Você não começa com uma lista vazia para inventar do zero.</p>
+          </div>
+        </div>
+        <div class="ramo-nota">
+          <svg class=ico aria-hidden=true><use href=#i-clipboard></use></svg>
+          <div>
+            <h4>Os campos são os do seu ramo</h4>
+            <p id="nota-campos">Cada tipo de negócio anota o que precisa anotar.</p>
+          </div>
+        </div>
+        <div class="ramo-nota">
+          <svg class=ico aria-hidden=true><use href=#i-alert></use></svg>
+          <div>
+            <h4>Validade só onde faz sentido</h4>
+            <p id="nota-validade">Farmácia é obrigada a informar; concessionária nem vê o campo.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p style="text-align:center;margin:30px auto 0;max-width:560px;font-size:.86rem;color:var(--gray-500);line-height:1.7">
+      Não achou o seu? <strong>Outro tipo de negócio</strong> deixa tudo no vocabulário
+      neutro — e o resto do sistema funciona igual.
+    </p>
+  </div>
+</section>
+
 <!-- FUNCIONALIDADES -->
 <section id="funcionalidades">
   <div class="section-inner">
@@ -1007,6 +1267,12 @@
         <span class="feature-tag">Sua marca</span>
       </div>
       <div class="feature-card">
+        <div class="feature-icon"><svg class=ico aria-hidden=true><use href=#i-plug></use></svg></div>
+        <h3>Integra com o seu PDV</h3>
+        <p>Quando o caixa registra a venda, o estoque aqui baixa sozinho. O produto é encontrado pelo código de barras que o seu sistema já usa, e reenviar o mesmo cupom não desconta duas vezes.</p>
+        <span class="feature-tag">Plano Pro</span>
+      </div>
+      <div class="feature-card">
         <div class="feature-icon"><svg class=ico aria-hidden=true><use href=#i-pin></use></svg></div>
         <h3>Localização no Ponto</h3>
         <p>Cada batida de ponto captura automaticamente a localização do funcionário. O gestor vê exatamente onde cada entrada, intervalo e saída foi registrada — direto no Google Maps, em tempo real.</p>
@@ -1019,7 +1285,7 @@
 <!-- PERMISSÕES -->
 <section class="perms-section">
   <div class="section-inner">
-    <div class="perms-grid reveal">
+    <div class="perms-grid reveal-dir">
       <div>
         <div class="section-eyebrow">Hierarquia dinâmica</div>
         <h2 class="section-title">Crie os cargos que o seu negócio precisa</h2>
@@ -1085,7 +1351,7 @@
 <!-- WHITE LABEL -->
 <section>
   <div class="section-inner">
-    <div class="wl-grid reveal">
+    <div class="wl-grid reveal-esq">
       <div>
         <div class="section-eyebrow">White Label</div>
         <h2 class="section-title">Seu app. Suas cores. Sua identidade.</h2>
@@ -3508,6 +3774,181 @@ document.addEventListener("DOMContentLoaded",function(){
   onScroll();
 })();
 
+
+// ═══════════════════════════════════════════
+// O APP NA LÍNGUA DO SEU RAMO — parte interativa
+// ═══════════════════════════════════════════
+// Espelho do catálogo RAMOS do servidor. Mudou lá, muda aqui.
+var RAMOS_VITRINE = {"restaurante": {"nome": "Restaurante / Lanchonete", "icone": "i-utensils", "pagina": "Estoque e Validade", "cadastrar": "Cadastrar insumo", "plural": "insumos", "validade": "obrigatoria", "categorias": ["Carnes", "Hortifruti", "Laticínios", "Bebidas", "Congelados", "Secos e grãos"], "campos": ["Fornecedor", "Armazenagem"], "cargos": ["Gerente", "Cozinheiro", "Auxiliar de cozinha", "Garçom", "Caixa"]}, "farmacia": {"nome": "Farmácia / Drogaria", "icone": "i-pill", "pagina": "Medicamentos e Validade", "cadastrar": "Cadastrar medicamento", "plural": "medicamentos", "validade": "obrigatoria", "categorias": ["Medicamentos", "Genéricos", "Controlados", "Dermocosméticos", "Higiene", "Suplementos"], "campos": ["Princípio ativo", "Tarja", "Registro ANVISA"], "cargos": ["Farmacêutico responsável", "Balconista", "Atendente", "Caixa", "Estoquista"]}, "loja_roupa": {"nome": "Loja de roupa / Calçados", "icone": "i-bag", "pagina": "Estoque da Loja", "cadastrar": "Cadastrar peça", "plural": "peças", "validade": "opcional", "categorias": ["Camisetas", "Calças", "Vestidos", "Casacos", "Calçados", "Acessórios"], "campos": ["Tamanho", "Cor", "Marca", "Preço de venda (R$)"], "cargos": ["Gerente de loja", "Vendedor", "Caixa", "Estoquista", "Visual merchandiser"]}, "concessionaria": {"nome": "Concessionária / Revenda de veículos", "icone": "i-card", "pagina": "Veículos", "cadastrar": "Cadastrar veículo", "plural": "veículos", "validade": "nao_usa", "categorias": ["Carro novo", "Carro seminovo", "Moto", "Caminhão", "Utilitário", "Consignado"], "campos": ["Placa", "Marca e modelo", "Ano", "Quilometragem", "Cor", "Preço de venda (R$)"], "cargos": ["Gerente de vendas", "Consultor de vendas", "Avaliador", "Despachante", "Financeiro"]}, "oficina": {"nome": "Oficina mecânica / Auto center", "icone": "i-wrench", "pagina": "Peças e Estoque", "cadastrar": "Cadastrar peça", "plural": "peças", "validade": "opcional", "categorias": ["Motor", "Suspensão", "Freios", "Elétrica", "Filtros", "Óleos e fluidos"], "campos": ["Código da peça", "Aplicação (veículo)", "Fornecedor"], "cargos": ["Gerente", "Mecânico", "Auxiliar de mecânico", "Eletricista automotivo", "Atendente"]}, "mercado": {"nome": "Mercado / Mercearia", "icone": "i-package", "pagina": "Validade de Produtos", "cadastrar": "Cadastrar produto", "plural": "produtos", "validade": "obrigatoria", "categorias": ["Alimentos", "Bebidas", "Hortifruti", "Frios e laticínios", "Congelados", "Limpeza"], "campos": ["Fornecedor", "Corredor / Gôndola"], "cargos": ["Gerente", "Repositor", "Operador de caixa", "Açougueiro", "Padeiro"]}, "padaria": {"nome": "Padaria / Confeitaria", "icone": "i-coffee", "pagina": "Estoque e Validade", "cadastrar": "Cadastrar produto", "plural": "produtos", "validade": "obrigatoria", "categorias": ["Farináceos", "Laticínios", "Recheios e coberturas", "Bebidas", "Frios", "Embalagens"], "campos": ["Fornecedor", "Armazenagem"], "cargos": ["Gerente", "Padeiro", "Confeiteiro", "Atendente", "Operador de caixa"]}, "salao": {"nome": "Salão de beleza / Barbearia", "icone": "i-scissors", "pagina": "Produtos e Validade", "cadastrar": "Cadastrar produto", "plural": "produtos", "validade": "obrigatoria", "categorias": ["Coloração", "Tratamento", "Finalização", "Shampoo e condicionador", "Unhas", "Barba"], "campos": ["Marca", "Fornecedor"], "cargos": ["Gerente", "Cabeleireiro", "Barbeiro", "Manicure", "Esteticista"]}, "clinica": {"nome": "Clínica / Consultório", "icone": "i-hospital", "pagina": "Insumos e Validade", "cadastrar": "Cadastrar insumo", "plural": "insumos", "validade": "obrigatoria", "categorias": ["Medicamentos", "Materiais descartáveis", "Instrumental", "Higiene", "Escritório"], "campos": ["Lote do fabricante", "Registro ANVISA"], "cargos": ["Responsável técnico", "Enfermeiro", "Técnico de enfermagem", "Recepcionista", "Auxiliar administrativo"]}, "petshop": {"nome": "Pet shop / Clínica veterinária", "icone": "i-droplet", "pagina": "Produtos e Validade", "cadastrar": "Cadastrar produto", "plural": "produtos", "validade": "obrigatoria", "categorias": ["Ração", "Petiscos", "Medicamentos", "Higiene", "Acessórios", "Brinquedos"], "campos": ["Espécie", "Fornecedor"], "cargos": ["Gerente", "Veterinário", "Banhista e tosador", "Atendente", "Caixa"]}, "academia": {"nome": "Academia / Estúdio", "icone": "i-zap", "pagina": "Equipamentos e Estoque", "cadastrar": "Cadastrar item", "plural": "itens", "validade": "opcional", "categorias": ["Equipamento de musculação", "Cardio", "Acessórios", "Suplementos", "Limpeza", "Uniformes"], "campos": ["Nº de patrimônio", "Última manutenção"], "cargos": ["Gerente", "Personal trainer", "Instrutor", "Recepcionista", "Auxiliar de limpeza"]}, "outro": {"nome": "Outro tipo de negócio", "icone": "i-building", "pagina": "Estoque", "cadastrar": "Cadastrar item", "plural": "itens", "validade": "opcional", "categorias": ["Geral", "Insumos", "Equipamentos", "Limpeza", "Escritório", "Outros"], "campos": ["Fornecedor"], "cargos": ["Gerente", "Supervisor", "Atendente", "Auxiliar"]}};
+
+(function(){
+  var chips = [].slice.call(document.querySelectorAll('.ramo-chip'));
+  if(!chips.length) return;
+
+  var elTitulo = document.getElementById('ramo-titulo');
+  var elCat    = document.getElementById('ramo-categorias');
+  var elCampos = document.getElementById('ramo-campos');
+  var elCargos = document.getElementById('ramo-cargos');
+  var elBotao  = document.getElementById('ramo-botao');
+  var elRotCampos = document.getElementById('ramo-campos-rot');
+  var nVocab   = document.getElementById('nota-vocab');
+  var nCat     = document.getElementById('nota-cat');
+  var nCampos  = document.getElementById('nota-campos');
+  var nValid   = document.getElementById('nota-validade');
+
+  // Tudo por textContent. O conteúdo aqui é nosso, mas a próxima
+  // pessoa que ligar isto a um catálogo vindo do servidor herda a
+  // regra em vez de herdar um innerHTML esperando para dar errado.
+  function pill(texto, classe){
+    var e = document.createElement('span');
+    e.className = classe || 'ramo-pill';
+    e.textContent = texto;
+    return e;
+  }
+  function campo(rotulo){
+    var e = document.createElement('div');
+    e.className = 'ramo-campo';
+    var t = document.createElement('strong');
+    t.textContent = rotulo;
+    e.appendChild(t);
+    e.appendChild(document.createTextNode('—'));
+    return e;
+  }
+  function trocar(el, montar){
+    el.textContent = '';
+    montar(el);
+    // Reinicia a animação: sem remover a classe antes, trocar de ramo
+    // duas vezes seguidas não reanima nada, porque a classe já está lá.
+    el.classList.remove('ramo-anima');
+    void el.offsetWidth;
+    el.classList.add('ramo-anima');
+  }
+  function frase(el, partes){
+    el.textContent = '';
+    partes.forEach(function(p){
+      if(typeof p === 'string'){ el.appendChild(document.createTextNode(p)); return; }
+      var em = document.createElement('em');
+      em.textContent = p.destaque;
+      el.appendChild(em);
+    });
+  }
+
+  var VALIDADE = {
+    obrigatoria: 'Aqui a data de vencimento é obrigatória — é o tipo de negócio onde produto vencido dá multa.',
+    opcional:    'A data de vencimento fica disponível, mas ninguém é obrigado a preencher.',
+    nao_usa:     'Neste ramo o campo de validade nem aparece: seria uma data inventada para cadastrar um item que não vence.'
+  };
+
+  function aplicar(slug){
+    var r = RAMOS_VITRINE[slug];
+    if(!r) return;
+
+    elTitulo.textContent = r.pagina;
+    elTitulo.classList.remove('ramo-anima'); void elTitulo.offsetWidth; elTitulo.classList.add('ramo-anima');
+
+    elBotao.textContent = r.cadastrar;
+    trocar(elCat,    function(el){ r.categorias.forEach(function(c){ el.appendChild(pill(c)); }); });
+    trocar(elCargos, function(el){ r.cargos.forEach(function(c){ el.appendChild(pill(c)); }); });
+
+    if(r.campos.length){
+      elRotCampos.textContent = 'Campos do cadastro';
+      trocar(elCampos, function(el){ r.campos.forEach(function(c){ el.appendChild(campo(c)); }); });
+    } else {
+      elRotCampos.textContent = 'Campos do cadastro';
+      trocar(elCampos, function(el){ el.appendChild(campo('Nome')); el.appendChild(campo('Quantidade')); });
+    }
+
+    frase(nVocab, ['A tela de estoque vira ', {destaque:r.pagina}, ', e o que você cadastra são ', {destaque:r.plural}, '.']);
+    frase(nCat,   [String(r.categorias.length) + ' categorias já criadas: ', {destaque:r.categorias.slice(0,3).join(', ')}, ' e outras. Você não começa com uma lista vazia.']);
+    frase(nCampos, r.campos.length
+      ? ['Além do básico, o cadastro pede ', {destaque:r.campos.join(', ')}, '.']
+      : ['O cadastro fica no essencial: nome, quantidade e categoria.']);
+    nValid.textContent = VALIDADE[r.validade] || VALIDADE.opcional;
+
+    chips.forEach(function(c){
+      var ativo = c.dataset.ramo === slug;
+      c.setAttribute('aria-selected', ativo ? 'true' : 'false');
+      c.tabIndex = ativo ? 0 : -1;
+    });
+  }
+
+  var interagiu = false;
+  chips.forEach(function(c){
+    c.addEventListener('click', function(){ interagiu = true; aplicar(c.dataset.ramo); });
+  });
+
+  // Setas do teclado percorrem os chips, como manda um tablist. Sem
+  // isto, quem navega por teclado fica preso no primeiro.
+  document.querySelector('.ramo-chips').addEventListener('keydown', function(ev){
+    var i = chips.indexOf(document.activeElement);
+    if(i < 0) return;
+    var j = ev.key === 'ArrowRight' ? i + 1 : ev.key === 'ArrowLeft' ? i - 1 : -1;
+    if(j < 0 && ev.key !== 'ArrowLeft') return;
+    if(j < 0) j = chips.length - 1;
+    if(j >= chips.length) j = 0;
+    ev.preventDefault();
+    interagiu = true;
+    chips[j].focus();
+    aplicar(chips[j].dataset.ramo);
+  });
+
+  aplicar('restaurante');
+
+  // Ao rolar até aqui, a seção troca de ramo sozinha DUAS vezes e para.
+  // É o que ensina que dá para clicar: parado, o bloco parece uma
+  // figura. Passar disso vira carrossel, que rouba a leitura de quem
+  // está tentando ler. Qualquer toque cancela na hora, e quem pediu
+  // menos movimento no sistema não vê nada disso.
+  var querMenosMovimento = window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(querMenosMovimento || !('IntersectionObserver' in window)) return;
+
+  var demo = ['padaria', 'concessionaria'];
+  var passo = 0;
+  var obsRamo = new IntersectionObserver(function(entradas){
+    entradas.forEach(function(e){
+      if(!e.isIntersecting) return;
+      obsRamo.disconnect();
+      var timer = setInterval(function(){
+        if(interagiu || passo >= demo.length){ clearInterval(timer); return; }
+        aplicar(demo[passo++]);
+      }, 1600);
+    });
+  }, { threshold: 0.4 });
+  obsRamo.observe(document.getElementById('seu-negocio'));
+})();
+
+// Barra de progresso da leitura.
+//
+// Fica no topo e cresce conforme a página desce. Numa vitrine longa
+// ela responde "falta muito?" sem o visitante precisar arrastar a
+// barra do navegador para descobrir.
+//
+// Anima com transform:scaleX, não com width: width refaz o layout a
+// cada quadro de rolagem e engasga em celular fraco, que é justamente
+// o aparelho de boa parte de quem abre esta página.
+(function(){
+  var barra = document.getElementById('progresso-leitura');
+  if(!barra) return;
+  var pendente = false;
+  function pintar(){
+    var doc = document.documentElement;
+    var rolavel = doc.scrollHeight - window.innerHeight;
+    var q = rolavel > 0 ? (window.scrollY || doc.scrollTop) / rolavel : 0;
+    barra.style.transform = 'scaleX(' + Math.min(Math.max(q, 0), 1) + ')';
+    pendente = false;
+  }
+  // Um quadro por vez: o evento de scroll dispara dezenas de vezes por
+  // segundo, e desenhar em todas elas é trabalho jogado fora.
+  window.addEventListener('scroll', function(){
+    if(pendente) return;
+    pendente = true;
+    requestAnimationFrame(pintar);
+  }, { passive: true });
+  window.addEventListener('resize', pintar, { passive: true });
+  pintar();
+})();
+
 // Scroll-reveal: anima .reveal/.reveal-stagger ao entrarem na tela.
 // Isto é uma página de vendas — conteúdo que nunca aparece custa
 // conversão e SEO, então tem 3 redes de segurança independentes:
@@ -3521,8 +3962,13 @@ document.addEventListener("DOMContentLoaded",function(){
 //    depois de 2.5s — tempo de sobra pra não atrapalhar a animação
 //    de quem está rolando a página normalmente.
 (function(){
+  // As variantes direcionais entram na mesma conta. Ficaram de fora
+  // uma vez e o resultado foi seção invisível para sempre — o seletor
+  // não casava, então nem o observador nem a rede de segurança as
+  // alcançavam.
+  var TODOS = '.reveal, .reveal-esq, .reveal-dir';
   var revealAll = function(){
-    document.querySelectorAll('.reveal').forEach(function(el){ el.classList.add('in-view'); });
+    document.querySelectorAll(TODOS).forEach(function(el){ el.classList.add('in-view'); });
   };
 
   if(!('IntersectionObserver' in window)){
@@ -3538,7 +3984,7 @@ document.addEventListener("DOMContentLoaded",function(){
       }
     });
   }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
-  document.querySelectorAll('.reveal').forEach(function(el){ obs.observe(el); });
+  document.querySelectorAll(TODOS).forEach(function(el){ obs.observe(el); });
 
   setTimeout(revealAll, 2500);
 })();

@@ -9,6 +9,11 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v40: a vitrine ganhou a parte interativa — o visitante toca no ramo
+// dele e ve a tela do app mudar (nome da pagina, categorias, campos e
+// cargos), com os dados do proprio catalogo do servidor. Entrou tambem
+// a barra de progresso da leitura e a correcao das ancoras do menu,
+// que paravam com a secao atras da nav fixa.
 // v39: entrou a API do cliente (plano Pro). A venda no PDV da loja
 // baixa o estoque aqui sozinha, achando o produto pelo código de
 // barras que o sistema dele ja usa. Reenviar o mesmo cupom nao
@@ -78,7 +83,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v39';
+var CACHE = 'workap-v40';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
