@@ -9,6 +9,11 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v45: a tela do WhatsApp dizia que o negocio precisava estar
+//      verificado na Meta. Nao precisa: a verificacao levanta o teto de
+//      conversas que a EMPRESA comeca, e este assistente so responde
+//      quem escreveu primeiro — resposta dentro de 24h nao tem teto.
+//
 // v44: o chatbot do Master passou a atender no WhatsApp da empresa, e
 //      o cupom voltou a descontar de verdade — ele era validado, o
 //      resumo mostrava o desconto e a cobranca saia pelo preco cheio,
@@ -105,7 +110,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v44';
+var CACHE = 'workap-v45';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
