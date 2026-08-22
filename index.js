@@ -197,6 +197,15 @@ const CONFIG = {
       // centavosParaCobrarNoGateway(). O Completo ja terminava assim.
       centavos: 8999,
       resumo: "Tudo do Completo + espelho de ponto, banco de horas, relatórios para o contador e API para integrar com o PDV."
+    },
+    master: {
+      nome: "Plano Master",
+      // Preço PADRÃO. O valor que vale é o que o owner define no
+      // painel (config_plataforma, chave preco_master_centavos) — ver
+      // precoDoPlanoAtual(). Este número só entra enquanto ninguém
+      // configurou nada, para o plano nunca aparecer sem preço.
+      centavos: 14999,
+      resumo: "Tudo do Pro + chatbot que atende a equipe no chat interno."
     }
   },
   // Plano padrão de quem se cadastra sem escolher.
@@ -568,6 +577,41 @@ function precoDoPlano(nome) {
 }
 
 /**
+ * O preço que VALE — o do código, ou o que o owner definiu no painel.
+ *
+ * Só o Master é configurável hoje. Completo e Pro seguem no código
+ * porque estão impressos na vitrine estática; mexer neles pelo painel
+ * criaria a situação em que o site anuncia um valor e o checkout cobra
+ * outro, que é a pior forma de perder uma venda.
+ *
+ * Assíncrona porque lê config_plataforma, que tem cache de 60s — o
+ * custo real é uma consulta por minuto, não uma por cobrança.
+ */
+async function precoDoPlanoAtual(nome) {
+  var slug = planoValido(nome);
+  if (slug !== "master") return precoDoPlano(slug);
+
+  var cfg = await lerConfigPlataforma().catch(function () { return {}; });
+  var configurado = parseInt(cfg.preco_master_centavos, 10);
+  // Preço abaixo de R$ 1,00 não é preço: é campo em branco ou dedo
+  // errado. Cair no padrão evita cobrar centavos de alguém.
+  if (isFinite(configurado) && configurado >= 100) return configurado;
+  return precoDoPlano("master");
+}
+
+/**
+ * O Master aparece na vitrine? O owner desliga quando não quiser mais
+ * vender o plano — sem apagar nada, e sem afetar quem já assinou.
+ */
+async function masterAtivo() {
+  var cfg = await lerConfigPlataforma().catch(function () { return {}; });
+  // Sem configuração nenhuma, nasce DESLIGADO: o plano só passa a ser
+  // oferecido depois de o owner definir o preço dele. Nascer ligado com
+  // o preço padrão colocaria à venda um valor que ninguém escolheu.
+  return cfg.master_ativo === "1";
+}
+
+/**
  * O que separa os dois planos hoje: espelho de ponto, banco de horas e
  * os relatórios do contador. Checado no servidor em toda rota do
  * módulo — esconder o menu no app é conveniência visual, não controle
@@ -577,7 +621,25 @@ function precoDoPlano(nome) {
  * mudar de faixa um dia significar editar um lugar só.
  */
 function planoAvancado(nome) {
-  return planoValido(nome) === "pro";
+  // Master é o Pro MAIS o chatbot, não um caminho paralelo. Se ele
+  // ficasse de fora daqui, quem pagasse o plano mais caro perderia o
+  // espelho de ponto e a API — e o defeito só apareceria no primeiro
+  // fechamento de mês do primeiro cliente Master.
+  var p = planoValido(nome);
+  return p === "pro" || p === "master";
+}
+
+/**
+ * O chatbot é só do Master.
+ *
+ * Função separada, e não `plano === "master"` espalhado, pelo mesmo
+ * motivo de planoAvancado existir: quando entrar a segunda rota do
+ * módulo, quem esquecer a checagem entrega o recurso de graça — foi
+ * exatamente o que aconteceu com a jornada, vendida como Pro e
+ * funcionando no Completo.
+ */
+function planoTemChatbot(nome) {
+  return planoValido(nome) === "master";
 }
 
 /**
@@ -975,7 +1037,8 @@ function supabase(method, table, options = {}) {
     "config_jornada", "erros_plataforma", "eventos_pagamento",
     "links_pagamento",
     "chamados", "chamado_mensagens",
-    "chaves_api", "movimentos_estoque", "ifood_eventos"
+    "chaves_api", "movimentos_estoque", "ifood_eventos",
+    "chatbots", "chatbot_itens", "chatbot_atendimentos"
   ];
   // Procedimento do banco (PostgREST expõe em /rest/v1/rpc/nome).
   // Tem lista própria, separada da de tabelas, pelo mesmo motivo de
@@ -1983,7 +2046,7 @@ async function validarCupom(codigoBruto, planoAlvo) {
 
   // O desconto percentual precisa saber sobre QUAL preço incide: 20%
   // do plano de R$ 89,90 não é 20% do de R$ 49,99.
-  var precoOriginal = precoDoPlano(planoAlvo);
+  var precoOriginal = await precoDoPlanoAtual(planoAlvo);
   var desconto;
   if (cupom.tipo === "percentual") {
     if (valorCupom > 100) valorCupom = 100; // trava de segurança
@@ -3267,6 +3330,52 @@ function dataDeLembrete(valor) {
  * diferente de Pix), um número fixo aqui acerta uma e erra as outras.
  * Conferir com uma cobrança real de cada método antes de confiar.
  */
+/**
+ * Lê um preço digitado por gente, em reais.
+ *
+ * O caso que motivou isto: "149.50" estava virando R$ 14.950,00, porque
+ * a primeira versão apagava TODO ponto achando que era separador de
+ * milhar. Num campo de preço, esse tipo de erro não aparece na tela de
+ * quem configurou — aparece na fatura do cliente.
+ *
+ * As regras, e o porquê de cada uma:
+ *
+ *   "1.499,90" → tem vírgula: ela é o decimal e o ponto é milhar.
+ *                É como se escreve dinheiro em português.
+ *   "149,50"   → mesma coisa, sem milhar.
+ *   "1.499"    → só ponto, com TRÊS casas depois: milhar. Ninguém
+ *                escreve 1 real e 499 milésimos.
+ *   "149.50"   → só ponto, com DUAS casas: decimal. É o teclado do
+ *                celular, que oferece ponto, ou quem está acostumado
+ *                com o formato americano.
+ *   "149"      → inteiro.
+ *
+ * Devolve null para o que não for número — o chamador decide a
+ * mensagem, porque o texto muda conforme o campo.
+ */
+function reaisDigitados(valor) {
+  var texto = String(valor == null ? "" : valor).trim().replace(/[R$\s]/g, "");
+  if (!texto) return null;
+  if (!/^[\d.,]+$/.test(texto)) return null;
+
+  var temVirgula = texto.indexOf(",") >= 0;
+  var normalizado;
+
+  if (temVirgula) {
+    normalizado = texto.replace(/\./g, "").replace(",", ".");
+  } else {
+    var pedacos = texto.split(".");
+    if (pedacos.length === 2 && pedacos[1].length === 2) {
+      normalizado = texto;                       // 149.50 → decimal
+    } else {
+      normalizado = texto.replace(/\./g, "");    // 1.499 → milhar
+    }
+  }
+
+  var n = parseFloat(normalizado);
+  return isFinite(n) ? n : null;
+}
+
 function centavosParaCobrarNoGateway(centavosAnunciados) {
   var acrescimo = CONFIG.GATEWAY_ACRESCIMO_CENTAVOS || 0;
   var enviar = centavosAnunciados - acrescimo;
@@ -5001,6 +5110,155 @@ async function criarTarefaDePedidoIfood(empresa, orderId, detalhe) {
   };
 }
 
+// ════════════════════════════════════════════════════════════
+// CHATBOT — exclusivo do Plano Master
+// ════════════════════════════════════════════════════════════
+// Atende no chat interno: quando o funcionário escreve para a
+// Administração (destinatario_id nulo), o bot responde antes da pessoa.
+// Não substitui o dono — o dono continua vendo a conversa e pode
+// responder por cima a qualquer momento.
+
+/**
+ * Barra a rota quando a conta não é Master. Devolve true quando JÁ
+ * respondeu — quem chama sai na hora. Espelha exigirPro().
+ */
+async function exigirMaster(res, empresaId, oQue) {
+  // Mesma saída do exigirPro: o owner navega o produto com as telas
+  // vazias para conferir o que o cliente vê, e o token dele não tem
+  // plano nenhum.
+  if (!empresaId || empresaId === EMPRESA_NENHUMA) return false;
+
+  var emp = await DB.select("empresas", "id=eq." + empresaId + "&select=plano")
+    .catch(function () { return { body: [] }; });
+  var linha = emp.body && emp.body[0];
+  if (linha && planoTemChatbot(linha.plano)) return false;
+  jsonErr(res, oQue + " faz parte do Plano Master.", 402);
+  return true;
+}
+
+/**
+ * Normaliza para comparar: sem acento, sem maiúscula, sem pontuação.
+ *
+ * É o que faz "férias", "FERIAS" e "ferias?" casarem com o mesmo
+ * gatilho. Sem isso, o dono cadastraria "férias" e o funcionário que
+ * digita sem acento — a maioria, no teclado do celular — nunca seria
+ * atendido.
+ */
+function normalizarTexto(t) {
+  return String(t || "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** O menu numerado, montado a partir das opções ativas. */
+function montarMenu(bot, opcoes) {
+  var linhas = [bot.boas_vindas];
+  opcoes.forEach(function (o, i) {
+    linhas.push((i + 1) + ") " + o.rotulo);
+  });
+  if (!opcoes.length) {
+    // Bot ligado e sem nenhuma opção responderia só a saudação, e a
+    // pessoa ficaria olhando para uma mensagem que não pede nada.
+    linhas.push("(Nenhuma opção configurada ainda.)");
+  }
+  return linhas.join("\n");
+}
+
+/**
+ * O QUE O BOT RESPONDE.
+ *
+ * Ordem de decisão, e o porquê de ser esta:
+ *   1. número puro ("2")  → a opção correspondente. Vem primeiro
+ *      porque quem acabou de ver o menu está respondendo a ele, e um
+ *      gatilho com a palavra "2" roubaria a resposta.
+ *   2. "menu" / "oi" / "início" → mostra o menu de novo.
+ *   3. gatilho por palavra-chave.
+ *   4. nada casou → fallback.
+ *
+ * Função pura de decisão: não grava nada, não manda mensagem. É o que
+ * deixa o botão "testar" da tela usar exatamente este caminho sem
+ * poluir o chat de ninguém.
+ */
+function decidirRespostaChatbot(bot, itens, textoBruto) {
+  var opcoes   = itens.filter(function (i) { return i.tipo === "opcao"   && i.ativo; });
+  var gatilhos = itens.filter(function (i) { return i.tipo === "gatilho" && i.ativo; });
+  var texto    = normalizarTexto(textoBruto);
+
+  if (!texto) return { como: "fallback", resposta: bot.fallback, item_id: null };
+
+  // 1. Resposta ao menu por número.
+  if (/^\d{1,2}$/.test(texto)) {
+    var idx = parseInt(texto, 10) - 1;
+    if (opcoes[idx]) {
+      return { como: "opcao", resposta: opcoes[idx].resposta, item_id: opcoes[idx].id };
+    }
+    // Número fora da lista: mostrar o menu de novo é mais útil que
+    // "não entendi", porque o erro foi de mira, não de intenção.
+    return { como: "menu", resposta: montarMenu(bot, opcoes), item_id: null };
+  }
+
+  // 2. Pedidos explícitos de menu.
+  var PEDE_MENU = ["menu", "oi", "ola", "opcoes", "inicio", "comecar", "ajuda", "bom dia", "boa tarde", "boa noite"];
+  if (PEDE_MENU.indexOf(texto) >= 0) {
+    return { como: "menu", resposta: montarMenu(bot, opcoes), item_id: null };
+  }
+
+  // 3. Gatilhos. Ganha o que tiver a palavra MAIS LONGA casada: se um
+  // gatilho responde a "ponto" e outro a "banco de horas", quem
+  // escreve "como vejo meu banco de horas" tem que cair no segundo.
+  var melhor = null, tamanhoMelhor = 0;
+  gatilhos.forEach(function (g) {
+    String(g.palavras || "").split(",").forEach(function (p) {
+      var palavra = normalizarTexto(p);
+      if (!palavra) return;
+      // Fronteira de palavra: sem isso "ferias" casaria dentro de
+      // "conferias", e o bot responderia coisa nenhuma a ver.
+      var casa = texto === palavra ||
+                 texto.indexOf(palavra + " ") === 0 ||
+                 texto.indexOf(" " + palavra) === texto.length - palavra.length - 1 ||
+                 texto.indexOf(" " + palavra + " ") >= 0;
+      if (casa && palavra.length > tamanhoMelhor) {
+        melhor = g; tamanhoMelhor = palavra.length;
+      }
+    });
+  });
+  if (melhor) return { como: "gatilho", resposta: melhor.resposta, item_id: melhor.id };
+
+  // 4. Nada casou.
+  return { como: "fallback", resposta: bot.fallback, item_id: null };
+}
+
+/**
+ * Carrega o bot da empresa e decide a resposta. Devolve null quando
+ * não há nada a responder — sem bot, bot desligado, ou plano sem
+ * direito ao módulo.
+ *
+ * NUNCA joga exceção: isto roda dentro do envio de mensagem do chat, e
+ * um erro aqui não pode impedir a mensagem da pessoa de chegar ao dono.
+ */
+async function responderChatbot(empresaId, plano, textoPessoa) {
+  try {
+    if (!planoTemChatbot(plano)) return null;
+
+    var achado = await DB.select("chatbots", `empresa_id=eq.${empresaId}&select=*&limit=1`);
+    var bot = achado.body && achado.body[0];
+    if (!bot || !bot.ativo) return null;
+
+    var itensBot = await DB.select("chatbot_itens",
+      `chatbot_id=eq.${bot.id}&select=id,tipo,rotulo,palavras,resposta,ordem,ativo&order=ordem.asc`
+    ).catch(function () { return { body: [] }; });
+
+    var decisao = decidirRespostaChatbot(bot, itensBot.body || [], textoPessoa);
+    return { bot: bot, decisao: decisao };
+  } catch (e) {
+    secLog("chatbot_falhou", { empresa_id: empresaId, message: e.message });
+    return null;
+  }
+}
+
 var server = http.createServer(async (req, res) => {
   var ip     = getIP(req);
   var origin = req.headers["origin"] || "";
@@ -5327,7 +5585,7 @@ var server = http.createServer(async (req, res) => {
         senha_hash:           senhaHash,
         ramo:                 ramoDaEmpresa(body.ramo),
         plano:                planoValido(body.plano),
-        valor_mensal:         precoDoPlano(body.plano) / 100,
+        valor_mensal:         (await precoDoPlanoAtual(body.plano)) / 100,
         team_id:              gerarTeamId(),
         status:               "trial",
         trial_fim:            trialFim,
@@ -6407,17 +6665,28 @@ var server = http.createServer(async (req, res) => {
     // um dia diverge — e divergência entre a vitrine e a cobrança é a
     // pior das divergências.
     if (method === "GET" && path === "/planos") {
-      return jsonOk(res, {
-        planos: Object.keys(CONFIG.PLANOS).map(function (slug) {
-          return {
-            slug:        slug,
-            nome:        CONFIG.PLANOS[slug].nome,
-            resumo:      CONFIG.PLANOS[slug].resumo,
-            centavos:    CONFIG.PLANOS[slug].centavos,
-            preco_reais: centavosParaReais(CONFIG.PLANOS[slug].centavos)
-          };
-        })
+      // O site é estático e lê os preços daqui. É por isso que mudar o
+      // valor do Master no painel muda a vitrine e o checkout juntos,
+      // sem deploy — e é por isso que ESTA rota é a única fonte.
+      var masterLigado = await masterAtivo();
+      var slugsPlanos = Object.keys(CONFIG.PLANOS).filter(function (slug) {
+        // Master desligado some da vitrine. Quem já assinou continua
+        // com a conta funcionando: o que sai é a OFERTA, não o plano.
+        return slug !== "master" || masterLigado;
       });
+      var listaPlanos = [];
+      for (var iPl = 0; iPl < slugsPlanos.length; iPl++) {
+        var slugPl  = slugsPlanos[iPl];
+        var centPl  = await precoDoPlanoAtual(slugPl);
+        listaPlanos.push({
+          slug:        slugPl,
+          nome:        CONFIG.PLANOS[slugPl].nome,
+          resumo:      CONFIG.PLANOS[slugPl].resumo,
+          centavos:    centPl,
+          preco_reais: centavosParaReais(centPl)
+        });
+      }
+      return jsonOk(res, { planos: listaPlanos });
     }
 
     // ── INTEGRAÇÕES DO SITE (rota pública) ───────────
@@ -6509,7 +6778,12 @@ var server = http.createServer(async (req, res) => {
             descricao: infoPlano.resumo,
             // Desconta o acréscimo do gateway para o cliente fechar
             // exatamente no preço anunciado — ver a função.
-            centavos: centavosParaCobrarNoGateway(infoPlano.centavos),
+            // O preço do Master é definido pelo owner no painel; o dos
+            // outros vem do código. precoDoPlanoAtual resolve os dois,
+            // e é o mesmo valor que a vitrine mostra — cobrar de uma
+            // fonte e anunciar de outra é como se anuncia um preço e
+            // se cobra outro.
+            centavos: centavosParaCobrarNoGateway(await precoDoPlanoAtual(planoAss)),
             recorrente: true,
             metodos: ["pix", "credit_card", "boleto"],
             // É por aqui que o webhook liga o pagamento à empresa sem
@@ -6813,7 +7087,7 @@ var server = http.createServer(async (req, res) => {
               var eBoasCk = empBoasCk.body && empBoasCk.body[0];
               if (eBoasCk) {
                 var pagoCent = reaisParaCentavosDoGateway(dadosCk.amount || dadosCk.total) ||
-                               precoDoPlano(eBoasCk.plano);
+                               (await precoDoPlanoAtual(eBoasCk.plano));
                 enviarEmail(eBoasCk.email, "✅ Assinatura do Workap confirmada",
                   EMAIL_TEMPLATES.pagamentoConfirmado(eBoasCk.nome, "R$ " + centavosParaReais(pagoCent))
                 ).catch(function () {});
@@ -7552,7 +7826,14 @@ var server = http.createServer(async (req, res) => {
         // o WhatsApp é para o cliente ligar. Esconder o que é público
         // só atrapalharia quem precisa conferir se digitou certo.
         meta_pixel_id:    cfgLida.meta_pixel_id || "",
-        whatsapp_vendas:  cfgLida.whatsapp_vendas || ""
+        whatsapp_vendas:  cfgLida.whatsapp_vendas || "",
+
+        // Plano Master. Ao contrário dos outros dois preços acima, este
+        // é EDITÁVEL: o valor sai daqui para a vitrine e para o
+        // checkout ao mesmo tempo, porque os dois leem GET /planos.
+        master_preco_reais: centavosParaReais(await precoDoPlanoAtual("master")),
+        master_ativo:       await masterAtivo(),
+        master_nome:        CONFIG.PLANOS.master.nome
       });
     }
 
@@ -7563,6 +7844,21 @@ var server = http.createServer(async (req, res) => {
       var rawCfg = await getBody(req);
       var bodyCfg = parseBody(rawCfg);
       if (!bodyCfg) return jsonErr(res, "Dados inválidos");
+
+      // ── Plano Master ──
+      if (bodyCfg.master_preco_reais !== undefined) {
+        var reaisMst = reaisDigitados(bodyCfg.master_preco_reais);
+        if (reaisMst === null || reaisMst < 1) {
+          return jsonErr(res, "Preço do Master inválido. Informe um valor a partir de R$ 1,00.");
+        }
+        if (reaisMst > 99999) {
+          return jsonErr(res, "Preço do Master acima do limite.");
+        }
+        await gravarConfigPlataforma("preco_master_centavos", String(Math.round(reaisMst * 100)));
+      }
+      if (typeof bodyCfg.master_ativo === "boolean") {
+        await gravarConfigPlataforma("master_ativo", bodyCfg.master_ativo ? "1" : "0");
+      }
 
       if (typeof bodyCfg.utmify_ativo === "boolean") {
         await gravarConfigPlataforma("utmify_ativo", bodyCfg.utmify_ativo ? "1" : "0");
@@ -9473,6 +9769,187 @@ var server = http.createServer(async (req, res) => {
     }
 
     // ════════════════════════════════════════
+    // CHATBOT — Plano Master
+    // ════════════════════════════════════════
+    // Toda rota deste bloco passa por exigirMaster. Esconder o menu no
+    // app é conveniência visual, não controle de acesso — quem souber
+    // o endereço chama direto.
+    if (path === "/chatbot" || path.indexOf("/chatbot/") === 0) {
+      if (authPayload.role === "funcionario") {
+        return jsonErr(res, "Sem permissão para configurar o chatbot", 403);
+      }
+      if (await exigirMaster(res, authPayload.empresa_id, "O chatbot")) return;
+
+      // Um bot por empresa, criado na primeira visita. Sem isto a tela
+      // abriria vazia e exigiria um "criar chatbot" que não decide nada
+      // — o dono quer configurar, não instanciar.
+      async function botDaEmpresa() {
+        var achado = await DB.select("chatbots",
+          `empresa_id=eq.${authPayload.empresa_id}&select=*&limit=1`);
+        if (achado.body && achado.body[0]) return achado.body[0];
+        var novo = await DB.insert("chatbots", { empresa_id: authPayload.empresa_id });
+        return novo.body && novo.body[0];
+      }
+
+      if (method === "GET" && path === "/chatbot") {
+        var botCfg = await botDaEmpresa();
+        var itensCfg = await DB.select("chatbot_itens",
+          `chatbot_id=eq.${botCfg.id}&select=*&order=tipo.asc,ordem.asc`
+        ).catch(function () { return { body: [] }; });
+        return jsonOk(res, { chatbot: botCfg, itens: itensCfg.body || [] });
+      }
+
+      if (method === "PUT" && path === "/chatbot") {
+        var bodyBot = parseBody(await getBody(req));
+        if (!bodyBot) return jsonErr(res, "Dados inválidos");
+        var botAtual = await botDaEmpresa();
+
+        var mudaBot = { atualizado_em: new Date().toISOString() };
+        if (bodyBot.nome !== undefined) {
+          mudaBot.nome = SANITIZE.string(bodyBot.nome, 60) || "Assistente";
+        }
+        if (bodyBot.boas_vindas !== undefined) {
+          mudaBot.boas_vindas = SANITIZE.string(bodyBot.boas_vindas, 1000) || "Olá!";
+        }
+        if (bodyBot.fallback !== undefined) {
+          mudaBot.fallback = SANITIZE.string(bodyBot.fallback, 1000) || "Não entendi.";
+        }
+        if (typeof bodyBot.ativo === "boolean") mudaBot.ativo = bodyBot.ativo;
+
+        await DB.update("chatbots", `id=eq.${botAtual.id}`, mudaBot);
+        secLog("chatbot_configurado", { empresa_id: authPayload.empresa_id, ativo: mudaBot.ativo });
+        return jsonOk(res, { ok: true });
+      }
+
+      // ── Itens: opções do menu e gatilhos ──
+      if (method === "POST" && path === "/chatbot/itens") {
+        var bodyIt = parseBody(await getBody(req));
+        if (!bodyIt) return jsonErr(res, "Dados inválidos");
+        var botIt = await botDaEmpresa();
+
+        var tipoIt = bodyIt.tipo === "gatilho" ? "gatilho" : "opcao";
+        var rotuloIt = SANITIZE.string(bodyIt.rotulo, 80);
+        var respostaIt = SANITIZE.string(bodyIt.resposta, 2000);
+        if (!rotuloIt)   return jsonErr(res, tipoIt === "opcao" ? "Dê um nome à opção do menu." : "Dê um nome ao gatilho.");
+        if (!respostaIt) return jsonErr(res, "Escreva a resposta.");
+
+        var palavrasIt = null;
+        if (tipoIt === "gatilho") {
+          palavrasIt = SANITIZE.string(bodyIt.palavras, 300);
+          if (!palavrasIt) return jsonErr(res, "Informe ao menos uma palavra-chave, separadas por vírgula.");
+        }
+
+        // Teto por empresa. O menu é numerado e lido no celular: com
+        // trinta opções ninguém acha a sua, e a mensagem vira uma
+        // parede de texto.
+        var quantosIt = await DB.select("chatbot_itens",
+          `chatbot_id=eq.${botIt.id}&tipo=eq.${tipoIt}&select=id`).catch(function () { return { body: [] }; });
+        var TETO = tipoIt === "opcao" ? 12 : 60;
+        if ((quantosIt.body || []).length >= TETO) {
+          return jsonErr(res, "Limite de " + TETO + (tipoIt === "opcao" ? " opções" : " gatilhos") + " atingido.", 409);
+        }
+
+        var criadoIt = await DB.insert("chatbot_itens", {
+          chatbot_id: botIt.id,
+          empresa_id: authPayload.empresa_id,
+          tipo:       tipoIt,
+          rotulo:     rotuloIt,
+          palavras:   palavrasIt,
+          resposta:   respostaIt,
+          ordem:      SANITIZE.int(bodyIt.ordem, 0, 999) || (quantosIt.body || []).length
+        });
+        return jsonOk(res, { item: criadoIt.body && criadoIt.body[0] }, 201);
+      }
+
+      if (method === "PUT" && path.indexOf("/chatbot/itens/") === 0) {
+        var idIt = path.split("/")[3];
+        if (!SANITIZE.uuid(idIt)) return jsonErr(res, "Item inválido");
+        var bodyUp = parseBody(await getBody(req));
+        if (!bodyUp) return jsonErr(res, "Dados inválidos");
+
+        // empresa_id no filtro: sem ele, o id de outra empresa seria
+        // editável por quem o descobrisse.
+        var doItem = await DB.select("chatbot_itens",
+          `id=eq.${idIt}&empresa_id=eq.${authPayload.empresa_id}&select=id,tipo&limit=1`);
+        if (!doItem.body || !doItem.body[0]) return jsonErr(res, "Item não encontrado", 404);
+
+        var mudaIt = {};
+        if (bodyUp.rotulo   !== undefined) mudaIt.rotulo   = SANITIZE.string(bodyUp.rotulo, 80) || null;
+        if (bodyUp.resposta !== undefined) mudaIt.resposta = SANITIZE.string(bodyUp.resposta, 2000) || null;
+        if (bodyUp.palavras !== undefined) mudaIt.palavras = SANITIZE.string(bodyUp.palavras, 300) || null;
+        if (bodyUp.ordem    !== undefined) mudaIt.ordem    = SANITIZE.int(bodyUp.ordem, 0, 999) || 0;
+        if (typeof bodyUp.ativo === "boolean") mudaIt.ativo = bodyUp.ativo;
+        if (mudaIt.rotulo === null || mudaIt.resposta === null) {
+          return jsonErr(res, "Nome e resposta não podem ficar em branco.");
+        }
+        if (!Object.keys(mudaIt).length) return jsonErr(res, "Nada para salvar");
+
+        await DB.update("chatbot_itens", `id=eq.${idIt}`, mudaIt);
+        return jsonOk(res, { ok: true });
+      }
+
+      if (method === "DELETE" && path.indexOf("/chatbot/itens/") === 0) {
+        var idDel = path.split("/")[3];
+        if (!SANITIZE.uuid(idDel)) return jsonErr(res, "Item inválido");
+        var achouDel = await DB.select("chatbot_itens",
+          `id=eq.${idDel}&empresa_id=eq.${authPayload.empresa_id}&select=id&limit=1`);
+        if (!achouDel.body || !achouDel.body[0]) return jsonErr(res, "Item não encontrado", 404);
+        await DB.delete("chatbot_itens", `id=eq.${idDel}`);
+        return jsonOk(res, { ok: true });
+      }
+
+      // ── Testar ──
+      // Passa pela MESMA função de decisão que atende no chat, e não
+      // grava nada. Se o teste usasse outro caminho, ele confirmaria
+      // um comportamento que não é o que a equipe vai receber.
+      if (method === "POST" && path === "/chatbot/testar") {
+        var bodyTe = parseBody(await getBody(req));
+        if (!bodyTe) return jsonErr(res, "Dados inválidos");
+        var textoTe = SANITIZE.string(bodyTe.texto, 2000);
+        if (!textoTe) return jsonErr(res, "Escreva a mensagem do teste.");
+
+        var botTe = await botDaEmpresa();
+        var itensTe = await DB.select("chatbot_itens",
+          `chatbot_id=eq.${botTe.id}&select=id,tipo,rotulo,palavras,resposta,ordem,ativo&order=ordem.asc`
+        ).catch(function () { return { body: [] }; });
+
+        var decisaoTe = decidirRespostaChatbot(botTe, itensTe.body || [], textoTe);
+        return jsonOk(res, {
+          resposta: decisaoTe.resposta,
+          como:     decisaoTe.como,
+          // Avisa que o bot está desligado em vez de deixar o dono
+          // testar com sucesso e depois não entender por que a equipe
+          // não recebe nada.
+          aviso:    botTe.ativo ? null : "O chatbot está desligado — a equipe ainda não recebe estas respostas."
+        });
+      }
+
+      // ── Conversas atendidas ──
+      if (method === "GET" && path === "/chatbot/conversas") {
+        var atend = await DB.select("chatbot_atendimentos",
+          `empresa_id=eq.${authPayload.empresa_id}&select=id,funcionario_id,pergunta,como,resposta,criado_em&order=criado_em.desc&limit=60`
+        ).catch(function () { return { body: [] }; });
+
+        // Nome de quem perguntou, para a lista não ser uma coluna de
+        // uuids. Uma consulta só, não uma por linha.
+        var quemPerguntou = {};
+        var funcs = await DB.select("funcionarios",
+          `empresa_id=eq.${authPayload.empresa_id}&select=id,nome`).catch(function () { return { body: [] }; });
+        (funcs.body || []).forEach(function (f) { quemPerguntou[f.id] = f.nome; });
+
+        return jsonOk(res, {
+          conversas: (atend.body || []).map(function (a) {
+            return {
+              id: a.id, pergunta: a.pergunta, resposta: a.resposta,
+              como: a.como, criado_em: a.criado_em,
+              quem: quemPerguntou[a.funcionario_id] || "Alguém da equipe"
+            };
+          })
+        });
+      }
+    }
+
+    // ════════════════════════════════════════
     // IFOOD — ligar a loja, e simular um pedido
     // ════════════════════════════════════════
     if (path === "/integracoes/ifood" || path === "/integracoes/ifood/simular") {
@@ -10621,7 +11098,71 @@ var server = http.createServer(async (req, res) => {
         url:   "app/"
       }, destino || undefined).catch(() => {});
 
-      return jsonOk(res, { mensagem: nova.body[0] }, 201);
+      // ── CHATBOT (Plano Master) ──
+      //
+      // Só entra quando a mensagem foi para a ADMINISTRAÇÃO (destino
+      // nulo) e quem escreveu foi um funcionário. Duas exclusões de
+      // propósito:
+      //
+      //  - conversa entre duas pessoas não é lugar de bot;
+      //  - o dono escrevendo para si mesmo faria o bot responder ao
+      //    dono, que é quem configurou o bot.
+      //
+      // Tudo daqui para baixo é enfeite: se falhar, a mensagem da
+      // pessoa já foi gravada e já notificou o dono. Por isso nada
+      // aqui pode derrubar a resposta 201 lá embaixo.
+      var respostaBot = null;
+      if (!destino && authPayload.role === "funcionario") {
+        var empBot = await DB.select("empresas",
+          `id=eq.${authPayload.empresa_id}&select=plano`
+        ).catch(function () { return { body: [] }; });
+        var planoBot = empBot.body && empBot.body[0] && empBot.body[0].plano;
+
+        var atendimento = await responderChatbot(authPayload.empresa_id, planoBot, textoMsg);
+        if (atendimento) {
+          // A resposta entra como mensagem da Administração, marcada
+          // como bot — é o que permite a tela dizer "respondido
+          // automaticamente" em vez de fazer a pessoa achar que o dono
+          // digitou aquilo.
+          var msgBot = await DB.insert("mensagens", {
+            empresa_id:      authPayload.empresa_id,
+            remetente_id:    null,
+            destinatario_id: euEnvio,
+            texto:           atendimento.decisao.resposta,
+            lida:            false,
+            por_bot:         true
+          }).catch(function (e) {
+            secLog("chatbot_resposta_falhou", { message: e.message });
+            return null;
+          });
+
+          if (msgBot) {
+            respostaBot = msgBot.body && msgBot.body[0];
+            DB.insert("chatbot_atendimentos", {
+              empresa_id:     authPayload.empresa_id,
+              chatbot_id:     atendimento.bot.id,
+              funcionario_id: euEnvio,
+              pergunta:       textoMsg.substring(0, 500),
+              item_id:        atendimento.decisao.item_id,
+              como:           atendimento.decisao.como,
+              resposta:       atendimento.decisao.resposta.substring(0, 1000)
+            }).catch(function (e) {
+              // Não derruba a resposta ao funcionário — ele já recebeu.
+              // Mas não some calado: sem este log, a tela de conversas
+              // ficaria com buracos e ninguém saberia de onde vieram.
+              secLog("chatbot_atendimento_nao_registrado", { message: e.message });
+            });
+
+            enviarPush(authPayload.empresa_id, {
+              title: atendimento.bot.nome,
+              body:  atendimento.decisao.resposta.substring(0, 120),
+              url:   "app/"
+            }, euEnvio || undefined).catch(function () {});
+          }
+        }
+      }
+
+      return jsonOk(res, { mensagem: nova.body[0], resposta_bot: respostaBot }, 201);
     }
 
     // ════════════════════════════════════════

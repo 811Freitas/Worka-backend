@@ -1392,12 +1392,16 @@
 <section class="pricing" id="preco">
   <div class="section-inner" style="text-align:center">
     <div class="section-eyebrow">Preço</div>
-    <h2 class="section-title" style="text-align:center">Dois planos. Sem pegadinha.</h2>
-    <p class="section-sub" style="margin:0 auto 48px;text-align:center">Sem cobrança por funcionalidade, sem surpresas no boleto. Os dois começam com 7 dias grátis.</p>
+    <!-- Sem número no título: o Master entra e sai da vitrine pelo
+         painel do owner, e um "Dois planos" escrito aqui vira mentira
+         no dia em que ele é ligado — foi o que aconteceu. -->
+    <h2 class="section-title" style="text-align:center">Preço claro. Sem pegadinha.</h2>
+    <p class="section-sub" style="margin:0 auto 48px;text-align:center">Sem cobrança por funcionalidade, sem surpresas no boleto. Todos começam com 7 dias grátis.</p>
 
-    <!-- Dois planos lado a lado. O Pro vem em destaque porque resolve
-         o problema mais caro do mês: somar cartão de ponto na mão. -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:24px;max-width:820px;margin:0 auto;text-align:left;align-items:start">
+    <!-- Os planos lado a lado. O Pro vem em destaque porque resolve
+         o problema mais caro do mês: somar cartão de ponto na mão; o
+         Master só aparece se o owner o tiver posto à venda. -->
+    <div id="grade-planos" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:24px;max-width:1080px;margin:0 auto;text-align:left;align-items:start">
 
       <div class="pricing-card reveal" style="margin:0">
         <div style="font-size:.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--green-500)">Plano Completo</div>
@@ -1435,6 +1439,30 @@
         </ul>
         <a href="#" onclick="escolherPlano('pro');return false;" class="btn-block">Começar grátis</a>
         <p class="price-note">O que você manda hoje para o contador, pronto e conferido</p>
+      </div>
+
+      <!-- MASTER — nasce escondido.
+           Só aparece se GET /planos devolver o plano, e o preço vem de
+           lá. É o painel do owner que decide as duas coisas: se está em
+           venda e por quanto. Deixar um valor digitado aqui traria de
+           volta o problema que os outros dois cartões ainda têm — o
+           site anunciando um número e o checkout cobrando outro. -->
+      <div class="pricing-card reveal" id="cartao-master" style="margin:0;display:none;border:2px solid var(--green-900);position:relative">
+        <div style="position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:var(--green-900);color:#fff;font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:5px 14px;border-radius:100px;white-space:nowrap">O mais completo</div>
+        <div style="font-size:.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--green-500)">Plano Master</div>
+        <div class="price-amount" id="master-preco">R$ —</div>
+        <div class="price-period">por mês · assinatura recorrente</div>
+        <ul class="price-features">
+          <li><strong>Tudo do Plano Pro</strong>, mais:</li>
+          <li><strong>Chatbot que atende a sua equipe</strong> no chat do Workap</li>
+          <li>Menu de opções: a pessoa responde pelo número</li>
+          <li>Palavras-chave que respondem sozinhas, sem passar pelo menu</li>
+          <li>Mensagem de boas-vindas e resposta padrão que você escreve</li>
+          <li>Teste o assistente antes de ligar para a equipe</li>
+          <li>Veja o que perguntaram e o que o bot não soube responder</li>
+        </ul>
+        <a href="#" onclick="escolherPlano('master');return false;" class="btn-block">Começar grátis</a>
+        <p class="price-note">Para a pergunta que a equipe repete toda semana</p>
       </div>
     </div>
 
@@ -2834,11 +2862,42 @@ function carregarPlanos(){
 }
 
 function escolherPlano(slug){
-  planoEscolhido = slug === 'pro' ? 'pro' : 'completo';
+  // Antes isto era `slug === 'pro' ? 'pro' : 'completo'`, com os dois
+  // planos escritos à mão. Quando entrou o Master, clicar nele caía
+  // CALADO no Completo — a pessoa escolhia o plano de cima e assinava o
+  // de baixo, sem erro nenhum na tela. Agora a lista válida é a que o
+  // servidor devolveu, então plano novo passa a funcionar sozinho.
   carregarPlanos().then(function(){
+    var existe = planosDisponiveis.some(function(p){ return p.slug === slug; });
+    planoEscolhido = existe ? slug : 'completo';
     aplicarPlanoNaTela();
     abrirCheckout();
   });
+}
+
+// Mostra o cartão do Master e escreve o preço que o servidor mandou.
+//
+// O cartão nasce escondido no HTML: se o owner não pôs o plano à venda,
+// GET /planos não devolve o Master e o cartão simplesmente não aparece.
+// É o mesmo dado que alimenta o checkout, então vitrine e cobrança não
+// têm como divergir.
+function mostrarPlanoMaster(){
+  var cartao = document.getElementById('cartao-master');
+  if(!cartao) return;
+  var master = planosDisponiveis.filter(function(p){ return p.slug === 'master'; })[0];
+  if(!master) return;
+  var preco = document.getElementById('master-preco');
+  if(preco) preco.textContent = 'R$ ' + master.preco_reais;
+  cartao.style.display = '';
+}
+
+// Busca os planos assim que a página abre, só para decidir se o cartão
+// do Master aparece. Sem isto ele só surgiria depois de alguém clicar
+// em "começar grátis", que é tarde demais para vender o plano.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function(){ carregarPlanos().then(mostrarPlanoMaster); });
+} else {
+  carregarPlanos().then(mostrarPlanoMaster);
 }
 
 // Escreve o preço do plano escolhido em todos os pontos do checkout.
