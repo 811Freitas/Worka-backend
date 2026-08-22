@@ -6191,10 +6191,29 @@ async function abrirSessaoDoWhatsApp(bot) {
       try {
         if (!m || !m.key || m.key.fromMe) continue;
         var de = m.key.remoteJid || "";
-        // Grupo, status e transmissão ficam de fora: um bot que
-        // responde dentro de grupo vira o motivo pelo qual as pessoas
-        // saem do grupo — e no status não há a quem responder.
-        if (!de.endsWith("@s.whatsapp.net")) continue;
+        if (!de) continue;
+
+        // Chegou mensagem. Registrado ANTES de qualquer decisão de
+        // responder ou não, porque é o único jeito de o dono
+        // distinguir "não chegou nada" de "chegou e o bot calou" —
+        // e foi justamente essa dúvida que custou uma investigação
+        // inteira quando o filtro abaixo estava errado.
+        marcarQueChegouMensagem(bot.id);
+
+        // O QUE NÃO SE RESPONDE, e não "o que se responde".
+        //
+        // Estava ao contrário: só passava quem terminasse em
+        // "@s.whatsapp.net". O WhatsApp migrou para o endereçamento
+        // por LID e passou a entregar conversa comum como
+        // "<id>@lid" — que não casava, era descartado em silêncio, e
+        // o bot ficava mudo com a sessão conectada e zero erros no
+        // log. Lista de proibidos não quebra quando eles inventam o
+        // próximo formato de endereço.
+        if (de.endsWith("@g.us") ||           // grupo
+            de.endsWith("@broadcast") ||      // lista de transmissão e status
+            de.endsWith("@newsletter")) {     // canal
+          continue;
+        }
 
         await atenderPeloSoquete(vivo, m, de);
       } catch (e) {
@@ -6235,7 +6254,12 @@ async function atenderPeloSoquete(vivo, m, de) {
     if (dono.status !== "ativa" && dono.status !== "trial") return;
   }
 
-  var numero = de.split("@")[0];
+  // No endereçamento por LID o que vem antes do @ é um identificador
+  // interno, não o telefone. `remoteJidAlt` traz o número de verdade
+  // quando existe — e é ele que aparece na lista de conversas.
+  var identidade = m.key.remoteJidAlt || de;
+  var numero = identidade.split("@")[0];
+
   await atenderNoWhatsApp(bot, {
     id:    m.key.id,
     de:    numero,
@@ -6243,8 +6267,33 @@ async function atenderPeloSoquete(vivo, m, de) {
     tipo:  Object.keys(m.message || {})[0] || "mensagem",
     texto: textoDaMensagemDoSoquete(m)
   }, async function (_para, resposta) {
+    // Responde no MESMO endereço de onde veio, sem reconstruir a
+    // partir do número: só ele funciona para os dois formatos.
     await vivo.sock.sendMessage(de, { text: String(resposta).slice(0, 4000) });
   });
+}
+
+/**
+ * Anota que chegou mensagem, para a tela poder dizer isso.
+ *
+ * No caminho oficial quem preenche `wa_ultimo_evento_em` é o webhook.
+ * Pelo soquete não há webhook nenhum, e sem isto a tela dizia
+ * "conectado, mas nenhuma mensagem chegou ainda" para sempre — mesmo
+ * com o cliente escrevendo do outro lado.
+ *
+ * No máximo uma escrita por minuto por bot: a informação é "chegou
+ * mensagem hoje?", não o carimbo exato, e uma escrita por mensagem
+ * recebida seria uma requisição ao banco em cada "oi".
+ */
+var ultimaAnotacaoDeMensagem = new Map();
+function marcarQueChegouMensagem(chatbotId) {
+  var agora = Date.now();
+  if (agora - (ultimaAnotacaoDeMensagem.get(chatbotId) || 0) < 60000) return;
+  ultimaAnotacaoDeMensagem.set(chatbotId, agora);
+
+  DB.update("chatbots", "id=eq." + chatbotId, {
+    wa_ultimo_evento_em: new Date().toISOString()
+  }).catch(function () {});
 }
 
 /** Fecha o soquete sem apagar a sessão: reabre depois sem pedir QR. */
