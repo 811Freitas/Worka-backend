@@ -1388,6 +1388,47 @@ tr:hover td{background:var(--g50)}
             <div class="login-erro" id="cb-erro-clique">Não foi possível conectar.</div>
           </div>
 
+
+          <!-- QR CODE. Caminho NÃO oficial: entra como dispositivo
+               conectado, igual ao WhatsApp Web. Fica DEPOIS do botão
+               oficial e com o aviso em cima, porque quem escolhe
+               precisa saber o que está escolhendo — esconder o risco
+               numa nota de rodapé seria vender o atalho sem o preço. -->
+          <div id="cb-qr-bloco" style="margin-bottom:18px;border:1.5px solid var(--gray200);border-radius:12px;padding:16px 18px">
+            <div style="font-weight:700;font-size:.9rem;margin-bottom:8px">Ou conecte lendo um QR code</div>
+            <p style="font-size:.82rem;color:var(--gray500);line-height:1.6;margin:0 0 12px">
+              Como no WhatsApp Web: você abre <strong>Aparelhos conectados</strong> no celular e
+              aponta a câmera. Leva um minuto, sem cadastro nenhum na Meta.
+            </p>
+            <div style="background:#fdf1e3;border:1px solid #f0d3ae;border-radius:8px;padding:11px 13px;margin-bottom:14px">
+              <div style="font-weight:700;font-size:.8rem;color:#9a4a06;margin-bottom:4px">Leia antes de usar</div>
+              <p style="font-size:.79rem;color:#7a4b1c;line-height:1.6;margin:0">
+                Este caminho está fora das regras da Meta. Ela tem intensificado o bloqueio
+                de conexões assim, e <strong>número banido não volta</strong> — com a conversa
+                de todos os seus clientes dentro. Se o número for importante para o seu
+                negócio, use um dos caminhos oficiais acima.
+              </p>
+            </div>
+
+            <div id="cb-qr-area" style="display:none;text-align:center;margin-bottom:14px">
+              <img id="cb-qr-img" alt="QR code para conectar o WhatsApp"
+                   style="width:260px;max-width:100%;height:auto;border:1px solid var(--gray200);border-radius:10px;background:#fff;padding:8px">
+              <div id="cb-qr-conta" style="font-size:.8rem;color:var(--gray500);margin-top:8px"></div>
+              <ol style="text-align:left;max-width:340px;margin:12px auto 0;padding-left:20px;font-size:.8rem;color:var(--gray500);line-height:1.8">
+                <li>Abra o WhatsApp no celular</li>
+                <li>Toque em <strong>Aparelhos conectados</strong></li>
+                <li>Toque em <strong>Conectar aparelho</strong> e aponte para o código</li>
+              </ol>
+            </div>
+
+            <div id="cb-qr-estado" style="font-size:.82rem;color:var(--gray500);margin-bottom:12px"></div>
+            <div class="login-erro" id="cb-qr-erro">Não foi possível.</div>
+
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-secondary" id="cb-qr-btn" onclick="pedirQr()">Mostrar QR code</button>
+              <button class="btn btn-secondary" id="cb-qr-btn-sair" onclick="sairDoQr()" style="display:none">Desconectar</button>
+            </div>
+          </div>
           <details id="cb-manual">
             <summary style="cursor:pointer;font-size:.85rem;font-weight:600;margin-bottom:14px;color:var(--gray500)">Prefiro colar as chaves da Meta na mão</summary>
 
@@ -1423,10 +1464,10 @@ tr:hover td{background:var(--g50)}
             </div>
 
             <p style="font-size:.8rem;color:var(--gray500);line-height:1.6;margin:12px 0 0;border-top:1px solid var(--gray200);padding-top:12px">
-              <strong>Por que não é só ler um QR code:</strong> existe atalho que conecta pelo
-              WhatsApp Web e funciona em minutos. Ele fere as regras da Meta, e quem perde o
-              número é você — o do seu negócio, com a conversa de todos os clientes dentro.
-              Por isso o Workap não usa esse caminho.
+              <strong>Por que este caminho e não o QR code:</strong> o QR está aqui em cima e
+              conecta em um minuto, mas fere as regras da Meta — e quem perde o número quando
+              ela percebe é você, com a conversa de todos os clientes dentro. Este daqui é
+              chato de configurar uma vez, e depois ninguém tira de você.
             </p>
           </div>
 
@@ -3017,6 +3058,47 @@ tr:hover td{background:var(--g50)}
               <div class="login-erro" id="ow-erro-clique">Não foi possível conectar.</div>
             </div>
 
+
+            <!-- QR CODE. Caminho NÃO oficial: entra como dispositivo
+                 conectado, igual ao WhatsApp Web. Fica DEPOIS do botão
+                 oficial e com o aviso em cima, porque quem escolhe
+                 precisa saber o que está escolhendo — esconder o risco
+                 numa nota de rodapé seria vender o atalho sem o preço. -->
+            <div id="ow-qr-bloco" style="margin-bottom:18px;border:1.5px solid var(--gray200);border-radius:12px;padding:16px 18px">
+              <div style="font-weight:700;font-size:.9rem;margin-bottom:8px">Ou conecte lendo um QR code</div>
+              <p style="font-size:.82rem;color:var(--gray500);line-height:1.6;margin:0 0 12px">
+                Como no WhatsApp Web: você abre <strong>Aparelhos conectados</strong> no celular e
+                aponta a câmera. Leva um minuto, sem cadastro nenhum na Meta.
+              </p>
+              <div style="background:#fdf1e3;border:1px solid #f0d3ae;border-radius:8px;padding:11px 13px;margin-bottom:14px">
+                <div style="font-weight:700;font-size:.8rem;color:#9a4a06;margin-bottom:4px">Leia antes de usar</div>
+                <p style="font-size:.79rem;color:#7a4b1c;line-height:1.6;margin:0">
+                  Este caminho está fora das regras da Meta. Ela tem intensificado o bloqueio
+                  de conexões assim, e <strong>número banido não volta</strong> — com a conversa
+                  de todos os seus clientes dentro. Se o número for importante para o seu
+                  negócio, use um dos caminhos oficiais acima.
+                </p>
+              </div>
+
+              <div id="ow-qr-area" style="display:none;text-align:center;margin-bottom:14px">
+                <img id="ow-qr-img" alt="QR code para conectar o WhatsApp"
+                     style="width:260px;max-width:100%;height:auto;border:1px solid var(--gray200);border-radius:10px;background:#fff;padding:8px">
+                <div id="ow-qr-conta" style="font-size:.8rem;color:var(--gray500);margin-top:8px"></div>
+                <ol style="text-align:left;max-width:340px;margin:12px auto 0;padding-left:20px;font-size:.8rem;color:var(--gray500);line-height:1.8">
+                  <li>Abra o WhatsApp no celular</li>
+                  <li>Toque em <strong>Aparelhos conectados</strong></li>
+                  <li>Toque em <strong>Conectar aparelho</strong> e aponte para o código</li>
+                </ol>
+              </div>
+
+              <div id="ow-qr-estado" style="font-size:.82rem;color:var(--gray500);margin-bottom:12px"></div>
+              <div class="login-erro" id="ow-qr-erro">Não foi possível.</div>
+
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-secondary" id="ow-qr-btn" onclick="pedirQrOwner()">Mostrar QR code</button>
+                <button class="btn btn-secondary" id="ow-qr-btn-sair" onclick="sairDoQrOwner()" style="display:none">Desconectar</button>
+              </div>
+            </div>
             <details id="ow-manual">
               <summary style="cursor:pointer;font-size:.85rem;font-weight:600;margin-bottom:14px;color:var(--gray500)">Prefiro colar as chaves da Meta na mão</summary>
 
@@ -11534,6 +11616,125 @@ window.addEventListener('message', function(ev){
   } catch(e){ /* mensagem que não é nossa; ignorar em silêncio */ }
 });
 
+// ── CONECTAR LENDO O QR CODE ─────────────────────────────────
+//
+// Caminho NÃO oficial — ver o aviso que a própria tela mostra. Aqui
+// não há credencial para colar: o servidor abre uma sessão de
+// WhatsApp Web e devolve o quadradinho.
+//
+// A tela PERGUNTA de tempos em tempos em vez de esperar: o código vale
+// uns vinte segundos e o servidor gera outro sozinho enquanto ninguém
+// lê, então quem tem que buscar o mais novo é quem está mostrando.
+
+function pararDeOlharOQr(T){
+  if(T.relogioDoQr){ clearInterval(T.relogioDoQr); T.relogioDoQr = null; }
+}
+
+async function pedirQrDoWhatsApp(T){
+  var erro = campoBot(T, 'qr-erro');
+  var btn  = campoBot(T, 'qr-btn');
+  erro.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Abrindo...';
+
+  try {
+    var r = await fetch(API_BASE + T.base + '/whatsapp/qr', {
+      method:'POST', headers: cabecalhoAuth(), body: JSON.stringify({})
+    });
+    var d = await r.json();
+    if(!r.ok){ erro.textContent = d.error || 'Não foi possível abrir a conexão.'; erro.style.display='block'; return; }
+
+    campoBot(T, 'qr-estado').textContent = 'Gerando o código...';
+    olharOQr(T);
+  } catch(e){
+    erro.textContent = 'Sem conexão com o servidor.'; erro.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Mostrar QR code';
+  }
+}
+
+// Uma pergunta a cada 3 segundos: o código troca a cada 20, e perguntar
+// mais rápido só gasta requisição. Para sozinho ao conectar, ao sair da
+// tela, ou depois de 3 minutos — um laço que roda para sempre numa aba
+// esquecida é o tipo de coisa que ninguém percebe.
+function olharOQr(T){
+  pararDeOlharOQr(T);
+  var comecou = Date.now();
+
+  async function espiar(){
+    if(Date.now() - comecou > 180000){
+      pararDeOlharOQr(T);
+      campoBot(T, 'qr-estado').textContent = 'A janela do código expirou. Clique em "Mostrar QR code" para tentar de novo.';
+      campoBot(T, 'qr-area').style.display = 'none';
+      return;
+    }
+    try {
+      var r = await fetch(API_BASE + T.base + '/whatsapp/qr', { headers: cabecalhoAuth() });
+      if(!r.ok) return;
+      var d = await r.json();
+      desenharOQr(T, d);
+      if(d.status === 'conectado' || d.status === 'banido') pararDeOlharOQr(T);
+    } catch(e){ /* oscilação de rede: a próxima volta pega */ }
+  }
+
+  espiar();
+  T.relogioDoQr = setInterval(espiar, 3000);
+}
+
+function desenharOQr(T, d){
+  var area   = campoBot(T, 'qr-area');
+  var img    = campoBot(T, 'qr-img');
+  var estado = campoBot(T, 'qr-estado');
+  var sair   = campoBot(T, 'qr-btn-sair');
+  var btn    = campoBot(T, 'qr-btn');
+  if(!area || !estado) return;
+
+  if(d.qr){
+    img.src = d.qr;
+    area.style.display = '';
+    campoBot(T, 'qr-conta').textContent = d.expira_em
+      ? 'Este código expira em ' + d.expira_em + 's — se sumir, aparece outro sozinho.'
+      : '';
+    estado.textContent = 'Esperando você ler o código no celular...';
+  } else {
+    area.style.display = 'none';
+  }
+
+  if(d.status === 'conectado'){
+    estado.textContent = 'Conectado' + (d.numero ? ' no ' + d.numero : '') + '. Mande "oi" para o número e veja o bot responder.';
+    estado.style.color = '#16622f';
+    sair.style.display = ''; btn.style.display = 'none';
+  } else if(d.status === 'banido'){
+    estado.textContent = 'O WhatsApp recusou esta conexão. É o risco que o aviso acima descreve — este número não conecta mais por aqui.';
+    estado.style.color = '#b45309';
+    sair.style.display = ''; btn.style.display = '';
+  } else {
+    estado.style.color = '';
+    sair.style.display = 'none'; btn.style.display = '';
+  }
+}
+
+async function sairDoQrDoWhatsApp(T){
+  if(!confirm('Desconectar? O Workap sai da lista de aparelhos conectados do seu celular, e religar exige ler o QR de novo.')) return;
+  var erro = campoBot(T, 'qr-erro');
+  var btn  = campoBot(T, 'qr-btn-sair');
+  erro.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Desconectando...';
+  try {
+    var r = await fetch(API_BASE + T.base + '/whatsapp/qr/sair', {
+      method:'POST', headers: cabecalhoAuth(), body: JSON.stringify({})
+    });
+    if(!r.ok){ var d = await r.json(); erro.textContent = d.error || 'Não foi possível.'; erro.style.display='block'; return; }
+    pararDeOlharOQr(T);
+    campoBot(T, 'qr-area').style.display = 'none';
+    campoBot(T, 'qr-estado').textContent = '';
+    carregarChatbot(T);
+  } catch(e){
+    erro.textContent = 'Sem conexão com o servidor.'; erro.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Desconectar';
+  }
+}
+
 async function conectarWhatsAppEmUmClique(T){
   var erro = campoBot(T, 'erro-clique');
   var btn  = campoBot(T, 'btn-conectar');
@@ -11669,6 +11870,17 @@ function preencherWhatsAppChatbot(T, bot, umClique){
   }
 
   pintarCanalChatbot_(T);
+
+  // Já conectado por QR: a tela precisa mostrar isso ao abrir, e não
+  // só depois de alguém clicar em "Mostrar QR code".
+  if(T.wa.wa_origem === 'qr'){
+    fetch(API_BASE + T.base + '/whatsapp/qr', { headers: cabecalhoAuth() })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if(d) desenharOQr(T, d); })
+      .catch(function(){});
+  } else {
+    pararDeOlharOQr(T);
+  }
 }
 
 // Deixa claro que o cartão do WhatsApp só vale se o canal usar ele —
@@ -12054,6 +12266,8 @@ function salvarWhatsAppChatbot(){     return salvarWhatsAppChatbot_(TELA_BOT_EMP
 function testarWhatsAppChatbot(){     return testarWhatsAppChatbot_(TELA_BOT_EMPRESA); }
 function desconectarWhatsAppChatbot(){ return desconectarWhatsAppChatbot_(TELA_BOT_EMPRESA); }
 function conectarWhatsAppUmClique(){      return conectarWhatsAppEmUmClique(TELA_BOT_EMPRESA); }
+function pedirQr(){                       return pedirQrDoWhatsApp(TELA_BOT_EMPRESA); }
+function sairDoQr(){                      return sairDoQrDoWhatsApp(TELA_BOT_EMPRESA); }
 
 function carregarChatbotOwner(){      return carregarChatbot(TELA_BOT_WORKAP); }
 function salvarChatbotOwner(){        return salvarChatbot_(TELA_BOT_WORKAP); }
@@ -12065,6 +12279,8 @@ function salvarWhatsAppOwner(){       return salvarWhatsAppChatbot_(TELA_BOT_WOR
 function testarWhatsAppOwner(){       return testarWhatsAppChatbot_(TELA_BOT_WORKAP); }
 function desconectarWhatsAppOwner(){  return desconectarWhatsAppChatbot_(TELA_BOT_WORKAP); }
 function conectarWhatsAppOwnerUmClique(){ return conectarWhatsAppEmUmClique(TELA_BOT_WORKAP); }
+function pedirQrOwner(){                  return pedirQrDoWhatsApp(TELA_BOT_WORKAP); }
+function sairDoQrOwner(){                 return sairDoQrDoWhatsApp(TELA_BOT_WORKAP); }
 
 // O modal de item é UM só no HTML, e serve as duas telas. Esta
 // variável lembra qual delas o abriu, para o botão Salvar mandar a

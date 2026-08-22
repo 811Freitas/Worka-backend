@@ -9,6 +9,12 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v48: entrou o terceiro caminho, o QR code — o servidor entra como
+//      aparelho conectado, igual ao WhatsApp Web. NAO e oficial, e a
+//      tela diz isso antes do botao: numero banido nao volta. Foi
+//      decisao explicita do dono; os dois caminhos oficiais continuam
+//      lado a lado.
+//
 // v47: conectar o WhatsApp virou um botao. A pessoa entra com o
 //      Facebook numa janelinha e acabou — sem criar aplicativo, sem
 //      gerar token, sem copiar chave. O caminho de colar na mao
@@ -122,7 +128,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v47';
+var CACHE = 'workap-v48';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';

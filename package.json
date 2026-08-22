@@ -12,7 +12,9 @@
   "license": "UNLICENSED",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
+    "@whiskeysockets/baileys": "^7.0.0-rc.14",
     "bcryptjs": "^3.0.3",
+    "qrcode": "^1.5.4",
     "web-push": "^3.6.7"
   }
 }
