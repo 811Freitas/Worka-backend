@@ -1306,8 +1306,9 @@ tr:hover td{background:var(--g50)}
         </div>
         <div class="card-body">
           <p style="font-size:.86rem;color:var(--gray500);margin-bottom:16px;line-height:1.6">
-            Quando alguém da equipe escreve para a Administração no Chat, o assistente
-            responde na hora. Você continua vendo tudo e pode responder por cima quando quiser.
+            O assistente responde na hora — no chat da equipe, no WhatsApp da sua
+            empresa, ou nos dois. Você escolhe onde em <strong>Onde ele atende</strong>,
+            continua vendo tudo, e pode responder por cima quando quiser.
           </p>
 
           <div class="form-grid">
@@ -1320,6 +1321,14 @@ tr:hover td{background:var(--g50)}
               <select id="cb-ativo">
                 <option value="nao">Desligado</option>
                 <option value="sim">Ligado — responde a equipe</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Onde ele atende</label>
+              <select id="cb-canal" onchange="pintarCanalChatbot()">
+                <option value="interno">Chat da equipe (aqui dentro)</option>
+                <option value="whatsapp">WhatsApp da empresa</option>
+                <option value="ambos">Nos dois</option>
               </select>
             </div>
             <div class="field form-full">
@@ -1336,6 +1345,94 @@ tr:hover td{background:var(--g50)}
 
           <div class="login-erro" id="cb-erro">Não foi possível salvar.</div>
           <button class="btn btn-primary" id="cb-btn-salvar" onclick="salvarChatbot()">Salvar</button>
+        </div>
+      </div>
+
+      <!-- WHATSAPP.
+           O menu, as palavras-chave e as respostas são os MESMOS: o
+           WhatsApp é só mais um lugar onde este assistente atende. Por
+           isso este cartão é de conexão, e não uma segunda tela de
+           configuração que teria que ser preenchida de novo. -->
+      <div class="card" id="cb-card-whatsapp" style="margin-bottom:16px">
+        <div class="card-header">
+          <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-message></use></svg> WhatsApp</div>
+          <span class="badge" id="cb-wa-badge">não conectado</span>
+        </div>
+        <div class="card-body">
+          <p style="font-size:.86rem;color:var(--gray500);margin-bottom:16px;line-height:1.6">
+            O mesmo assistente, atendendo no <strong>seu número</strong> de WhatsApp. As
+            opções e as palavras-chave que você configurou aqui embaixo valem para os dois
+            canais — não precisa cadastrar nada duas vezes.
+          </p>
+
+          <div class="aviso-box" id="cb-wa-passos" style="background:var(--gray50);border:1px solid var(--gray200);border-radius:10px;padding:14px 16px;margin-bottom:16px">
+            <div style="font-weight:700;font-size:.85rem;margin-bottom:8px">Antes de conectar, você precisa ter na Meta:</div>
+            <ol style="font-size:.82rem;color:var(--gray500);line-height:1.8;margin:0;padding-left:20px">
+              <li>Conta no <strong>Meta Business</strong> com o negócio verificado</li>
+              <li>Um aplicativo com o produto <strong>WhatsApp</strong> adicionado</li>
+              <li>Um <strong>número registrado</strong> na Cloud API (não pode estar em uso no WhatsApp comum)</li>
+              <li>Um <strong>token permanente</strong> de usuário de sistema, com as permissões
+                  <em>whatsapp_business_messaging</em> e <em>whatsapp_business_management</em></li>
+            </ol>
+            <p style="font-size:.8rem;color:var(--gray500);line-height:1.6;margin:10px 0 0">
+              Essa parte é da Meta e leva de horas a alguns dias. Não usamos atalho por
+              WhatsApp Web: isso fere as regras deles e o número banido seria o seu.
+            </p>
+          </div>
+
+          <div class="form-grid">
+            <div class="field">
+              <label>ID do número de telefone <span style="color:var(--gray400)">(phone number ID)</span></label>
+              <input id="cb-wa-numero-id" inputmode="numeric" maxlength="40" placeholder="Ex.: 109371234567890">
+            </div>
+            <div class="field">
+              <label>Número, como aparece para o cliente</label>
+              <input id="cb-wa-numero" maxlength="30" placeholder="(11) 98765-4321">
+            </div>
+            <div class="field">
+              <label>Token permanente <span style="color:var(--gray400)">(nunca é exibido de volta)</span></label>
+              <input id="cb-wa-token" type="password" autocomplete="new-password" maxlength="500" placeholder="EAAG...">
+            </div>
+            <div class="field">
+              <label>App Secret <span style="color:var(--gray400)">(nunca é exibido de volta)</span></label>
+              <input id="cb-wa-secret" type="password" autocomplete="new-password" maxlength="200" placeholder="Chave secreta do aplicativo">
+            </div>
+          </div>
+
+          <!-- O que o dono COLA no painel da Meta. Fica depois dos
+               campos porque só faz sentido depois de salvar: o token de
+               verificação nasce no servidor, na primeira salvada. -->
+          <div style="margin-top:18px;border:1.5px dashed var(--gray200);border-radius:10px;padding:14px 16px">
+            <div style="font-weight:700;font-size:.85rem;margin-bottom:10px">Agora cole estes dois no painel da Meta (WhatsApp → Configuração → Webhook):</div>
+            <div class="field" style="margin-bottom:10px">
+              <label>URL de callback</label>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <input id="cb-wa-url" readonly style="flex:1;min-width:200px;font-family:ui-monospace,monospace;font-size:.8rem">
+                <button class="btn btn-secondary btn-sm" onclick="copiarCampo('cb-wa-url', this)">Copiar</button>
+              </div>
+            </div>
+            <div class="field">
+              <label>Token de verificação</label>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <input id="cb-wa-verify" readonly style="flex:1;min-width:200px;font-family:ui-monospace,monospace;font-size:.8rem" placeholder="Salve uma vez para gerar">
+                <button class="btn btn-secondary btn-sm" onclick="copiarCampo('cb-wa-verify', this)">Copiar</button>
+              </div>
+            </div>
+            <p style="font-size:.8rem;color:var(--gray500);line-height:1.6;margin:10px 0 0">
+              Depois de salvar o webhook lá, assine o campo <strong>messages</strong>. Sem
+              assinar esse campo, a Meta aceita o endereço e não manda mensagem nenhuma.
+            </p>
+          </div>
+
+          <div id="cb-wa-status" style="font-size:.82rem;color:var(--gray500);margin-top:14px"></div>
+          <div class="login-erro" id="cb-wa-erro">Não foi possível salvar.</div>
+
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+            <button class="btn btn-primary" id="cb-wa-btn-salvar" onclick="salvarWhatsAppChatbot()">Salvar conexão</button>
+            <input id="cb-wa-teste-para" maxlength="20" placeholder="Seu WhatsApp, com DDD" style="min-width:180px">
+            <button class="btn btn-secondary" id="cb-wa-btn-testar" onclick="testarWhatsAppChatbot()">Enviar teste</button>
+            <button class="btn btn-secondary" id="cb-wa-btn-desconectar" onclick="desconectarWhatsAppChatbot()">Desconectar</button>
+          </div>
         </div>
       </div>
 
@@ -11060,7 +11157,7 @@ async function carregarChatbot(){
       h.textContent = 'O Chatbot é do Plano Master';
       var p = document.createElement('p');
       p.style.cssText = 'font-size:.88rem;color:var(--gray500);line-height:1.7;max-width:420px;margin:0 auto';
-      p.textContent = 'Um assistente que responde a equipe no chat interno: menu de opções, palavras-chave e respostas prontas. Fale com a gente para mudar de plano.';
+      p.textContent = 'Um assistente com menu de opções, palavras-chave e respostas prontas — atendendo no chat da equipe, no WhatsApp da sua empresa, ou nos dois. Fale com a gente para mudar de plano.';
       corpo.appendChild(h); corpo.appendChild(p);
       aviso.appendChild(corpo); pag.appendChild(aviso);
       return;
@@ -11082,9 +11179,182 @@ async function carregarChatbot(){
   badge.textContent = bot.ativo ? 'ligado' : 'desligado';
   badge.className = 'badge ' + (bot.ativo ? 'badge-green' : '');
 
+  preencherWhatsAppChatbot(bot);
+
   chatbotItens = d.itens || [];
   desenharItensChatbot();
   carregarConversasChatbot();
+}
+
+// ── WHATSAPP ─────────────────────────────────────────────────
+//
+// Guardado para o botão "Desconectar" saber se há o que desconectar
+// sem ter que perguntar ao servidor de novo.
+var whatsappDoBot = {};
+
+function preencherWhatsAppChatbot(bot){
+  whatsappDoBot = bot || {};
+
+  var canal = document.getElementById('cb-canal');
+  if(canal) canal.value = bot.canal || 'interno';
+
+  var idEl = document.getElementById('cb-wa-numero-id');
+  if(idEl) idEl.value = bot.wa_phone_number_id || '';
+  var numEl = document.getElementById('cb-wa-numero');
+  if(numEl) numEl.value = bot.wa_numero || '';
+
+  // Token e segredo NUNCA voltam do servidor. O campo fica vazio de
+  // propósito, e o texto abaixo é que diz se já existe algo salvo —
+  // mostrar bolinhas num campo vazio faria o dono achar que está
+  // preenchido e salvar por cima com nada.
+  ['cb-wa-token','cb-wa-secret'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.value = '';
+  });
+
+  var urlEl = document.getElementById('cb-wa-url');
+  if(urlEl) urlEl.value = API_BASE + '/webhook/whatsapp';
+  var vfEl = document.getElementById('cb-wa-verify');
+  if(vfEl) vfEl.value = bot.wa_verify_token || '';
+
+  var conectado = !!(bot.wa_phone_number_id && bot.wa_token_salvo && bot.wa_app_secret_salvo);
+  var badge = document.getElementById('cb-wa-badge');
+  if(badge){
+    badge.textContent = conectado ? 'conectado' : 'não conectado';
+    badge.className = 'badge ' + (conectado ? 'badge-green' : '');
+  }
+
+  var status = document.getElementById('cb-wa-status');
+  if(status){
+    var partes = [];
+    if(!bot.wa_phone_number_id)  partes.push('falta o ID do número');
+    if(!bot.wa_token_salvo)      partes.push('falta o token');
+    if(!bot.wa_app_secret_salvo) partes.push('falta o App Secret');
+
+    if(partes.length){
+      status.textContent = 'Ainda não dá para atender no WhatsApp: ' + partes.join(', ') + '.';
+    } else if(bot.wa_ultimo_evento_em){
+      // A ÚLTIMA MENSAGEM QUE CHEGOU é o que prova que o webhook está
+      // de pé. Sem isto, o dono cola tudo, vê "conectado", e não tem
+      // como saber se a Meta chegou a chamar o endereço alguma vez.
+      status.textContent = 'Última mensagem recebida da Meta: ' +
+        new Date(bot.wa_ultimo_evento_em).toLocaleString('pt-BR') + '.';
+    } else {
+      status.textContent = 'Conectado, mas nenhuma mensagem chegou ainda. ' +
+        'Confira se o webhook foi salvo no painel da Meta e se o campo messages está assinado.';
+    }
+  }
+
+  pintarCanalChatbot();
+}
+
+// Deixa claro que o cartão do WhatsApp só vale se o canal usar ele —
+// preencher tudo com o canal em "chat da equipe" é o tipo de trabalho
+// que se descobre perdido depois.
+function pintarCanalChatbot(){
+  var canal = ((document.getElementById('cb-canal') || {}).value) || 'interno';
+  var card = document.getElementById('cb-card-whatsapp');
+  if(!card) return;
+  var usa = canal === 'whatsapp' || canal === 'ambos';
+  card.style.opacity = usa ? '1' : '.6';
+
+  var badge = document.getElementById('cb-wa-badge');
+  if(!badge) return;
+  if(!usa){ badge.textContent = 'canal desligado'; badge.className = 'badge'; return; }
+
+  // Voltar para um canal com WhatsApp tem que RECOMPOR o selo. Sem
+  // este trecho ele ficava preso em "canal desligado" depois de o dono
+  // trocar de canal e voltar — dizendo que a conexão caiu quando nada
+  // tinha caído.
+  var conectado = !!(whatsappDoBot.wa_phone_number_id &&
+                     whatsappDoBot.wa_token_salvo &&
+                     whatsappDoBot.wa_app_secret_salvo);
+  badge.textContent = conectado ? 'conectado' : 'não conectado';
+  badge.className = 'badge ' + (conectado ? 'badge-green' : '');
+}
+
+// O botão vem por parâmetro, e não do `event` global: dentro de um
+// onclick o global existe, mas some no primeiro `await` — e é aí que
+// o "Copiado" some junto sem ninguém entender.
+function copiarCampo(id, botao){
+  var el = document.getElementById(id);
+  if(!el || !el.value) return;
+  el.select();
+  copiarTextoSimples(el.value, botao || { textContent:'' }, 'Copiar');
+}
+
+async function salvarWhatsAppChatbot(){
+  var erro = document.getElementById('cb-wa-erro');
+  var btn  = document.getElementById('cb-wa-btn-salvar');
+  erro.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Salvando...';
+  try {
+    var corpo = {
+      canal:              (document.getElementById('cb-canal') || {}).value || 'interno',
+      wa_phone_number_id: (document.getElementById('cb-wa-numero-id').value || '').trim(),
+      wa_numero:          (document.getElementById('cb-wa-numero').value || '').trim()
+    };
+    // Campo em branco não é enviado: o servidor entende ausência como
+    // "não mexe no que está salvo". Mandar string vazia apagaria o
+    // token toda vez que o dono só quisesse corrigir o número.
+    var tok = (document.getElementById('cb-wa-token').value || '').trim();
+    var sec = (document.getElementById('cb-wa-secret').value || '').trim();
+    if(tok) corpo.wa_token = tok;
+    if(sec) corpo.wa_app_secret = sec;
+
+    var r = await fetch(API_BASE + '/chatbot', {
+      method:'PUT', headers: cabecalhoAuth(), body: JSON.stringify(corpo)
+    });
+    var d = await r.json();
+    if(!r.ok){ erro.textContent = d.error || 'Não foi possível salvar.'; erro.style.display = 'block'; return; }
+    mostrarAvisoIfood(erro, 'Conexão salva.', true);
+    carregarChatbot();
+  } catch(e){
+    erro.textContent = 'Sem conexão com o servidor.'; erro.style.display = 'block';
+  } finally { btn.disabled = false; btn.textContent = 'Salvar conexão'; }
+}
+
+async function testarWhatsAppChatbot(){
+  var erro = document.getElementById('cb-wa-erro');
+  var btn  = document.getElementById('cb-wa-btn-testar');
+  var para = (document.getElementById('cb-wa-teste-para').value || '').trim();
+  erro.style.display = 'none';
+  if(!para){
+    erro.textContent = 'Escreva o número que vai receber o teste, com DDD.';
+    erro.style.display = 'block';
+    return;
+  }
+  btn.disabled = true; btn.textContent = 'Enviando...';
+  try {
+    var r = await fetch(API_BASE + '/chatbot/whatsapp/testar', {
+      method:'POST', headers: cabecalhoAuth(), body: JSON.stringify({ para: para })
+    });
+    var d = await r.json();
+    if(!r.ok){ erro.textContent = d.error || 'Não foi possível enviar.'; erro.style.display = 'block'; return; }
+    mostrarAvisoIfood(erro, 'Mandamos. Confira o WhatsApp desse número.', true);
+  } catch(e){
+    erro.textContent = 'Sem conexão com o servidor.'; erro.style.display = 'block';
+  } finally { btn.disabled = false; btn.textContent = 'Enviar teste'; }
+}
+
+async function desconectarWhatsAppChatbot(){
+  if(!whatsappDoBot.wa_phone_number_id && !whatsappDoBot.wa_token_salvo) return;
+  if(!confirm('Desconectar o WhatsApp? O assistente volta a atender só no chat da equipe, e você precisa colar o token de novo para religar.')) return;
+
+  var erro = document.getElementById('cb-wa-erro');
+  var btn  = document.getElementById('cb-wa-btn-desconectar');
+  erro.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Desconectando...';
+  try {
+    var r = await fetch(API_BASE + '/chatbot/whatsapp/desconectar', {
+      method:'POST', headers: cabecalhoAuth()
+    });
+    var d = await r.json();
+    if(!r.ok){ erro.textContent = d.error || 'Não foi possível desconectar.'; erro.style.display = 'block'; return; }
+    carregarChatbot();
+  } catch(e){
+    erro.textContent = 'Sem conexão com o servidor.'; erro.style.display = 'block';
+  } finally { btn.disabled = false; btn.textContent = 'Desconectar'; }
 }
 
 function desenharItensChatbot(){
@@ -11217,7 +11487,8 @@ async function salvarChatbot(){
         nome:        (document.getElementById('cb-nome').value || '').trim(),
         boas_vindas: (document.getElementById('cb-boas-vindas').value || '').trim(),
         fallback:    (document.getElementById('cb-fallback').value || '').trim(),
-        ativo:       document.getElementById('cb-ativo').value === 'sim'
+        ativo:       document.getElementById('cb-ativo').value === 'sim',
+        canal:       (document.getElementById('cb-canal') || {}).value || 'interno'
       })
     });
     var d = await r.json();
@@ -11287,7 +11558,7 @@ async function carregarConversasChatbot(){
     if(!lista.length){
       var p = document.createElement('p');
       p.style.cssText = 'font-size:.86rem;color:var(--gray500);line-height:1.6';
-      p.textContent = 'Nenhum atendimento ainda. Assim que alguém escrever para a Administração no Chat, aparece aqui.';
+      p.textContent = 'Nenhum atendimento ainda. Assim que alguém escrever para a Administração no Chat — ou para o seu WhatsApp, se estiver conectado — aparece aqui.';
       alvo.appendChild(p);
       return;
     }
@@ -11317,6 +11588,16 @@ async function carregarConversasChatbot(){
       // responder, e é dela que sai a próxima palavra-chave.
       if(c.como === 'fallback'){ tag.style.color = '#b45309'; tag.style.fontWeight = '700'; }
       tag.textContent = c.como === 'fallback' ? 'não entendeu' : (c.como || '');
+      // De ONDE veio. Com dois canais, "não entendeu" de um cliente no
+      // WhatsApp e de um funcionário no chat pedem respostas
+      // diferentes — e sem esta marca as duas linhas ficam iguais.
+      if(c.canal === 'whatsapp'){
+        var canalTag = document.createElement('span');
+        canalTag.className = 'chave-meta';
+        canalTag.style.cssText = 'white-space:nowrap;flex-shrink:0;color:#128c7e;font-weight:700';
+        canalTag.textContent = 'WhatsApp';
+        linha.appendChild(canalTag);
+      }
       linha.appendChild(tag);
 
       alvo.appendChild(linha);

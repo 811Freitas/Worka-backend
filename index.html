@@ -1454,15 +1454,16 @@
         <div class="price-period">por mês · assinatura recorrente</div>
         <ul class="price-features">
           <li><strong>Tudo do Plano Pro</strong>, mais:</li>
-          <li><strong>Chatbot que atende a sua equipe</strong> no chat do Workap</li>
+          <li><strong>Chatbot no WhatsApp da sua empresa</strong>, no seu número</li>
+          <li>O mesmo assistente também atende no chat da equipe — você escolhe</li>
           <li>Menu de opções: a pessoa responde pelo número</li>
           <li>Palavras-chave que respondem sozinhas, sem passar pelo menu</li>
           <li>Mensagem de boas-vindas e resposta padrão que você escreve</li>
-          <li>Teste o assistente antes de ligar para a equipe</li>
+          <li>Teste o assistente antes de ligar para os clientes</li>
           <li>Veja o que perguntaram e o que o bot não soube responder</li>
         </ul>
         <a href="#" onclick="escolherPlano('master');return false;" class="btn-block">Começar grátis</a>
-        <p class="price-note">Para a pergunta que a equipe repete toda semana</p>
+        <p class="price-note">Para a pergunta que se repete toda semana — no WhatsApp e aqui dentro</p>
       </div>
     </div>
 
@@ -1736,7 +1737,7 @@
            Com a Stripe só dava cartão — Pix não cobra sozinho no mês
            seguinte — e a vitrine teve que deixar de prometer o meio que
            o cliente de padaria mais usa. -->
-      <div id="checkout-rodape" style="font-size:0.75rem;color:#6b7068;text-align:center;margin-top:10px;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Pix, cartão ou boleto · cancele quando quiser</div>
+      <div id="checkout-rodape" style="font-size:0.75rem;color:#6b7068;text-align:center;margin-top:10px;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Pix, cartão ou boleto · cancele quando quiser<br>Seus dados já vão preenchidos — na próxima tela é só escolher como pagar.</div>
     </div>
 
     <!-- TRIAL: Escolher plano -->
@@ -2157,10 +2158,13 @@ function resetModal() {
 }
 
 // ── Cupom de desconto ─────────────────────────────────────────
-// O código aplicado fica guardado aqui e é enviado junto no POST
-// /pix. O desconto exibido é só um preview: o servidor recalcula
-// tudo na hora de cobrar, então mexer nisso pelo console não muda
-// o valor real da cobrança.
+// O código aplicado fica guardado aqui e vai junto no POST
+// /assinatura/checkout — a rota antiga /pix não existe mais, e por um
+// tempo este campo não foi enviado a lugar nenhum: a tela mostrava o
+// desconto e a cobrança saía pelo preço cheio.
+// O desconto exibido continua sendo só um preview. O servidor
+// revalida o cupom e recalcula o valor na hora de cobrar, então mexer
+// nisto pelo console não muda um centavo da cobrança.
 var cupomAplicado = null;
 
 function limparCupom(){
@@ -2228,7 +2232,12 @@ function aplicarCupom(){
     antigo.textContent = 'R$ ' + res.data.valor_original;
     antigo.style.display = 'block';
     document.getElementById('resumo-preco').textContent = 'R$ ' + res.data.valor_final;
-    document.getElementById('resumo-subtitulo').textContent = 'Cupom ' + res.data.codigo + ' aplicado';
+    // "Todo mês", e não só o primeiro: na Cakto o preço é do produto e
+    // a recorrência cobra esse mesmo preço na virada. Prometer "só o
+    // primeiro mês" seria prometer uma cobrança que ninguém faz subir
+    // de volta — melhor dizer o que de fato acontece.
+    document.getElementById('resumo-subtitulo').textContent =
+      'Cupom ' + res.data.codigo + ' · desconto em todo mês';
   })
   .catch(function(){
     btn.disabled = false; btn.textContent = txtOriginal;
@@ -2454,7 +2463,11 @@ async function irParaPagamento(liberarDoChamador) {
     var r = await fetch(API_BASE + '/assinatura/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email, plano: planoEscolhido })
+      // O cupom vai JUNTO. Ele existia só na tela: o resumo mostrava o
+      // preço com desconto e a cobrança saía cheia, porque este campo
+      // nunca era enviado. Quem decide o desconto é o servidor — aqui
+      // vai só o código digitado.
+      body: JSON.stringify({ email: email, plano: planoEscolhido, cupom: cupomAplicado || undefined })
     });
     var dados = await r.json().catch(function () { return {}; });
 
