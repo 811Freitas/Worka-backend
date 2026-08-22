@@ -1368,15 +1368,39 @@ tr:hover td{background:var(--g50)}
           <div class="aviso-box" id="cb-wa-passos" style="background:var(--gray50);border:1px solid var(--gray200);border-radius:10px;padding:14px 16px;margin-bottom:16px">
             <div style="font-weight:700;font-size:.85rem;margin-bottom:8px">Antes de conectar, você precisa ter na Meta:</div>
             <ol style="font-size:.82rem;color:var(--gray500);line-height:1.8;margin:0;padding-left:20px">
-              <li>Conta no <strong>Meta Business</strong> com o negócio verificado</li>
+              <li>Conta no <strong>Meta Business</strong></li>
               <li>Um aplicativo com o produto <strong>WhatsApp</strong> adicionado</li>
-              <li>Um <strong>número registrado</strong> na Cloud API (não pode estar em uso no WhatsApp comum)</li>
+              <li>Um <strong>número registrado</strong> na Cloud API — confirmado por SMS ou
+                  ligação, e que <strong>não pode estar em uso no WhatsApp comum</strong></li>
               <li>Um <strong>token permanente</strong> de usuário de sistema, com as permissões
                   <em>whatsapp_business_messaging</em> e <em>whatsapp_business_management</em></li>
             </ol>
-            <p style="font-size:.8rem;color:var(--gray500);line-height:1.6;margin:10px 0 0">
-              Essa parte é da Meta e leva de horas a alguns dias. Não usamos atalho por
-              WhatsApp Web: isso fere as regras deles e o número banido seria o seu.
+
+            <!-- Esta caixa existe porque a lista de cima assusta mais do
+                 que devia. A verificação de negócio é a parte cara (dias
+                 de espera, documento de empresa) e não é obrigatória
+                 para o que este assistente faz. Sem dizer isso, o dono
+                 desiste na primeira linha. -->
+            <div style="border-top:1px solid var(--gray200);margin-top:12px;padding-top:12px">
+              <div style="font-weight:700;font-size:.85rem;margin-bottom:6px">Não precisa verificar o negócio para começar</div>
+              <p style="font-size:.8rem;color:var(--gray500);line-height:1.6;margin:0 0 8px">
+                A verificação da Meta serve para levantar o teto de conversas que a
+                <strong>empresa começa</strong> — propaganda, aviso em massa. Este assistente
+                nunca começa conversa: ele só responde quem escreveu primeiro, e resposta
+                dentro de 24 horas não tem teto nenhum. Verificado ou não, ele atende igual.
+              </p>
+              <p style="font-size:.8rem;color:var(--gray500);line-height:1.6;margin:0">
+                Quer só experimentar? A Meta dá um <strong>número de teste grátis</strong> que
+                fala com até 5 contatos — dá para ligar aqui hoje, sem cartão e sem papelada,
+                e trocar pelo número do negócio depois.
+              </p>
+            </div>
+
+            <p style="font-size:.8rem;color:var(--gray500);line-height:1.6;margin:12px 0 0;border-top:1px solid var(--gray200);padding-top:12px">
+              <strong>Por que não é só ler um QR code:</strong> existe atalho que conecta pelo
+              WhatsApp Web e funciona em minutos. Ele fere as regras da Meta, e quem perde o
+              número é você — o do seu negócio, com a conversa de todos os clientes dentro.
+              Por isso o Workap não usa esse caminho.
             </p>
           </div>
 
