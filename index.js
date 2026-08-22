@@ -1038,7 +1038,8 @@ function supabase(method, table, options = {}) {
     "links_pagamento",
     "chamados", "chamado_mensagens",
     "chaves_api", "movimentos_estoque", "ifood_eventos",
-    "chatbots", "chatbot_itens", "chatbot_atendimentos"
+    "chatbots", "chatbot_itens", "chatbot_atendimentos",
+    "assinatura_acoes"
   ];
   // Procedimento do banco (PostgREST expõe em /rest/v1/rpc/nome).
   // Tem lista própria, separada da de tabelas, pelo mesmo motivo de
@@ -6948,6 +6949,23 @@ var server = http.createServer(async (req, res) => {
     if (method === "POST" && path === "/webhook/cakto") {
       if (!webhookCaktoValido(url, req.headers)) {
         secLog("webhook_cakto_segredo_invalido", { ip: ip });
+
+        // ISTO PRECISA APARECER NO PAINEL, e não só no console.
+        //
+        // Um cliente pagou e o acesso não abriu. A causa foi o webhook
+        // não passar por aqui; o motivo de ninguém ter notado por dias
+        // foi este 401 sumir no log do servidor. O owner via a conta
+        // bloqueada, o cliente jurava ter pago, e não havia onde olhar.
+        //
+        // Registrado como erro de plataforma, aparece na aba
+        // Diagnóstico — que é o lugar onde alguém procura quando o
+        // dinheiro entra e o acesso não abre.
+        registrarErro("webhook_recusado",
+          CONFIG.CAKTO_WEBHOOK_SECRET
+            ? "Webhook da Cakto recusado: o segredo enviado não confere com CAKTO_WEBHOOK_SECRET."
+            : "Webhook da Cakto recusado: CAKTO_WEBHOOK_SECRET não está definido no servidor — NENHUM pagamento consegue liberar acesso.",
+          { rota: "/webhook/cakto", metodo: "POST", status: 401 });
+
         return jsonErr(res, "Não autorizado", 401);
       }
 
@@ -7698,13 +7716,119 @@ var server = http.createServer(async (req, res) => {
     }
 
     // ── LISTA DE ASSINANTES (somente owner) ──────────
+    // ════════════════════════════════════════
+    // AÇÕES SOBRE UMA ASSINATURA (somente owner)
+    // ════════════════════════════════════════
+    // Existe porque um cliente pagou, o webhook não chegou, e não havia
+    // NADA no painel para destravar a conta — a única saída era mexer
+    // no banco na mão. Num sistema que cobra, caso fora do trilho é
+    // rotina, não exceção.
+    if (path.indexOf("/owner/assinantes/") === 0) {
+      if (!hasPermission(authPayload, "saas:write")) {
+        return jsonErr(res, "Apenas o owner da Workap pode fazer isso", 403);
+      }
+
+      var partesAss = path.split("/");      // ["", "owner", "assinantes", id, acao]
+      var idAss     = partesAss[3];
+      var acaoAss   = partesAss[4];
+      if (!SANITIZE.uuid(idAss)) return jsonErr(res, "Empresa inválida");
+
+      var alvoAss = await DB.select("empresas",
+        `id=eq.${idAss}&select=id,nome,email,status,plano,assinatura_ate,reembolsada_em`);
+      var empAss2 = alvoAss.body && alvoAss.body[0];
+      if (!empAss2) return jsonErr(res, "Empresa não encontrada", 404);
+
+      // Histórico — o painel abre isto ao lado dos botões.
+      if (method === "GET" && acaoAss === "acoes") {
+        var histAss = await DB.select("assinatura_acoes",
+          `empresa_id=eq.${idAss}&select=*&order=criado_em.desc&limit=30`
+        ).catch(function () { return { body: [] }; });
+        return jsonOk(res, { empresa: empAss2, acoes: histAss.body || [] });
+      }
+
+      if (method === "POST" && (acaoAss === "liberar" || acaoAss === "reembolso" || acaoAss === "corte")) {
+        var bodyAcao = parseBody(await getBody(req)) || {};
+        var motivoAcao = SANITIZE.string(bodyAcao.motivo, 400);
+        if (!motivoAcao) {
+          return jsonErr(res, "Escreva o motivo. Sem ele, ninguém entende a decisão daqui a três meses.");
+        }
+
+        var mudancaAss = {};
+        var nomeAcao   = acaoAss === "liberar" ? "liberacao" : acaoAss === "reembolso" ? "reembolso" : "corte";
+        var valorAcao  = null;
+
+        if (acaoAss === "liberar") {
+          // Dias de acesso concedidos. 30 é o ciclo padrão da
+          // assinatura; o campo existe para o caso de acerto parcial.
+          var diasLib = SANITIZE.int(bodyAcao.dias, 1, 3650) || 30;
+          mudancaAss.status = "ativa";
+          mudancaAss.assinatura_ate = new Date(Date.now() + diasLib * 24 * 60 * 60 * 1000).toISOString();
+          // Liberar apaga a marca de reembolso: a conta voltou a ser
+          // paga, e deixar o carimbo antigo faria a tela dizer
+          // "reembolsada" para quem está em dia.
+          mudancaAss.reembolsada_em = null;
+        } else {
+          // Reembolso e corte fazem a MESMA coisa com o acesso —
+          // bloqueiam. O que muda é o registro: reembolso diz que o
+          // dinheiro voltou, corte diz que não voltou. Confundir os
+          // dois é perder a resposta de "esse cliente foi ressarcido?".
+          mudancaAss.status = "cancelada";
+          mudancaAss.assinatura_ate = null;
+          if (acaoAss === "reembolso") {
+            mudancaAss.reembolsada_em = new Date().toISOString();
+            valorAcao = SANITIZE.int(bodyAcao.valor_centavos, 0, 100000000);
+            if (!valorAcao) {
+              var precoRef = await precoDoPlanoAtual(empAss2.plano);
+              valorAcao = precoRef;
+            }
+          }
+        }
+
+        await DB.update("empresas", `id=eq.${idAss}`, mudancaAss);
+
+        // O cache de acesso tem 60s. Sem limpar, o cliente que acabou
+        // de ser liberado continuaria vendo a tela de bloqueio por um
+        // minuto — e é justamente o minuto em que ele está no telefone
+        // com o dono perguntando se resolveu.
+        esquecerAcesso(idAss);
+
+        await DB.insert("assinatura_acoes", {
+          empresa_id:     idAss,
+          acao:           nomeAcao,
+          feito_por:      authPayload.email || "owner",
+          motivo:         motivoAcao,
+          valor_centavos: valorAcao,
+          status_antes:   empAss2.status,
+          status_depois:  mudancaAss.status
+        }).catch(function (e) {
+          // Não desfaz a ação: o acesso já mudou, e é isso que o
+          // cliente sente. Mas grita, porque uma mudança de assinatura
+          // sem registro é a que ninguém consegue explicar depois.
+          registrarErro("acao_assinatura_sem_registro", e.message,
+            { rota: path, metodo: "POST", empresa_id: idAss });
+        });
+
+        secLog("assinatura_acao", { empresa_id: idAss, acao: nomeAcao, por: authPayload.email });
+
+        // Avisar o cliente. Quem foi liberado precisa saber que já pode
+        // entrar — senão continua achando que o pagamento não passou.
+        if (acaoAss === "liberar") {
+          enviarEmail(empAss2.email, "✅ Seu acesso ao Workap foi liberado",
+            EMAIL_TEMPLATES.pagamentoConfirmado(empAss2.nome, "R$ " + centavosParaReais(await precoDoPlanoAtual(empAss2.plano)))
+          ).catch(function () {});
+        }
+
+        return jsonOk(res, { ok: true, status: mudancaAss.status });
+      }
+    }
+
     if (method === "GET" && path === "/owner/assinantes") {
       if (!hasPermission(authPayload, "saas:read")) {
         return jsonErr(res, "Apenas o owner da Workap pode ver isso", 403);
       }
 
       var emp = await DB.select("empresas",
-        "select=id,nome,email,ramo,status,team_id,created_at,trial_fim&order=created_at.desc");
+        "select=id,nome,email,ramo,status,plano,team_id,created_at,trial_fim,reembolsada_em,pagamento_assinatura_id&order=created_at.desc");
       var empresas = emp.body || [];
 
       // Uma consulta só de funcionários e a contagem feita aqui: uma
@@ -7727,7 +7851,13 @@ var server = http.createServer(async (req, res) => {
           id: e.id, nome: e.nome, email: e.email, ramo: e.ramo || null,
           status: e.status, team_id: e.team_id, created_at: e.created_at,
           funcionarios: contagem[e.id] || 0,
-          dias_trial_restantes: diasTrial
+          dias_trial_restantes: diasTrial,
+          plano: e.plano || null,
+          reembolsada_em: e.reembolsada_em || null,
+          // O painel usa isto para marcar quem foi ao checkout e não
+          // teve a assinatura confirmada — o caso de "paguei e não
+          // liberou".
+          tem_assinatura_no_gateway: !!e.pagamento_assinatura_id
         };
       }));
     }
@@ -7751,6 +7881,21 @@ var server = http.createServer(async (req, res) => {
       var latenciaBanco = Date.now() - t0;
 
       var cfgPlat = await lerConfigPlataforma();
+
+      var possiveis = await DB.select("empresas",
+        "pagamento_assinatura_id=not.is.null&status=neq.ativa&select=id,nome,email,status,plano,pagamento_gateway,created_at&order=created_at.desc&limit=20"
+      ).catch(function () { return { body: [] }; });
+      var travadas = (possiveis.body || []).map(function (e) {
+        return { id: e.id, nome: e.nome, email: e.email, status: e.status,
+                 plano: e.plano, gateway: e.pagamento_gateway, desde: e.created_at };
+      });
+      // Registrado como erro para aparecer também no Diagnóstico: é
+      // dinheiro parado, não uma curiosidade de tela.
+      if (travadas.length) {
+        registrarErro("pagamento_travado",
+          travadas.length + " conta(s) com assinatura criada no gateway e acesso ainda bloqueado.",
+          { rota: "/owner/saude", metodo: "GET", status: 200 });
+      }
 
       return jsonOk(res, {
         servidor: {
@@ -7789,9 +7934,18 @@ var server = http.createServer(async (req, res) => {
               ? (cfgPlat.utmify_token ? "Integração ligada" : "Ligada, mas sem token")
               : "Desligada" }
         ],
-        // Uptime real do serviço e uso de disco do banco não são
-        // medidos por este backend — dizer que não sabe é mais útil do
-        // que devolver um número que ninguém apurou.
+        // Contas com dinheiro no meio do caminho.
+        //
+        // A checagem de credencial acima diz se o webhook PODE
+        // funcionar; esta diz se ele FUNCIONOU. São coisas diferentes:
+        // a chave pode estar certa e o endereço do webhook, errado no
+        // painel da Cakto — e aí tudo aparece verde enquanto o cliente
+        // paga e continua bloqueado.
+        //
+        // Uma empresa com id de assinatura gerado e status diferente de
+        // "ativa" é exatamente isso: alguém foi até o checkout, o
+        // gateway criou a assinatura, e a confirmação nunca voltou.
+        pagamentos_travados: travadas,
         nao_medido: ["Uptime histórico", "Requisições por dia", "Uso de armazenamento"]
       });
     }

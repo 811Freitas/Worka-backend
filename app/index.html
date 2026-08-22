@@ -2359,7 +2359,7 @@ tr:hover td{background:var(--g50)}
           </div>
           <div class="card-body" style="padding:0">
             <table>
-              <thead><tr><th>Empresa</th><th>Ramo</th><th>Desde</th><th>Funcionários</th><th>Status</th></tr></thead>
+              <thead><tr><th>Empresa</th><th>Ramo</th><th>Desde</th><th>Funcionários</th><th>Status</th><th>Ações</th></tr></thead>
               <!-- Havia 5 empresas de exemplo escritas no HTML (Barbearia
                    Silva, Restaurante Sabor+, Farmácia Saúde Bem...), com
                    botões de Suspender/Cancelar que não faziam nada. A
@@ -3377,6 +3377,46 @@ tr:hover td{background:var(--g50)}
 </div>
 
 <!-- Modal add cargo -->
+<div class="modal-overlay" id="modal-acao-assinatura">
+  <div class="modal">
+    <h3 style="margin:0 0 6px;font-family:var(--display);font-size:1.15rem" id="aa-titulo">Ação</h3>
+    <p style="margin:0 0 18px;font-size:.85rem;color:var(--gray500)" id="aa-empresa">—</p>
+
+    <div id="aa-form">
+      <div id="aa-explica" style="font-size:.83rem;line-height:1.6;padding:12px 14px;border-radius:var(--r);margin-bottom:16px"></div>
+
+      <div class="field" id="aa-campo-dias">
+        <label>Dias de acesso</label>
+        <input id="aa-dias" type="number" min="1" max="3650" value="30">
+      </div>
+
+      <div class="field" id="aa-campo-valor" style="display:none">
+        <label>Valor devolvido (R$)</label>
+        <input id="aa-valor" inputmode="decimal" placeholder="89,99">
+      </div>
+
+      <div class="field">
+        <label>Motivo</label>
+        <textarea id="aa-motivo" rows="3" maxlength="400" placeholder="Ex.: pagou por PIX em 20/08, comprovante conferido, webhook não chegou"></textarea>
+      </div>
+
+      <div class="login-erro" id="aa-erro">Não foi possível concluir.</div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+        <button class="btn btn-secondary" onclick="fecharModal('modal-acao-assinatura')">Cancelar</button>
+        <button class="btn btn-primary" id="aa-btn" onclick="confirmarAcaoAssinatura()">Confirmar</button>
+      </div>
+    </div>
+
+    <div id="aa-historico" style="display:none">
+      <div id="aa-lista"></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:16px">
+        <button class="btn btn-secondary" onclick="fecharModal('modal-acao-assinatura')">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-item-chatbot">
   <div class="modal">
     <h3 style="margin:0 0 18px;font-family:var(--display);font-size:1.15rem" id="cbi-titulo">Nova opção</h3>
@@ -9476,7 +9516,7 @@ function renderizarAssinantes(lista){
   if(!lista.length){
     var tr0 = document.createElement('tr');
     var td0 = document.createElement('td');
-    td0.colSpan = 5;
+    td0.colSpan = 6;
     td0.style.cssText = 'padding:24px;text-align:center;color:var(--gray500);font-size:.85rem';
     td0.textContent = 'Nenhuma empresa cadastrada ainda.';
     tr0.appendChild(td0); tbody.appendChild(tr0);
@@ -9527,9 +9567,230 @@ function renderizarAssinantes(lista){
       tdStatus.appendChild(dias);
     }
 
-    [tdNome, tdRamo, tdDesde, tdFunc, tdStatus].forEach(function(c){ tr.appendChild(c); });
+    // Ações. Saíram uma vez porque eram botões que não faziam nada;
+    // voltam agora que fazem — e voltam porque a falta delas custou
+    // caro: um cliente pagou, o webhook não confirmou, e não havia como
+    // destravar a conta sem mexer no banco.
+    var tdAcoes = document.createElement('td');
+    var caixa = document.createElement('div');
+    caixa.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
+
+    if(e.status !== 'ativa'){
+      var bLib = document.createElement('button');
+      bLib.className = 'btn btn-primary btn-sm';
+      bLib.textContent = 'Liberar';
+      bLib.title = 'Destravar quem pagou e o gateway não confirmou';
+      bLib.onclick = function(){ abrirAcaoAssinatura(e, 'liberar'); };
+      caixa.appendChild(bLib);
+    }
+    if(e.status === 'ativa' || e.status === 'inadimplente'){
+      var bReemb = document.createElement('button');
+      bReemb.className = 'btn btn-secondary btn-sm';
+      bReemb.textContent = 'Reembolsar';
+      bReemb.onclick = function(){ abrirAcaoAssinatura(e, 'reembolso'); };
+      caixa.appendChild(bReemb);
+    }
+    var bHist = document.createElement('button');
+    bHist.className = 'btn btn-secondary btn-sm';
+    bHist.textContent = 'Histórico';
+    bHist.onclick = function(){ abrirAcaoAssinatura(e, 'historico'); };
+    caixa.appendChild(bHist);
+
+    tdAcoes.appendChild(caixa);
+
+    if(e.reembolsada_em){
+      var marcaR = document.createElement('div');
+      marcaR.style.cssText = 'font-size:.7rem;color:#b45309;margin-top:4px;font-weight:600';
+      marcaR.textContent = 'Reembolsada';
+      tdAcoes.appendChild(marcaR);
+    }
+
+    [tdNome, tdRamo, tdDesde, tdFunc, tdStatus, tdAcoes].forEach(function(c){ tr.appendChild(c); });
     tbody.appendChild(tr);
   });
+}
+
+// ═══════════════════════════════════
+// AÇÕES SOBRE UMA ASSINATURA (owner)
+// ═══════════════════════════════════
+// Liberar quem pagou e o gateway não confirmou, e reembolsar cortando
+// o acesso. Antes disso, a única saída para os dois casos era mexer no
+// banco na mão.
+
+var acaoAssAlvo = null;
+var acaoAssTipo = null;
+
+var TEXTO_ACAO = {
+  liberar: {
+    titulo: 'Liberar acesso',
+    botao:  'Liberar acesso',
+    cor:    'var(--g50)',
+    corTexto: 'var(--g600)',
+    explica: 'Use quando o cliente pagou e o gateway não confirmou. A conta volta a abrir na hora e ele recebe um e-mail avisando.'
+  },
+  reembolso: {
+    titulo: 'Reembolsar e bloquear',
+    botao:  'Confirmar reembolso',
+    cor:    '#fbe6db',
+    corTexto: '#bd3d09',
+    explica: 'Registra a devolução e BLOQUEIA a conta na hora. O reembolso do dinheiro em si é feito no painel do gateway — aqui fica o registro e o corte do acesso.'
+  }
+};
+
+function abrirAcaoAssinatura(empresa, tipo){
+  acaoAssAlvo = empresa;
+  acaoAssTipo = tipo;
+
+  document.getElementById('aa-empresa').textContent =
+    (empresa.nome || '—') + ' · ' + (empresa.email || '');
+
+  var form = document.getElementById('aa-form');
+  var hist = document.getElementById('aa-historico');
+
+  if(tipo === 'historico'){
+    document.getElementById('aa-titulo').textContent = 'Histórico da assinatura';
+    form.style.display = 'none';
+    hist.style.display = 'block';
+    carregarHistoricoAssinatura(empresa.id);
+    abrirModal('modal-acao-assinatura');
+    return;
+  }
+
+  var t = TEXTO_ACAO[tipo];
+  document.getElementById('aa-titulo').textContent = t.titulo;
+  document.getElementById('aa-btn').textContent = t.botao;
+  var explica = document.getElementById('aa-explica');
+  explica.textContent = t.explica;
+  explica.style.background = t.cor;
+  explica.style.color = t.corTexto;
+
+  document.getElementById('aa-campo-dias').style.display  = tipo === 'liberar'   ? '' : 'none';
+  document.getElementById('aa-campo-valor').style.display = tipo === 'reembolso' ? '' : 'none';
+  document.getElementById('aa-motivo').value = '';
+  document.getElementById('aa-dias').value = 30;
+  document.getElementById('aa-valor').value = '';
+  document.getElementById('aa-erro').style.display = 'none';
+  document.getElementById('aa-btn').disabled = false;
+
+  form.style.display = 'block';
+  hist.style.display = 'none';
+  abrirModal('modal-acao-assinatura');
+}
+
+async function confirmarAcaoAssinatura(){
+  if(!acaoAssAlvo || !acaoAssTipo) return;
+  var erro = document.getElementById('aa-erro');
+  var btn  = document.getElementById('aa-btn');
+  erro.style.display = 'none';
+
+  var motivo = (document.getElementById('aa-motivo').value || '').trim();
+  if(!motivo){
+    erro.textContent = 'Escreva o motivo. Daqui a três meses é ele que explica a decisão.';
+    erro.style.display = 'block';
+    return;
+  }
+
+  var corpo = { motivo: motivo };
+  if(acaoAssTipo === 'liberar'){
+    corpo.dias = parseInt(document.getElementById('aa-dias').value, 10) || 30;
+  } else {
+    var bruto = (document.getElementById('aa-valor').value || '').trim();
+    if(bruto){
+      // Mesma leitura do preço do Master: vírgula é decimal, e ponto só
+      // é decimal quando tem duas casas depois.
+      var norm = bruto.replace(/[R$\s]/g,'');
+      if(norm.indexOf(',') >= 0) norm = norm.replace(/\./g,'').replace(',', '.');
+      else { var p = norm.split('.'); if(!(p.length === 2 && p[1].length === 2)) norm = norm.replace(/\./g,''); }
+      var reais = parseFloat(norm);
+      if(isFinite(reais)) corpo.valor_centavos = Math.round(reais * 100);
+    }
+  }
+
+  btn.disabled = true;
+  var rotulo = btn.textContent;
+  btn.textContent = 'Enviando...';
+  try {
+    var r = await fetch(API_BASE + '/owner/assinantes/' + acaoAssAlvo.id + '/' +
+      (acaoAssTipo === 'liberar' ? 'liberar' : 'reembolso'), {
+      method: 'POST', headers: cabecalhoOwner(), body: JSON.stringify(corpo)
+    });
+    var d = await r.json();
+    if(!r.ok){
+      erro.textContent = d.error || 'Não foi possível concluir.';
+      erro.style.display = 'block';
+      return;
+    }
+    fecharModal('modal-acao-assinatura');
+    // Recarrega a lista para o status novo aparecer sem F5.
+    if(typeof carregarPainelOwner === 'function') carregarPainelOwner();
+  } catch(e){
+    erro.textContent = 'Sem conexão com o servidor.';
+    erro.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = rotulo;
+  }
+}
+
+var ROTULO_ACAO = {
+  liberacao: ['Acesso liberado', 'var(--g600)'],
+  reembolso: ['Reembolsado', '#bd3d09'],
+  corte:     ['Acesso cortado', '#b45309']
+};
+
+async function carregarHistoricoAssinatura(id){
+  var alvo = document.getElementById('aa-lista');
+  alvo.textContent = 'Carregando...';
+  try {
+    var r = await fetch(API_BASE + '/owner/assinantes/' + id + '/acoes', { headers: cabecalhoOwner() });
+    if(!r.ok) throw new Error('falhou');
+    var d = await r.json();
+    var lista = d.acoes || [];
+    alvo.textContent = '';
+    if(!lista.length){
+      var p = document.createElement('p');
+      p.style.cssText = 'font-size:.86rem;color:var(--gray500);line-height:1.6';
+      p.textContent = 'Nenhuma ação manual nesta assinatura. Tudo que aconteceu veio do gateway.';
+      alvo.appendChild(p);
+      return;
+    }
+    lista.forEach(function(a){
+      var linha = document.createElement('div');
+      linha.className = 'chave-linha';
+      var esq = document.createElement('div');
+      esq.style.minWidth = '0';
+
+      var topo = document.createElement('div');
+      topo.className = 'chave-nome';
+      var rot = ROTULO_ACAO[a.acao] || [a.acao, 'var(--gray700)'];
+      topo.textContent = rot[0];
+      topo.style.color = rot[1];
+      if(a.valor_centavos){
+        topo.textContent += ' · R$ ' + (a.valor_centavos/100).toFixed(2).replace('.', ',');
+      }
+      esq.appendChild(topo);
+
+      var meta = document.createElement('div');
+      meta.className = 'chave-meta';
+      meta.style.whiteSpace = 'normal';
+      meta.textContent = (a.motivo || '') +
+        (a.feito_por ? ' — ' + a.feito_por : '') +
+        (a.status_antes ? ' (' + a.status_antes + ' → ' + a.status_depois + ')' : '');
+      esq.appendChild(meta);
+      linha.appendChild(esq);
+
+      var quando = document.createElement('span');
+      quando.className = 'chave-meta';
+      quando.style.cssText = 'white-space:nowrap;flex-shrink:0';
+      quando.textContent = a.criado_em
+        ? new Date(a.criado_em).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit' })
+        : '';
+      linha.appendChild(quando);
+
+      alvo.appendChild(linha);
+    });
+  } catch(e){
+    alvo.textContent = 'Não foi possível carregar o histórico.';
+  }
 }
 
 // ═══════════════════════════════════
