@@ -137,7 +137,13 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{box-shadow:var(-
 .app-layout{display:flex;min-height:100vh}
 
 /* ── SIDEBAR ── */
-.sidebar{width:246px;background:linear-gradient(190deg,var(--brand-bg) 0%,#08251533 100%),var(--brand-bg);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:50;transition:transform var(--dur-slow) var(--ease-out);border-right:1px solid rgba(255,255,255,.06)}
+/* height:100dvh, nao 100vh. No celular o 100vh conta a tela TODA,
+   incluindo o pedaco que a barra de endereco do navegador cobre —
+   entao o rodape do menu (o botao "Sair da conta") caia atras dela e
+   nao dava para tocar. O dvh mede o que esta realmente visivel. A
+   linha com vh fica antes de proposito: navegador que nao conhece dvh
+   ignora a segunda e continua como era. */
+.sidebar{width:246px;background:linear-gradient(190deg,var(--brand-bg) 0%,#08251533 100%),var(--brand-bg);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;height:100dvh;z-index:75;transition:transform var(--dur-slow) var(--ease-out);border-right:1px solid rgba(255,255,255,.06)}
 .sidebar-logo{padding:22px 20px;border-bottom:1px solid rgba(255,255,255,0.08)}
 .sidebar-logo-txt{font-family:var(--display);font-size:1.35rem;font-weight:800;color:white;letter-spacing:-.3px}
 .sidebar-logo-txt span{color:var(--brand-accent)}
@@ -159,7 +165,17 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{box-shadow:var(-
 .btn-logout:hover{background:rgba(239,68,68,.18);color:#fca5a5;border-color:rgba(239,68,68,.25)}
 
 /* ── CONTEÚDO ── */
-.main-content{margin-left:246px;flex:1;min-height:100vh;display:flex;flex-direction:column}
+/* min-width:0 é o que faz o app caber no celular.
+   .app-layout é flex e este aqui é flex:1 — e todo item de flex nasce
+   com min-width:auto, ou seja, "nunca menor que o meu conteúdo". Bastava
+   UM botão de texto longo, um título grande ou uma tabela para esta
+   coluna inteira ficar mais larga que a tela; aí todo grid lá dentro
+   media 1fr contra a largura inflada, e a tela ganhava rolagem
+   horizontal com metade do conteúdo cortado. Era a causa única de
+   Funcionários, Tarefas, Escala, Relatórios e Salários estourarem no
+   celular. Com min-width:0 a coluna pode encolher até a tela, e o
+   conteúdo se ajusta a ela em vez do contrário. */
+.main-content{margin-left:246px;flex:1;min-width:0;min-height:100vh;display:flex;flex-direction:column}
 .topbar{background:rgba(255,255,255,.86);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);padding:15px 26px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--gray100);position:sticky;top:0;z-index:40}
 .topbar-title{font-family:var(--display);font-size:1.12rem;font-weight:800;color:var(--gray900);letter-spacing:-.2px}
 .topbar-actions{display:flex;align-items:center;gap:10px}
@@ -256,7 +272,7 @@ tr:hover td{background:var(--g50)}
 .form-full{grid-column:1/-1}
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(10,20,14,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:100;align-items:center;justify-content:center;padding:20px;animation:fadeIn var(--dur) var(--ease) both}
 .modal-overlay.open{display:flex}
-.modal{background:white;border-radius:var(--rxl);padding:28px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-xl);animation:popIn var(--dur-slow) var(--ease-out) both}
+.modal{background:white;border-radius:var(--rxl);padding:28px;width:100%;max-width:520px;max-height:90vh;max-height:90dvh;overflow-y:auto;box-shadow:var(--shadow-xl);animation:popIn var(--dur-slow) var(--ease-out) both}
 .modal-title{font-family:var(--display);font-size:1.15rem;font-weight:800;color:var(--gray900);margin-bottom:20px;letter-spacing:-.2px}
 .modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:22px}
 
@@ -327,10 +343,20 @@ tr:hover td{background:var(--g50)}
 .notif-txt{font-size:0.82rem;color:var(--gray700);line-height:1.5}
 .notif-time{font-size:0.72rem;color:var(--gray400);margin-top:2px}
 
+/* ORDEM DAS CAMADAS (mexeu numa, confira aqui):
+     40  topbar
+     60  faixas flutuantes (instalar app, Face ID)
+     70  escurecido do menu
+     75  menu lateral
+    100  modal
+   9000+ avisos que travam a tela de proposito (trial vencido, camera)
+   As faixas estavam em 9998/9999 e ficavam por cima do menu aberto e
+   do modal — tapavam justamente o rodape do menu, onde fica o botao
+   de sair. */
 /* ── MOBILE / TABLET ── */
 .menu-toggle{display:none;background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--gray700);width:38px;height:38px;border-radius:10px;transition:background var(--dur) var(--ease)}
 .menu-toggle:hover{background:var(--gray100)}
-.sidebar-scrim{display:none;position:fixed;inset:0;background:rgba(10,20,14,.5);z-index:45;opacity:0;transition:opacity var(--dur) var(--ease)}
+.sidebar-scrim{display:none;position:fixed;inset:0;background:rgba(10,20,14,.5);z-index:70;opacity:0;transition:opacity var(--dur) var(--ease)}
 .sidebar-scrim.show{display:block;opacity:1}
 @media(max-width:1024px){
   .sidebar{width:230px}
@@ -349,6 +375,57 @@ tr:hover td{background:var(--g50)}
   .topbar{padding:12px 16px}
   .ponto-time{font-size:2.3rem}
   .modal{padding:22px;border-radius:var(--rl)}
+
+  /* A busca da topbar sai do celular. Em 360px ela disputava espaco com
+     o titulo da tela e empurrava o sino de avisos para fora da tela — e
+     nao busca nada: o input nao tem id nem evento, e so enfeite. Sem ela
+     sobra largura para o titulo inteiro caber. */
+  .topbar .search-bar{display:none}
+
+  /* Titulos longos ("Salarios e Pagamentos") empurravam o resto da
+     topbar. min-width:0 deixa a caixa encolher e o texto cortar com
+     reticencias em vez de espremer o vizinho. */
+  .topbar > div:first-child{min-width:0;flex:1}
+  .topbar-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* Tabela larga: rola de lado DENTRO do cartao.
+     .card tem overflow:hidden, entao coluna que nao cabia sumia — e
+     sumia justamente a ultima, que e onde ficam os botoes de Acoes. Nao
+     dava nem para rolar ate elas: existiam e eram inalcancaveis no
+     celular. Agora o corpo do cartao rola sozinho e a pagina fica
+     parada. :has() escolhe so os cartoes que tem tabela, para nao
+     transformar formulario em area de rolagem; navegador antigo que nao
+     conhece :has() simplesmente ignora a regra e fica como estava. */
+  .card-body:has(> table){overflow-x:auto;-webkit-overflow-scrolling:touch}
+  /* Cabecalho de coluna nao quebra: "Ponto hoje" virava duas linhas e
+     desalinhava a tabela toda. Prefiro rolar de lado a empilhar rotulo. */
+  .card-body > table th{white-space:nowrap}
+
+  /* 16px em campo de formulario nao e capricho de tipografia: abaixo
+     disso o Safari do iPhone DA ZOOM sozinho quando a pessoa toca no
+     campo, e depois nao volta — a tela fica maior que o aparelho e o
+     resto do formulario sai de vista. Os campos eram 0.9rem (14.4px).
+     Vale so no celular; no computador o tamanho menor continua.
+     O !important alcanca os campos que trazem o tamanho no style="".
+     input:not([type]) entra porque campo sem o atributo type e text na
+     pratica, mas input[type=text] nao o pega no CSS. */
+  .field input,.field select,.field textarea,
+  input[type=text],input[type=email],input[type=password],input[type=tel],
+  input[type=number],input[type=date],input[type=time],input[type=search],
+  input:not([type]),select,textarea{font-size:16px !important}
+
+  /* Alvo de toque: dedo nao acerta botao de 24px. 40px e o piso que
+     ainda cabe no visual atual sem inchar a tela. */
+  .btn,.btn-sm,.menu-toggle,.notif-btn{min-height:40px}
+
+  /* Espaco no fim da pagina. Os convites flutuantes (instalar o app,
+     ativar Face ID) sao position:fixed no rodape e tapavam o ultimo
+     item de cada lista — que no celular e justamente onde a pessoa
+     para de rolar. O safe-area cuida da barra de gestos do iPhone. */
+  .page{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+
+  /* Sobra de tela: 20px de cada lado no modal tirava 40px de 360. */
+  .modal-overlay{padding:12px}
 }
 @media(max-width:420px){
   .stats-grid{grid-template-columns:1fr}
@@ -369,15 +446,51 @@ tr:hover td{background:var(--g50)}
 .progress-fill{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--g500),var(--g300));transition:width var(--dur-slow) var(--ease-out)}
 .avatar-stack{display:flex}
 .avatar-stack .av{width:28px;height:28px;border-radius:50%;border:2px solid white;margin-left:-8px;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;color:white;flex-shrink:0}
+/* ── INTEGRAÇÕES / API ── */
+.api-doc{display:flex;flex-direction:column;gap:20px}
+.api-passo{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start}
+.api-passo-n{width:26px;height:26px;border-radius:50%;background:var(--g500);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;flex-shrink:0}
+.api-passo h4{margin:0 0 4px;font-size:.9rem;font-weight:700;color:var(--gray900)}
+.api-passo p{margin:0 0 8px;font-size:.84rem;color:var(--gray500);line-height:1.6}
+/* A chamada tem que poder ser copiada inteira: quebrar a linha no meio
+   de uma URL faz quem cola no terminal receber um erro que não tem nada
+   a ver com a integração. Por isso rola de lado em vez de quebrar. */
+.api-code{background:var(--brand-bg);color:#c8f5d8;border-radius:10px;padding:12px 14px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.76rem;line-height:1.65;
+  overflow-x:auto;white-space:pre;margin:0}
+.api-obs{font-size:.8rem;color:var(--gray500);margin-top:8px!important;line-height:1.6}
+.api-doc code,.card-body code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:.82em;background:var(--gray50);border:1px solid var(--gray100);
+  border-radius:5px;padding:1px 5px}
+/* A chave aparece UMA vez. Grande, monoespaçada e selecionável de
+   propósito — a pessoa vai copiar isto para outro sistema, e um texto
+   pequeno num campo apertado é onde nasce o "copiei errado". */
+.chave-nova{background:var(--brand-bg);color:#eafff1;border-radius:12px;padding:16px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82rem;
+  word-break:break-all;user-select:all;line-height:1.6}
+.chave-linha{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:12px 0;border-bottom:1px solid var(--gray100);flex-wrap:wrap}
+.chave-linha:last-child{border-bottom:none}
+.chave-nome{font-weight:600;font-size:.88rem}
+.chave-meta{font-size:.76rem;color:var(--gray500);font-family:ui-monospace,monospace}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+/* Mesma armadilha do .main-content, agora em grid: a coluna nasce com
+   min-width:auto e recusa ficar menor que o proprio conteudo. Um
+   <input type=file> (que carrega o botao "Escolher arquivo" mais o nome
+   do arquivo) e largo demais para 360px, entao a coluna inteira crescia
+   e a tela de Identidade visual estourava. Com min-width:0 a coluna
+   obedece o 1fr e o conteudo se ajusta. Vale em qualquer largura, nao
+   so no celular. */
+.stats-grid>*,.form-grid>*,.grid-2>*,.grid-3>*{min-width:0}
 @media(max-width:768px){.grid-2,.grid-3{grid-template-columns:1fr}}
 
 /* ── CHAT ─────────────────────────────────────────────────
    Bolhas de conversa. Verde e à direita quando é minha, cinza e à
    esquerda quando é da outra pessoa — o padrão que todo mundo já
    conhece de aplicativo de mensagem, para não ter que aprender. */
-.chat-wrap{display:grid;grid-template-columns:280px 1fr;gap:16px;height:calc(100vh - 150px);min-height:420px}
+.chat-wrap{display:grid;grid-template-columns:280px 1fr;gap:16px;height:calc(100vh - 150px);height:calc(100dvh - 150px);min-height:420px}
 .chat-lista{background:white;border-radius:var(--r);border:1px solid var(--gray100);overflow-y:auto}
 .chat-contato{padding:12px 14px;border-bottom:1px solid var(--gray100);cursor:pointer;display:flex;gap:10px;align-items:center;transition:background .15s}
 .chat-contato:hover{background:var(--gray50)}
@@ -402,7 +515,7 @@ tr:hover td{background:var(--g50)}
      duas lado a lado deixaria as duas pequenas demais para usar. */
   .chat-wrap.conversando .chat-lista{display:none}
   .chat-wrap:not(.conversando) .chat-painel{display:none}
-  .chat-painel{height:calc(100vh - 190px)}
+  .chat-painel{height:calc(100vh - 190px);height:calc(100dvh - 190px)}
 }
 
 /* ── ÍCONES SVG ──────────────────────────────────────────
@@ -762,7 +875,7 @@ tr:hover td{background:var(--g50)}
 
     <!-- FUNCIONÁRIOS -->
     <div class="page" id="pg-funcionarios">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:20px">
         <div class="search-bar" style="max-width:100%"><span><svg class=ico aria-hidden=true><use href=#i-search></use></svg></span><input placeholder="Buscar funcionário..."></div>
         <button class="btn btn-primary" onclick="abrirModal('modal-add-func')">+ Adicionar</button>
       </div>
@@ -851,7 +964,7 @@ tr:hover td{background:var(--g50)}
 
     <!-- TAREFAS -->
     <div class="page" id="pg-tarefas">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
         <div style="display:flex;gap:8px">
           <button class="btn btn-sm btn-primary" onclick="filtrarTarefas('todas')">Todas</button>
           <button class="btn btn-sm btn-secondary" onclick="filtrarTarefas('pendente')">Pendentes</button>
@@ -870,7 +983,7 @@ tr:hover td{background:var(--g50)}
 
     <!-- VALIDADE -->
     <div class="page" id="pg-validade">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:20px">
         <div style="display:flex;gap:8px">
           <button class="btn btn-sm btn-danger" onclick="filtrarValidade('urgente')"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Urgente</button>
           <button class="btn btn-sm btn-secondary" onclick="filtrarValidade('todos')">Todos</button>
@@ -993,7 +1106,7 @@ tr:hover td{background:var(--g50)}
            mudavam de cor e não gravavam nada. A rota /cargos já existia
            e nada no app chamava. Agora é real, e os cargos sugeridos
            vêm do ramo da empresa. -->
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:20px">
         <div id="cargos-subtitulo" style="font-size:.85rem;color:var(--gray500)"></div>
         <button class="btn btn-primary" onclick="abrirModalCargo()">+ Novo cargo</button>
       </div>
@@ -1078,7 +1191,7 @@ tr:hover td{background:var(--g50)}
               <div class="field"><label>Cor de fundo / menu</label><div style="display:flex;gap:8px;align-items:center"><input type="color" id="wl-bg" value="#0a2e1a" oninput="atualizarPreview()" style="width:40px;height:40px;border:none;border-radius:8px;cursor:pointer"><input id="wl-bg-hex" value="#0a2e1a" style="flex:1;padding:8px 12px;border:1.5px solid var(--gray100);border-radius:8px;font-family:var(--font)"></div></div>
               <div class="field"><label>Cor dos botões</label><div style="display:flex;gap:8px;align-items:center"><input type="color" id="wl-btn" value="#1e8a40" oninput="atualizarPreview()" style="width:40px;height:40px;border:none;border-radius:8px;cursor:pointer"><input id="wl-btn-hex" value="#1e8a40" style="flex:1;padding:8px 12px;border:1.5px solid var(--gray100);border-radius:8px;font-family:var(--font)"></div></div>
               <div class="field"><label>Cor de destaque</label><div style="display:flex;gap:8px;align-items:center"><input type="color" id="wl-accent" value="#3dd669" oninput="atualizarPreview()" style="width:40px;height:40px;border:none;border-radius:8px;cursor:pointer"><input id="wl-accent-hex" value="#3dd669" style="flex:1;padding:8px 12px;border:1.5px solid var(--gray100);border-radius:8px;font-family:var(--font)"></div></div>
-              <div style="display:flex;gap:8px;margin-top:4px">
+              <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap">
                 <button class="btn btn-secondary btn-sm" onclick="aplicarTema('#1e3a5f','#2563eb','#60a5fa')"><span class=dot style=background:#3b82f6></span> Azul</button>
                 <button class="btn btn-secondary btn-sm" onclick="aplicarTema('#3b0764','#7c3aed','#a78bfa')"><span class=dot style=background:#8b5cf6></span> Roxo</button>
                 <button class="btn btn-secondary btn-sm" onclick="aplicarTema('#7f1d1d','#dc2626','#f87171')"><span class=dot style=background:#ef4444></span> Vermelho</button>
@@ -1174,6 +1287,113 @@ tr:hover td{background:var(--g50)}
 
     <!-- ── CUPONS DE DESCONTO (somente owner da Workap) ── -->
     <!-- ── COMUNICADOS DA PLATAFORMA (somente owner) ── -->
+    <!-- INTEGRAÇÕES (API) — plano Pro -->
+    <div class="page" id="pg-integracoes">
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header">
+          <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-plug></use></svg> Chaves de integração</div>
+          <button class="btn btn-primary btn-sm" onclick="abrirNovaChave()">+ Nova chave</button>
+        </div>
+        <div class="card-body">
+          <p style="font-size:.86rem;color:var(--gray500);margin-bottom:16px;line-height:1.6">
+            Ligue o Workap ao seu PDV ou ao seu sistema de estoque. Quando o caixa
+            registra a venda, o estoque aqui baixa sozinho — sem ninguém digitar duas vezes.
+          </p>
+          <div id="lista-chaves"><div class="skel skel-text" style="width:60%"></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Como ligar no seu sistema</div>
+        </div>
+        <div class="card-body" style="overflow-x:auto">
+          <p style="font-size:.86rem;color:var(--gray500);margin-bottom:14px;line-height:1.6">
+            Entregue esta página para quem cuida do seu PDV. Funciona com qualquer
+            sistema que saiba fazer chamada de internet — não é preciso ser um
+            programa específico.
+          </p>
+
+          <div class="api-doc">
+            <div class="api-passo">
+              <div class="api-passo-n">1</div>
+              <div>
+                <h4>Testar a chave</h4>
+                <p>Confirma que a chave está valendo antes de mexer em estoque.</p>
+                <pre class="api-code">curl -H "Authorization: Bearer SUA_CHAVE" \
+  <span id="api-base-1">https://…</span>/api/v1/ping</pre>
+              </div>
+            </div>
+
+            <div class="api-passo">
+              <div class="api-passo-n">2</div>
+              <div>
+                <h4>Mandar o catálogo</h4>
+                <p>O <strong>código</strong> é o mesmo que o seu sistema já usa — código de
+                barras ou SKU. É por ele que a baixa encontra o produto, então
+                você não precisa guardar nenhum número nosso.</p>
+                <pre class="api-code">curl -X POST -H "Authorization: Bearer SUA_CHAVE" \
+  -H "Content-Type: application/json" \
+  -d '{"codigo":"7891234567890","nome":"Coca 2L","quantidade":24}' \
+  <span class="api-base">https://…</span>/api/v1/produtos</pre>
+                <p class="api-obs">Mandar o mesmo código de novo atualiza o produto em vez de duplicar.</p>
+              </div>
+            </div>
+
+            <div class="api-passo">
+              <div class="api-passo-n">3</div>
+              <div>
+                <h4>Dar baixa na venda</h4>
+                <p>Uma chamada por cupom, com todos os itens juntos.</p>
+                <pre class="api-code">curl -X POST -H "Authorization: Bearer SUA_CHAVE" \
+  -H "Content-Type: application/json" \
+  -d '{"referencia":"CUPOM-1042",
+       "itens":[{"codigo":"7891234567890","quantidade":2}]}' \
+  <span class="api-base">https://…</span>/api/v1/estoque/venda</pre>
+                <p class="api-obs"><strong>A referência é a parte que mais importa.</strong> Se a
+                internet cair depois que a venda entrou, seu PDV vai reenviar o mesmo
+                cupom — e com a referência preenchida o Workap devolve o resultado de
+                antes em vez de descontar duas vezes. Use o número do cupom.</p>
+              </div>
+            </div>
+          </div>
+
+          <h4 style="margin:24px 0 10px;font-size:.9rem">Todos os endereços</h4>
+          <table>
+            <thead><tr><th>Método</th><th>Endereço</th><th>Para quê</th></tr></thead>
+            <tbody>
+              <tr><td>GET</td><td><code>/api/v1/ping</code></td><td>Testar a chave</td></tr>
+              <tr><td>GET</td><td><code>/api/v1/produtos</code></td><td>Listar o estoque</td></tr>
+              <tr><td>POST</td><td><code>/api/v1/produtos</code></td><td>Cadastrar ou atualizar produto</td></tr>
+              <tr><td>POST</td><td><code>/api/v1/estoque/venda</code></td><td>Baixar vários itens de um cupom</td></tr>
+              <tr><td>POST</td><td><code>/api/v1/estoque/movimento</code></td><td>Entrada, saída ou ajuste de um item</td></tr>
+              <tr><td>GET</td><td><code>/api/v1/estoque/movimentos</code></td><td>Extrato do estoque</td></tr>
+              <tr><td>GET</td><td><code>/api/v1/funcionarios</code></td><td>Equipe ativa</td></tr>
+            </tbody>
+          </table>
+
+          <h4 style="margin:24px 0 10px;font-size:.9rem">Quando dá errado</h4>
+          <p style="font-size:.84rem;color:var(--gray500);margin-bottom:10px;line-height:1.6">
+            A resposta sempre traz um campo <code>erro</code> com um nome fixo. Programe
+            em cima do nome, não da frase — a frase pode mudar, o nome não.
+          </p>
+          <table>
+            <thead><tr><th>erro</th><th>O que houve</th></tr></thead>
+            <tbody>
+              <tr><td><code>chave_invalida</code></td><td>Chave errada ou apagada</td></tr>
+              <tr><td><code>chave_revogada</code></td><td>Foi revogada aqui nesta tela</td></tr>
+              <tr><td><code>somente_leitura</code></td><td>A chave não tem permissão de escrever</td></tr>
+              <tr><td><code>plano_insuficiente</code></td><td>A conta não está no Pro</td></tr>
+              <tr><td><code>conta_bloqueada</code></td><td>Assinatura vencida ou conta suspensa</td></tr>
+              <tr><td><code>produto_nao_encontrado</code></td><td>Nenhum produto com aquele código</td></tr>
+              <tr><td><code>saldo_insuficiente</code></td><td>Estoque menor que o pedido</td></tr>
+              <tr><td><code>limite_excedido</code></td><td>Passou de 600 chamadas por minuto</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <div class="page" id="pg-comunicados">
       <div class="grid-2">
         <div class="card">
@@ -1961,7 +2181,7 @@ tr:hover td{background:var(--g50)}
         <div class="card" style="margin-bottom:16px">
           <div class="card-header">
             <div class="card-title">Empresas cadastradas</div>
-            <div style="display:flex;gap:8px">
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
               <select class="btn btn-secondary btn-sm" style="border:1px solid var(--gray100)">
                 <option>Todos os status</option>
                 <option>Ativas</option>
@@ -2644,7 +2864,7 @@ tr:hover td{background:var(--g50)}
 
     <!-- ── PÁGINA: SALÁRIOS ── -->
     <div class="page" id="pg-salarios">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:20px">
         <div></div>
         <button class="btn btn-primary" onclick="abrirModalSalario()">+ Definir salário</button>
       </div>
@@ -2673,7 +2893,7 @@ tr:hover td{background:var(--g50)}
 
     <!-- ── PÁGINA: AUSÊNCIAS ── -->
     <div class="page" id="pg-ausencias">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:20px">
         <div class="stats-grid" style="flex:1;margin-bottom:0;margin-right:16px">
           <div class="stat-card"><div class="stat-card-icon" style="background:#fef2f2"><svg class=ico aria-hidden=true><use href=#i-absent></use></svg></div><div class="stat-card-num">2</div><div class="stat-card-lbl">Faltas este mês</div></div>
           <div class="stat-card"><div class="stat-card-icon" style="background:#fffbeb"><svg class=ico aria-hidden=true><use href=#i-edit></use></svg></div><div class="stat-card-num">1</div><div class="stat-card-lbl">Justificadas</div></div>
@@ -2959,6 +3179,47 @@ tr:hover td{background:var(--g50)}
 </div>
 
 <!-- Modal add cargo -->
+<div class="modal-overlay" id="modal-nova-chave">
+  <div class="modal">
+    <h3 style="margin:0 0 18px;font-family:var(--display);font-size:1.15rem">Nova chave de integração</h3>
+
+    <div id="chave-form">
+      <div class="field">
+        <label>Onde vai ser usada</label>
+        <input id="ch-nome" maxlength="60" placeholder="Ex.: PDV do caixa 1">
+      </div>
+      <div class="field">
+        <label>O que esta chave pode fazer</label>
+        <select id="ch-escrita">
+          <option value="nao">Só ler (estoque, produtos, equipe)</option>
+          <option value="sim">Ler e dar baixa no estoque</option>
+        </select>
+      </div>
+      <p style="font-size:.8rem;color:var(--gray500);line-height:1.6;margin:0 0 16px">
+        Se o sistema só mostra números — um painel, um relatório — use “só ler”.
+        Se ele registra vendas e precisa baixar o estoque, use “ler e dar baixa”.
+      </p>
+      <div class="login-erro" id="ch-erro">Não foi possível criar a chave.</div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+        <button class="btn btn-secondary" onclick="fecharModal('modal-nova-chave')">Cancelar</button>
+        <button class="btn btn-primary" id="ch-btn-criar" onclick="criarChaveApi()">Gerar chave</button>
+      </div>
+    </div>
+
+    <div id="chave-pronta" style="display:none">
+      <p style="font-size:.86rem;color:var(--gray700);line-height:1.6;margin:0 0 12px">
+        <strong>Copie agora.</strong> Esta chave não aparece de novo — nem para nós.
+        Se perder, é só revogar e gerar outra.
+      </p>
+      <div class="chave-nova" id="ch-texto"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap">
+        <button class="btn btn-secondary" id="ch-btn-copiar" onclick="copiarChaveApi()">Copiar</button>
+        <button class="btn btn-primary" onclick="fecharModal('modal-nova-chave');carregarChavesApi()">Guardei</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-add-cargo">
   <div class="modal">
     <!-- Antes este modal não tinha id no campo de nome nem botão de
@@ -3330,6 +3591,7 @@ var menus = {
     {id:'jornada',icon:'<svg class=ico aria-hidden=true><use href=#i-clock></use></svg>',label:'Jornada de Trabalho'},
     {id:'visual',icon:'<svg class=ico aria-hidden=true><use href=#i-palette></use></svg>',label:'Identidade Visual'},
     {id:'notificacoes',icon:'<svg class=ico aria-hidden=true><use href=#i-bell></use></svg>',label:'Notificações'},
+    {id:'integracoes',icon:'<svg class=ico aria-hidden=true><use href=#i-plug></use></svg>',label:'Integrações (API)'},
     {id:'suporte',icon:'<svg class=ico aria-hidden=true><use href=#i-support></use></svg>',label:'Suporte'},
   ],
   funcionario: [
@@ -4837,6 +5099,7 @@ function abrirPagina(id) {
     'anotacoes':'Anotações','contatos':'Contatos',
     'cupons':'Cupons de Desconto','comunicados':'Enviar Comunicado',
     'espelho':'Espelho de Ponto','jornada':'Jornada de Trabalho',
+    'integracoes':'Integrações (API)',
     'suporte':'Suporte'
   };
   document.getElementById('topbar-title').textContent = labels[id]||id;
@@ -4866,6 +5129,7 @@ function abrirPagina(id) {
   if(id==='metas'      && typeof carregarMetas         === 'function') carregarMetas();
   if(id==='anotacoes'  && typeof carregarAnotacoes    === 'function') carregarAnotacoes();
   if(id==='contatos'   && typeof carregarContatos     === 'function') carregarContatos();
+  if(id==='integracoes'&& typeof carregarChavesApi    === 'function') carregarChavesApi();
   if(id==='escala'     && typeof carregarEscala      === 'function') carregarEscala();
   if(id==='relatorios' && typeof carregarRelatorios  === 'function') carregarRelatorios();
   if(id==='cargos' && typeof carregarCargos === 'function') carregarCargos();
@@ -4889,13 +5153,25 @@ function abrirPagina(id) {
   }
 
   // Fechar sidebar no mobile
-  if(window.innerWidth<=768) document.getElementById('sidebar').classList.remove('open');
+  //
+  // O escurecido (scrim) tem que sair JUNTO. Fechava so a gaveta e
+  // deixava a cortina escura por cima de tudo: a tela chegava certa,
+  // mas nenhum toque passava — parecia que o app tinha travado.
+  if(window.innerWidth<=768){
+    document.getElementById('sidebar').classList.remove('open');
+    var scrimNav = document.getElementById('sidebar-scrim');
+    if(scrimNav) scrimNav.classList.remove('show');
+  }
 }
 
 function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('open');
+  // A cortina segue a gaveta, em vez de cada uma alternar por conta
+  // propria: dois toggles independentes saem de sincronia assim que
+  // qualquer outro trecho mexe so em uma das duas — e ai sobra cortina
+  // sem menu, que tranca a tela inteira.
+  var aberta = document.getElementById('sidebar').classList.toggle('open');
   var scrim = document.getElementById('sidebar-scrim');
-  if(scrim) scrim.classList.toggle('show');
+  if(scrim) scrim.classList.toggle('show', aberta);
 }
 
 
@@ -10215,6 +10491,198 @@ var ESTILO_CONTATO = {
 
 var contatoEmEdicao = null;
 
+// ═══════════════════════════════════
+// INTEGRAÇÕES (API) — chaves do cliente
+// ═══════════════════════════════════
+// Tudo montado com createElement e textContent. O nome da chave é
+// escrito pela pessoa e volta do servidor; jogar isso em innerHTML
+// seria deixar um nome de chave virar script na tela do dono.
+
+var chaveRecemCriada = null;
+
+function abrirNovaChave(){
+  // O modal fica aberto entre um uso e outro, e sem reiniciar ele
+  // abriria mostrando a chave da vez passada.
+  chaveRecemCriada = null;
+  var f = document.getElementById('chave-form');
+  var p = document.getElementById('chave-pronta');
+  if(f) f.style.display = 'block';
+  if(p) p.style.display = 'none';
+  var erro = document.getElementById('ch-erro');
+  if(erro) erro.style.display = 'none';
+  var nome = document.getElementById('ch-nome');
+  if(nome) nome.value = '';
+  var esc = document.getElementById('ch-escrita');
+  if(esc) esc.value = 'nao';
+  var btn = document.getElementById('ch-btn-criar');
+  if(btn){ btn.disabled = false; btn.textContent = 'Gerar chave'; }
+  abrirModal('modal-nova-chave');
+}
+
+async function criarChaveApi(){
+  var btn  = document.getElementById('ch-btn-criar');
+  var erro = document.getElementById('ch-erro');
+  if(erro) erro.style.display = 'none';
+  if(btn){ btn.disabled = true; btn.textContent = 'Gerando...'; }
+
+  try {
+    var r = await fetch(API_BASE + '/integracoes/chaves', {
+      method: 'POST',
+      headers: cabecalhoAuth(),
+      body: JSON.stringify({
+        nome:    (document.getElementById('ch-nome').value || '').trim(),
+        escrita: document.getElementById('ch-escrita').value === 'sim'
+      })
+    });
+    var d = await r.json();
+    if(!r.ok || !d.chave){
+      if(erro){
+        erro.textContent = d.error || 'Não foi possível criar a chave.';
+        erro.style.display = 'block';
+      }
+      if(btn){ btn.disabled = false; btn.textContent = 'Gerar chave'; }
+      return;
+    }
+    chaveRecemCriada = d.chave;
+    document.getElementById('ch-texto').textContent = d.chave;
+    document.getElementById('chave-form').style.display   = 'none';
+    document.getElementById('chave-pronta').style.display = 'block';
+  } catch(e){
+    if(erro){ erro.textContent = 'Sem conexão com o servidor.'; erro.style.display = 'block'; }
+    if(btn){ btn.disabled = false; btn.textContent = 'Gerar chave'; }
+  }
+}
+
+function copiarChaveApi(){
+  if(!chaveRecemCriada) return;
+  var btn = document.getElementById('ch-btn-copiar');
+  function avisar(txt){ if(btn){ btn.textContent = txt; setTimeout(function(){ btn.textContent = 'Copiar'; }, 2000); } }
+  // navigator.clipboard não existe fora de HTTPS nem em navegador
+  // antigo, e é exatamente onde uma loja pode estar. Sem a saída pelo
+  // execCommand, o botão não faria nada e ninguém saberia por quê.
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(chaveRecemCriada)
+      .then(function(){ avisar('Copiado!'); })
+      .catch(function(){ avisar('Copie na mão'); });
+    return;
+  }
+  try {
+    var campo = document.createElement('textarea');
+    campo.value = chaveRecemCriada;
+    campo.style.position = 'fixed'; campo.style.opacity = '0';
+    document.body.appendChild(campo);
+    campo.select();
+    document.execCommand('copy');
+    document.body.removeChild(campo);
+    avisar('Copiado!');
+  } catch(e){ avisar('Copie na mão'); }
+}
+
+function dataCurtaApi(iso){
+  if(!iso) return '—';
+  var d = new Date(iso);
+  if(isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit' });
+}
+
+async function carregarChavesApi(){
+  var alvo = document.getElementById('lista-chaves');
+  if(!alvo || !sessaoWorka || !sessaoWorka.token) return;
+
+  // Preenche o endereço do servidor nos exemplos. Sem isto a
+  // documentação mostraria "https://…" e quem integra teria que
+  // adivinhar para onde mandar.
+  //
+  // O fallback para a origem da página cobre o dia em que o app for
+  // servido do mesmo endereço da API: ali API_BASE é vazio, e sem isto
+  // os exemplos sairiam com o endereço em branco — documentação que
+  // parece pronta e não funciona é pior que documentação faltando.
+  var base = API_BASE || window.location.origin;
+  var um = document.getElementById('api-base-1');
+  if(um) um.textContent = base;
+  [].forEach.call(document.querySelectorAll('.api-base'), function(el){ el.textContent = base; });
+
+  alvo.textContent = 'Carregando...';
+  var chaves = [];
+  try {
+    var r = await fetch(API_BASE + '/integracoes/chaves', { headers: cabecalhoAuth() });
+    if(r.status === 402){
+      alvo.textContent = '';
+      var pro = document.createElement('p');
+      pro.style.cssText = 'font-size:.86rem;color:var(--gray500);line-height:1.6';
+      pro.textContent = 'A integração por API faz parte do Plano Pro.';
+      alvo.appendChild(pro);
+      return;
+    }
+    if(!r.ok) throw new Error('falhou');
+    var d = await r.json();
+    chaves = d.chaves || [];
+  } catch(e){
+    alvo.textContent = 'Não foi possível carregar as chaves agora.';
+    return;
+  }
+
+  alvo.textContent = '';
+  if(!chaves.length){
+    var vazio = document.createElement('p');
+    vazio.style.cssText = 'font-size:.86rem;color:var(--gray500);line-height:1.6';
+    vazio.textContent = 'Nenhuma chave ainda. Crie uma e entregue ao responsável pelo seu PDV.';
+    alvo.appendChild(vazio);
+    return;
+  }
+
+  chaves.forEach(function(c){
+    var linha = document.createElement('div');
+    linha.className = 'chave-linha';
+
+    var esq = document.createElement('div');
+    esq.style.minWidth = '0';
+
+    var nome = document.createElement('div');
+    nome.className = 'chave-nome';
+    nome.textContent = c.nome || 'Integração';
+    if(c.revogada_em){
+      nome.style.textDecoration = 'line-through';
+      nome.style.color = 'var(--gray500)';
+    }
+    esq.appendChild(nome);
+
+    var meta = document.createElement('div');
+    meta.className = 'chave-meta';
+    var partes = [ (c.prefixo || '') + '…' ];
+    partes.push(c.escrita ? 'lê e escreve' : 'só leitura');
+    if(c.revogada_em)      partes.push('revogada em ' + dataCurtaApi(c.revogada_em));
+    else if(c.ultimo_uso)  partes.push('último uso ' + dataCurtaApi(c.ultimo_uso) + ' · ' + (c.usos || 0) + ' chamadas');
+    else                   partes.push('nunca usada');
+    meta.textContent = partes.join(' · ');
+    esq.appendChild(meta);
+
+    linha.appendChild(esq);
+
+    if(!c.revogada_em){
+      var bt = document.createElement('button');
+      bt.className = 'btn btn-secondary btn-sm';
+      bt.textContent = 'Revogar';
+      bt.onclick = function(){ revogarChaveApi(c.id, c.nome || 'Integração'); };
+      linha.appendChild(bt);
+    }
+    alvo.appendChild(linha);
+  });
+}
+
+async function revogarChaveApi(id, nome){
+  // Confirmação com o nome dentro: revogar a chave errada derruba o
+  // caixa de uma loja no meio do expediente, e não tem como desfazer.
+  if(!confirm('Revogar a chave "' + nome + '"?\n\nQualquer sistema usando ela para de funcionar na hora, e não dá para reativar.')) return;
+  try {
+    var r = await fetch(API_BASE + '/integracoes/chaves/' + id, {
+      method: 'DELETE', headers: cabecalhoAuth()
+    });
+    if(!r.ok){ alert('Não foi possível revogar agora.'); return; }
+    carregarChavesApi();
+  } catch(e){ alert('Sem conexão com o servidor.'); }
+}
+
 function carregarContatos() {
   if (!sessaoWorka || !sessaoWorka.token) return;
   var lista = document.getElementById('ct-lista');
@@ -11880,9 +12348,21 @@ function mostrarModalTrialExpirado(nome) {
 // rodava 1.5s após o carregamento da página mesmo sem sessão ativa.
 
 // Fechar sidebar clicando fora no mobile
+//
+// closest('.menu-toggle'), nao classList.contains. Este era o motivo de
+// o menu NAO ABRIR no celular — o app inteiro ficava sem navegacao.
+// O toque no botao chamava toggleSidebar() e punha 'open'; o MESMO
+// clique subia ate o document e caia aqui. A guarda olhava a classe de
+// e.target esperando o proprio botao, mas desde que os emojis viraram
+// icones SVG o alvo do toque e o <use> de dentro do <svg>, que nao tem
+// classe nenhuma. A guarda falhava, o 'open' era removido no mesmo
+// evento, e a gaveta abria e fechava sem ninguem ver. closest() sobe do
+// alvo ate o botao e cobre qualquer coisa que venha a ser posta dentro
+// dele depois.
 document.addEventListener('click',function(e){
   var sb=document.getElementById('sidebar');
-  if(window.innerWidth<=768&&sb.classList.contains('open')&&!sb.contains(e.target)&&!e.target.classList.contains('menu-toggle')){
+  var noBotao = e.target.closest && e.target.closest('.menu-toggle');
+  if(window.innerWidth<=768&&sb.classList.contains('open')&&!sb.contains(e.target)&&!noBotao){
     sb.classList.remove('open');
     var scrim = document.getElementById('sidebar-scrim');
     if(scrim) scrim.classList.remove('show');
@@ -11965,8 +12445,11 @@ window.addEventListener('DOMContentLoaded', function(){
 
 
 <!-- Convite para cadastrar Face ID. Aparece uma vez por aparelho,
-     alguns segundos depois do login, e nunca mais se for recusado. -->
-<div id="faixa-faceid" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9998;background:#0a2e1a;color:white;border-radius:14px;padding:14px 18px;box-shadow:0 8px 30px rgba(0,0,0,.3);align-items:center;gap:12px;max-width:340px;width:92%">
+     alguns segundos depois do login, e nunca mais se for recusado. 
+     Os tres convites flutuantes ficam em z-index 90, abaixo do modal
+     (100): estavam em 9998/9999 e apareciam POR CIMA da janela aberta,
+     no meio do formulario. Continuam acima do conteudo normal. -->
+<div id="faixa-faceid" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:60;background:#0a2e1a;color:white;border-radius:14px;padding:14px 18px;box-shadow:0 8px 30px rgba(0,0,0,.3);align-items:center;gap:12px;max-width:340px;width:92%">
   <svg class=ico aria-hidden=true style="width:22px;height:22px;flex-shrink:0"><use href=#i-lock></use></svg>
   <div style="flex:1">
     <div style="font-size:.82rem;font-weight:700">Entrar com Face ID</div>
@@ -11976,7 +12459,13 @@ window.addEventListener('DOMContentLoaded', function(){
   <button onclick="recusarFaceId()" aria-label="Agora não" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:1.1rem;cursor:pointer;line-height:1"><svg class=ico aria-hidden=true><use href=#i-x></use></svg></button>
 </div>
 
-<div id="pwa-install" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;background:#0a2e1a;color:white;border-radius:14px;padding:14px 20px;box-shadow:0 8px 30px rgba(0,0,0,.3);display:flex;align-items:center;gap:12px;max-width:320px;width:90%">
+<!-- O style tinha display:none E display:flex. O segundo vencia, e o
+     convite de instalar ficava colado no rodape para todo mundo, para
+     sempre — inclusive para quem ja instalou e no computador. No celular
+     tapava o fim de todas as telas e o botao "Sair da conta" do menu.
+     Fica so o display:none; quem mostra e o beforeinstallprompt, que ja
+     escrevia display=flex la embaixo. -->
+<div id="pwa-install" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:60;background:#0a2e1a;color:white;border-radius:14px;padding:14px 20px;box-shadow:0 8px 30px rgba(0,0,0,.3);align-items:center;gap:12px;max-width:320px;width:90%">
   <span style="font-size:1.5rem"><svg class=ico aria-hidden=true><use href=#i-phone></use></svg></span>
   <div style="flex:1">
     <div style="font-size:.82rem;font-weight:700">Instalar Workap</div>
@@ -11986,7 +12475,7 @@ window.addEventListener('DOMContentLoaded', function(){
   <button onclick="document.getElementById('pwa-install').style.display='none'" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:1.1rem;cursor:pointer"><svg class=ico aria-hidden=true><use href=#i-x></use></svg></button>
 </div>
 
-<div id="ios-install" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;background:#0a2e1a;color:white;border-radius:14px;padding:16px 20px;box-shadow:0 8px 30px rgba(0,0,0,.35);max-width:320px;width:90%;text-align:center">
+<div id="ios-install" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:60;background:#0a2e1a;color:white;border-radius:14px;padding:16px 20px;box-shadow:0 8px 30px rgba(0,0,0,.35);max-width:320px;width:90%;text-align:center">
   <div style="font-size:1.5rem;margin-bottom:8px"><svg class=ico aria-hidden=true><use href=#i-phone></use></svg></div>
   <div style="font-size:.85rem;font-weight:700;margin-bottom:6px">Instalar Workap no iPhone</div>
   <div style="font-size:.75rem;color:rgba(255,255,255,.7);line-height:1.6;margin-bottom:12px">

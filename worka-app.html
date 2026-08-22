@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<!--
+  ENDEREÇO ANTIGO DO APP — não apague este arquivo.
+
+  Este era o app (worka-app.html) de 29/06 a 07/08/2026, quando virou
+  app/index.html para o endereço parar de terminar em ".html". Cinco
+  semanas e meia no ar: quem recebeu o link por WhatsApp nesse período
+  tem ele salvo. Sem este arquivo, essa pessoa cai na página de erro do
+  GitHub — não numa página do Workap, na do GitHub, com a marca errada
+  e sem caminho de volta.
+
+  O GitHub Pages não faz redirecionamento de servidor (não há 301 para
+  configurar), então a única forma é esta: uma página que manda o
+  navegador embora na hora. O refresh com tempo 0 é lido pelo Google
+  como redirecionamento permanente, e o canonical diz qual é o endereço
+  bom.
+
+  O noindex aqui (e NÃO no worka.html) é de propósito: o app é área
+  logada e fica fora do Google por decisão nossa — o robots.txt já
+  bloqueia /app/. Então este endereço deve SUMIR do índice, e ao mesmo
+  tempo continuar levando a pessoa ao app. O noindex resolve o lado do
+  buscador; o refresh resolve o lado de quem clicou. Na vitrine é o
+  contrário: lá queremos que o Google leve o histórico do endereço
+  antigo para a home, então nada de noindex.
+
+  O link visível embaixo não é enfeite: se o JavaScript ou o refresh
+  falharem, ainda existe uma saída clicável em vez de tela branca.
+-->
+<meta name="robots" content="noindex">
+<meta http-equiv="refresh" content="0; url=https://workap.com.br/app/">
+<link rel="canonical" href="https://workap.com.br/app/">
+<title>Workap — este endereço mudou</title>
+<style>
+  body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#0a2e1a;color:#fff;
+       display:flex;min-height:100vh;min-height:100dvh;align-items:center;justify-content:center;
+       margin:0;padding:24px;text-align:center;line-height:1.6}
+  a{color:#3dd669;font-weight:700}
+</style>
+</head>
+<body>
+  <div>
+    <p>O endereço do Workap mudou.</p>
+    <p><a href="https://workap.com.br/app/">Abrir o Workap</a></p>
+  </div>
+</body>
+</html>
