@@ -1076,7 +1076,7 @@ function supabase(method, table, options = {}) {
     "links_pagamento",
     "chamados", "chamado_mensagens",
     "chaves_api", "movimentos_estoque", "ifood_eventos",
-    "chatbots", "chatbot_itens", "chatbot_atendimentos",
+    "chatbots", "chatbot_itens", "chatbot_atendimentos", "whatsapp_sessoes",
     "assinatura_acoes"
   ];
   // Procedimento do banco (PostgREST expõe em /rest/v1/rpc/nome).
@@ -5748,7 +5748,7 @@ function mensagensDoEventoWhatsApp(corpo) {
  * a mesma resposta duas vezes — e é a duplicata, não a demora, que faz
  * o bot parecer quebrado.
  */
-async function atenderNoWhatsApp(bot, msg) {
+async function atenderNoWhatsApp(bot, msg, enviar) {
   var itens = await DB.select("chatbot_itens",
     `chatbot_id=eq.${bot.id}&select=id,tipo,rotulo,palavras,resposta,ordem,ativo&order=ordem.asc`
   ).catch(function () { return { body: [] }; });
@@ -5782,9 +5782,433 @@ async function atenderNoWhatsApp(bot, msg) {
     throw e;
   }
 
-  marcarLidaNoWhatsApp(bot, msg.id);
-  await enviarWhatsApp(bot, msg.de, decisao.resposta);
+  // POR ONDE A RESPOSTA SAI é a única coisa que muda entre os
+  // caminhos: a Cloud API manda por HTTPS, o QR code manda pelo
+  // soquete aberto. Quem chama diz como; o resto acima — decidir,
+  // registrar, não repetir — é idêntico nos dois, e é por isso que
+  // não existem duas funções.
+  if (enviar) {
+    await enviar(msg.de, decisao.resposta);
+  } else {
+    marcarLidaNoWhatsApp(bot, msg.id);
+    await enviarWhatsApp(bot, msg.de, decisao.resposta);
+  }
   return { como: decisao.como };
+}
+
+// ════════════════════════════════════════════════════════════════
+// CONECTAR PELO QR CODE — o mesmo bot, entrando como dispositivo
+// ════════════════════════════════════════════════════════════════
+//
+// ISTO NÃO É A API OFICIAL. O servidor entra no WhatsApp como um
+// "dispositivo conectado", igualzinho ao WhatsApp Web, e isso está
+// fora dos termos de uso da Meta: o número pode ser banido, e
+// banimento de número não se reverte. Foi decisão explícita do dono,
+// ciente do risco. Os dois caminhos oficiais continuam ao lado, e a
+// tela diz qual é qual.
+//
+// O QUE MUDA no resto do sistema: nada. decidirRespostaChatbot()
+// continua sendo a mesma função pura, o menu é o mesmo, os
+// atendimentos vão para a mesma tabela. Só o cano é outro — em vez de
+// webhook e Graph API, um soquete aberto que fala pelos dois lados.
+//
+// A BIBLIOTECA É CARREGADA SÓ QUANDO ALGUÉM USA. Ela é grande e o
+// import é dinâmico de propósito: um backend sem ela instalada precisa
+// continuar subindo e servindo todo o resto, respondendo "não
+// disponível" só nestas rotas. Fosse `require` no topo, uma
+// dependência faltando derrubaria o Workap inteiro.
+var baileysCarregado = null;
+function carregarBaileys() {
+  if (!baileysCarregado) {
+    baileysCarregado = import("@whiskeysockets/baileys").catch(function (e) {
+      baileysCarregado = null;  // deixa tentar de novo depois
+      throw new Error("A biblioteca do WhatsApp Web não está instalada neste servidor: " + e.message);
+    });
+  }
+  return baileysCarregado;
+}
+
+// Os soquetes vivos deste processo, por chatbot_id. Some quando o
+// processo reinicia — e é por isso que o estado mora no banco: na
+// volta, restaurarSessoesDoWhatsApp() reabre tudo sem pedir QR de novo.
+var soquetesAbertos = new Map();
+
+/**
+ * A "pasta" de credenciais do Baileys, em cima do banco.
+ *
+ * A biblioteca oferece useMultiFileAuthState, que grava um arquivo por
+ * chave num diretório. Não serve aqui por dois motivos: o disco do
+ * Render é descartado a cada deploy — e a sessão junto —, e são
+ * dezenas de chaves lidas e escritas por mensagem recebida.
+ *
+ * Então tudo vira UM objeto, gravado com atraso: várias escritas
+ * seguidas viram uma só requisição. O BufferJSON é obrigatório porque
+ * metade dos valores são Buffers, e JSON puro os transformaria em
+ * objetos inúteis que a biblioteca não reconhece na volta.
+ */
+async function estadoDeAutenticacaoNoBanco(sessao, bail) {
+  var guardado = null;
+  if (sessao.estado) {
+    try {
+      guardado = JSON.parse(JSON.stringify(sessao.estado), bail.BufferJSON.reviver);
+    } catch (e) {
+      secLog("whatsapp_qr_estado_ilegivel", { sessao: sessao.id, message: e.message });
+    }
+  }
+
+  var creds = (guardado && guardado.creds) || bail.initAuthCreds();
+  var chaves = (guardado && guardado.chaves) || {};
+
+  var gravacaoPendente = null;
+  function gravarDepois() {
+    // 400ms: o suficiente para juntar a rajada de escritas que uma
+    // mensagem provoca, e curto o bastante para não perder a sessão
+    // se o processo cair logo em seguida.
+    if (gravacaoPendente) clearTimeout(gravacaoPendente);
+    gravacaoPendente = setTimeout(function () {
+      gravacaoPendente = null;
+      var texto = JSON.stringify({ creds: creds, chaves: chaves }, bail.BufferJSON.replacer);
+      DB.update("whatsapp_sessoes", "id=eq." + sessao.id, {
+        estado: JSON.parse(texto),
+        atualizado_em: new Date().toISOString()
+      }).catch(function (e) {
+        secLog("whatsapp_qr_estado_nao_gravou", { sessao: sessao.id, message: e.message });
+      });
+    }, 400);
+  }
+
+  return {
+    estado: {
+      creds: creds,
+      keys: {
+        get: function (tipo, ids) {
+          var saida = {};
+          ids.forEach(function (id) {
+            var valor = (chaves[tipo] || {})[id];
+            // A biblioteca guarda esta categoria como mensagem
+            // protobuf, e devolvê-la como objeto cru faz a
+            // sincronização de estado falhar sem dizer por quê.
+            if (tipo === "app-state-sync-key" && valor) {
+              valor = bail.proto.Message.AppStateSyncKeyData.fromObject(valor);
+            }
+            saida[id] = valor;
+          });
+          return saida;
+        },
+        set: function (dados) {
+          for (var categoria in dados) {
+            chaves[categoria] = chaves[categoria] || {};
+            for (var id in dados[categoria]) {
+              var v = dados[categoria][id];
+              if (v) chaves[categoria][id] = v;
+              else delete chaves[categoria][id];
+            }
+          }
+          gravarDepois();
+        }
+      }
+    },
+    salvarCreds: gravarDepois
+  };
+}
+
+/** A linha de sessão do bot, criada na primeira vez. */
+async function sessaoDoBot(bot) {
+  var achado = await DB.select("whatsapp_sessoes",
+    "chatbot_id=eq." + bot.id + "&select=*&limit=1");
+  if (achado.body && achado.body[0]) return achado.body[0];
+
+  var nova = await DB.insert("whatsapp_sessoes", {
+    chatbot_id: bot.id,
+    empresa_id: bot.empresa_id || undefined,
+    status: "desconectado"
+  });
+  return nova.body && nova.body[0];
+}
+
+function anotarNaSessao(sessaoId, campos) {
+  campos.atualizado_em = new Date().toISOString();
+  return DB.update("whatsapp_sessoes", "id=eq." + sessaoId, campos)
+    .catch(function (e) {
+      secLog("whatsapp_qr_sessao_nao_gravou", { sessao: sessaoId, message: e.message });
+    });
+}
+
+/**
+ * O texto que a pessoa escreveu, seja lá em que formato veio.
+ *
+ * O WhatsApp Web entrega a mensagem em uma de várias caixas conforme
+ * o tipo, e as três primeiras cobrem quase tudo que um cliente manda.
+ * Áudio, foto e figurinha devolvem null de propósito — o bot não lê
+ * nenhum dos três, e o fallback é mais honesto que fingir que leu.
+ */
+function textoDaMensagemDoSoquete(m) {
+  var msg = m && m.message;
+  if (!msg) return null;
+  if (msg.conversation) return msg.conversation;
+  if (msg.extendedTextMessage && msg.extendedTextMessage.text) return msg.extendedTextMessage.text;
+  // Resposta a um botão ou a uma lista: o que vale é o texto que a
+  // pessoa viu e tocou.
+  if (msg.buttonsResponseMessage) return msg.buttonsResponseMessage.selectedDisplayText || null;
+  if (msg.listResponseMessage) {
+    return (msg.listResponseMessage.title ||
+            (msg.listResponseMessage.singleSelectReply || {}).selectedRowId || null);
+  }
+  return null;
+}
+
+/**
+ * Abre (ou reabre) a sessão de um bot.
+ *
+ * Devolve assim que o soquete existe — não espera conectar. Quem
+ * espera é a tela, perguntando o estado: conectar leva de segundos a
+ * o tempo que a pessoa levar para pegar o celular, e segurar a
+ * requisição até lá daria tempo esgotado em toda tentativa.
+ */
+async function abrirSessaoDoWhatsApp(bot) {
+  if (soquetesAbertos.has(bot.id)) return soquetesAbertos.get(bot.id);
+
+  var bail = await carregarBaileys();
+  var fazerSoquete = bail.default || bail.makeWASocket;
+  var sessao = await sessaoDoBot(bot);
+  var auth = await estadoDeAutenticacaoNoBanco(sessao, bail);
+
+  var sock = fazerSoquete({
+    auth: auth.estado,
+    // Sem isto a biblioteca despeja o QR em ASCII no console a cada
+    // 20 segundos. Quem mostra o QR é a tela.
+    printQRInTerminal: false,
+    // O nome que aparece na lista de dispositivos conectados do
+    // celular. É por ele que o dono reconhece o que autorizou — e
+    // desliga, se quiser.
+    browser: ["Workap", "Chrome", "1.0.0"],
+    // Marcar-se como online faria o WhatsApp parar de entregar
+    // notificação no celular do dono enquanto o bot estiver de pé.
+    markOnlineOnConnect: false,
+    syncFullHistory: false,
+    logger: registroSilenciosoDoBaileys()
+  });
+
+  var vivo = { sock: sock, bot: bot, sessaoId: sessao.id, fechando: false };
+  soquetesAbertos.set(bot.id, vivo);
+
+  sock.ev.on("creds.update", auth.salvarCreds);
+
+  sock.ev.on("connection.update", async function (u) {
+    try {
+      if (u.qr) {
+        // O QR vale uns 20 segundos e a biblioteca gera outro sozinha.
+        // Guardar sempre o mais novo é o que faz a tela mostrar um
+        // código que ainda funciona.
+        await anotarNaSessao(sessao.id, {
+          qr: u.qr, qr_em: new Date().toISOString(), status: "aguardando_qr"
+        });
+      }
+
+      if (u.connection === "open") {
+        var numero = ((sock.user || {}).id || "").split(":")[0].split("@")[0];
+        await anotarNaSessao(sessao.id, {
+          status: "conectado", qr: null, qr_em: null,
+          numero: numero || null, conectado_em: new Date().toISOString()
+        });
+        await DB.update("chatbots", "id=eq." + bot.id, {
+          wa_origem: "qr",
+          wa_numero: numero || null,
+          wa_conectado_em: new Date().toISOString(),
+          canal: bot.canal === "ambos" ? "ambos" : "whatsapp"
+        }).catch(function () {});
+        secLog("whatsapp_qr_conectado", { chatbot_id: bot.id });
+      }
+
+      if (u.connection === "close") {
+        soquetesAbertos.delete(bot.id);
+        if (vivo.fechando) return;
+
+        var codigo = ((u.lastDisconnect || {}).error || {}).output;
+        codigo = (codigo && codigo.statusCode) || 0;
+
+        // Sessão encerrada NO CELULAR (a pessoa removeu o dispositivo)
+        // ou derrubada pelo WhatsApp. Reconectar aqui seria bater na
+        // porta para sempre com uma credencial que já não vale —
+        // apagar o estado e pedir QR de novo é o único caminho.
+        if (codigo === bail.DisconnectReason.loggedOut || codigo === 401 || codigo === 403) {
+          await anotarNaSessao(sessao.id, {
+            status: codigo === 403 ? "banido" : "desconectado",
+            estado: null, qr: null, numero: null, conectado_em: null
+          });
+          secLog("whatsapp_qr_encerrado", { chatbot_id: bot.id, codigo: codigo });
+          return;
+        }
+
+        // Queda de rede, reinício do lado deles, troca de servidor:
+        // reabre. Espera antes para não virar um laço apertado quando
+        // o WhatsApp estiver fora do ar.
+        await anotarNaSessao(sessao.id, { status: "conectando" });
+        setTimeout(function () {
+          abrirSessaoDoWhatsApp(bot).catch(function (e) {
+            secLog("whatsapp_qr_reconexao_falhou", { chatbot_id: bot.id, message: e.message });
+          });
+        }, 4000);
+      }
+    } catch (e) {
+      secLog("whatsapp_qr_evento_falhou", { chatbot_id: bot.id, message: e.message });
+    }
+  });
+
+  sock.ev.on("messages.upsert", async function (pacote) {
+    if (pacote.type !== "notify") return;
+
+    for (var i = 0; i < (pacote.messages || []).length; i++) {
+      var m = pacote.messages[i];
+      try {
+        if (!m || !m.key || m.key.fromMe) continue;
+        var de = m.key.remoteJid || "";
+        // Grupo, status e transmissão ficam de fora: um bot que
+        // responde dentro de grupo vira o motivo pelo qual as pessoas
+        // saem do grupo — e no status não há a quem responder.
+        if (!de.endsWith("@s.whatsapp.net")) continue;
+
+        await atenderPeloSoquete(vivo, m, de);
+      } catch (e) {
+        secLog("whatsapp_qr_mensagem_falhou", { chatbot_id: bot.id, message: e.message });
+      }
+    }
+  });
+
+  return vivo;
+}
+
+/**
+ * Uma mensagem que chegou pelo soquete.
+ *
+ * Passa pelo MESMO atenderNoWhatsApp da Cloud API — o que muda é só a
+ * função de enviar, no último argumento. Decidir a resposta, registrar
+ * o atendimento e não responder duas vezes continuam sendo um código
+ * só para os dois caminhos.
+ */
+async function atenderPeloSoquete(vivo, m, de) {
+  // Relê o bot a cada mensagem: o dono pode ter desligado, trocado o
+  // menu ou perdido o plano desde que o soquete abriu, e um bot em
+  // memória continuaria respondendo com a configuração antiga.
+  var atual = await DB.select("chatbots", "id=eq." + vivo.bot.id + "&select=*&limit=1")
+    .catch(function () { return { body: [] }; });
+  var bot = atual.body && atual.body[0];
+  if (!bot || !bot.ativo) return;
+  if (bot.canal !== "whatsapp" && bot.canal !== "ambos") return;
+
+  // Mesma porta do webhook oficial: quem cancelou o Master não segue
+  // atendendo só porque o soquete ficou aberto. O bot da plataforma
+  // não passa por aqui — a Workap não assina o próprio plano.
+  if (bot.escopo !== "plataforma") {
+    var emp = await DB.select("empresas", "id=eq." + bot.empresa_id + "&select=plano,status&limit=1")
+      .catch(function () { return { body: [] }; });
+    var dono = emp.body && emp.body[0];
+    if (!dono || !planoTemChatbot(dono.plano)) return;
+    if (dono.status !== "ativa" && dono.status !== "trial") return;
+  }
+
+  var numero = de.split("@")[0];
+  await atenderNoWhatsApp(bot, {
+    id:    m.key.id,
+    de:    numero,
+    nome:  m.pushName || null,
+    tipo:  Object.keys(m.message || {})[0] || "mensagem",
+    texto: textoDaMensagemDoSoquete(m)
+  }, async function (_para, resposta) {
+    await vivo.sock.sendMessage(de, { text: String(resposta).slice(0, 4000) });
+  });
+}
+
+/** Fecha o soquete sem apagar a sessão: reabre depois sem pedir QR. */
+async function fecharSessaoDoWhatsApp(chatbotId) {
+  var vivo = soquetesAbertos.get(chatbotId);
+  if (!vivo) return;
+  vivo.fechando = true;
+  soquetesAbertos.delete(chatbotId);
+  try { vivo.sock.end(undefined); } catch (e) {}
+}
+
+/**
+ * Sai de verdade: remove o Workap dos dispositivos conectados do
+ * celular e joga fora a credencial. Reconectar exige QR novo.
+ */
+async function sairDoWhatsApp(bot) {
+  var vivo = soquetesAbertos.get(bot.id);
+  if (vivo) {
+    vivo.fechando = true;
+    soquetesAbertos.delete(bot.id);
+    // logout() avisa o celular; se falhar (soquete já caído), apagar o
+    // estado aqui ainda resolve do nosso lado.
+    try { await vivo.sock.logout(); } catch (e) {}
+    try { vivo.sock.end(undefined); } catch (e) {}
+  }
+  var sessao = await sessaoDoBot(bot);
+  await anotarNaSessao(sessao.id, {
+    status: "desconectado", estado: null, qr: null, qr_em: null,
+    numero: null, conectado_em: null
+  });
+}
+
+/**
+ * Reabre, no arranque, as sessões que estavam de pé.
+ *
+ * Sem isto, todo deploy exigiria que cada cliente lesse o QR de novo —
+ * e o Render reinicia sozinho. As credenciais estão no banco
+ * exatamente para isso.
+ */
+async function restaurarSessoesDoWhatsApp() {
+  try {
+    var abertas = await DB.select("whatsapp_sessoes",
+      "status=eq.conectado&select=chatbot_id&limit=200");
+    var ids = (abertas.body || []).map(function (s) { return s.chatbot_id; });
+    if (!ids.length) return;
+
+    var bots = await DB.select("chatbots",
+      "id=in.(" + ids.join(",") + ")&select=*");
+
+    for (var i = 0; i < (bots.body || []).length; i++) {
+      var bot = bots.body[i];
+      if (!bot.ativo) continue;
+      // Uma de cada vez, com folga entre elas: abrir dez soquetes no
+      // mesmo instante é o tipo de padrão que o WhatsApp trata como
+      // automação e responde com bloqueio.
+      await abrirSessaoDoWhatsApp(bot).catch(function (e) {
+        secLog("whatsapp_qr_restauracao_falhou", { chatbot_id: bot.id, message: e.message });
+      });
+      await new Promise(function (r) { setTimeout(r, 1500); });
+    }
+    secLog("whatsapp_qr_restauradas", { quantas: ids.length });
+  } catch (e) {
+    secLog("whatsapp_qr_restauracao_geral_falhou", { message: e.message });
+  }
+}
+
+/**
+ * O QR como imagem pronta para a tela.
+ *
+ * Desenhar no navegador exigiria uma biblioteca vinda de fora, e a
+ * política de segurança da página bloqueia script de terceiro — o que
+ * é bom e não vou afrouxar por causa de um quadradinho. Sai daqui como
+ * data URL, que a tag <img> entende sem pedir nada a ninguém.
+ */
+async function gerarImagemDoQr(texto) {
+  var qr = await import("qrcode");
+  var api = qr.default || qr;
+  return api.toDataURL(texto, { margin: 1, width: 320, errorCorrectionLevel: "L" });
+}
+
+/**
+ * A biblioteca exige um objeto de log com esta forma exata.
+ *
+ * Silencioso porque ela é falante demais — despeja cada pacote do
+ * protocolo — e porque nesses pacotes andam chaves de sessão, que não
+ * podem parar num log de produção.
+ */
+function registroSilenciosoDoBaileys() {
+  var nada = function () {};
+  var obj = { level: "silent", trace: nada, debug: nada, info: nada, warn: nada, error: nada, fatal: nada };
+  obj.child = function () { return obj; };
+  return obj;
 }
 
 /**
@@ -6108,6 +6532,70 @@ async function rotasDoChatbot(req, res, ctx) {
       });
       return jsonErr(res, "Não deu para concluir a conexão: " + eEs.message, 502);
     }
+  }
+
+  // ── WhatsApp: conectar lendo o QR CODE ──
+  //
+  // Caminho NÃO oficial: o servidor entra como dispositivo conectado,
+  // igual ao WhatsApp Web. Ver o cabeçalho da migração 035 e o aviso
+  // que a tela mostra antes do botão.
+  if (method === "POST" && resto === "/whatsapp/qr") {
+    var botQr = await botDaEmpresa();
+    try {
+      await abrirSessaoDoWhatsApp(botQr);
+      // Devolve JÁ. O QR leva um instante para nascer e a tela busca
+      // logo em seguida — segurar aqui daria tempo esgotado sempre.
+      secLog("whatsapp_qr_iniciado", ctx.paraOLog);
+      return jsonOk(res, { ok: true });
+    } catch (eQr) {
+      registrarErro("whatsapp", eQr.message, {
+        rota: ctx.prefixo + "/whatsapp/qr", metodo: "POST", empresa_id: ctx.empresa_id
+      });
+      return jsonErr(res, eQr.message, 503);
+    }
+  }
+
+  // O estado da conexão, que a tela pergunta de tempos em tempos
+  // enquanto o QR está na frente da pessoa.
+  if (method === "GET" && resto === "/whatsapp/qr") {
+    var botEstado = await botDaEmpresa();
+    if (!botEstado.id) return jsonOk(res, { status: "desconectado" });
+
+    var linhaQr = await DB.select("whatsapp_sessoes",
+      "chatbot_id=eq." + botEstado.id + "&select=status,qr,qr_em,numero,conectado_em&limit=1"
+    ).catch(function () { return { body: [] }; });
+    var ses = (linhaQr.body && linhaQr.body[0]) || { status: "desconectado" };
+
+    // O QR vai como IMAGEM pronta. Mandar o texto cru obrigaria a tela
+    // a carregar uma biblioteca de desenho de fora, que a política de
+    // segurança da página bloqueia — e com razão.
+    var imagem = null;
+    if (ses.qr) {
+      imagem = await gerarImagemDoQr(ses.qr).catch(function () { return null; });
+    }
+
+    return jsonOk(res, {
+      status:  ses.status || "desconectado",
+      qr:      imagem,
+      numero:  ses.numero || null,
+      // Quantos segundos este código ainda vale, para a tela avisar em
+      // vez de deixar a pessoa mirando um QR morto.
+      expira_em: ses.qr_em
+        ? Math.max(0, 60 - Math.floor((Date.now() - new Date(ses.qr_em).getTime()) / 1000))
+        : null
+    });
+  }
+
+  // Sair da lista de dispositivos conectados do celular.
+  if (method === "POST" && resto === "/whatsapp/qr/sair") {
+    var botSair = await botDaEmpresa();
+    if (!botSair.id) return jsonOk(res, { ok: true });
+    await sairDoWhatsApp(botSair);
+    await DB.update("chatbots", "id=eq." + botSair.id, {
+      wa_origem: "manual", wa_numero: null, wa_conectado_em: null, canal: "interno"
+    }).catch(function () {});
+    secLog("whatsapp_qr_saiu", ctx.paraOLog);
+    return jsonOk(res, { ok: true });
   }
 
   // ── WhatsApp: desligar ──
@@ -13274,6 +13762,19 @@ var server = http.createServer(async (req, res) => {
 
 server.listen(CONFIG.PORT, () => {
   secLog("server_start", { port: CONFIG.PORT, env: process.env.NODE_ENV || "development" });
+
+  // Reabre as conexões de WhatsApp Web que estavam de pé antes deste
+  // arranque. Sem isto, todo deploy — e o Render reinicia sozinho —
+  // exigiria que cada cliente lesse o QR de novo.
+  //
+  // Com atraso e sem esperar: é trabalho de rede que não tem nada a
+  // ver com atender a primeira requisição, e falhar aqui não pode
+  // impedir o servidor de subir.
+  setTimeout(function () {
+    if (typeof restaurarSessoesDoWhatsApp === "function") {
+      restaurarSessoesDoWhatsApp().catch(function () {});
+    }
+  }, 5000);
 
   // Este aviso existe porque a falha é silenciosa e cara: o sistema sobe
   // inteiro, responde tudo, e só o cadastro de cliente novo não funciona
