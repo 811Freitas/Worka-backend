@@ -9,6 +9,12 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v44: o chatbot do Master passou a atender no WhatsApp da empresa, e
+//      o cupom voltou a descontar de verdade — ele era validado, o
+//      resumo mostrava o desconto e a cobranca saia pelo preco cheio,
+//      porque o codigo nunca era enviado ao servidor. A tela de
+//      pagamento tambem passou a abrir com os dados ja preenchidos.
+//
 // v43: o painel Owner ganhou as duas acoes que faltavam na assinatura
 // — liberar quem pagou e o gateway nao confirmou, e reembolsar
 // cortando o acesso na hora, com motivo obrigatorio e historico. E o
@@ -99,7 +105,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v43';
+var CACHE = 'workap-v44';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';

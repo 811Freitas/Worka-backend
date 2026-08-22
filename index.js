@@ -90,6 +90,18 @@ const CONFIG = {
   IFOOD_CLIENT_SECRET:   env("IFOOD_CLIENT_SECRET"),
   IFOOD_API:             env("IFOOD_API") || "https://merchant-api.ifood.com.br",
 
+  // WhatsApp (Cloud API da Meta). Ao contrário do iFood, aqui NÃO há
+  // credencial da Workap: o número é da empresa cliente, o token é do
+  // usuário de sistema DELA, e é o número dela que aparece para o
+  // cliente final. Por isso as credenciais moram numa coluna por
+  // empresa (ver migração 032) e não em variável de ambiente.
+  //
+  // O que fica aqui é só o endereço da API. A versão vai no caminho
+  // porque a Meta versiona assim, e travar a versão é o que impede um
+  // bot que funciona hoje de parar sozinho quando eles publicarem a
+  // próxima.
+  WHATSAPP_API:          env("WHATSAPP_API") || "https://graph.facebook.com/v21.0",
+
   // Para onde o gateway devolve o cliente depois do pagamento.
   SITE_URL:              env("SITE_URL") || "https://workap.com.br",
 
@@ -301,6 +313,12 @@ var RATE_LIMITS = {
   // 60/10min ainda cobre folgado o cadastro em lote de um estoque
   // inteiro, que é feito uma vez.
   "/validade":       { max: 60,  window: 10 * 60 * 1000 },
+  // Webhook do WhatsApp. Limite alto, e não isento como o do gateway:
+  // um número movimentado manda muita mensagem em rajada, mas o
+  // endereço é público e cada requisição custa uma consulta ao banco
+  // antes de a assinatura ser conferida. 600/min cobre com folga o
+  // movimento de uma empresa e ainda fecha a porta para varredura.
+  "/webhook/whatsapp": { max: 600, window: 60 * 1000 },
   "default":         { max: 100, window: 60 * 1000 }       // 100/min geral
 };
 
@@ -2994,6 +3012,86 @@ function urlDaCobrancaCakto(resposta) {
   return idOferta ? "https://pay.cakto.com.br/" + idOferta : null;
 }
 
+/**
+ * Só os dígitos de um documento, e só quando é um CPF.
+ *
+ * O checkout da Cakto tem UM campo de documento e o parâmetro que o
+ * preenche chama `cpf`. CNPJ tem 14 dígitos e não passa na validação
+ * desse campo — e um campo pré-preenchido com um valor recusado é pior
+ * que um campo vazio: a pessoa não escreveu aquilo, não sabe por que
+ * está errado, e o formulário não deixa seguir. Quem é CNPJ digita o
+ * documento lá; todo o resto continua vindo preenchido.
+ */
+function cpfParaOGateway(documento) {
+  var so = String(documento || "").replace(/\D/g, "");
+  return so.length === 11 ? so : null;
+}
+
+/**
+ * Telefone no formato que a Cakto espera: DDI junto, só dígitos.
+ *
+ * A documentação deles é explícita — "é obrigatório incluir o código de
+ * país +55". Sem ele o campo entra com um número a menos do que o
+ * validador conta, e o cliente vê um erro num campo que ele não
+ * preencheu.
+ */
+function telefoneParaOGateway(telefone) {
+  var so = String(telefone || "").replace(/\D/g, "");
+  // Já veio com DDI (55 + DDD + 8 ou 9 dígitos).
+  if (so.length === 12 || so.length === 13) {
+    return so.indexOf("55") === 0 ? so : null;
+  }
+  // DDD + número, que é como o site pede e grava.
+  if (so.length === 10 || so.length === 11) return "55" + so;
+  return null;
+}
+
+/**
+ * Pendura no link do gateway o que a pessoa JÁ digitou no Workap.
+ *
+ * O checkout é do Workap: nome, documento, e-mail e telefone são
+ * pedidos na nossa tela, com a nossa marca, e ficam gravados na conta
+ * antes de qualquer redirecionamento. Sem isto, a última tela pedia
+ * tudo de novo — o cliente digitava os mesmos quatro campos duas vezes
+ * seguidas, e é exatamente aí que ele desiste.
+ *
+ * A Cakto documenta estes nomes de parâmetro para o checkout
+ * pré-preenchido: name, email, confirmEmail, cpf, phone.
+ *
+ * O que NÃO dá para fazer, e o motivo de a última tela ainda ser deles:
+ * a API pública da Cakto tem produtos, ofertas, pedidos e webhooks —
+ * não existe endpoint que crie uma cobrança, devolva um QR code de Pix
+ * ou tokenize um cartão. Sem isso, receber o cartão no servidor do
+ * Workap jogaria o projeto inteiro dentro do escopo PCI-DSS para
+ * depois ter que reenviar o dado a alguém que aceite processá-lo.
+ * Trocar de gateway é o que muda essa etapa, não mais código aqui.
+ */
+function urlComOsDadosDoCliente(link, cliente) {
+  if (!link || !cliente) return link;
+
+  var partes = [];
+  function junta(chave, valor) {
+    if (!valor) return;
+    partes.push(encodeURIComponent(chave) + "=" + encodeURIComponent(valor));
+  }
+
+  var nome = SANITIZE.string(cliente.nome || "", 120);
+  junta("name", nome);
+
+  var email = cliente.email ? SANITIZE.email(cliente.email) : null;
+  junta("email", email);
+  // confirmEmail existe no formulário deles e é obrigatório. Preencher
+  // só o primeiro deixaria a pessoa digitando o e-mail de novo para
+  // conferir um campo que ela não escreveu.
+  junta("confirmEmail", email);
+
+  junta("cpf", cpfParaOGateway(cliente.documento));
+  junta("phone", telefoneParaOGateway(cliente.telefone));
+
+  if (!partes.length) return link;
+  return link + (link.indexOf("?") >= 0 ? "&" : "?") + partes.join("&");
+}
+
 // Procura o id da oferta padrão em qualquer profundidade.
 function idDaOfertaCakto(resposta) {
   if (!resposta || typeof resposta !== "object") return null;
@@ -5248,6 +5346,12 @@ async function responderChatbot(empresaId, plano, textoPessoa) {
     var bot = achado.body && achado.body[0];
     if (!bot || !bot.ativo) return null;
 
+    // O canal manda. Uma empresa que mudou o bot para atender no
+    // WhatsApp não quer ele respondendo também no chat da equipe — e
+    // sem esta linha ele responderia nos dois, porque este caminho é
+    // anterior ao WhatsApp e nunca precisou perguntar.
+    if (bot.canal !== "interno" && bot.canal !== "ambos") return null;
+
     var itensBot = await DB.select("chatbot_itens",
       `chatbot_id=eq.${bot.id}&select=id,tipo,rotulo,palavras,resposta,ordem,ativo&order=ordem.asc`
     ).catch(function () { return { body: [] }; });
@@ -5258,6 +5362,293 @@ async function responderChatbot(empresaId, plano, textoPessoa) {
     secLog("chatbot_falhou", { empresa_id: empresaId, message: e.message });
     return null;
   }
+}
+
+// ════════════════════════════════════════
+// O MESMO CHATBOT, NO WHATSAPP
+// ════════════════════════════════════════
+//
+// O motor de decisão não muda uma linha. decidirRespostaChatbot() já
+// era uma função pura — recebe o bot, os itens e o texto, devolve a
+// resposta — e é exatamente isso que permite ligar um canal novo sem
+// reescrever nada: o WhatsApp entra como mais uma porta para a mesma
+// função, e o dono configura menu e gatilhos uma vez só.
+//
+// POR QUE A CLOUD API DA META, e não uma biblioteca que abre o
+// WhatsApp Web por baixo dos panos: as bibliotecas do tipo
+// whatsapp-web.js e Baileys funcionam, e ferem os termos de uso do
+// WhatsApp. O número do cliente é o ativo dele — banir o número da
+// padaria para economizar a homologação da Meta é caro do jeito que
+// não dá para desfazer. Num produto que se vende, esse caminho não
+// existe.
+//
+// O QUE O DONO PRECISA TER (e não dá para o código resolver por ele):
+// conta no Meta Business, negócio verificado, um aplicativo com o
+// produto WhatsApp, um número registrado na Cloud API e um token
+// permanente de usuário de sistema. A tela de Integrações explica
+// isso passo a passo e diz onde cada valor é colado.
+
+/**
+ * Uma requisição à Graph API da Meta.
+ *
+ * Mesma forma de pedirAoIfood, e pelo mesmo motivo: sem framework, o
+ * https.request cru é o que existe — e um lugar só para ele evita que
+ * cada chamada esqueça um pedaço (timeout, Content-Length, parse).
+ */
+function pedirAoWhatsApp(caminho, metodo, corpo, token) {
+  return new Promise(function (resolve, reject) {
+    var alvo = new URL(CONFIG.WHATSAPP_API);
+    var texto = corpo ? JSON.stringify(corpo) : null;
+
+    var cabecalhos = {
+      "Accept": "application/json",
+      "Authorization": "Bearer " + token
+    };
+    if (texto) {
+      cabecalhos["Content-Type"]   = "application/json";
+      cabecalhos["Content-Length"] = Buffer.byteLength(texto);
+    }
+
+    var req = https.request({
+      hostname: alvo.hostname,
+      port: alvo.port || 443,
+      // O caminho da API já traz a versão (/v21.0). Concatenar aqui
+      // mantém a versão num lugar só — CONFIG.WHATSAPP_API.
+      path: alvo.pathname.replace(/\/$/, "") + caminho,
+      method: metodo,
+      headers: cabecalhos,
+      timeout: 8000
+    }, function (res) {
+      var cru = "";
+      res.on("data", function (c) { cru += c; });
+      res.on("end", function () {
+        var json = null;
+        try { json = JSON.parse(cru || "null"); } catch (e) {}
+        resolve({ status: res.statusCode, corpo: json, cru: cru.slice(0, 400) });
+      });
+    });
+    // Sem timeout, uma Graph API lenta seguraria o webhook até a Meta
+    // desistir e reenviar o evento — e o cliente receberia a resposta
+    // em duplicata.
+    req.on("timeout", function () { req.destroy(new Error("WhatsApp demorou demais")); });
+    req.on("error", reject);
+    if (texto) req.write(texto);
+    req.end();
+  });
+}
+
+/**
+ * Manda uma mensagem de texto pelo número da empresa.
+ *
+ * Sempre RESPONDENDO a quem escreveu primeiro: por isso não há
+ * template aqui. A Meta exige template aprovado para iniciar conversa,
+ * mas texto livre vale nas 24 horas seguintes à última mensagem da
+ * pessoa — e este bot só fala depois de ser chamado.
+ */
+async function enviarWhatsApp(bot, para, texto) {
+  if (!bot || !bot.wa_phone_number_id || !bot.wa_token) {
+    throw new Error("WhatsApp não conectado nesta conta.");
+  }
+
+  var r = await pedirAoWhatsApp(
+    "/" + encodeURIComponent(bot.wa_phone_number_id) + "/messages",
+    "POST",
+    {
+      messaging_product: "whatsapp",
+      to: String(para),
+      type: "text",
+      // preview_url falso: uma resposta que cita um link não deve
+      // virar um cartão de pré-visualização gigante no celular de
+      // quem só perguntou o horário.
+      text: { preview_url: false, body: String(texto).slice(0, 4000) }
+    },
+    bot.wa_token
+  );
+
+  if (r.status >= 400) {
+    var motivo = (r.corpo && r.corpo.error && r.corpo.error.message) || r.cru || ("HTTP " + r.status);
+    var err = new Error(motivo);
+    err.status = r.status;
+    throw err;
+  }
+  return r.corpo;
+}
+
+/**
+ * Marca a mensagem como lida (os dois tiques azuis).
+ *
+ * Melhor esforço, e de propósito: se falhar, a resposta do bot já foi
+ * ou vai do mesmo jeito. É sinal de vida para quem está do outro lado
+ * esperando, não parte do atendimento.
+ */
+function marcarLidaNoWhatsApp(bot, messageId) {
+  if (!messageId) return;
+  pedirAoWhatsApp(
+    "/" + encodeURIComponent(bot.wa_phone_number_id) + "/messages", "POST",
+    { messaging_product: "whatsapp", status: "read", message_id: messageId },
+    bot.wa_token
+  ).catch(function () {});
+}
+
+/**
+ * A assinatura que a Meta põe em todo webhook.
+ *
+ * Sem conferir isto, o endereço é uma caixa de entrada aberta: qualquer
+ * um que descubra a URL manda uma mensagem falsa e o bot responde para
+ * um número escolhido por ele — usando o número e a cota da empresa.
+ *
+ * O segredo é o App Secret do aplicativo da Meta, e o cálculo é sobre
+ * o corpo CRU. Recalcular a partir do objeto já parseado daria outro
+ * texto (ordem de chaves, espaços) e nenhuma assinatura bateria.
+ */
+function assinaturaWhatsAppValida(corpoCru, cabecalhos, appSecret) {
+  if (!appSecret) return false;
+
+  var recebida = String(cabecalhos["x-hub-signature-256"] || "").trim();
+  // Vem como "sha256=<hex>". Sem o prefixo não é o cabeçalho deles.
+  if (recebida.indexOf("sha256=") !== 0) return false;
+  recebida = recebida.slice(7).toLowerCase();
+
+  var esperada = crypto
+    .createHmac("sha256", appSecret)
+    .update(corpoCru, "utf8")
+    .digest("hex");
+
+  var a = Buffer.from(recebida, "utf8");
+  var b = Buffer.from(esperada, "utf8");
+  if (a.length !== b.length) return false;
+  try {
+    return crypto.timingSafeEqual(a, b);
+  } catch (e) {
+    return false;
+  }
+}
+
+/** O segredo que o dono cola no campo "Token de verificação" da Meta. */
+function gerarVerifyTokenWhatsApp() {
+  return "wk_" + crypto.randomBytes(18).toString("hex");
+}
+
+/**
+ * O texto que a pessoa mandou, seja lá em que formato.
+ *
+ * Texto puro é o caso comum. Mas quem responde tocando num botão ou
+ * escolhendo de uma lista manda `interactive`, e o que importa ali é o
+ * TÍTULO — é o que o menu numerado do bot espera receber. Ignorar
+ * esses casos faria o bot responder "não entendi" a quem clicou
+ * exatamente no que ele ofereceu.
+ *
+ * Áudio, foto e documento devolvem null de propósito: o bot não sabe
+ * ler nenhum dos três, e responder o fallback é mais honesto que
+ * fingir que leu.
+ */
+function textoDaMensagemWhatsApp(msg) {
+  if (!msg || typeof msg !== "object") return null;
+
+  if (msg.type === "text" && msg.text) return msg.text.body || null;
+
+  if (msg.type === "interactive" && msg.interactive) {
+    var i = msg.interactive;
+    if (i.button_reply) return i.button_reply.title || i.button_reply.id || null;
+    if (i.list_reply)   return i.list_reply.title   || i.list_reply.id   || null;
+  }
+
+  // Botão de template respondido (formato antigo, ainda em uso).
+  if (msg.type === "button" && msg.button) return msg.button.text || null;
+
+  return null;
+}
+
+/**
+ * Desmonta o envelope do webhook e devolve o que interessa.
+ *
+ * O formato da Meta é aninhado — entry[] → changes[] → value → messages[]
+ * — e o mesmo POST pode trazer mensagens e avisos de entrega juntos.
+ * Só o campo "messages" vira atendimento; "statuses" (entregue, lida) é
+ * ruído para este bot e é descartado aqui, não lá no meio da rota.
+ */
+function mensagensDoEventoWhatsApp(corpo) {
+  var saida = [];
+  if (!corpo || !Array.isArray(corpo.entry)) return saida;
+
+  corpo.entry.forEach(function (entrada) {
+    (entrada.changes || []).forEach(function (mudanca) {
+      var valor = mudanca && mudanca.value;
+      if (!valor || !Array.isArray(valor.messages)) return;
+
+      var numeroId = valor.metadata && valor.metadata.phone_number_id;
+      // Nome do perfil, para a lista de conversas não ser uma coluna de
+      // números. Vem em contacts[], separado de messages[].
+      var nomes = {};
+      (valor.contacts || []).forEach(function (c) {
+        if (c && c.wa_id) nomes[c.wa_id] = (c.profile && c.profile.name) || null;
+      });
+
+      valor.messages.forEach(function (msg) {
+        saida.push({
+          phone_number_id: numeroId || null,
+          id:    msg.id || null,
+          de:    msg.from || null,
+          nome:  nomes[msg.from] || null,
+          tipo:  msg.type || null,
+          texto: textoDaMensagemWhatsApp(msg)
+        });
+      });
+    });
+  });
+
+  return saida;
+}
+
+/**
+ * Atende UMA mensagem do WhatsApp.
+ *
+ * A ordem aqui não é arbitrária:
+ *   1. grava o atendimento, cujo índice único no id da mensagem é a
+ *      trava contra o reenvio da Meta;
+ *   2. só então envia.
+ *
+ * Invertido, o reenvio de um webhook que demorou a responder mandaria
+ * a mesma resposta duas vezes — e é a duplicata, não a demora, que faz
+ * o bot parecer quebrado.
+ */
+async function atenderNoWhatsApp(bot, msg) {
+  var itens = await DB.select("chatbot_itens",
+    `chatbot_id=eq.${bot.id}&select=id,tipo,rotulo,palavras,resposta,ordem,ativo&order=ordem.asc`
+  ).catch(function () { return { body: [] }; });
+
+  // Quem mandou áudio, foto ou figurinha cai aqui com texto nulo. O
+  // motor devolve o fallback — que é o certo: ele não leu, e diz.
+  var decisao = decidirRespostaChatbot(bot, itens.body || [], msg.texto || "");
+
+  var quem = msg.nome ? (msg.nome + " · " + msg.de) : msg.de;
+  try {
+    await DB.insert("chatbot_atendimentos", {
+      empresa_id:    bot.empresa_id,
+      chatbot_id:    bot.id,
+      // Nulo de propósito: quem escreveu do WhatsApp não é da casa. O
+      // nome fica em `contato`.
+      funcionario_id: null,
+      pergunta:      (msg.texto || "[" + (msg.tipo || "mensagem") + " sem texto]").slice(0, 2000),
+      item_id:       decisao.item_id,
+      como:          decisao.como,
+      resposta:      decisao.resposta,
+      canal:         "whatsapp",
+      contato:       quem,
+      wa_message_id: msg.id
+    });
+  } catch (e) {
+    // 23505 = a mesma mensagem já foi atendida. É o caminho normal
+    // quando a Meta reenvia, não um erro: sair calado é o objetivo.
+    if (e.code === "23505" || /duplicate key|chave duplicada/i.test(e.message || "")) {
+      return { repetida: true };
+    }
+    throw e;
+  }
+
+  marcarLidaNoWhatsApp(bot, msg.id);
+  await enviarWhatsApp(bot, msg.de, decisao.resposta);
+  return { como: decisao.como };
 }
 
 var server = http.createServer(async (req, res) => {
@@ -6761,11 +7152,44 @@ var server = http.createServer(async (req, res) => {
       var planoAss = planoValido(bodyAss.plano) ? bodyAss.plano : CONFIG.PLANO_PADRAO;
       var infoPlano = CONFIG.PLANOS[planoAss];
 
+      // nome, telefone e documento vêm junto porque são o que o
+      // checkout do Workap já coletou — e é com eles que a tela de
+      // pagamento sai preenchida, em vez de pedir tudo outra vez.
       var buscaEmp = await DB.select("empresas",
-        "email=eq." + encodeURIComponent(emailAss) + "&select=id,nome,email,status,pagamento_cliente_id");
+        "email=eq." + encodeURIComponent(emailAss) +
+        "&select=id,nome,email,status,pagamento_cliente_id,telefone,documento");
       var empAss = buscaEmp.body && buscaEmp.body[0];
       if (!empAss) return jsonErr(res, "Conta não encontrada. Conclua o cadastro antes de assinar.", 404);
       if (empAss.status === "ativa") return jsonErr(res, "Esta conta já tem assinatura ativa.", 409);
+
+      // ── O CUPOM, QUE ATÉ AQUI SÓ EXISTIA NA TELA ──
+      //
+      // O código era validado em /cupom/validar, o resumo mostrava o
+      // preço com desconto — e a cobrança saía pelo preço cheio, porque
+      // `cupomAplicado` nunca era enviado nesta requisição. Quem usava
+      // cupom via um preço e pagava outro.
+      //
+      // Revalidar aqui, e não confiar no que a tela mandou, é o que
+      // impede alguém de digitar um código no console e pagar menos: o
+      // desconto sai do banco, do mesmo jeito que o preço sai de
+      // CONFIG.PLANOS.
+      var precoAss     = await precoDoPlanoAtual(planoAss);
+      var cupomAss     = null;
+      var descontoAss  = 0;
+      if (bodyAss.cupom) {
+        var checaAss = await validarCupom(bodyAss.cupom, planoAss);
+        // Cupom recusado NÃO derruba a venda: a pessoa quer assinar, e
+        // travar o checkout num código digitado errado troca uma
+        // assinatura por um erro de formulário. Ela paga o preço cheio,
+        // que é o que a tela volta a mostrar.
+        if (checaAss.ok) {
+          cupomAss    = checaAss.codigo;
+          descontoAss = checaAss.desconto_centavos;
+          precoAss    = checaAss.valor_final_centavos;
+        } else {
+          secLog("cupom_recusado_no_checkout", { empresa_id: empAss.id, motivo: checaAss.erro });
+        }
+      }
 
       // Pix, cartão e boleto na assinatura MENSAL — os três. É o motivo
       // de a Cakto ter substituído a Stripe: lá a assinatura só podia
@@ -6784,12 +7208,12 @@ var server = http.createServer(async (req, res) => {
             // e é o mesmo valor que a vitrine mostra — cobrar de uma
             // fonte e anunciar de outra é como se anuncia um preço e
             // se cobra outro.
-            centavos: centavosParaCobrarNoGateway(await precoDoPlanoAtual(planoAss)),
+            centavos: centavosParaCobrarNoGateway(precoAss),
             recorrente: true,
             metodos: ["pix", "credit_card", "boleto"],
             // É por aqui que o webhook liga o pagamento à empresa sem
             // confiar em nada que veio do navegador.
-            metadata: { empresa_id: empAss.id, plano: planoAss }
+            metadata: { empresa_id: empAss.id, plano: planoAss, cupom: cupomAss || undefined }
           });
 
           if (!cobrancaCk.url) {
@@ -6804,10 +7228,41 @@ var server = http.createServer(async (req, res) => {
 
           await DB.update("empresas", "id=eq." + empAss.id, {
             pagamento_gateway: "cakto",
-            pagamento_assinatura_id: cobrancaCk.id || undefined
+            pagamento_assinatura_id: cobrancaCk.id || undefined,
+            // Gravado na empresa para o valor cobrado ser explicável:
+            // uma assinatura de R$ 39,99 num plano de R$ 49,99 é um
+            // número solto se ninguém souber qual cupom a produziu.
+            cupom_codigo: cupomAss || undefined,
+            cupom_desconto_centavos: cupomAss ? descontoAss : undefined
           });
-          secLog("checkout_criado", { empresa_id: empAss.id, plano: planoAss, gateway: "cakto" });
-          return jsonOk(res, { url: cobrancaCk.url });
+
+          // O uso do cupom só é contado depois que a cobrança existe.
+          // Contar antes gastaria uma das vagas de um cupom limitado
+          // toda vez que o gateway recusasse — e o cupom "esgotaria"
+          // sem ninguém ter comprado nada.
+          //
+          // Fire-and-forget: contar uso não pode segurar a resposta nem
+          // derrubar uma venda que já foi criada do outro lado.
+          if (cupomAss) {
+            DB.update("cupons", "codigo=eq." + encodeURIComponent(cupomAss), {
+              usos: (Number(checaAss.cupom.usos) || 0) + 1
+            }).catch(function (err) {
+              secLog("cupom_uso_nao_contado", { codigo: cupomAss, message: err.message });
+            });
+          }
+
+          secLog("checkout_criado", {
+            empresa_id: empAss.id, plano: planoAss, gateway: "cakto",
+            cupom: cupomAss || "nenhum", cobrado_centavos: precoAss
+          });
+          return jsonOk(res, {
+            // Com os dados do cliente pendurados: a tela de pagamento
+            // abre com nome, e-mail, CPF e telefone já preenchidos, e
+            // só falta escolher Pix, cartão ou boleto.
+            url: urlComOsDadosDoCliente(cobrancaCk.url, empAss),
+            valor_centavos: precoAss,
+            cupom: cupomAss
+          });
         } catch (e) {
           registrarErro("pagamento", e.message, {
             rota: "/assinatura/checkout", metodo: "POST", status: e.status || null,
@@ -6818,14 +7273,145 @@ var server = http.createServer(async (req, res) => {
       }
     }
 
-    // ── WEBHOOK DA CAKTO (rota pública, com segredo na URL) ──
+    // ── WEBHOOK DO WHATSAPP (rota pública) ───────────
     //
-    // Cadastre no painel da Cakto como:
-    //   https://SEU-BACKEND/webhook/cakto?s=<CAKTO_WEBHOOK_SECRET>
+    // Cadastre no painel da Meta (Aplicativo → WhatsApp → Configuração)
+    // como:
+    //   URL de callback:        https://SEU-BACKEND/webhook/whatsapp
+    //   Token de verificação:   o que a tela de Chatbot mostra
+    // e assine o campo "messages".
     //
-    // O segredo é seu, não deles — ver webhookCaktoValido(). Responde
-    // rápido de propósito: a Cakto exige resposta em 5 segundos, e o
-    // trabalho pesado (e-mail) já é disparado sem esperar.
+    // Duas requisições muito diferentes chegam no mesmo endereço, e é
+    // a Meta que define isso: um GET de conferência, uma vez, quando o
+    // endereço é salvo; e um POST por evento, para sempre.
+
+    // 1. O APERTO DE MÃO. A Meta chama uma vez e espera de volta,
+    //    em texto puro, o desafio que ela mandou. Qualquer outra coisa
+    //    — JSON, 200 vazio — e o painel dela recusa o endereço com uma
+    //    mensagem que não diz o motivo.
+    //
+    //    Nesta etapa NÃO existe assinatura: o único dado que identifica
+    //    de quem é o webhook é o token de verificação. Por isso ele é
+    //    gerado pelo servidor (32 bytes de aleatório), é único no
+    //    banco, e é ele que encontra a empresa.
+    if (method === "GET" && path === "/webhook/whatsapp") {
+      var modoWa    = url.searchParams.get("hub.mode");
+      var tokenWa   = url.searchParams.get("hub.verify_token");
+      var desafioWa = url.searchParams.get("hub.challenge");
+
+      if (modoWa !== "subscribe" || !tokenWa || !desafioWa) {
+        return jsonErr(res, "Requisição de verificação inválida", 400);
+      }
+
+      var donoWa = await DB.select("chatbots",
+        `wa_verify_token=eq.${encodeURIComponent(tokenWa)}&select=id,empresa_id&limit=1`
+      ).catch(function () { return { body: [] }; });
+
+      if (!donoWa.body || !donoWa.body[0]) {
+        secLog("whatsapp_verify_token_desconhecido", { ip: ip });
+        // 403 é o que a documentação deles manda devolver aqui.
+        return jsonErr(res, "Token de verificação não confere", 403);
+      }
+
+      secLog("whatsapp_webhook_verificado", { empresa_id: donoWa.body[0].empresa_id });
+      res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+      return res.end(String(desafioWa));
+    }
+
+    // 2. AS MENSAGENS.
+    //
+    //    A ordem aqui é o que separa um bot de uma caixa de entrada
+    //    aberta. O corpo CRU é lido primeiro porque a assinatura é
+    //    calculada sobre ele — reserializar o objeto já parseado daria
+    //    outro texto e nenhuma assinatura bateria. Depois a empresa é
+    //    encontrada pelo phone_number_id, e SÓ ENTÃO a assinatura é
+    //    conferida, porque o segredo que a valida é o App Secret dessa
+    //    empresa: cada cliente conecta o próprio aplicativo da Meta, e
+    //    não existe um segredo só que sirva para todos.
+    //
+    //    Responde 200 antes de trabalhar, sempre. A Meta reenvia o
+    //    evento quando demora, e um bot que pensa três segundos viraria
+    //    um bot que responde três vezes.
+    if (method === "POST" && path === "/webhook/whatsapp") {
+      var cruWa = await getBody(req, 256 * 1024);
+      var corpoWa = parseBody(cruWa);
+      if (!corpoWa) {
+        res.writeHead(200); return res.end("ok");
+      }
+
+      var recebidasWa = mensagensDoEventoWhatsApp(corpoWa);
+      // Aviso de entrega, de leitura, ou mudança de perfil: chega no
+      // mesmo endereço e não é atendimento. 200 e ponto.
+      if (!recebidasWa.length) {
+        res.writeHead(200); return res.end("ok");
+      }
+
+      var numeroIdWa = recebidasWa[0].phone_number_id;
+      if (!numeroIdWa) {
+        res.writeHead(200); return res.end("ok");
+      }
+
+      var achadoWa = await DB.select("chatbots",
+        `wa_phone_number_id=eq.${encodeURIComponent(numeroIdWa)}&select=*&limit=1`
+      ).catch(function () { return { body: [] }; });
+      var botWa = achadoWa.body && achadoWa.body[0];
+
+      if (!botWa) {
+        secLog("whatsapp_numero_desconhecido", { ip: ip });
+        res.writeHead(200); return res.end("ok");
+      }
+
+      if (!assinaturaWhatsAppValida(cruWa, req.headers, botWa.wa_app_secret)) {
+        secLog("whatsapp_assinatura_invalida", { ip: ip, empresa_id: botWa.empresa_id });
+        registrarErro("whatsapp",
+          botWa.wa_app_secret
+            ? "Webhook do WhatsApp recusado: a assinatura não confere com o App Secret cadastrado."
+            : "Webhook do WhatsApp recusado: App Secret não cadastrado — nenhuma mensagem será atendida.", {
+          rota: "/webhook/whatsapp", metodo: "POST", status: 401,
+          empresa_id: botWa.empresa_id
+        });
+        return jsonErr(res, "Assinatura inválida", 401);
+      }
+
+      // Responde JÁ. O atendimento segue depois — ver o comentário
+      // acima sobre reenvio.
+      res.writeHead(200); res.end("ok");
+
+      // Registrado mesmo quando o bot está desligado ou o plano caiu:
+      // é o que permite a tela dizer "chegou mensagem" em vez de deixar
+      // o dono achando que o webhook nunca funcionou.
+      DB.update("chatbots", `id=eq.${botWa.id}`, {
+        wa_ultimo_evento_em: new Date().toISOString()
+      }).catch(function () {});
+
+      if (!botWa.ativo) return;
+      if (botWa.canal !== "whatsapp" && botWa.canal !== "ambos") return;
+
+      // O plano é conferido AQUI, e não só na tela de configuração:
+      // quem cancelou o Master não pode continuar com o bot atendendo
+      // porque o webhook já estava cadastrado lá na Meta.
+      var empWa = await DB.select("empresas",
+        `id=eq.${botWa.empresa_id}&select=plano,status&limit=1`
+      ).catch(function () { return { body: [] }; });
+      var donoPlanoWa = empWa.body && empWa.body[0];
+      if (!donoPlanoWa || !planoTemChatbot(donoPlanoWa.plano)) return;
+      if (donoPlanoWa.status !== "ativa" && donoPlanoWa.status !== "trial") return;
+
+      for (var iWa = 0; iWa < recebidasWa.length; iWa++) {
+        var msgWa = recebidasWa[iWa];
+        if (!msgWa.de) continue;
+        try {
+          await atenderNoWhatsApp(botWa, msgWa);
+        } catch (eWa) {
+          registrarErro("whatsapp", eWa.message, {
+            rota: "/webhook/whatsapp", metodo: "POST", status: eWa.status || null,
+            empresa_id: botWa.empresa_id
+          });
+        }
+      }
+      return;
+    }
+
     // ── WEBHOOK DO IFOOD ─────────────────────────────
     // Público por definição: quem chama é o iFood. O que separa um
     // pedido real de um forjado é só a assinatura — por isso ela é a
@@ -6946,6 +7532,14 @@ var server = http.createServer(async (req, res) => {
       return jsonOk(res, { ok: true, tarefa_id: feitoIf.tarefa_id });
     }
 
+    // ── WEBHOOK DA CAKTO (rota pública, com segredo na URL) ──
+    //
+    // Cadastre no painel da Cakto como:
+    //   https://SEU-BACKEND/webhook/cakto?s=<CAKTO_WEBHOOK_SECRET>
+    //
+    // O segredo é seu, não deles — ver webhookCaktoValido(). Responde
+    // rápido de propósito: a Cakto exige resposta em 5 segundos, e o
+    // trabalho pesado (e-mail) já é disparado sem esperar.
     if (method === "POST" && path === "/webhook/cakto") {
       if (!webhookCaktoValido(url, req.headers)) {
         secLog("webhook_cakto_segredo_invalido", { ip: ip });
@@ -8544,9 +9138,16 @@ var server = http.createServer(async (req, res) => {
             "Campos que ela mandou: " + formatoLink, 502);
         }
 
+        // Mesmo tratamento do checkout da assinatura: quando o owner já
+        // sabe o nome e o e-mail de quem vai pagar, o cliente não
+        // redigita o que já foi combinado por WhatsApp.
+        var urlLinkPronta = urlComOsDadosDoCliente(cobrCk.url, {
+          nome: nomeCli, email: emailCli
+        });
+
         await DB.update("links_pagamento", "id=eq." + linhaLink.id, {
           gateway_id: cobrCk.id || null,
-          url: cobrCk.url
+          url: urlLinkPronta
         });
         secLog("link_pagamento_criado", {
           valor: centavosLink, metodos: metodosLink.join(","),
@@ -8559,7 +9160,7 @@ var server = http.createServer(async (req, res) => {
         // de passo que ele esquece — e aí o cliente paga e fica sem
         // saber como entrar, que é o problema que o convite resolve.
         return jsonOk(res, {
-          ok: true, id: linhaLink.id, url: cobrCk.url,
+          ok: true, id: linhaLink.id, url: urlLinkPronta,
           url_senha: tokenConvite ? urlDoConvite(tokenConvite) : null
         });
       } catch (e) {
@@ -9950,7 +10551,30 @@ var server = http.createServer(async (req, res) => {
         var itensCfg = await DB.select("chatbot_itens",
           `chatbot_id=eq.${botCfg.id}&select=*&order=tipo.asc,ordem.asc`
         ).catch(function () { return { body: [] }; });
-        return jsonOk(res, { chatbot: botCfg, itens: itensCfg.body || [] });
+
+        // O token permanente da Meta e o App Secret NÃO voltam para o
+        // navegador. Com o token, quem o pegasse manda mensagem pelo
+        // número do cliente; com o segredo, forja webhook. Ambos são
+        // de escrita só: entram no formulário, e a tela mostra apenas
+        // se já estão salvos.
+        //
+        // Devolver o objeto inteiro e apagar dois campos seria uma
+        // linha mais curta e uma armadilha: a próxima coluna sensível
+        // entraria na resposta sozinha. A lista é explícita.
+        var seguro = {
+          id: botCfg.id, empresa_id: botCfg.empresa_id,
+          nome: botCfg.nome, ativo: botCfg.ativo,
+          boas_vindas: botCfg.boas_vindas, fallback: botCfg.fallback,
+          canal: botCfg.canal || "interno",
+          wa_phone_number_id: botCfg.wa_phone_number_id || null,
+          wa_numero: botCfg.wa_numero || null,
+          wa_verify_token: botCfg.wa_verify_token || null,
+          wa_conectado_em: botCfg.wa_conectado_em || null,
+          wa_ultimo_evento_em: botCfg.wa_ultimo_evento_em || null,
+          wa_token_salvo: !!botCfg.wa_token,
+          wa_app_secret_salvo: !!botCfg.wa_app_secret
+        };
+        return jsonOk(res, { chatbot: seguro, itens: itensCfg.body || [] });
       }
 
       if (method === "PUT" && path === "/chatbot") {
@@ -9970,8 +10594,129 @@ var server = http.createServer(async (req, res) => {
         }
         if (typeof bodyBot.ativo === "boolean") mudaBot.ativo = bodyBot.ativo;
 
-        await DB.update("chatbots", `id=eq.${botAtual.id}`, mudaBot);
-        secLog("chatbot_configurado", { empresa_id: authPayload.empresa_id, ativo: mudaBot.ativo });
+        // ── CANAL ──
+        var CANAIS = ["interno", "whatsapp", "ambos"];
+        if (bodyBot.canal !== undefined) {
+          if (CANAIS.indexOf(bodyBot.canal) < 0) return jsonErr(res, "Canal inválido.");
+          mudaBot.canal = bodyBot.canal;
+        }
+
+        // ── CREDENCIAIS DA META ──
+        //
+        // Campo em branco NÃO apaga o que está salvo: a tela nunca
+        // recebe o token de volta, então mandaria vazio a cada salvada
+        // e o dono perderia a conexão ao trocar uma vírgula da
+        // mensagem de boas-vindas. Para desligar existe
+        // /chatbot/whatsapp/desconectar, que é explícito.
+        if (bodyBot.wa_phone_number_id !== undefined) {
+          var numIdWa = SANITIZE.string(bodyBot.wa_phone_number_id, 40).replace(/\D/g, "");
+          if (bodyBot.wa_phone_number_id && !numIdWa) {
+            return jsonErr(res, "O ID do número de telefone da Meta é só de dígitos — copie do painel deles.");
+          }
+          if (numIdWa) mudaBot.wa_phone_number_id = numIdWa;
+        }
+        if (bodyBot.wa_token) {
+          mudaBot.wa_token = SANITIZE.string(bodyBot.wa_token, 500);
+        }
+        if (bodyBot.wa_app_secret) {
+          mudaBot.wa_app_secret = SANITIZE.string(bodyBot.wa_app_secret, 200);
+        }
+        if (bodyBot.wa_numero !== undefined) {
+          mudaBot.wa_numero = SANITIZE.string(bodyBot.wa_numero, 30) || null;
+        }
+
+        // O token de verificação é do SERVIDOR, nunca do formulário:
+        // é ele que diz de quem é o webhook no aperto de mão, onde a
+        // Meta não manda mais nada. Deixar o dono escolher abriria a
+        // porta para dois clientes escolherem "workap123" e um receber
+        // as mensagens do outro.
+        if (!botAtual.wa_verify_token) {
+          mudaBot.wa_verify_token = gerarVerifyTokenWhatsApp();
+        }
+
+        // "Conectado" é ter os três: número, token e segredo. Menos que
+        // isso o webhook chega e é recusado, e a tela precisa dizer
+        // isso em vez de mostrar um visto verde que não corresponde a
+        // nada.
+        var temTudoWa =
+          (mudaBot.wa_phone_number_id || botAtual.wa_phone_number_id) &&
+          (mudaBot.wa_token           || botAtual.wa_token) &&
+          (mudaBot.wa_app_secret      || botAtual.wa_app_secret);
+        if (temTudoWa && !botAtual.wa_conectado_em) {
+          mudaBot.wa_conectado_em = new Date().toISOString();
+        }
+
+        try {
+          await DB.update("chatbots", `id=eq.${botAtual.id}`, mudaBot);
+        } catch (eBot) {
+          // 23505 no índice único do phone_number_id: outra conta já
+          // ligou este número. Dizer isso é melhor que um 500 — o dono
+          // costuma ter colado o ID errado, ou o número está preso
+          // numa conta antiga dele mesmo.
+          if (eBot.code === "23505" || /duplicate key|chave duplicada/i.test(eBot.message || "")) {
+            return jsonErr(res, "Este número da Meta já está ligado a outra conta do Workap.", 409);
+          }
+          throw eBot;
+        }
+
+        secLog("chatbot_configurado", {
+          empresa_id: authPayload.empresa_id,
+          ativo: mudaBot.ativo, canal: mudaBot.canal
+        });
+        return jsonOk(res, { ok: true });
+      }
+
+      // ── WhatsApp: desligar ──
+      // Apaga as credenciais e volta o canal para o chat interno. Sem
+      // isto, "desconectar" seria apagar campo por campo numa tela que
+      // nunca mostra o que está lá dentro.
+      if (method === "POST" && path === "/chatbot/whatsapp/desconectar") {
+        var botDesc = await botDaEmpresa();
+        await DB.update("chatbots", `id=eq.${botDesc.id}`, {
+          wa_phone_number_id: null,
+          wa_token: null,
+          wa_app_secret: null,
+          wa_numero: null,
+          wa_conectado_em: null,
+          // O canal volta para interno: deixá-lo em "whatsapp" sem
+          // credencial nenhuma é um bot ligado que não atende em lugar
+          // nenhum — e ninguém descobre por quê.
+          canal: "interno"
+        });
+        secLog("chatbot_whatsapp_desconectado", { empresa_id: authPayload.empresa_id });
+        return jsonOk(res, { ok: true });
+      }
+
+      // ── WhatsApp: mandar uma mensagem de teste ──
+      //
+      // Vale mais que qualquer visto verde na tela: só um envio de
+      // verdade prova que o token, o número e a cota estão de pé. O
+      // erro da Meta volta na resposta, porque é ele que diz o que
+      // fazer — "número não está na lista de teste", "token expirado".
+      if (method === "POST" && path === "/chatbot/whatsapp/testar") {
+        var bodyTw = parseBody(await getBody(req));
+        if (!bodyTw) return jsonErr(res, "Dados inválidos");
+
+        var paraTw = telefoneParaOGateway(bodyTw.para);
+        if (!paraTw) return jsonErr(res, "Informe o telefone com DDD (ex: 11 98765-4321).");
+
+        var botTw = await botDaEmpresa();
+        if (!botTw.wa_phone_number_id || !botTw.wa_token) {
+          return jsonErr(res, "Conecte o WhatsApp antes de testar: falta o ID do número ou o token.", 409);
+        }
+
+        try {
+          await enviarWhatsApp(botTw, paraTw,
+            (botTw.nome || "Assistente") + " aqui — teste do Workap. Se você recebeu isto, o WhatsApp está conectado.");
+        } catch (eTw) {
+          registrarErro("whatsapp", eTw.message, {
+            rota: "/chatbot/whatsapp/testar", metodo: "POST",
+            status: eTw.status || null, empresa_id: authPayload.empresa_id
+          });
+          return jsonErr(res, "A Meta recusou o envio: " + eTw.message, 502);
+        }
+
+        secLog("chatbot_whatsapp_testado", { empresa_id: authPayload.empresa_id });
         return jsonOk(res, { ok: true });
       }
 
@@ -10081,7 +10826,7 @@ var server = http.createServer(async (req, res) => {
       // ── Conversas atendidas ──
       if (method === "GET" && path === "/chatbot/conversas") {
         var atend = await DB.select("chatbot_atendimentos",
-          `empresa_id=eq.${authPayload.empresa_id}&select=id,funcionario_id,pergunta,como,resposta,criado_em&order=criado_em.desc&limit=60`
+          `empresa_id=eq.${authPayload.empresa_id}&select=id,funcionario_id,pergunta,como,resposta,criado_em,canal,contato&order=criado_em.desc&limit=60`
         ).catch(function () { return { body: [] }; });
 
         // Nome de quem perguntou, para a lista não ser uma coluna de
@@ -10096,7 +10841,12 @@ var server = http.createServer(async (req, res) => {
             return {
               id: a.id, pergunta: a.pergunta, resposta: a.resposta,
               como: a.como, criado_em: a.criado_em,
-              quem: quemPerguntou[a.funcionario_id] || "Alguém da equipe"
+              canal: a.canal || "interno",
+              // No WhatsApp não há funcionário: quem escreveu é um
+              // cliente, e o nome dele veio no próprio evento.
+              quem: a.canal === "whatsapp"
+                ? (a.contato || "Cliente no WhatsApp")
+                : (quemPerguntou[a.funcionario_id] || "Alguém da equipe")
             };
           })
         });
