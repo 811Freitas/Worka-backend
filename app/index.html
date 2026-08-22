@@ -124,9 +124,15 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{box-shadow:var(-
 .login-tab.active{background:white;color:var(--g600);box-shadow:var(--shadow-sm)}
 .field{margin-bottom:15px}
 .field label{font-size:0.78rem;font-weight:600;color:var(--gray700);display:block;margin-bottom:6px}
-.field input,.field select{width:100%;padding:11px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-size:0.9rem;font-family:var(--font);outline:none;transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease),background var(--dur) var(--ease);background:var(--gray50)}
-.field input:hover,.field select:hover{border-color:var(--gray300)}
-.field input:focus,.field select:focus{border-color:var(--g500);background:white;box-shadow:var(--shadow-glow)}
+.field input,.field select,.field textarea{width:100%;padding:11px 14px;border:1.5px solid var(--gray100);border-radius:var(--r);font-size:0.9rem;font-family:var(--font);outline:none;transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease),background var(--dur) var(--ease);background:var(--gray50)}
+/* O textarea ficava de fora destas regras e caía no visual padrão do
+   navegador: fonte monoespaçada e borda quadrada, no meio de campos
+   arredondados. Vale para Contatos e Anotações também, que já tinham
+   o mesmo problema. resize:vertical porque arrastar na horizontal
+   estoura o cartão. */
+.field textarea{font-family:var(--font);resize:vertical;min-height:64px;line-height:1.55}
+.field input:hover,.field select:hover,.field textarea:hover{border-color:var(--gray300)}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--g500);background:white;box-shadow:var(--shadow-glow)}
 .btn-full{width:100%;background:linear-gradient(135deg,var(--g500),var(--g400));color:white;border:none;padding:13px;border-radius:var(--r);font-size:0.95rem;font-weight:700;cursor:pointer;font-family:var(--font);transition:transform var(--dur-fast) var(--ease),box-shadow var(--dur) var(--ease),filter var(--dur) var(--ease);box-shadow:0 6px 20px rgba(30,138,64,.35)}
 .btn-full:hover{filter:brightness(1.06);box-shadow:0 8px 26px rgba(30,138,64,.45);transform:translateY(-1px)}
 .btn-full:active{transform:translateY(0) scale(.99)}
@@ -1291,6 +1297,104 @@ tr:hover td{background:var(--g50)}
 
     <!-- ── CUPONS DE DESCONTO (somente owner da Workap) ── -->
     <!-- ── COMUNICADOS DA PLATAFORMA (somente owner) ── -->
+    <!-- CHATBOT — Plano Master -->
+    <div class="page" id="pg-chatbot">
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header">
+          <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-message></use></svg> O assistente da sua equipe</div>
+          <span class="badge" id="cb-badge">—</span>
+        </div>
+        <div class="card-body">
+          <p style="font-size:.86rem;color:var(--gray500);margin-bottom:16px;line-height:1.6">
+            Quando alguém da equipe escreve para a Administração no Chat, o assistente
+            responde na hora. Você continua vendo tudo e pode responder por cima quando quiser.
+          </p>
+
+          <div class="form-grid">
+            <div class="field">
+              <label>Nome do assistente</label>
+              <input id="cb-nome" maxlength="60" placeholder="Assistente">
+            </div>
+            <div class="field">
+              <label>Situação</label>
+              <select id="cb-ativo">
+                <option value="nao">Desligado</option>
+                <option value="sim">Ligado — responde a equipe</option>
+              </select>
+            </div>
+            <div class="field form-full">
+              <label>Mensagem de boas-vindas</label>
+              <textarea id="cb-boas-vindas" rows="2" maxlength="1000"
+                placeholder="Olá! Sou o assistente da equipe. Escolha uma opção pelo número:"></textarea>
+            </div>
+            <div class="field form-full">
+              <label>Quando não entender</label>
+              <textarea id="cb-fallback" rows="2" maxlength="1000"
+                placeholder="Não entendi. Digite menu para ver as opções."></textarea>
+            </div>
+          </div>
+
+          <div class="login-erro" id="cb-erro">Não foi possível salvar.</div>
+          <button class="btn btn-primary" id="cb-btn-salvar" onclick="salvarChatbot()">Salvar</button>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Menu de opções</div>
+            <button class="btn btn-primary btn-sm" onclick="abrirItemChatbot('opcao')">+ Opção</button>
+          </div>
+          <div class="card-body">
+            <p style="font-size:.82rem;color:var(--gray500);margin-bottom:14px;line-height:1.6">
+              O que aparece numerado quando a pessoa manda <strong>oi</strong> ou <strong>menu</strong>.
+              Ela responde com o número.
+            </p>
+            <div id="cb-lista-opcoes"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Palavras-chave</div>
+            <button class="btn btn-primary btn-sm" onclick="abrirItemChatbot('gatilho')">+ Gatilho</button>
+          </div>
+          <div class="card-body">
+            <p style="font-size:.82rem;color:var(--gray500);margin-bottom:14px;line-height:1.6">
+              Responde sem passar pelo menu, quando a mensagem tem uma das palavras.
+              Acento e maiúscula não importam.
+            </p>
+            <div id="cb-lista-gatilhos"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header"><div class="card-title">Testar</div></div>
+        <div class="card-body">
+          <p style="font-size:.82rem;color:var(--gray500);margin-bottom:14px;line-height:1.6">
+            Escreva como a sua equipe escreveria. O teste passa pelo mesmo caminho do
+            chat de verdade, e não manda mensagem para ninguém.
+          </p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input id="cb-teste" placeholder="Ex.: quando saem minhas férias?" style="flex:1;min-width:200px" onkeydown="if(event.key==='Enter')testarChatbot()">
+            <button class="btn btn-secondary" id="cb-btn-testar" onclick="testarChatbot()">Testar</button>
+          </div>
+          <div id="cb-resultado" style="display:none;margin-top:14px"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Últimos atendimentos</div>
+          <button class="btn btn-secondary btn-sm" onclick="carregarConversasChatbot()">Atualizar</button>
+        </div>
+        <div class="card-body" id="cb-conversas">
+          <p style="font-size:.86rem;color:var(--gray500)">Carregando...</p>
+        </div>
+      </div>
+    </div>
+
     <!-- INTEGRAÇÕES (API) — plano Pro -->
     <div class="page" id="pg-integracoes">
       <div class="card" id="card-ifood" style="margin-bottom:16px">
@@ -2763,6 +2867,46 @@ tr:hover td{background:var(--g50)}
 
         <div class="card">
           <div class="card-header">
+            <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-crown></use></svg> Plano Master</div>
+            <span class="badge" id="owc-master-badge">—</span>
+          </div>
+          <div class="card-body">
+            <div style="font-size:.82rem;color:var(--gray500);line-height:1.55;margin-bottom:14px">
+              O plano mais completo: tudo do Pro mais o Chatbot. O preço definido aqui
+              vale na hora — vitrine, cadastro e cobrança leem daqui, sem publicar nada.
+            </div>
+
+            <div class="form-grid">
+              <div class="field">
+                <label>Preço mensal (R$)</label>
+                <input id="owc-master-preco" inputmode="decimal" placeholder="149,90" autocomplete="off">
+              </div>
+              <div class="field">
+                <label>Status</label>
+                <select id="owc-master-ativo">
+                  <option value="nao">Inativo — não aparece na vitrine</option>
+                  <option value="sim">Ativo — em venda</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--g600,#16622f);margin:2px 0 14px;font-weight:600">
+              <svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg> Chatbot: incluído
+            </div>
+
+            <div class="login-erro" id="owc-master-erro">Erro</div>
+            <button class="btn btn-primary" id="owc-btn-master" onclick="salvarMaster()"><svg class=ico aria-hidden=true><use href=#i-check></use></svg> Salvar</button>
+
+            <div style="margin-top:16px;padding:12px 14px;background:var(--gray50,#f7f9f7);border-radius:var(--r);font-size:.78rem;color:var(--gray500);line-height:1.6">
+              <strong style="color:var(--gray700,#3a3d39)">Inativo não cancela ninguém.</strong>
+              O que sai é a OFERTA: o plano some da vitrine e do cadastro, e quem já assinou
+              continua com a conta e o chatbot funcionando normalmente.
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
             <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg> Utmify — rastreio de origem das vendas</div>
             <span class="badge" id="owc-utm-badge">—</span>
           </div>
@@ -3233,6 +3377,37 @@ tr:hover td{background:var(--g50)}
 </div>
 
 <!-- Modal add cargo -->
+<div class="modal-overlay" id="modal-item-chatbot">
+  <div class="modal">
+    <h3 style="margin:0 0 18px;font-family:var(--display);font-size:1.15rem" id="cbi-titulo">Nova opção</h3>
+
+    <div class="field">
+      <label id="cbi-rotulo-label">O que aparece no menu</label>
+      <input id="cbi-rotulo" maxlength="80" placeholder="Ex.: Ver minha escala">
+    </div>
+
+    <div class="field" id="cbi-campo-palavras" style="display:none">
+      <label>Palavras que disparam</label>
+      <input id="cbi-palavras" maxlength="300" placeholder="ferias, folga, descanso">
+      <p style="font-size:.78rem;color:var(--gray500);margin-top:6px;line-height:1.5">
+        Separadas por vírgula. Acento e maiúscula não importam.
+      </p>
+    </div>
+
+    <div class="field">
+      <label>Resposta</label>
+      <textarea id="cbi-resposta" rows="4" maxlength="2000" placeholder="O que o assistente responde"></textarea>
+    </div>
+
+    <div class="login-erro" id="cbi-erro">Não foi possível salvar.</div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+      <button class="btn btn-secondary" onclick="fecharModal('modal-item-chatbot')">Cancelar</button>
+      <button class="btn btn-primary" id="cbi-btn" onclick="salvarItemChatbot()">Adicionar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-nova-chave">
   <div class="modal">
     <h3 style="margin:0 0 18px;font-family:var(--display);font-size:1.15rem">Nova chave de integração</h3>
@@ -3645,6 +3820,7 @@ var menus = {
     {id:'jornada',icon:'<svg class=ico aria-hidden=true><use href=#i-clock></use></svg>',label:'Jornada de Trabalho'},
     {id:'visual',icon:'<svg class=ico aria-hidden=true><use href=#i-palette></use></svg>',label:'Identidade Visual'},
     {id:'notificacoes',icon:'<svg class=ico aria-hidden=true><use href=#i-bell></use></svg>',label:'Notificações'},
+    {id:'chatbot',icon:'<svg class=ico aria-hidden=true><use href=#i-message></use></svg>',label:'Chatbot'},
     {id:'integracoes',icon:'<svg class=ico aria-hidden=true><use href=#i-plug></use></svg>',label:'Integrações (API)'},
     {id:'suporte',icon:'<svg class=ico aria-hidden=true><use href=#i-support></use></svg>',label:'Suporte'},
   ],
@@ -5153,7 +5329,7 @@ function abrirPagina(id) {
     'anotacoes':'Anotações','contatos':'Contatos',
     'cupons':'Cupons de Desconto','comunicados':'Enviar Comunicado',
     'espelho':'Espelho de Ponto','jornada':'Jornada de Trabalho',
-    'integracoes':'Integrações (API)',
+    'integracoes':'Integrações (API)','chatbot':'Chatbot',
     'suporte':'Suporte'
   };
   document.getElementById('topbar-title').textContent = labels[id]||id;
@@ -5185,6 +5361,7 @@ function abrirPagina(id) {
   if(id==='contatos'   && typeof carregarContatos     === 'function') carregarContatos();
   if(id==='integracoes'&& typeof carregarChavesApi    === 'function') carregarChavesApi();
   if(id==='integracoes'&& typeof carregarIfood        === 'function') carregarIfood();
+  if(id==='chatbot'    && typeof carregarChatbot      === 'function') carregarChatbot();
   if(id==='escala'     && typeof carregarEscala      === 'function') carregarEscala();
   if(id==='relatorios' && typeof carregarRelatorios  === 'function') carregarRelatorios();
   if(id==='cargos' && typeof carregarCargos === 'function') carregarCargos();
@@ -9503,7 +9680,42 @@ async function carregarConfigOwner(){
     badge.textContent = ligado ? 'Ligada' : (c.utmify_ativo ? 'Falta o token' : 'Desligada');
   }
 
+  // Plano Master: preço e status.
+  var campoPrecoM = document.getElementById('owc-master-preco');
+  if(campoPrecoM) campoPrecoM.value = c.master_preco_reais || '';
+  var selMaster = document.getElementById('owc-master-ativo');
+  if(selMaster) selMaster.value = c.master_ativo ? 'sim' : 'nao';
+  var badgeM = document.getElementById('owc-master-badge');
+  if(badgeM){
+    badgeM.textContent = c.master_ativo ? 'Ativo · R$ ' + (c.master_preco_reais || '—') : 'Inativo';
+    badgeM.className = 'badge ' + (c.master_ativo ? 'badge-green' : '');
+  }
+
   carregarEnviosUtmify();
+}
+
+async function salvarMaster(){
+  var erro = document.getElementById('owc-master-erro');
+  var btn  = document.getElementById('owc-btn-master');
+  if(erro) erro.style.display = 'none';
+  btn.disabled = true;
+  try {
+    var r = await fetch(API_BASE + '/owner/config', {
+      method:'PUT', headers: cabecalhoAuth(),
+      body: JSON.stringify({
+        master_preco_reais: (document.getElementById('owc-master-preco').value || '').trim(),
+        master_ativo:       document.getElementById('owc-master-ativo').value === 'sim'
+      })
+    });
+    var d = await r.json();
+    if(!r.ok){
+      if(erro){ erro.textContent = d.error || 'Não foi possível salvar.'; erro.style.display = 'block'; }
+      return;
+    }
+    carregarConfigOwner();
+  } catch(e){
+    if(erro){ erro.textContent = 'Sem conexão com o servidor.'; erro.style.display = 'block'; }
+  } finally { btn.disabled = false; }
 }
 
 /**
@@ -10553,6 +10765,305 @@ var ESTILO_CONTATO = {
 };
 
 var contatoEmEdicao = null;
+
+// ═══════════════════════════════════
+// CHATBOT — Plano Master
+// ═══════════════════════════════════
+// Tudo montado com createElement e textContent: rótulo, palavras e
+// resposta são escritos pelo dono e voltam do servidor.
+
+var chatbotItens = [];
+var itemChatbotEditando = null;
+var itemChatbotTipo = 'opcao';
+
+async function carregarChatbot(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+  var pag = document.getElementById('pg-chatbot');
+  if(!pag) return;
+
+  var d = null;
+  try {
+    var r = await fetch(API_BASE + '/chatbot', { headers: cabecalhoAuth() });
+    if(r.status === 402){
+      // Fora do Master. A tela explica em vez de sumir sem dizer nada —
+      // o item continua no menu porque quem chegou aqui quer saber o
+      // que é, e é assim que o plano se vende sozinho.
+      pag.innerHTML = '';
+      var aviso = document.createElement('div');
+      aviso.className = 'card';
+      var corpo = document.createElement('div');
+      corpo.className = 'card-body';
+      corpo.style.cssText = 'text-align:center;padding:48px 24px';
+      var h = document.createElement('h3');
+      h.style.cssText = 'font-family:var(--display);font-size:1.15rem;margin:0 0 10px';
+      h.textContent = 'O Chatbot é do Plano Master';
+      var p = document.createElement('p');
+      p.style.cssText = 'font-size:.88rem;color:var(--gray500);line-height:1.7;max-width:420px;margin:0 auto';
+      p.textContent = 'Um assistente que responde a equipe no chat interno: menu de opções, palavras-chave e respostas prontas. Fale com a gente para mudar de plano.';
+      corpo.appendChild(h); corpo.appendChild(p);
+      aviso.appendChild(corpo); pag.appendChild(aviso);
+      return;
+    }
+    if(!r.ok) throw new Error('falhou');
+    d = await r.json();
+  } catch(e){
+    document.getElementById('cb-badge').textContent = 'indisponível';
+    return;
+  }
+
+  var bot = d.chatbot || {};
+  document.getElementById('cb-nome').value        = bot.nome || '';
+  document.getElementById('cb-boas-vindas').value = bot.boas_vindas || '';
+  document.getElementById('cb-fallback').value    = bot.fallback || '';
+  document.getElementById('cb-ativo').value       = bot.ativo ? 'sim' : 'nao';
+
+  var badge = document.getElementById('cb-badge');
+  badge.textContent = bot.ativo ? 'ligado' : 'desligado';
+  badge.className = 'badge ' + (bot.ativo ? 'badge-green' : '');
+
+  chatbotItens = d.itens || [];
+  desenharItensChatbot();
+  carregarConversasChatbot();
+}
+
+function desenharItensChatbot(){
+  [['opcao','cb-lista-opcoes'],['gatilho','cb-lista-gatilhos']].forEach(function(par){
+    var tipo = par[0], alvo = document.getElementById(par[1]);
+    if(!alvo) return;
+    alvo.textContent = '';
+
+    var lista = chatbotItens.filter(function(i){ return i.tipo === tipo; });
+    if(!lista.length){
+      var vazio = document.createElement('p');
+      vazio.style.cssText = 'font-size:.84rem;color:var(--gray500);line-height:1.6';
+      vazio.textContent = tipo === 'opcao'
+        ? 'Nenhuma opção ainda. Sem opções, o menu aparece vazio para a equipe.'
+        : 'Nenhuma palavra-chave ainda.';
+      alvo.appendChild(vazio);
+      return;
+    }
+
+    lista.forEach(function(item, i){
+      var linha = document.createElement('div');
+      linha.className = 'chave-linha';
+
+      var esq = document.createElement('div');
+      esq.style.minWidth = '0';
+
+      var nome = document.createElement('div');
+      nome.className = 'chave-nome';
+      // O número é o que a pessoa digita no chat — mostrar aqui deixa
+      // a tela igual ao que a equipe vê.
+      nome.textContent = (tipo === 'opcao' ? (i + 1) + ') ' : '') + (item.rotulo || '');
+      if(!item.ativo){ nome.style.textDecoration = 'line-through'; nome.style.color = 'var(--gray500)'; }
+      esq.appendChild(nome);
+
+      var meta = document.createElement('div');
+      meta.className = 'chave-meta';
+      meta.style.whiteSpace = 'normal';
+      meta.textContent = tipo === 'gatilho'
+        ? (item.palavras || '') + ' → ' + (item.resposta || '').slice(0, 60)
+        : (item.resposta || '').slice(0, 80);
+      esq.appendChild(meta);
+      linha.appendChild(esq);
+
+      var acoes = document.createElement('div');
+      acoes.style.cssText = 'display:flex;gap:6px;flex-shrink:0';
+
+      var bEd = document.createElement('button');
+      bEd.className = 'btn btn-secondary btn-sm';
+      bEd.textContent = 'Editar';
+      bEd.onclick = function(){ abrirItemChatbot(tipo, item); };
+      acoes.appendChild(bEd);
+
+      var bEx = document.createElement('button');
+      bEx.className = 'btn btn-secondary btn-sm';
+      bEx.textContent = 'Excluir';
+      bEx.onclick = function(){ excluirItemChatbot(item); };
+      acoes.appendChild(bEx);
+
+      linha.appendChild(acoes);
+      alvo.appendChild(linha);
+    });
+  });
+}
+
+function abrirItemChatbot(tipo, item){
+  itemChatbotTipo = tipo;
+  itemChatbotEditando = item || null;
+
+  document.getElementById('cbi-titulo').textContent =
+    (item ? 'Editar ' : 'Nova ') + (tipo === 'opcao' ? 'opção do menu' : 'palavra-chave');
+  document.getElementById('cbi-rotulo-label').textContent =
+    tipo === 'opcao' ? 'O que aparece no menu' : 'Nome (só para você se achar)';
+  document.getElementById('cbi-campo-palavras').style.display = tipo === 'gatilho' ? '' : 'none';
+  document.getElementById('cbi-btn').textContent = item ? 'Salvar' : 'Adicionar';
+
+  document.getElementById('cbi-rotulo').value   = item ? (item.rotulo || '') : '';
+  document.getElementById('cbi-palavras').value = item ? (item.palavras || '') : '';
+  document.getElementById('cbi-resposta').value = item ? (item.resposta || '') : '';
+  document.getElementById('cbi-erro').style.display = 'none';
+
+  abrirModal('modal-item-chatbot');
+}
+
+async function salvarItemChatbot(){
+  var erro = document.getElementById('cbi-erro');
+  var btn  = document.getElementById('cbi-btn');
+  erro.style.display = 'none';
+  btn.disabled = true;
+
+  var corpo = {
+    tipo:     itemChatbotTipo,
+    rotulo:   (document.getElementById('cbi-rotulo').value || '').trim(),
+    resposta: (document.getElementById('cbi-resposta').value || '').trim()
+  };
+  if(itemChatbotTipo === 'gatilho') corpo.palavras = (document.getElementById('cbi-palavras').value || '').trim();
+
+  try {
+    var url = API_BASE + '/chatbot/itens' + (itemChatbotEditando ? '/' + itemChatbotEditando.id : '');
+    var r = await fetch(url, {
+      method: itemChatbotEditando ? 'PUT' : 'POST',
+      headers: cabecalhoAuth(), body: JSON.stringify(corpo)
+    });
+    var d = await r.json();
+    if(!r.ok){ erro.textContent = d.error || 'Não foi possível salvar.'; erro.style.display = 'block'; return; }
+    fecharModal('modal-item-chatbot');
+    carregarChatbot();
+  } catch(e){
+    erro.textContent = 'Sem conexão com o servidor.'; erro.style.display = 'block';
+  } finally { btn.disabled = false; }
+}
+
+async function excluirItemChatbot(item){
+  if(!confirm('Excluir "' + (item.rotulo || 'este item') + '"?')) return;
+  try {
+    var r = await fetch(API_BASE + '/chatbot/itens/' + item.id, { method:'DELETE', headers: cabecalhoAuth() });
+    if(!r.ok){ alert('Não foi possível excluir agora.'); return; }
+    carregarChatbot();
+  } catch(e){ alert('Sem conexão com o servidor.'); }
+}
+
+async function salvarChatbot(){
+  var erro = document.getElementById('cb-erro');
+  var btn  = document.getElementById('cb-btn-salvar');
+  erro.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Salvando...';
+  try {
+    var r = await fetch(API_BASE + '/chatbot', {
+      method:'PUT', headers: cabecalhoAuth(),
+      body: JSON.stringify({
+        nome:        (document.getElementById('cb-nome').value || '').trim(),
+        boas_vindas: (document.getElementById('cb-boas-vindas').value || '').trim(),
+        fallback:    (document.getElementById('cb-fallback').value || '').trim(),
+        ativo:       document.getElementById('cb-ativo').value === 'sim'
+      })
+    });
+    var d = await r.json();
+    if(!r.ok){ erro.textContent = d.error || 'Não foi possível salvar.'; erro.style.display = 'block'; return; }
+    mostrarAvisoIfood(erro, 'Salvo.', true);
+    carregarChatbot();
+  } catch(e){
+    erro.textContent = 'Sem conexão com o servidor.'; erro.style.display = 'block';
+  } finally { btn.disabled = false; btn.textContent = 'Salvar'; }
+}
+
+async function testarChatbot(){
+  var campo = document.getElementById('cb-teste');
+  var alvo  = document.getElementById('cb-resultado');
+  var texto = (campo.value || '').trim();
+  if(!texto) return;
+
+  var btn = document.getElementById('cb-btn-testar');
+  btn.disabled = true; btn.textContent = 'Testando...';
+  try {
+    var r = await fetch(API_BASE + '/chatbot/testar', {
+      method:'POST', headers: cabecalhoAuth(), body: JSON.stringify({ texto: texto })
+    });
+    var d = await r.json();
+    alvo.textContent = '';
+    alvo.style.display = 'block';
+    if(!r.ok){
+      alvo.textContent = d.error || 'Não foi possível testar.';
+      return;
+    }
+
+    var COMO = { menu:'mostrou o menu', opcao:'escolheu uma opção do menu',
+                 gatilho:'casou com uma palavra-chave', fallback:'não entendeu' };
+
+    var bolha = document.createElement('div');
+    bolha.className = 'chat-bolha dela';
+    bolha.style.cssText = 'max-width:100%;white-space:pre-wrap';
+    bolha.textContent = d.resposta;
+    alvo.appendChild(bolha);
+
+    var explica = document.createElement('div');
+    explica.style.cssText = 'font-size:.78rem;color:var(--gray500);margin-top:8px';
+    explica.textContent = 'O assistente ' + (COMO[d.como] || d.como) + '.';
+    alvo.appendChild(explica);
+
+    if(d.aviso){
+      var alerta = document.createElement('div');
+      alerta.style.cssText = 'font-size:.8rem;color:#b45309;margin-top:6px;font-weight:600';
+      alerta.textContent = d.aviso;
+      alvo.appendChild(alerta);
+    }
+  } catch(e){
+    alvo.style.display = 'block';
+    alvo.textContent = 'Sem conexão com o servidor.';
+  } finally { btn.disabled = false; btn.textContent = 'Testar'; }
+}
+
+async function carregarConversasChatbot(){
+  var alvo = document.getElementById('cb-conversas');
+  if(!alvo) return;
+  try {
+    var r = await fetch(API_BASE + '/chatbot/conversas', { headers: cabecalhoAuth() });
+    if(!r.ok) throw new Error('falhou');
+    var d = await r.json();
+    var lista = d.conversas || [];
+    alvo.textContent = '';
+    if(!lista.length){
+      var p = document.createElement('p');
+      p.style.cssText = 'font-size:.86rem;color:var(--gray500);line-height:1.6';
+      p.textContent = 'Nenhum atendimento ainda. Assim que alguém escrever para a Administração no Chat, aparece aqui.';
+      alvo.appendChild(p);
+      return;
+    }
+    lista.forEach(function(c){
+      var linha = document.createElement('div');
+      linha.className = 'chave-linha';
+      var esq = document.createElement('div');
+      esq.style.minWidth = '0';
+
+      var quem = document.createElement('div');
+      quem.className = 'chave-nome';
+      quem.textContent = c.quem + ': ' + (c.pergunta || '');
+      esq.appendChild(quem);
+
+      var resp = document.createElement('div');
+      resp.className = 'chave-meta';
+      resp.style.whiteSpace = 'normal';
+      resp.textContent = '↳ ' + (c.resposta || '').slice(0, 90);
+      esq.appendChild(resp);
+
+      linha.appendChild(esq);
+
+      var tag = document.createElement('span');
+      tag.className = 'chave-meta';
+      tag.style.cssText = 'white-space:nowrap;flex-shrink:0';
+      // fallback em destaque: é a lista do que o bot NÃO soube
+      // responder, e é dela que sai a próxima palavra-chave.
+      if(c.como === 'fallback'){ tag.style.color = '#b45309'; tag.style.fontWeight = '700'; }
+      tag.textContent = c.como === 'fallback' ? 'não entendeu' : (c.como || '');
+      linha.appendChild(tag);
+
+      alvo.appendChild(linha);
+    });
+  } catch(e){
+    alvo.textContent = 'Não foi possível carregar os atendimentos.';
+  }
+}
 
 // ═══════════════════════════════════
 // IFOOD — pedido vira tarefa
