@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://worka-backend-awng.onrender.com https://api.resend.com https://fonts.googleapis.com https://fonts.gstatic.com https://cdnjs.cloudflare.com https://maps.google.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; connect-src 'self' https://worka-backend-awng.onrender.com https://api.x.ai; frame-src https://maps.google.com;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://worka-backend-awng.onrender.com https://api.resend.com https://fonts.googleapis.com https://fonts.gstatic.com https://cdnjs.cloudflare.com https://maps.google.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; connect-src 'self' https://worka-backend-awng.onrender.com https://api.x.ai https://graph.facebook.com; frame-src https://maps.google.com https://www.facebook.com https://web.facebook.com https://staticxx.facebook.com;">
 <meta name="theme-color" content="#0a2e1a"/>
 <!-- Área logada: para quem não tem sessão esta página é uma casca
      vazia. Indexada, colocaria no Google um resultado em branco com o
@@ -1365,6 +1365,32 @@ tr:hover td{background:var(--g50)}
             canais — não precisa cadastrar nada duas vezes.
           </p>
 
+
+          <!-- CONECTAR EM UM CLIQUE.
+               Fica ANTES do caminho manual porque é o caminho que
+               quase todo mundo deve seguir: a pessoa faz login do
+               Facebook numa janelinha e acabou. O formulário de colar
+               chave continua existindo logo abaixo, recolhido, para
+               quem já tem aplicativo próprio na Meta.
+
+               Some sozinho quando a Workap ainda não foi aprovada como
+               Tech Provider — sem APP_ID o SDK deles nem carrega, e um
+               botão que não pode funcionar é pior que nenhum. -->
+          <div id="cb-um-clique" style="display:none;margin-bottom:18px">
+            <button class="btn btn-primary" id="cb-btn-conectar" onclick="conectarWhatsAppUmClique()"
+              style="font-size:.95rem;padding:13px 22px">
+              <svg class=ico aria-hidden=true><use href=#i-message></use></svg> Conectar meu WhatsApp
+            </button>
+            <p style="font-size:.82rem;color:var(--gray500);line-height:1.6;margin:10px 0 0">
+              Abre uma janela do Facebook. Você entra com a sua conta, escolhe o número, e
+              pronto — nada para copiar e colar. Leva cerca de dois minutos.
+            </p>
+            <div class="login-erro" id="cb-erro-clique">Não foi possível conectar.</div>
+          </div>
+
+          <details id="cb-manual">
+            <summary style="cursor:pointer;font-size:.85rem;font-weight:600;margin-bottom:14px;color:var(--gray500)">Prefiro colar as chaves da Meta na mão</summary>
+
           <div class="aviso-box" id="cb-wa-passos" style="background:var(--gray50);border:1px solid var(--gray200);border-radius:10px;padding:14px 16px;margin-bottom:16px">
             <div style="font-weight:700;font-size:.85rem;margin-bottom:8px">Antes de conectar, você precisa ter na Meta:</div>
             <ol style="font-size:.82rem;color:var(--gray500);line-height:1.8;margin:0;padding-left:20px">
@@ -1447,6 +1473,8 @@ tr:hover td{background:var(--g50)}
               assinar esse campo, a Meta aceita o endereço e não manda mensagem nenhuma.
             </p>
           </div>
+
+          </details>
 
           <div id="cb-wa-status" style="font-size:.82rem;color:var(--gray500);margin-top:14px"></div>
           <div class="login-erro" id="cb-wa-erro">Não foi possível salvar.</div>
@@ -2966,6 +2994,32 @@ tr:hover td{background:var(--g50)}
             <span class="badge" id="ow-wa-badge">não conectado</span>
           </div>
           <div class="card-body">
+
+            <!-- CONECTAR EM UM CLIQUE.
+                 Fica ANTES do caminho manual porque é o caminho que
+                 quase todo mundo deve seguir: a pessoa faz login do
+                 Facebook numa janelinha e acabou. O formulário de colar
+                 chave continua existindo logo abaixo, recolhido, para
+                 quem já tem aplicativo próprio na Meta.
+
+                 Some sozinho quando a Workap ainda não foi aprovada como
+                 Tech Provider — sem APP_ID o SDK deles nem carrega, e um
+                 botão que não pode funcionar é pior que nenhum. -->
+            <div id="ow-um-clique" style="display:none;margin-bottom:18px">
+              <button class="btn btn-primary" id="ow-btn-conectar" onclick="conectarWhatsAppOwnerUmClique()"
+                style="font-size:.95rem;padding:13px 22px">
+                <svg class=ico aria-hidden=true><use href=#i-message></use></svg> Conectar meu WhatsApp
+              </button>
+              <p style="font-size:.82rem;color:var(--gray500);line-height:1.6;margin:10px 0 0">
+                Abre uma janela do Facebook. Você entra com a sua conta, escolhe o número, e
+                pronto — nada para copiar e colar. Leva cerca de dois minutos.
+              </p>
+              <div class="login-erro" id="ow-erro-clique">Não foi possível conectar.</div>
+            </div>
+
+            <details id="ow-manual">
+              <summary style="cursor:pointer;font-size:.85rem;font-weight:600;margin-bottom:14px;color:var(--gray500)">Prefiro colar as chaves da Meta na mão</summary>
+
             <div style="background:var(--gray50);border:1px solid var(--gray200);border-radius:10px;padding:14px 16px;margin-bottom:16px">
               <div style="font-weight:700;font-size:.85rem;margin-bottom:8px">O que você precisa ter na Meta:</div>
               <ol style="font-size:.82rem;color:var(--gray500);line-height:1.8;margin:0;padding-left:20px">
@@ -3024,6 +3078,8 @@ tr:hover td{background:var(--g50)}
                 use um aplicativo separado do que você indicar aos clientes.
               </p>
             </div>
+
+            </details>
 
             <div id="ow-wa-status" style="font-size:.82rem;color:var(--gray500);margin-top:14px"></div>
             <div class="login-erro" id="ow-wa-erro">Não foi possível salvar.</div>
@@ -11414,7 +11470,7 @@ async function carregarChatbot(T){
   badge.textContent = bot.ativo ? 'ligado' : 'desligado';
   badge.className = 'badge ' + (bot.ativo ? 'badge-green' : '');
 
-  preencherWhatsAppChatbot(T, bot);
+  preencherWhatsAppChatbot(T, bot, d.um_clique);
 
   T.itens = d.itens || [];
   desenharItensChatbot(T);
@@ -11427,8 +11483,140 @@ async function carregarChatbot(T){
 // sem ter que perguntar ao servidor de novo.
 
 
-function preencherWhatsAppChatbot(T, bot){
+// ── CONECTAR EM UM CLIQUE ────────────────────────────────────
+//
+// O caminho manual pede que o dono de uma padaria crie um aplicativo
+// no painel da Meta, ache o ID do número no meio da tela, gere um
+// token de usuário de sistema e copie a chave secreta. Cada cliente
+// parado nesse guia é um Plano Master que não acontece.
+//
+// Aqui ele clica num botão, entra com o Facebook, e acabou. O que
+// volta para nós é um `code` de uso único — sozinho ele não serve para
+// nada, porque virar token exige a chave secreta da Workap, que só
+// existe no servidor.
+
+// O SDK da Meta é carregado UMA vez, e só quando alguém clica. Pôr o
+// <script> na página faria todo mundo baixar um arquivo do Facebook em
+// toda visita, inclusive quem nunca vai abrir esta tela.
+var sdkDaMeta = null;
+function carregarSdkDaMeta(appId){
+  if(sdkDaMeta) return sdkDaMeta;
+  sdkDaMeta = new Promise(function(resolve, reject){
+    window.fbAsyncInit = function(){
+      try { FB.init({ appId: appId, autoLogAppEvents: true, xfbml: false, version: 'v21.0' }); resolve(); }
+      catch(e){ reject(e); }
+    };
+    var el = document.createElement('script');
+    el.src = 'https://connect.facebook.net/en_US/sdk.js';
+    el.async = true; el.defer = true; el.crossOrigin = 'anonymous';
+    el.onerror = function(){ reject(new Error('não deu para carregar o Facebook')); };
+    document.head.appendChild(el);
+  });
+  return sdkDaMeta;
+}
+
+// A janelinha do Facebook conta o que criou por postMessage, e NÃO
+// pela resposta do login: o `code` vem por um caminho e o número da
+// pessoa por outro. Este ouvinte guarda o segundo enquanto o primeiro
+// não chega.
+var numeroCriadoNaMeta = {};
+window.addEventListener('message', function(ev){
+  if(!/facebook\.com$/.test((ev.origin||'').replace(/^https?:\/\//,''))) return;
+  try {
+    var d = JSON.parse(ev.data);
+    if(d.type !== 'WA_EMBEDDED_SIGNUP') return;
+    if(d.event === 'FINISH' || d.data){
+      numeroCriadoNaMeta = {
+        phone_number_id: (d.data||{}).phone_number_id || null,
+        waba_id:         (d.data||{}).waba_id || null
+      };
+    }
+  } catch(e){ /* mensagem que não é nossa; ignorar em silêncio */ }
+});
+
+async function conectarWhatsAppEmUmClique(T){
+  var erro = campoBot(T, 'erro-clique');
+  var btn  = campoBot(T, 'btn-conectar');
+  erro.style.display = 'none';
+
+  var cfg = T.umClique || {};
+  if(!cfg.disponivel){
+    erro.textContent = 'A conexão em um clique ainda não está ligada. Use o formulário abaixo.';
+    erro.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  var rotulo = btn.innerHTML;
+  btn.textContent = 'Abrindo o Facebook...';
+
+  try {
+    await carregarSdkDaMeta(cfg.app_id);
+    numeroCriadoNaMeta = {};
+
+    var resposta = await new Promise(function(resolve){
+      FB.login(resolve, {
+        config_id: cfg.config_id,
+        // `code` em vez de token: o navegador nunca deve receber um
+        // token que fala pelo número de alguém.
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: { setup: {}, featureType: '', sessionInfoVersion: '3' }
+      });
+    });
+
+    var codigo = resposta && resposta.authResponse && resposta.authResponse.code;
+    if(!codigo){
+      erro.textContent = 'A janela foi fechada antes de terminar. Pode tentar de novo.';
+      erro.style.display = 'block';
+      return;
+    }
+
+    btn.textContent = 'Finalizando...';
+    var r = await fetch(API_BASE + T.base + '/whatsapp/conectar', {
+      method:'POST', headers: cabecalhoAuth(),
+      body: JSON.stringify({
+        code: codigo,
+        phone_number_id: numeroCriadoNaMeta.phone_number_id,
+        waba_id:         numeroCriadoNaMeta.waba_id
+      })
+    });
+    var d = await r.json();
+    if(!r.ok){ erro.textContent = d.error || 'Não foi possível concluir.'; erro.style.display = 'block'; return; }
+
+    mostrarAvisoIfood(erro, 'Conectado' + (d.numero ? ' no ' + d.numero : '') + '. Mande "oi" para o número e veja o bot responder.', true);
+    carregarChatbot(T);
+  } catch(e){
+    erro.textContent = 'Não deu para abrir a janela do Facebook: ' + e.message;
+    erro.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.innerHTML = rotulo;
+  }
+}
+
+function preencherWhatsAppChatbot(T, bot, umClique){
   T.wa = bot || {};
+  T.umClique = umClique || { disponivel:false };
+
+  // Botão só existe se a Workap já tiver aplicativo aprovado na Meta.
+  // Quando não tem, o formulário manual abre sozinho — senão a tela
+  // apareceria vazia, com um "prefiro colar na mão" que é a única
+  // opção que existe.
+  var caixaClique = campoBot(T, 'um-clique');
+  var manual = document.getElementById(T.pre + '-manual');
+  if(caixaClique) caixaClique.style.display = T.umClique.disponivel ? '' : 'none';
+  if(manual){
+    var resumo = manual.querySelector('summary');
+    if(T.umClique.disponivel){
+      // Já conectado pelo botão: o formulário manual não tem o que
+      // fazer ali, e mexer nele quebraria a conexão.
+      manual.open = false;
+      if(resumo) resumo.style.display = '';
+    } else {
+      manual.open = true;
+      if(resumo) resumo.style.display = 'none';
+    }
+  }
 
   var canal = campoBot(T, 'canal');
   if(canal) canal.value = bot.canal || 'interno';
@@ -11865,6 +12053,7 @@ function pintarCanalChatbot(){        return pintarCanalChatbot_(TELA_BOT_EMPRES
 function salvarWhatsAppChatbot(){     return salvarWhatsAppChatbot_(TELA_BOT_EMPRESA); }
 function testarWhatsAppChatbot(){     return testarWhatsAppChatbot_(TELA_BOT_EMPRESA); }
 function desconectarWhatsAppChatbot(){ return desconectarWhatsAppChatbot_(TELA_BOT_EMPRESA); }
+function conectarWhatsAppUmClique(){      return conectarWhatsAppEmUmClique(TELA_BOT_EMPRESA); }
 
 function carregarChatbotOwner(){      return carregarChatbot(TELA_BOT_WORKAP); }
 function salvarChatbotOwner(){        return salvarChatbot_(TELA_BOT_WORKAP); }
@@ -11875,6 +12064,7 @@ function excluirItemOwner(item){      return excluirItemChatbot_(TELA_BOT_WORKAP
 function salvarWhatsAppOwner(){       return salvarWhatsAppChatbot_(TELA_BOT_WORKAP); }
 function testarWhatsAppOwner(){       return testarWhatsAppChatbot_(TELA_BOT_WORKAP); }
 function desconectarWhatsAppOwner(){  return desconectarWhatsAppChatbot_(TELA_BOT_WORKAP); }
+function conectarWhatsAppOwnerUmClique(){ return conectarWhatsAppEmUmClique(TELA_BOT_WORKAP); }
 
 // O modal de item é UM só no HTML, e serve as duas telas. Esta
 // variável lembra qual delas o abriu, para o botão Salvar mandar a

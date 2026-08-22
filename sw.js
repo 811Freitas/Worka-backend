@@ -9,6 +9,13 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v47: conectar o WhatsApp virou um botao. A pessoa entra com o
+//      Facebook numa janelinha e acabou — sem criar aplicativo, sem
+//      gerar token, sem copiar chave. O caminho de colar na mao
+//      continua, recolhido, para quem ja tem aplicativo proprio. E
+//      quem cola agora descobre NA HORA se errou o ID ou pegou o
+//      token de 24 horas.
+//
 // v46: o painel Owner ganhou a aba WhatsApp — a Workap agora tem o
 //      proprio assistente atendendo no numero dela. E a mesma tela do
 //      assinante: as rotas /owner/chatbot sao as /chatbot com outro
@@ -115,7 +122,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v46';
+var CACHE = 'workap-v47';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
