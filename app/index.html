@@ -2452,6 +2452,7 @@ tr:hover td{background:var(--g50)}
         <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('api')"><svg class=ico aria-hidden=true><use href=#i-plug></use></svg> API</button>
         <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('cobrancas')"><svg class=ico aria-hidden=true><use href=#i-link></use></svg> Cobranças</button>
         <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('diagnostico')"><svg class=ico aria-hidden=true><use href=#i-shield></use></svg> Diagnóstico</button>
+        <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('whatsapp')"><svg class=ico aria-hidden=true><use href=#i-message></use></svg> WhatsApp</button>
         <button class="btn btn-secondary btn-sm owner-tab" onclick="ownerTab('configuracoes')"><svg class=ico aria-hidden=true><use href=#i-tool></use></svg> Configurações</button>
       </div>
 
@@ -2903,6 +2904,194 @@ tr:hover td{background:var(--g50)}
           <div class="card-body" id="err-lista">—</div>
         </div>
 
+      </div>
+
+      <!-- ABA: WHATSAPP DA WORKAP -->
+      <!--
+        É a mesma tela do assinante, com o mesmo backend por baixo — as
+        rotas /owner/chatbot são as /chatbot com outro dono. Por isso
+        aqui não tem campo que o cliente não tenha: se um dia o menu
+        ganhar um recurso, ele nasce nos dois.
+
+        A diferença é quem escreve. No bot do assinante quem pergunta é
+        o funcionário ou o cliente da loja; aqui é gente pensando em
+        assinar o Workap às onze da noite. Por isso o exemplo de menu
+        que aparece na tela é de venda, não de RH.
+      -->
+      <div id="owner-whatsapp" style="display:none">
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header">
+            <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-message></use></svg> O assistente da Workap</div>
+            <span class="badge" id="ow-badge">—</span>
+          </div>
+          <div class="card-body">
+            <p style="font-size:.86rem;color:var(--gray500);margin-bottom:16px;line-height:1.6">
+              Quem manda mensagem para o WhatsApp da Workap é respondido na hora — preço,
+              o que o sistema faz, como assinar. É o mesmo motor que o Plano Master
+              entrega ao cliente, atendendo no <strong>seu</strong> número.
+            </p>
+
+            <div class="form-grid">
+              <div class="field">
+                <label>Nome do assistente</label>
+                <input id="ow-nome" maxlength="60" placeholder="Assistente Workap">
+              </div>
+              <div class="field">
+                <label>Situação</label>
+                <select id="ow-ativo">
+                  <option value="nao">Desligado</option>
+                  <option value="sim">Ligado — responde no WhatsApp</option>
+                </select>
+              </div>
+              <div class="field form-full">
+                <label>Mensagem de boas-vindas</label>
+                <textarea id="ow-boas-vindas" rows="2" maxlength="1000"
+                  placeholder="Oi! Sou o assistente do Workap. Escolha uma opção pelo número:"></textarea>
+              </div>
+              <div class="field form-full">
+                <label>Quando não entender</label>
+                <textarea id="ow-fallback" rows="2" maxlength="1000"
+                  placeholder="Não entendi. Digite menu para ver as opções — ou espere, que já te respondo."></textarea>
+              </div>
+            </div>
+
+            <div class="login-erro" id="ow-erro">Não foi possível salvar.</div>
+            <button class="btn btn-primary" id="ow-btn-salvar" onclick="salvarChatbotOwner()">Salvar</button>
+          </div>
+        </div>
+
+        <div class="card" id="ow-card-whatsapp" style="margin-bottom:16px">
+          <div class="card-header">
+            <div class="card-title">Conexão com a Meta</div>
+            <span class="badge" id="ow-wa-badge">não conectado</span>
+          </div>
+          <div class="card-body">
+            <div style="background:var(--gray50);border:1px solid var(--gray200);border-radius:10px;padding:14px 16px;margin-bottom:16px">
+              <div style="font-weight:700;font-size:.85rem;margin-bottom:8px">O que você precisa ter na Meta:</div>
+              <ol style="font-size:.82rem;color:var(--gray500);line-height:1.8;margin:0;padding-left:20px">
+                <li>Conta no <strong>Meta Business</strong></li>
+                <li>Um aplicativo com o produto <strong>WhatsApp</strong> adicionado</li>
+                <li>Um <strong>número registrado</strong> na Cloud API — confirmado por SMS ou
+                    ligação, e que não pode estar em uso no WhatsApp comum</li>
+                <li>Um <strong>token permanente</strong> de usuário de sistema</li>
+              </ol>
+              <p style="font-size:.8rem;color:var(--gray500);line-height:1.6;margin:10px 0 0">
+                <strong>Não precisa verificar o negócio.</strong> A verificação levanta o teto de
+                conversas que a empresa começa; este assistente só responde quem escreveu
+                primeiro, e resposta dentro de 24 horas não tem teto. Para experimentar,
+                o número de teste da Meta fala com até 5 contatos, sem cartão.
+              </p>
+            </div>
+
+            <div class="form-grid">
+              <div class="field">
+                <label>ID do número de telefone <span style="color:var(--gray400)">(phone number ID)</span></label>
+                <input id="ow-wa-numero-id" inputmode="numeric" maxlength="40" placeholder="Ex.: 109371234567890">
+              </div>
+              <div class="field">
+                <label>Número, como aparece para quem recebe</label>
+                <input id="ow-wa-numero" maxlength="30" placeholder="(11) 98765-4321">
+              </div>
+              <div class="field">
+                <label>Token permanente <span style="color:var(--gray400)">(nunca é exibido de volta)</span></label>
+                <input id="ow-wa-token" type="password" autocomplete="new-password" maxlength="500" placeholder="EAAG...">
+              </div>
+              <div class="field">
+                <label>App Secret <span style="color:var(--gray400)">(nunca é exibido de volta)</span></label>
+                <input id="ow-wa-secret" type="password" autocomplete="new-password" maxlength="200" placeholder="Chave secreta do aplicativo">
+              </div>
+            </div>
+
+            <div style="margin-top:18px;border:1.5px dashed var(--gray200);border-radius:10px;padding:14px 16px">
+              <div style="font-weight:700;font-size:.85rem;margin-bottom:10px">Cole estes dois no painel da Meta (WhatsApp → Configuração → Webhook):</div>
+              <div class="field" style="margin-bottom:10px">
+                <label>URL de callback</label>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <input id="ow-wa-url" readonly style="flex:1;min-width:200px;font-family:ui-monospace,monospace;font-size:.8rem">
+                  <button class="btn btn-secondary btn-sm" onclick="copiarCampo('ow-wa-url', this)">Copiar</button>
+                </div>
+              </div>
+              <div class="field">
+                <label>Token de verificação</label>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <input id="ow-wa-verify" readonly style="flex:1;min-width:200px;font-family:ui-monospace,monospace;font-size:.8rem" placeholder="Salve uma vez para gerar">
+                  <button class="btn btn-secondary btn-sm" onclick="copiarCampo('ow-wa-verify', this)">Copiar</button>
+                </div>
+              </div>
+              <p style="font-size:.8rem;color:var(--gray500);line-height:1.6;margin:10px 0 0">
+                Depois assine o campo <strong>messages</strong>. Sem isso a Meta aceita o
+                endereço e não manda mensagem nenhuma. É o número da <strong>Workap</strong> —
+                use um aplicativo separado do que você indicar aos clientes.
+              </p>
+            </div>
+
+            <div id="ow-wa-status" style="font-size:.82rem;color:var(--gray500);margin-top:14px"></div>
+            <div class="login-erro" id="ow-wa-erro">Não foi possível salvar.</div>
+
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+              <button class="btn btn-primary" id="ow-wa-btn-salvar" onclick="salvarWhatsAppOwner()">Salvar conexão</button>
+              <input id="ow-wa-teste-para" maxlength="20" placeholder="Seu WhatsApp, com DDD" style="min-width:180px">
+              <button class="btn btn-secondary" id="ow-wa-btn-testar" onclick="testarWhatsAppOwner()">Enviar teste</button>
+              <button class="btn btn-secondary" id="ow-wa-btn-desconectar" onclick="desconectarWhatsAppOwner()">Desconectar</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Menu de opções</div>
+              <button class="btn btn-primary btn-sm" onclick="abrirItemOwner('opcao')">+ Opção</button>
+            </div>
+            <div class="card-body">
+              <p style="font-size:.82rem;color:var(--gray500);margin-bottom:14px;line-height:1.6">
+                Numerado, aparece quando a pessoa manda <strong>oi</strong> ou <strong>menu</strong>.
+                Aqui vale o que vende: <em>quanto custa</em>, <em>o que o sistema faz</em>,
+                <em>quero testar de graça</em>, <em>falar com uma pessoa</em>.
+              </p>
+              <div id="ow-lista-opcoes"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Palavras-chave</div>
+              <button class="btn btn-primary btn-sm" onclick="abrirItemOwner('gatilho')">+ Gatilho</button>
+            </div>
+            <div class="card-body">
+              <p style="font-size:.82rem;color:var(--gray500);margin-bottom:14px;line-height:1.6">
+                Responde direto, sem passar pelo menu. <strong>preço, valor, quanto custa</strong>
+                no mesmo gatilho pega as três formas de perguntar a mesma coisa.
+              </p>
+              <div id="ow-lista-gatilhos"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header"><div class="card-title">Testar</div></div>
+          <div class="card-body">
+            <p style="font-size:.82rem;color:var(--gray500);margin-bottom:14px;line-height:1.6">
+              Escreva como um interessado escreveria. Passa pelo mesmo caminho do
+              atendimento de verdade, e não manda mensagem para ninguém.
+            </p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <input id="ow-teste" placeholder="Ex.: quanto custa?" style="flex:1;min-width:200px" onkeydown="if(event.key==='Enter')testarChatbotOwner()">
+              <button class="btn btn-secondary" id="ow-btn-testar" onclick="testarChatbotOwner()">Testar</button>
+            </div>
+            <div id="ow-resultado" style="display:none;margin-top:14px"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Quem escreveu para a Workap</div>
+            <button class="btn btn-secondary btn-sm" onclick="carregarConversasOwner()">Atualizar</button>
+          </div>
+          <div class="card-body" id="ow-conversas">
+            <p style="font-size:.86rem;color:var(--gray500)">Carregando...</p>
+          </div>
+        </div>
       </div>
 
       <!-- ABA: CONFIGURAÇÕES -->
@@ -5522,7 +5711,7 @@ function abrirPagina(id) {
   if(id==='contatos'   && typeof carregarContatos     === 'function') carregarContatos();
   if(id==='integracoes'&& typeof carregarChavesApi    === 'function') carregarChavesApi();
   if(id==='integracoes'&& typeof carregarIfood        === 'function') carregarIfood();
-  if(id==='chatbot'    && typeof carregarChatbot      === 'function') carregarChatbot();
+  if(id==='chatbot'    && typeof carregarChatbotApp   === 'function') carregarChatbotApp();
   if(id==='escala'     && typeof carregarEscala      === 'function') carregarEscala();
   if(id==='relatorios' && typeof carregarRelatorios  === 'function') carregarRelatorios();
   if(id==='cargos' && typeof carregarCargos === 'function') carregarCargos();
@@ -6622,13 +6811,14 @@ function ownerTab(tab) {
   if(tab === 'suporte' && typeof carregarFilaSuporte === 'function') carregarFilaSuporte();
   if(tab === 'cobrancas' && typeof carregarLinks === 'function') carregarLinks();
   if(tab === 'funil' && typeof carregarFunil === 'function') carregarFunil();
+  if(tab === 'whatsapp' && typeof carregarChatbotOwner === 'function') carregarChatbotOwner();
   if(tab === 'diagnostico') {
     if(typeof carregarSeguranca === 'function') carregarSeguranca();
     if(typeof carregarErros     === 'function') carregarErros();
   }
 
   // Esconder todas as abas
-  ['assinantes','financeiro','plataforma','suporte','marketing','funil','logs','api','cobrancas','diagnostico','configuracoes'].forEach(function(t){
+  ['assinantes','financeiro','plataforma','suporte','marketing','funil','logs','api','cobrancas','diagnostico','whatsapp','configuracoes'].forEach(function(t){
     var el = document.getElementById('owner-'+t);
     if(el) el.style.display = 'none';
   });
@@ -11154,18 +11344,39 @@ var contatoEmEdicao = null;
 // Tudo montado com createElement e textContent: rótulo, palavras e
 // resposta são escritos pelo dono e voltam do servidor.
 
-var chatbotItens = [];
-var itemChatbotEditando = null;
-var itemChatbotTipo = 'opcao';
+// ═══════════════════════════════════
+// CHATBOT — uma tela, dois donos
+// ═══════════════════════════════════
+//
+// A mesma tela serve o assistente do assinante (página Chatbot) e o da
+// própria Workap (aba WhatsApp do painel Owner). São o mesmo produto:
+// mesmo menu numerado, mesmos gatilhos, mesmo jeito de conectar a
+// Meta. O que muda cabe num objeto:
+//
+//   base     — a rota. /chatbot ou /owner/chatbot; o resto do caminho
+//              é igual nos dois.
+//   pre      — o prefixo dos ids no HTML. 'cb' ou 'ow'.
+//   comCanal — se a tela deixa escolher onde o bot atende. A Workap não
+//              tem chat interno, então o dela é sempre WhatsApp.
+//
+// Duplicar estas 470 linhas para o painel Owner deixaria duas telas
+// que precisam ser corrigidas juntas e nunca são.
+var TELA_BOT_EMPRESA = { base:'/chatbot',       pre:'cb', comCanal:true,  itens:[], wa:{}, editando:null, tipoDoItem:'opcao' };
+var TELA_BOT_WORKAP  = { base:'/owner/chatbot', pre:'ow', comCanal:false, itens:[], wa:{}, editando:null, tipoDoItem:'opcao' };
 
-async function carregarChatbot(){
+/** O campo desta tela, pelo sufixo do id. */
+function campoBot(T, sufixo){
+  return document.getElementById(T.pre + '-' + sufixo);
+}
+
+async function carregarChatbot(T){
   if(!sessaoWorka || !sessaoWorka.token) return;
   var pag = document.getElementById('pg-chatbot');
   if(!pag) return;
 
   var d = null;
   try {
-    var r = await fetch(API_BASE + '/chatbot', { headers: cabecalhoAuth() });
+    var r = await fetch(API_BASE + T.base, { headers: cabecalhoAuth() });
     if(r.status === 402){
       // Fora do Master. A tela explica em vez de sumir sem dizer nada —
       // o item continua no menu porque quem chegou aqui quer saber o
@@ -11189,66 +11400,66 @@ async function carregarChatbot(){
     if(!r.ok) throw new Error('falhou');
     d = await r.json();
   } catch(e){
-    document.getElementById('cb-badge').textContent = 'indisponível';
+    campoBot(T, 'badge').textContent = 'indisponível';
     return;
   }
 
   var bot = d.chatbot || {};
-  document.getElementById('cb-nome').value        = bot.nome || '';
-  document.getElementById('cb-boas-vindas').value = bot.boas_vindas || '';
-  document.getElementById('cb-fallback').value    = bot.fallback || '';
-  document.getElementById('cb-ativo').value       = bot.ativo ? 'sim' : 'nao';
+  campoBot(T, 'nome').value        = bot.nome || '';
+  campoBot(T, 'boas-vindas').value = bot.boas_vindas || '';
+  campoBot(T, 'fallback').value    = bot.fallback || '';
+  campoBot(T, 'ativo').value       = bot.ativo ? 'sim' : 'nao';
 
-  var badge = document.getElementById('cb-badge');
+  var badge = campoBot(T, 'badge');
   badge.textContent = bot.ativo ? 'ligado' : 'desligado';
   badge.className = 'badge ' + (bot.ativo ? 'badge-green' : '');
 
-  preencherWhatsAppChatbot(bot);
+  preencherWhatsAppChatbot(T, bot);
 
-  chatbotItens = d.itens || [];
-  desenharItensChatbot();
-  carregarConversasChatbot();
+  T.itens = d.itens || [];
+  desenharItensChatbot(T);
+  carregarConversasChatbot_(T);
 }
 
 // ── WHATSAPP ─────────────────────────────────────────────────
 //
 // Guardado para o botão "Desconectar" saber se há o que desconectar
 // sem ter que perguntar ao servidor de novo.
-var whatsappDoBot = {};
 
-function preencherWhatsAppChatbot(bot){
-  whatsappDoBot = bot || {};
 
-  var canal = document.getElementById('cb-canal');
+function preencherWhatsAppChatbot(T, bot){
+  T.wa = bot || {};
+
+  var canal = campoBot(T, 'canal');
   if(canal) canal.value = bot.canal || 'interno';
 
-  var idEl = document.getElementById('cb-wa-numero-id');
+  var idEl = campoBot(T, 'wa-numero-id');
   if(idEl) idEl.value = bot.wa_phone_number_id || '';
-  var numEl = document.getElementById('cb-wa-numero');
+  var numEl = campoBot(T, 'wa-numero');
   if(numEl) numEl.value = bot.wa_numero || '';
 
   // Token e segredo NUNCA voltam do servidor. O campo fica vazio de
   // propósito, e o texto abaixo é que diz se já existe algo salvo —
   // mostrar bolinhas num campo vazio faria o dono achar que está
   // preenchido e salvar por cima com nada.
-  ['cb-wa-token','cb-wa-secret'].forEach(function(id){
-    var el = document.getElementById(id);
+  ['wa-token','wa-secret'].forEach(function(sufixo){
+    var el = campoBot(T, sufixo);
     if(el) el.value = '';
   });
 
-  var urlEl = document.getElementById('cb-wa-url');
+  var urlEl = campoBot(T, 'wa-url');
   if(urlEl) urlEl.value = API_BASE + '/webhook/whatsapp';
-  var vfEl = document.getElementById('cb-wa-verify');
+  var vfEl = campoBot(T, 'wa-verify');
   if(vfEl) vfEl.value = bot.wa_verify_token || '';
 
   var conectado = !!(bot.wa_phone_number_id && bot.wa_token_salvo && bot.wa_app_secret_salvo);
-  var badge = document.getElementById('cb-wa-badge');
+  var badge = campoBot(T, 'wa-badge');
   if(badge){
     badge.textContent = conectado ? 'conectado' : 'não conectado';
     badge.className = 'badge ' + (conectado ? 'badge-green' : '');
   }
 
-  var status = document.getElementById('cb-wa-status');
+  var status = campoBot(T, 'wa-status');
   if(status){
     var partes = [];
     if(!bot.wa_phone_number_id)  partes.push('falta o ID do número');
@@ -11269,20 +11480,25 @@ function preencherWhatsAppChatbot(bot){
     }
   }
 
-  pintarCanalChatbot();
+  pintarCanalChatbot_(T);
 }
 
 // Deixa claro que o cartão do WhatsApp só vale se o canal usar ele —
 // preencher tudo com o canal em "chat da equipe" é o tipo de trabalho
 // que se descobre perdido depois.
-function pintarCanalChatbot(){
-  var canal = ((document.getElementById('cb-canal') || {}).value) || 'interno';
-  var card = document.getElementById('cb-card-whatsapp');
+function pintarCanalChatbot_(T){
+  // O bot da Workap não tem escolha de canal: ela não tem chat interno
+  // com funcionário nenhum, então o cartão do WhatsApp está sempre em
+  // uso e não faz sentido apagá-lo.
+  var canal = T.comCanal
+    ? (((campoBot(T, 'canal') || {}).value) || 'interno')
+    : 'whatsapp';
+  var card = campoBot(T, 'card-whatsapp');
   if(!card) return;
   var usa = canal === 'whatsapp' || canal === 'ambos';
   card.style.opacity = usa ? '1' : '.6';
 
-  var badge = document.getElementById('cb-wa-badge');
+  var badge = campoBot(T, 'wa-badge');
   if(!badge) return;
   if(!usa){ badge.textContent = 'canal desligado'; badge.className = 'badge'; return; }
 
@@ -11290,9 +11506,9 @@ function pintarCanalChatbot(){
   // este trecho ele ficava preso em "canal desligado" depois de o dono
   // trocar de canal e voltar — dizendo que a conexão caiu quando nada
   // tinha caído.
-  var conectado = !!(whatsappDoBot.wa_phone_number_id &&
-                     whatsappDoBot.wa_token_salvo &&
-                     whatsappDoBot.wa_app_secret_salvo);
+  var conectado = !!(T.wa.wa_phone_number_id &&
+                     T.wa.wa_token_salvo &&
+                     T.wa.wa_app_secret_salvo);
   badge.textContent = conectado ? 'conectado' : 'não conectado';
   badge.className = 'badge ' + (conectado ? 'badge-green' : '');
 }
@@ -11307,41 +11523,41 @@ function copiarCampo(id, botao){
   copiarTextoSimples(el.value, botao || { textContent:'' }, 'Copiar');
 }
 
-async function salvarWhatsAppChatbot(){
-  var erro = document.getElementById('cb-wa-erro');
-  var btn  = document.getElementById('cb-wa-btn-salvar');
+async function salvarWhatsAppChatbot_(T){
+  var erro = campoBot(T, 'wa-erro');
+  var btn  = campoBot(T, 'wa-btn-salvar');
   erro.style.display = 'none';
   btn.disabled = true; btn.textContent = 'Salvando...';
   try {
     var corpo = {
-      canal:              (document.getElementById('cb-canal') || {}).value || 'interno',
-      wa_phone_number_id: (document.getElementById('cb-wa-numero-id').value || '').trim(),
-      wa_numero:          (document.getElementById('cb-wa-numero').value || '').trim()
+      canal:              T.comCanal ? ((campoBot(T, 'canal') || {}).value || 'interno') : 'whatsapp',
+      wa_phone_number_id: (campoBot(T, 'wa-numero-id').value || '').trim(),
+      wa_numero:          (campoBot(T, 'wa-numero').value || '').trim()
     };
     // Campo em branco não é enviado: o servidor entende ausência como
     // "não mexe no que está salvo". Mandar string vazia apagaria o
     // token toda vez que o dono só quisesse corrigir o número.
-    var tok = (document.getElementById('cb-wa-token').value || '').trim();
-    var sec = (document.getElementById('cb-wa-secret').value || '').trim();
+    var tok = (campoBot(T, 'wa-token').value || '').trim();
+    var sec = (campoBot(T, 'wa-secret').value || '').trim();
     if(tok) corpo.wa_token = tok;
     if(sec) corpo.wa_app_secret = sec;
 
-    var r = await fetch(API_BASE + '/chatbot', {
+    var r = await fetch(API_BASE + T.base, {
       method:'PUT', headers: cabecalhoAuth(), body: JSON.stringify(corpo)
     });
     var d = await r.json();
     if(!r.ok){ erro.textContent = d.error || 'Não foi possível salvar.'; erro.style.display = 'block'; return; }
     mostrarAvisoIfood(erro, 'Conexão salva.', true);
-    carregarChatbot();
+    carregarChatbot(T);
   } catch(e){
     erro.textContent = 'Sem conexão com o servidor.'; erro.style.display = 'block';
   } finally { btn.disabled = false; btn.textContent = 'Salvar conexão'; }
 }
 
-async function testarWhatsAppChatbot(){
-  var erro = document.getElementById('cb-wa-erro');
-  var btn  = document.getElementById('cb-wa-btn-testar');
-  var para = (document.getElementById('cb-wa-teste-para').value || '').trim();
+async function testarWhatsAppChatbot_(T){
+  var erro = campoBot(T, 'wa-erro');
+  var btn  = campoBot(T, 'wa-btn-testar');
+  var para = (campoBot(T, 'wa-teste-para').value || '').trim();
   erro.style.display = 'none';
   if(!para){
     erro.textContent = 'Escreva o número que vai receber o teste, com DDD.';
@@ -11350,7 +11566,7 @@ async function testarWhatsAppChatbot(){
   }
   btn.disabled = true; btn.textContent = 'Enviando...';
   try {
-    var r = await fetch(API_BASE + '/chatbot/whatsapp/testar', {
+    var r = await fetch(API_BASE + T.base + '/whatsapp/testar', {
       method:'POST', headers: cabecalhoAuth(), body: JSON.stringify({ para: para })
     });
     var d = await r.json();
@@ -11361,33 +11577,33 @@ async function testarWhatsAppChatbot(){
   } finally { btn.disabled = false; btn.textContent = 'Enviar teste'; }
 }
 
-async function desconectarWhatsAppChatbot(){
-  if(!whatsappDoBot.wa_phone_number_id && !whatsappDoBot.wa_token_salvo) return;
+async function desconectarWhatsAppChatbot_(T){
+  if(!T.wa.wa_phone_number_id && !T.wa.wa_token_salvo) return;
   if(!confirm('Desconectar o WhatsApp? O assistente volta a atender só no chat da equipe, e você precisa colar o token de novo para religar.')) return;
 
-  var erro = document.getElementById('cb-wa-erro');
-  var btn  = document.getElementById('cb-wa-btn-desconectar');
+  var erro = campoBot(T, 'wa-erro');
+  var btn  = campoBot(T, 'wa-btn-desconectar');
   erro.style.display = 'none';
   btn.disabled = true; btn.textContent = 'Desconectando...';
   try {
-    var r = await fetch(API_BASE + '/chatbot/whatsapp/desconectar', {
+    var r = await fetch(API_BASE + T.base + '/whatsapp/desconectar', {
       method:'POST', headers: cabecalhoAuth()
     });
     var d = await r.json();
     if(!r.ok){ erro.textContent = d.error || 'Não foi possível desconectar.'; erro.style.display = 'block'; return; }
-    carregarChatbot();
+    carregarChatbot(T);
   } catch(e){
     erro.textContent = 'Sem conexão com o servidor.'; erro.style.display = 'block';
   } finally { btn.disabled = false; btn.textContent = 'Desconectar'; }
 }
 
-function desenharItensChatbot(){
-  [['opcao','cb-lista-opcoes'],['gatilho','cb-lista-gatilhos']].forEach(function(par){
-    var tipo = par[0], alvo = document.getElementById(par[1]);
+function desenharItensChatbot(T){
+  [['opcao','lista-opcoes'],['gatilho','lista-gatilhos']].forEach(function(par){
+    var tipo = par[0], alvo = campoBot(T, par[1]);
     if(!alvo) return;
     alvo.textContent = '';
 
-    var lista = chatbotItens.filter(function(i){ return i.tipo === tipo; });
+    var lista = (T.itens || []).filter(function(i){ return i.tipo === tipo; });
     if(!lista.length){
       var vazio = document.createElement('p');
       vazio.style.cssText = 'font-size:.84rem;color:var(--gray500);line-height:1.6';
@@ -11428,13 +11644,13 @@ function desenharItensChatbot(){
       var bEd = document.createElement('button');
       bEd.className = 'btn btn-secondary btn-sm';
       bEd.textContent = 'Editar';
-      bEd.onclick = function(){ abrirItemChatbot(tipo, item); };
+      bEd.onclick = function(){ abrirItemChatbot_(T, tipo, item); };
       acoes.appendChild(bEd);
 
       var bEx = document.createElement('button');
       bEx.className = 'btn btn-secondary btn-sm';
       bEx.textContent = 'Excluir';
-      bEx.onclick = function(){ excluirItemChatbot(item); };
+      bEx.onclick = function(){ excluirItemChatbot_(T, item); };
       acoes.appendChild(bEx);
 
       linha.appendChild(acoes);
@@ -11443,9 +11659,13 @@ function desenharItensChatbot(){
   });
 }
 
-function abrirItemChatbot(tipo, item){
-  itemChatbotTipo = tipo;
-  itemChatbotEditando = item || null;
+function abrirItemChatbot_(T, tipo, item){
+  T.tipoDoItem = tipo;
+  T.editando = item || null;
+  // O botão Salvar do modal não sabe de qual tela veio — só existe um
+  // modal no HTML. Sem esta linha, editar uma opção do bot da Workap
+  // gravaria no bot do assinante que está logado.
+  telaDoModalDeItem = T;
 
   document.getElementById('cbi-titulo').textContent =
     (item ? 'Editar ' : 'Nova ') + (tipo === 'opcao' ? 'opção do menu' : 'palavra-chave');
@@ -11462,78 +11682,78 @@ function abrirItemChatbot(tipo, item){
   abrirModal('modal-item-chatbot');
 }
 
-async function salvarItemChatbot(){
+async function salvarItemChatbot_(T){
   var erro = document.getElementById('cbi-erro');
   var btn  = document.getElementById('cbi-btn');
   erro.style.display = 'none';
   btn.disabled = true;
 
   var corpo = {
-    tipo:     itemChatbotTipo,
+    tipo:     T.tipoDoItem,
     rotulo:   (document.getElementById('cbi-rotulo').value || '').trim(),
     resposta: (document.getElementById('cbi-resposta').value || '').trim()
   };
-  if(itemChatbotTipo === 'gatilho') corpo.palavras = (document.getElementById('cbi-palavras').value || '').trim();
+  if(T.tipoDoItem === 'gatilho') corpo.palavras = (document.getElementById('cbi-palavras').value || '').trim();
 
   try {
-    var url = API_BASE + '/chatbot/itens' + (itemChatbotEditando ? '/' + itemChatbotEditando.id : '');
+    var url = API_BASE + T.base + '/itens' + (T.editando ? '/' + T.editando.id : '');
     var r = await fetch(url, {
-      method: itemChatbotEditando ? 'PUT' : 'POST',
+      method: T.editando ? 'PUT' : 'POST',
       headers: cabecalhoAuth(), body: JSON.stringify(corpo)
     });
     var d = await r.json();
     if(!r.ok){ erro.textContent = d.error || 'Não foi possível salvar.'; erro.style.display = 'block'; return; }
     fecharModal('modal-item-chatbot');
-    carregarChatbot();
+    carregarChatbot(T);
   } catch(e){
     erro.textContent = 'Sem conexão com o servidor.'; erro.style.display = 'block';
   } finally { btn.disabled = false; }
 }
 
-async function excluirItemChatbot(item){
+async function excluirItemChatbot_(T, item){
   if(!confirm('Excluir "' + (item.rotulo || 'este item') + '"?')) return;
   try {
-    var r = await fetch(API_BASE + '/chatbot/itens/' + item.id, { method:'DELETE', headers: cabecalhoAuth() });
+    var r = await fetch(API_BASE + T.base + '/itens/' + item.id, { method:'DELETE', headers: cabecalhoAuth() });
     if(!r.ok){ alert('Não foi possível excluir agora.'); return; }
-    carregarChatbot();
+    carregarChatbot(T);
   } catch(e){ alert('Sem conexão com o servidor.'); }
 }
 
-async function salvarChatbot(){
-  var erro = document.getElementById('cb-erro');
-  var btn  = document.getElementById('cb-btn-salvar');
+async function salvarChatbot_(T){
+  var erro = campoBot(T, 'erro');
+  var btn  = campoBot(T, 'btn-salvar');
   erro.style.display = 'none';
   btn.disabled = true; btn.textContent = 'Salvando...';
   try {
-    var r = await fetch(API_BASE + '/chatbot', {
+    var r = await fetch(API_BASE + T.base, {
       method:'PUT', headers: cabecalhoAuth(),
       body: JSON.stringify({
-        nome:        (document.getElementById('cb-nome').value || '').trim(),
-        boas_vindas: (document.getElementById('cb-boas-vindas').value || '').trim(),
-        fallback:    (document.getElementById('cb-fallback').value || '').trim(),
-        ativo:       document.getElementById('cb-ativo').value === 'sim',
-        canal:       (document.getElementById('cb-canal') || {}).value || 'interno'
+        nome:        (campoBot(T, 'nome').value || '').trim(),
+        boas_vindas: (campoBot(T, 'boas-vindas').value || '').trim(),
+        fallback:    (campoBot(T, 'fallback').value || '').trim(),
+        ativo:       campoBot(T, 'ativo').value === 'sim',
+        canal:       T.comCanal ? ((campoBot(T, 'canal') || {}).value || 'interno') : 'whatsapp'
       })
     });
     var d = await r.json();
     if(!r.ok){ erro.textContent = d.error || 'Não foi possível salvar.'; erro.style.display = 'block'; return; }
     mostrarAvisoIfood(erro, 'Salvo.', true);
-    carregarChatbot();
+    carregarChatbot(T);
   } catch(e){
     erro.textContent = 'Sem conexão com o servidor.'; erro.style.display = 'block';
   } finally { btn.disabled = false; btn.textContent = 'Salvar'; }
 }
 
-async function testarChatbot(){
-  var campo = document.getElementById('cb-teste');
-  var alvo  = document.getElementById('cb-resultado');
+async function testarChatbot_(T){
+  var campo = campoBot(T, 'teste');
+  var alvo  = campoBot(T, 'resultado');
   var texto = (campo.value || '').trim();
   if(!texto) return;
 
-  var btn = document.getElementById('cb-btn-testar');
+  var btn = campoBot(T, 'btn-testar');
   btn.disabled = true; btn.textContent = 'Testando...';
   try {
-    var r = await fetch(API_BASE + '/chatbot/testar', {
+    var r = await fetch(API_BASE + T.base + '/testar', {
       method:'POST', headers: cabecalhoAuth(), body: JSON.stringify({ texto: texto })
     });
     var d = await r.json();
@@ -11570,11 +11790,11 @@ async function testarChatbot(){
   } finally { btn.disabled = false; btn.textContent = 'Testar'; }
 }
 
-async function carregarConversasChatbot(){
-  var alvo = document.getElementById('cb-conversas');
+async function carregarConversasChatbot_(T){
+  var alvo = campoBot(T, 'conversas');
   if(!alvo) return;
   try {
-    var r = await fetch(API_BASE + '/chatbot/conversas', { headers: cabecalhoAuth() });
+    var r = await fetch(API_BASE + T.base + '/conversas', { headers: cabecalhoAuth() });
     if(!r.ok) throw new Error('falhou');
     var d = await r.json();
     var lista = d.conversas || [];
@@ -11630,6 +11850,39 @@ async function carregarConversasChatbot(){
     alvo.textContent = 'Não foi possível carregar os atendimentos.';
   }
 }
+
+// ── As duas telas, ligadas ao mesmo código ───────────────────
+//
+// Só estes atalhos existem para o HTML chamar: os onclick precisam de
+// um nome sem argumento, e é aqui que cada tela diz quem ela é.
+function carregarChatbotApp(){        return carregarChatbot(TELA_BOT_EMPRESA); }
+function salvarChatbot(){             return salvarChatbot_(TELA_BOT_EMPRESA); }
+function testarChatbot(){             return testarChatbot_(TELA_BOT_EMPRESA); }
+function carregarConversasChatbot(){  return carregarConversasChatbot_(TELA_BOT_EMPRESA); }
+function abrirItemChatbot(tipo, item){ return abrirItemChatbot_(TELA_BOT_EMPRESA, tipo, item); }
+function excluirItemChatbot(item){    return excluirItemChatbot_(TELA_BOT_EMPRESA, item); }
+function pintarCanalChatbot(){        return pintarCanalChatbot_(TELA_BOT_EMPRESA); }
+function salvarWhatsAppChatbot(){     return salvarWhatsAppChatbot_(TELA_BOT_EMPRESA); }
+function testarWhatsAppChatbot(){     return testarWhatsAppChatbot_(TELA_BOT_EMPRESA); }
+function desconectarWhatsAppChatbot(){ return desconectarWhatsAppChatbot_(TELA_BOT_EMPRESA); }
+
+function carregarChatbotOwner(){      return carregarChatbot(TELA_BOT_WORKAP); }
+function salvarChatbotOwner(){        return salvarChatbot_(TELA_BOT_WORKAP); }
+function testarChatbotOwner(){        return testarChatbot_(TELA_BOT_WORKAP); }
+function carregarConversasOwner(){    return carregarConversasChatbot_(TELA_BOT_WORKAP); }
+function abrirItemOwner(tipo, item){  return abrirItemChatbot_(TELA_BOT_WORKAP, tipo, item); }
+function excluirItemOwner(item){      return excluirItemChatbot_(TELA_BOT_WORKAP, item); }
+function salvarWhatsAppOwner(){       return salvarWhatsAppChatbot_(TELA_BOT_WORKAP); }
+function testarWhatsAppOwner(){       return testarWhatsAppChatbot_(TELA_BOT_WORKAP); }
+function desconectarWhatsAppOwner(){  return desconectarWhatsAppChatbot_(TELA_BOT_WORKAP); }
+
+// O modal de item é UM só no HTML, e serve as duas telas. Esta
+// variável lembra qual delas o abriu, para o botão Salvar mandar a
+// alteração para a rota certa — sem isso, editar uma opção do bot da
+// Workap gravaria no bot do assinante logado.
+var telaDoModalDeItem = TELA_BOT_EMPRESA;
+function salvarItemChatbot(){ return salvarItemChatbot_(telaDoModalDeItem); }
+
 
 // ═══════════════════════════════════
 // IFOOD — pedido vira tarefa

@@ -5651,6 +5651,398 @@ async function atenderNoWhatsApp(bot, msg) {
   return { como: decisao.como };
 }
 
+/**
+ * TODAS as rotas do chatbot, para qualquer dono.
+ *
+ * Existe uma função e não dois blocos de rota porque o bot da Workap e
+ * o bot do assinante são a MESMA coisa: mesmo menu numerado, mesmos
+ * gatilhos, mesmo motor de decisão, mesmo jeito de conectar o
+ * WhatsApp. O que muda entre eles é uma linha — de quem é o bot.
+ *
+ * Copiar estas trezentas linhas para o painel Owner deixaria duas
+ * versões da mesma regra, e a partir daí toda correção teria que ser
+ * feita duas vezes. A que fosse esquecida vira o defeito que só
+ * acontece "no meu" ou "no do cliente".
+ *
+ * `ctx` diz de quem é o bot:
+ *   prefixo     — "/chatbot" ou "/owner/chatbot"; o resto do caminho é
+ *                 idêntico nos dois, e é por isso que o id do item sai
+ *                 de `resto` e não de path.split("/"), que mudaria de
+ *                 índice conforme a profundidade do prefixo.
+ *   empresa_id  — o dono, ou null quando é o bot da própria Workap.
+ *   filtro      — como achar esse bot na tabela.
+ *   nascimento  — como criá-lo, se ainda não existe.
+ *   paraOLog    — o que identifica o dono no log de auditoria.
+ *
+ * Quem chama é que decide se PODE: permissão e plano ficam do lado de
+ * fora, porque as duas respostas são diferentes (Master para o
+ * assinante, saas:write para o owner) e nenhuma delas é assunto das
+ * rotas em si.
+ */
+async function rotasDoChatbot(req, res, ctx) {
+  var method = req.method;
+  var url    = new URL(req.url, `http://localhost:${CONFIG.PORT}`);
+  var path   = url.pathname;
+  // "/chatbot/itens/abc" com prefixo "/chatbot" vira "/itens/abc";
+  // "/owner/chatbot/itens/abc" com prefixo "/owner/chatbot" vira a
+  // mesma coisa. Daqui para baixo, os dois caminhos são um só.
+  var resto  = path.slice(ctx.prefixo.length);
+
+  // Ler para conferir, sim; gravar, não. Sem esta porta, o owner
+  // espiando a tela do assinante criaria uma opção de menu que
+  // nasceria sem empresa — e apareceria para o cliente do nada.
+  if (ctx.espiando && method !== "GET") {
+    return jsonErr(res, "Esta conta administra a plataforma e não tem chatbot próprio aqui — use a aba WhatsApp do painel.", 403);
+  }
+
+  // Um bot por dono, criado na primeira visita. Sem isto a tela
+  // abriria vazia e exigiria um "criar chatbot" que não decide nada
+  // — quem chega aqui quer configurar, não instanciar.
+  async function botDaEmpresa() {
+    var achado = await DB.select("chatbots", ctx.filtro + "&select=*&limit=1");
+    if (achado.body && achado.body[0]) return achado.body[0];
+
+    // Sem dono de verdade não se cria nada. O owner abre a tela do
+    // assinante para conferir o que o cliente vê, e o token dele traz
+    // EMPRESA_NENHUMA — um insert com esse uuid criaria um chatbot de
+    // uma empresa que não existe, e a trava de escrita do supabase()
+    // recusa, virando 500 numa tela que só queria ser olhada.
+    // Este bot de mentira nunca é gravado.
+    if (ctx.espiando) {
+      return { id: null, nome: "Assistente", ativo: false, canal: "interno",
+               boas_vindas: "", fallback: "", escopo: "empresa" };
+    }
+
+    var novo = await DB.insert("chatbots", ctx.nascimento);
+    return novo.body && novo.body[0];
+  }
+
+  if (method === "GET" && resto === "") {
+    var botCfg = await botDaEmpresa();
+    // Bot que ainda não existe no banco não tem id, e
+    // `chatbot_id=eq.null` não devolve lista vazia — devolve erro.
+    var itensCfg = botCfg.id
+      ? await DB.select("chatbot_itens",
+          `chatbot_id=eq.${botCfg.id}&select=*&order=tipo.asc,ordem.asc`
+        ).catch(function () { return { body: [] }; })
+      : { body: [] };
+
+    // O token permanente da Meta e o App Secret NÃO voltam para o
+    // navegador. Com o token, quem o pegasse manda mensagem pelo
+    // número do cliente; com o segredo, forja webhook. Ambos são
+    // de escrita só: entram no formulário, e a tela mostra apenas
+    // se já estão salvos.
+    //
+    // Devolver o objeto inteiro e apagar dois campos seria uma
+    // linha mais curta e uma armadilha: a próxima coluna sensível
+    // entraria na resposta sozinha. A lista é explícita.
+    var seguro = {
+      id: botCfg.id, empresa_id: botCfg.empresa_id,
+      nome: botCfg.nome, ativo: botCfg.ativo,
+      boas_vindas: botCfg.boas_vindas, fallback: botCfg.fallback,
+      canal: botCfg.canal || "interno",
+      wa_phone_number_id: botCfg.wa_phone_number_id || null,
+      wa_numero: botCfg.wa_numero || null,
+      wa_verify_token: botCfg.wa_verify_token || null,
+      wa_conectado_em: botCfg.wa_conectado_em || null,
+      wa_ultimo_evento_em: botCfg.wa_ultimo_evento_em || null,
+      wa_token_salvo: !!botCfg.wa_token,
+      wa_app_secret_salvo: !!botCfg.wa_app_secret
+    };
+    return jsonOk(res, { chatbot: seguro, itens: itensCfg.body || [] });
+  }
+
+  if (method === "PUT" && resto === "") {
+    var bodyBot = parseBody(await getBody(req));
+    if (!bodyBot) return jsonErr(res, "Dados inválidos");
+    var botAtual = await botDaEmpresa();
+
+    var mudaBot = { atualizado_em: new Date().toISOString() };
+    if (bodyBot.nome !== undefined) {
+      mudaBot.nome = SANITIZE.string(bodyBot.nome, 60) || "Assistente";
+    }
+    if (bodyBot.boas_vindas !== undefined) {
+      mudaBot.boas_vindas = SANITIZE.string(bodyBot.boas_vindas, 1000) || "Olá!";
+    }
+    if (bodyBot.fallback !== undefined) {
+      mudaBot.fallback = SANITIZE.string(bodyBot.fallback, 1000) || "Não entendi.";
+    }
+    if (typeof bodyBot.ativo === "boolean") mudaBot.ativo = bodyBot.ativo;
+
+    // ── CANAL ──
+    var CANAIS = ["interno", "whatsapp", "ambos"];
+    if (bodyBot.canal !== undefined) {
+      if (CANAIS.indexOf(bodyBot.canal) < 0) return jsonErr(res, "Canal inválido.");
+      mudaBot.canal = bodyBot.canal;
+    }
+
+    // ── CREDENCIAIS DA META ──
+    //
+    // Campo em branco NÃO apaga o que está salvo: a tela nunca
+    // recebe o token de volta, então mandaria vazio a cada salvada
+    // e o dono perderia a conexão ao trocar uma vírgula da
+    // mensagem de boas-vindas. Para desligar existe
+    // /chatbot/whatsapp/desconectar, que é explícito.
+    if (bodyBot.wa_phone_number_id !== undefined) {
+      var numIdWa = SANITIZE.string(bodyBot.wa_phone_number_id, 40).replace(/\D/g, "");
+      if (bodyBot.wa_phone_number_id && !numIdWa) {
+        return jsonErr(res, "O ID do número de telefone da Meta é só de dígitos — copie do painel deles.");
+      }
+      if (numIdWa) mudaBot.wa_phone_number_id = numIdWa;
+    }
+    if (bodyBot.wa_token) {
+      mudaBot.wa_token = SANITIZE.string(bodyBot.wa_token, 500);
+    }
+    if (bodyBot.wa_app_secret) {
+      mudaBot.wa_app_secret = SANITIZE.string(bodyBot.wa_app_secret, 200);
+    }
+    if (bodyBot.wa_numero !== undefined) {
+      mudaBot.wa_numero = SANITIZE.string(bodyBot.wa_numero, 30) || null;
+    }
+
+    // O token de verificação é do SERVIDOR, nunca do formulário:
+    // é ele que diz de quem é o webhook no aperto de mão, onde a
+    // Meta não manda mais nada. Deixar o dono escolher abriria a
+    // porta para dois clientes escolherem "workap123" e um receber
+    // as mensagens do outro.
+    if (!botAtual.wa_verify_token) {
+      mudaBot.wa_verify_token = gerarVerifyTokenWhatsApp();
+    }
+
+    // "Conectado" é ter os três: número, token e segredo. Menos que
+    // isso o webhook chega e é recusado, e a tela precisa dizer
+    // isso em vez de mostrar um visto verde que não corresponde a
+    // nada.
+    var temTudoWa =
+      (mudaBot.wa_phone_number_id || botAtual.wa_phone_number_id) &&
+      (mudaBot.wa_token           || botAtual.wa_token) &&
+      (mudaBot.wa_app_secret      || botAtual.wa_app_secret);
+    if (temTudoWa && !botAtual.wa_conectado_em) {
+      mudaBot.wa_conectado_em = new Date().toISOString();
+    }
+
+    try {
+      await DB.update("chatbots", `id=eq.${botAtual.id}`, mudaBot);
+    } catch (eBot) {
+      // 23505 no índice único do phone_number_id: outra conta já
+      // ligou este número. Dizer isso é melhor que um 500 — o dono
+      // costuma ter colado o ID errado, ou o número está preso
+      // numa conta antiga dele mesmo.
+      if (eBot.code === "23505" || /duplicate key|chave duplicada/i.test(eBot.message || "")) {
+        return jsonErr(res, "Este número da Meta já está ligado a outra conta do Workap.", 409);
+      }
+      throw eBot;
+    }
+
+    secLog("chatbot_configurado", Object.assign(
+      { ativo: mudaBot.ativo, canal: mudaBot.canal }, ctx.paraOLog));
+    return jsonOk(res, { ok: true });
+  }
+
+  // ── WhatsApp: desligar ──
+  // Apaga as credenciais e volta o canal para o chat interno. Sem
+  // isto, "desconectar" seria apagar campo por campo numa tela que
+  // nunca mostra o que está lá dentro.
+  if (method === "POST" && resto === "/whatsapp/desconectar") {
+    var botDesc = await botDaEmpresa();
+    await DB.update("chatbots", `id=eq.${botDesc.id}`, {
+      wa_phone_number_id: null,
+      wa_token: null,
+      wa_app_secret: null,
+      wa_numero: null,
+      wa_conectado_em: null,
+      // O canal volta para interno: deixá-lo em "whatsapp" sem
+      // credencial nenhuma é um bot ligado que não atende em lugar
+      // nenhum — e ninguém descobre por quê.
+      canal: "interno"
+    });
+    secLog("chatbot_whatsapp_desconectado", ctx.paraOLog);
+    return jsonOk(res, { ok: true });
+  }
+
+  // ── WhatsApp: mandar uma mensagem de teste ──
+  //
+  // Vale mais que qualquer visto verde na tela: só um envio de
+  // verdade prova que o token, o número e a cota estão de pé. O
+  // erro da Meta volta na resposta, porque é ele que diz o que
+  // fazer — "número não está na lista de teste", "token expirado".
+  if (method === "POST" && resto === "/whatsapp/testar") {
+    var bodyTw = parseBody(await getBody(req));
+    if (!bodyTw) return jsonErr(res, "Dados inválidos");
+
+    var paraTw = telefoneParaOGateway(bodyTw.para);
+    if (!paraTw) return jsonErr(res, "Informe o telefone com DDD (ex: 11 98765-4321).");
+
+    var botTw = await botDaEmpresa();
+    if (!botTw.wa_phone_number_id || !botTw.wa_token) {
+      return jsonErr(res, "Conecte o WhatsApp antes de testar: falta o ID do número ou o token.", 409);
+    }
+
+    try {
+      await enviarWhatsApp(botTw, paraTw,
+        (botTw.nome || "Assistente") + " aqui — teste do Workap. Se você recebeu isto, o WhatsApp está conectado.");
+    } catch (eTw) {
+      registrarErro("whatsapp", eTw.message, {
+        rota: "/chatbot/whatsapp/testar", metodo: "POST",
+        status: eTw.status || null, empresa_id: ctx.empresa_id
+      });
+      return jsonErr(res, "A Meta recusou o envio: " + eTw.message, 502);
+    }
+
+    secLog("chatbot_whatsapp_testado", ctx.paraOLog);
+    return jsonOk(res, { ok: true });
+  }
+
+  // ── Itens: opções do menu e gatilhos ──
+  if (method === "POST" && resto === "/itens") {
+    var bodyIt = parseBody(await getBody(req));
+    if (!bodyIt) return jsonErr(res, "Dados inválidos");
+    var botIt = await botDaEmpresa();
+
+    var tipoIt = bodyIt.tipo === "gatilho" ? "gatilho" : "opcao";
+    var rotuloIt = SANITIZE.string(bodyIt.rotulo, 80);
+    var respostaIt = SANITIZE.string(bodyIt.resposta, 2000);
+    if (!rotuloIt)   return jsonErr(res, tipoIt === "opcao" ? "Dê um nome à opção do menu." : "Dê um nome ao gatilho.");
+    if (!respostaIt) return jsonErr(res, "Escreva a resposta.");
+
+    var palavrasIt = null;
+    if (tipoIt === "gatilho") {
+      palavrasIt = SANITIZE.string(bodyIt.palavras, 300);
+      if (!palavrasIt) return jsonErr(res, "Informe ao menos uma palavra-chave, separadas por vírgula.");
+    }
+
+    // Teto por empresa. O menu é numerado e lido no celular: com
+    // trinta opções ninguém acha a sua, e a mensagem vira uma
+    // parede de texto.
+    var quantosIt = await DB.select("chatbot_itens",
+      `chatbot_id=eq.${botIt.id}&tipo=eq.${tipoIt}&select=id`).catch(function () { return { body: [] }; });
+    var TETO = tipoIt === "opcao" ? 12 : 60;
+    if ((quantosIt.body || []).length >= TETO) {
+      return jsonErr(res, "Limite de " + TETO + (tipoIt === "opcao" ? " opções" : " gatilhos") + " atingido.", 409);
+    }
+
+    var criadoIt = await DB.insert("chatbot_itens", {
+      chatbot_id: botIt.id,
+      empresa_id: ctx.empresa_id,
+      tipo:       tipoIt,
+      rotulo:     rotuloIt,
+      palavras:   palavrasIt,
+      resposta:   respostaIt,
+      ordem:      SANITIZE.int(bodyIt.ordem, 0, 999) || (quantosIt.body || []).length
+    });
+    return jsonOk(res, { item: criadoIt.body && criadoIt.body[0] }, 201);
+  }
+
+  if (method === "PUT" && resto.indexOf("/itens/") === 0) {
+    var idIt = resto.split("/")[2];
+    if (!SANITIZE.uuid(idIt)) return jsonErr(res, "Item inválido");
+    var bodyUp = parseBody(await getBody(req));
+    if (!bodyUp) return jsonErr(res, "Dados inválidos");
+
+    // O dono do item é o BOT, não a empresa. Sem este filtro, o id
+    // de outro bot seria editável por quem o descobrisse — e
+    // filtrar por empresa_id não serviria aqui, porque no bot da
+    // plataforma ele é nulo e `eq.null` não casa com nada.
+    var botDoItem = await botDaEmpresa();
+    var doItem = await DB.select("chatbot_itens",
+      `id=eq.${idIt}&chatbot_id=eq.${botDoItem.id}&select=id,tipo&limit=1`);
+    if (!doItem.body || !doItem.body[0]) return jsonErr(res, "Item não encontrado", 404);
+
+    var mudaIt = {};
+    if (bodyUp.rotulo   !== undefined) mudaIt.rotulo   = SANITIZE.string(bodyUp.rotulo, 80) || null;
+    if (bodyUp.resposta !== undefined) mudaIt.resposta = SANITIZE.string(bodyUp.resposta, 2000) || null;
+    if (bodyUp.palavras !== undefined) mudaIt.palavras = SANITIZE.string(bodyUp.palavras, 300) || null;
+    if (bodyUp.ordem    !== undefined) mudaIt.ordem    = SANITIZE.int(bodyUp.ordem, 0, 999) || 0;
+    if (typeof bodyUp.ativo === "boolean") mudaIt.ativo = bodyUp.ativo;
+    if (mudaIt.rotulo === null || mudaIt.resposta === null) {
+      return jsonErr(res, "Nome e resposta não podem ficar em branco.");
+    }
+    if (!Object.keys(mudaIt).length) return jsonErr(res, "Nada para salvar");
+
+    await DB.update("chatbot_itens", `id=eq.${idIt}`, mudaIt);
+    return jsonOk(res, { ok: true });
+  }
+
+  if (method === "DELETE" && resto.indexOf("/itens/") === 0) {
+    var idDel = resto.split("/")[2];
+    if (!SANITIZE.uuid(idDel)) return jsonErr(res, "Item inválido");
+    var botDoDel = await botDaEmpresa();
+    var achouDel = await DB.select("chatbot_itens",
+      `id=eq.${idDel}&chatbot_id=eq.${botDoDel.id}&select=id&limit=1`);
+    if (!achouDel.body || !achouDel.body[0]) return jsonErr(res, "Item não encontrado", 404);
+    await DB.delete("chatbot_itens", `id=eq.${idDel}`);
+    return jsonOk(res, { ok: true });
+  }
+
+  // ── Testar ──
+  // Passa pela MESMA função de decisão que atende no chat, e não
+  // grava nada. Se o teste usasse outro caminho, ele confirmaria
+  // um comportamento que não é o que a equipe vai receber.
+  if (method === "POST" && resto === "/testar") {
+    var bodyTe = parseBody(await getBody(req));
+    if (!bodyTe) return jsonErr(res, "Dados inválidos");
+    var textoTe = SANITIZE.string(bodyTe.texto, 2000);
+    if (!textoTe) return jsonErr(res, "Escreva a mensagem do teste.");
+
+    var botTe = await botDaEmpresa();
+    var itensTe = await DB.select("chatbot_itens",
+      `chatbot_id=eq.${botTe.id}&select=id,tipo,rotulo,palavras,resposta,ordem,ativo&order=ordem.asc`
+    ).catch(function () { return { body: [] }; });
+
+    var decisaoTe = decidirRespostaChatbot(botTe, itensTe.body || [], textoTe);
+    return jsonOk(res, {
+      resposta: decisaoTe.resposta,
+      como:     decisaoTe.como,
+      // Avisa que o bot está desligado em vez de deixar o dono
+      // testar com sucesso e depois não entender por que a equipe
+      // não recebe nada.
+      aviso:    botTe.ativo ? null : "O chatbot está desligado — a equipe ainda não recebe estas respostas."
+    });
+  }
+
+  // ── Conversas atendidas ──
+  if (method === "GET" && resto === "/conversas") {
+    var botDasConversas = await botDaEmpresa();
+    var atend = botDasConversas.id
+      ? await DB.select("chatbot_atendimentos",
+          `chatbot_id=eq.${botDasConversas.id}&select=id,funcionario_id,pergunta,como,resposta,criado_em,canal,contato&order=criado_em.desc&limit=60`
+        ).catch(function () { return { body: [] }; })
+      : { body: [] };
+
+    // Nome de quem perguntou, para a lista não ser uma coluna de
+    // uuids. Uma consulta só, não uma por linha.
+    // Sem consulta nenhuma no bot da plataforma: a Workap não tem
+    // funcionários nesta tabela, e `empresa_id=eq.null` devolveria
+    // erro em vez de lista vazia.
+    var quemPerguntou = {};
+    if (ctx.empresa_id) {
+      var funcs = await DB.select("funcionarios",
+        `empresa_id=eq.${ctx.empresa_id}&select=id,nome`).catch(function () { return { body: [] }; });
+      (funcs.body || []).forEach(function (f) { quemPerguntou[f.id] = f.nome; });
+    }
+
+    return jsonOk(res, {
+      conversas: (atend.body || []).map(function (a) {
+        return {
+          id: a.id, pergunta: a.pergunta, resposta: a.resposta,
+          como: a.como, criado_em: a.criado_em,
+          canal: a.canal || "interno",
+          // No WhatsApp não há funcionário: quem escreveu é um
+          // cliente, e o nome dele veio no próprio evento.
+          quem: a.canal === "whatsapp"
+            ? (a.contato || "Cliente no WhatsApp")
+            : (quemPerguntou[a.funcionario_id] || "Alguém da equipe")
+        };
+      })
+    });
+  }
+  // Caminho sob o prefixo que nenhuma rota acima reconheceu. Sem este
+  // 404, a requisição sairia daqui como se tivesse dado certo e o
+  // chamador seguiria adiante — respondendo duas vezes na mesma
+  // requisição, que é erro de servidor, não de quem chamou.
+  return jsonErr(res, "Rota do chatbot não encontrada", 404);
+}
+
 var server = http.createServer(async (req, res) => {
   var ip     = getIP(req);
   var origin = req.headers["origin"] || "";
@@ -7390,12 +7782,19 @@ var server = http.createServer(async (req, res) => {
       // O plano é conferido AQUI, e não só na tela de configuração:
       // quem cancelou o Master não pode continuar com o bot atendendo
       // porque o webhook já estava cadastrado lá na Meta.
-      var empWa = await DB.select("empresas",
-        `id=eq.${botWa.empresa_id}&select=plano,status&limit=1`
-      ).catch(function () { return { body: [] }; });
-      var donoPlanoWa = empWa.body && empWa.body[0];
-      if (!donoPlanoWa || !planoTemChatbot(donoPlanoWa.plano)) return;
-      if (donoPlanoWa.status !== "ativa" && donoPlanoWa.status !== "trial") return;
+      //
+      // O bot da própria Workap não passa por isso: ela não assina o
+      // próprio plano, e `empresa_id` dele é nulo — a consulta abaixo
+      // não teria o que buscar. Quem manda mensagem para o número da
+      // Workap é atendido sempre.
+      if (botWa.escopo !== "plataforma") {
+        var empWa = await DB.select("empresas",
+          `id=eq.${botWa.empresa_id}&select=plano,status&limit=1`
+        ).catch(function () { return { body: [] }; });
+        var donoPlanoWa = empWa.body && empWa.body[0];
+        if (!donoPlanoWa || !planoTemChatbot(donoPlanoWa.plano)) return;
+        if (donoPlanoWa.status !== "ativa" && donoPlanoWa.status !== "trial") return;
+      }
 
       for (var iWa = 0; iWa < recebidasWa.length; iWa++) {
         var msgWa = recebidasWa[iWa];
@@ -10535,322 +10934,58 @@ var server = http.createServer(async (req, res) => {
       }
       if (await exigirMaster(res, authPayload.empresa_id, "O chatbot")) return;
 
-      // Um bot por empresa, criado na primeira visita. Sem isto a tela
-      // abriria vazia e exigiria um "criar chatbot" que não decide nada
-      // — o dono quer configurar, não instanciar.
-      async function botDaEmpresa() {
-        var achado = await DB.select("chatbots",
-          `empresa_id=eq.${authPayload.empresa_id}&select=*&limit=1`);
-        if (achado.body && achado.body[0]) return achado.body[0];
-        var novo = await DB.insert("chatbots", { empresa_id: authPayload.empresa_id });
-        return novo.body && novo.body[0];
+      // `return await`, e não `return`, de propósito: dentro de um
+      // try/catch, devolver a promessa crua faz a rejeição escapar do
+      // catch — o erro vira unhandledRejection e DERRUBA o processo,
+      // em vez de virar o 500 que o bloco lá embaixo devolveria.
+      // Enquanto isto era código inline, o try cobria tudo; ao virar
+      // função, o await passou a ser o que mantém a cobertura.
+      return await rotasDoChatbot(req, res, {
+        prefixo:    "/chatbot",
+        empresa_id: authPayload.empresa_id,
+        filtro:     `empresa_id=eq.${authPayload.empresa_id}`,
+        nascimento: { empresa_id: authPayload.empresa_id, escopo: "empresa" },
+        paraOLog:   { empresa_id: authPayload.empresa_id },
+        // O owner passa por exigirMaster de propósito — é assim que ele
+        // confere o produto do cliente — mas não é dono de empresa
+        // nenhuma, e por isso esta tela é só de leitura para ele.
+        espiando:   authPayload.empresa_id === EMPRESA_NENHUMA
+      });
+    }
+
+    // ════════════════════════════════════════
+    // CHATBOT DA PRÓPRIA WORKAP — painel Owner
+    // ════════════════════════════════════════
+    // O mesmo assistente, no número da Workap: quem manda mensagem
+    // perguntando preço, horário ou "quero assinar" é respondido na
+    // hora, em vez de esperar alguém acordar.
+    //
+    // As rotas são as mesmas de cima, com outro dono. O que muda:
+    //
+    //  - quem pode: saas:write, não o plano. A Workap não assina o
+    //    próprio Master, e exigirMaster aqui pediria à conta de owner
+    //    uma empresa que ela não tem.
+    //  - qual bot: `escopo=eq.plataforma`, com empresa_id nulo. Um só,
+    //    garantido pelo índice único da migração 033.
+    if (path === "/owner/chatbot" || path.indexOf("/owner/chatbot/") === 0) {
+      if (!hasPermission(authPayload, "saas:write")) {
+        return jsonErr(res, "Apenas o owner da Workap pode configurar este chatbot", 403);
       }
 
-      if (method === "GET" && path === "/chatbot") {
-        var botCfg = await botDaEmpresa();
-        var itensCfg = await DB.select("chatbot_itens",
-          `chatbot_id=eq.${botCfg.id}&select=*&order=tipo.asc,ordem.asc`
-        ).catch(function () { return { body: [] }; });
-
-        // O token permanente da Meta e o App Secret NÃO voltam para o
-        // navegador. Com o token, quem o pegasse manda mensagem pelo
-        // número do cliente; com o segredo, forja webhook. Ambos são
-        // de escrita só: entram no formulário, e a tela mostra apenas
-        // se já estão salvos.
-        //
-        // Devolver o objeto inteiro e apagar dois campos seria uma
-        // linha mais curta e uma armadilha: a próxima coluna sensível
-        // entraria na resposta sozinha. A lista é explícita.
-        var seguro = {
-          id: botCfg.id, empresa_id: botCfg.empresa_id,
-          nome: botCfg.nome, ativo: botCfg.ativo,
-          boas_vindas: botCfg.boas_vindas, fallback: botCfg.fallback,
-          canal: botCfg.canal || "interno",
-          wa_phone_number_id: botCfg.wa_phone_number_id || null,
-          wa_numero: botCfg.wa_numero || null,
-          wa_verify_token: botCfg.wa_verify_token || null,
-          wa_conectado_em: botCfg.wa_conectado_em || null,
-          wa_ultimo_evento_em: botCfg.wa_ultimo_evento_em || null,
-          wa_token_salvo: !!botCfg.wa_token,
-          wa_app_secret_salvo: !!botCfg.wa_app_secret
-        };
-        return jsonOk(res, { chatbot: seguro, itens: itensCfg.body || [] });
-      }
-
-      if (method === "PUT" && path === "/chatbot") {
-        var bodyBot = parseBody(await getBody(req));
-        if (!bodyBot) return jsonErr(res, "Dados inválidos");
-        var botAtual = await botDaEmpresa();
-
-        var mudaBot = { atualizado_em: new Date().toISOString() };
-        if (bodyBot.nome !== undefined) {
-          mudaBot.nome = SANITIZE.string(bodyBot.nome, 60) || "Assistente";
-        }
-        if (bodyBot.boas_vindas !== undefined) {
-          mudaBot.boas_vindas = SANITIZE.string(bodyBot.boas_vindas, 1000) || "Olá!";
-        }
-        if (bodyBot.fallback !== undefined) {
-          mudaBot.fallback = SANITIZE.string(bodyBot.fallback, 1000) || "Não entendi.";
-        }
-        if (typeof bodyBot.ativo === "boolean") mudaBot.ativo = bodyBot.ativo;
-
-        // ── CANAL ──
-        var CANAIS = ["interno", "whatsapp", "ambos"];
-        if (bodyBot.canal !== undefined) {
-          if (CANAIS.indexOf(bodyBot.canal) < 0) return jsonErr(res, "Canal inválido.");
-          mudaBot.canal = bodyBot.canal;
-        }
-
-        // ── CREDENCIAIS DA META ──
-        //
-        // Campo em branco NÃO apaga o que está salvo: a tela nunca
-        // recebe o token de volta, então mandaria vazio a cada salvada
-        // e o dono perderia a conexão ao trocar uma vírgula da
-        // mensagem de boas-vindas. Para desligar existe
-        // /chatbot/whatsapp/desconectar, que é explícito.
-        if (bodyBot.wa_phone_number_id !== undefined) {
-          var numIdWa = SANITIZE.string(bodyBot.wa_phone_number_id, 40).replace(/\D/g, "");
-          if (bodyBot.wa_phone_number_id && !numIdWa) {
-            return jsonErr(res, "O ID do número de telefone da Meta é só de dígitos — copie do painel deles.");
-          }
-          if (numIdWa) mudaBot.wa_phone_number_id = numIdWa;
-        }
-        if (bodyBot.wa_token) {
-          mudaBot.wa_token = SANITIZE.string(bodyBot.wa_token, 500);
-        }
-        if (bodyBot.wa_app_secret) {
-          mudaBot.wa_app_secret = SANITIZE.string(bodyBot.wa_app_secret, 200);
-        }
-        if (bodyBot.wa_numero !== undefined) {
-          mudaBot.wa_numero = SANITIZE.string(bodyBot.wa_numero, 30) || null;
-        }
-
-        // O token de verificação é do SERVIDOR, nunca do formulário:
-        // é ele que diz de quem é o webhook no aperto de mão, onde a
-        // Meta não manda mais nada. Deixar o dono escolher abriria a
-        // porta para dois clientes escolherem "workap123" e um receber
-        // as mensagens do outro.
-        if (!botAtual.wa_verify_token) {
-          mudaBot.wa_verify_token = gerarVerifyTokenWhatsApp();
-        }
-
-        // "Conectado" é ter os três: número, token e segredo. Menos que
-        // isso o webhook chega e é recusado, e a tela precisa dizer
-        // isso em vez de mostrar um visto verde que não corresponde a
-        // nada.
-        var temTudoWa =
-          (mudaBot.wa_phone_number_id || botAtual.wa_phone_number_id) &&
-          (mudaBot.wa_token           || botAtual.wa_token) &&
-          (mudaBot.wa_app_secret      || botAtual.wa_app_secret);
-        if (temTudoWa && !botAtual.wa_conectado_em) {
-          mudaBot.wa_conectado_em = new Date().toISOString();
-        }
-
-        try {
-          await DB.update("chatbots", `id=eq.${botAtual.id}`, mudaBot);
-        } catch (eBot) {
-          // 23505 no índice único do phone_number_id: outra conta já
-          // ligou este número. Dizer isso é melhor que um 500 — o dono
-          // costuma ter colado o ID errado, ou o número está preso
-          // numa conta antiga dele mesmo.
-          if (eBot.code === "23505" || /duplicate key|chave duplicada/i.test(eBot.message || "")) {
-            return jsonErr(res, "Este número da Meta já está ligado a outra conta do Workap.", 409);
-          }
-          throw eBot;
-        }
-
-        secLog("chatbot_configurado", {
-          empresa_id: authPayload.empresa_id,
-          ativo: mudaBot.ativo, canal: mudaBot.canal
-        });
-        return jsonOk(res, { ok: true });
-      }
-
-      // ── WhatsApp: desligar ──
-      // Apaga as credenciais e volta o canal para o chat interno. Sem
-      // isto, "desconectar" seria apagar campo por campo numa tela que
-      // nunca mostra o que está lá dentro.
-      if (method === "POST" && path === "/chatbot/whatsapp/desconectar") {
-        var botDesc = await botDaEmpresa();
-        await DB.update("chatbots", `id=eq.${botDesc.id}`, {
-          wa_phone_number_id: null,
-          wa_token: null,
-          wa_app_secret: null,
-          wa_numero: null,
-          wa_conectado_em: null,
-          // O canal volta para interno: deixá-lo em "whatsapp" sem
-          // credencial nenhuma é um bot ligado que não atende em lugar
-          // nenhum — e ninguém descobre por quê.
-          canal: "interno"
-        });
-        secLog("chatbot_whatsapp_desconectado", { empresa_id: authPayload.empresa_id });
-        return jsonOk(res, { ok: true });
-      }
-
-      // ── WhatsApp: mandar uma mensagem de teste ──
-      //
-      // Vale mais que qualquer visto verde na tela: só um envio de
-      // verdade prova que o token, o número e a cota estão de pé. O
-      // erro da Meta volta na resposta, porque é ele que diz o que
-      // fazer — "número não está na lista de teste", "token expirado".
-      if (method === "POST" && path === "/chatbot/whatsapp/testar") {
-        var bodyTw = parseBody(await getBody(req));
-        if (!bodyTw) return jsonErr(res, "Dados inválidos");
-
-        var paraTw = telefoneParaOGateway(bodyTw.para);
-        if (!paraTw) return jsonErr(res, "Informe o telefone com DDD (ex: 11 98765-4321).");
-
-        var botTw = await botDaEmpresa();
-        if (!botTw.wa_phone_number_id || !botTw.wa_token) {
-          return jsonErr(res, "Conecte o WhatsApp antes de testar: falta o ID do número ou o token.", 409);
-        }
-
-        try {
-          await enviarWhatsApp(botTw, paraTw,
-            (botTw.nome || "Assistente") + " aqui — teste do Workap. Se você recebeu isto, o WhatsApp está conectado.");
-        } catch (eTw) {
-          registrarErro("whatsapp", eTw.message, {
-            rota: "/chatbot/whatsapp/testar", metodo: "POST",
-            status: eTw.status || null, empresa_id: authPayload.empresa_id
-          });
-          return jsonErr(res, "A Meta recusou o envio: " + eTw.message, 502);
-        }
-
-        secLog("chatbot_whatsapp_testado", { empresa_id: authPayload.empresa_id });
-        return jsonOk(res, { ok: true });
-      }
-
-      // ── Itens: opções do menu e gatilhos ──
-      if (method === "POST" && path === "/chatbot/itens") {
-        var bodyIt = parseBody(await getBody(req));
-        if (!bodyIt) return jsonErr(res, "Dados inválidos");
-        var botIt = await botDaEmpresa();
-
-        var tipoIt = bodyIt.tipo === "gatilho" ? "gatilho" : "opcao";
-        var rotuloIt = SANITIZE.string(bodyIt.rotulo, 80);
-        var respostaIt = SANITIZE.string(bodyIt.resposta, 2000);
-        if (!rotuloIt)   return jsonErr(res, tipoIt === "opcao" ? "Dê um nome à opção do menu." : "Dê um nome ao gatilho.");
-        if (!respostaIt) return jsonErr(res, "Escreva a resposta.");
-
-        var palavrasIt = null;
-        if (tipoIt === "gatilho") {
-          palavrasIt = SANITIZE.string(bodyIt.palavras, 300);
-          if (!palavrasIt) return jsonErr(res, "Informe ao menos uma palavra-chave, separadas por vírgula.");
-        }
-
-        // Teto por empresa. O menu é numerado e lido no celular: com
-        // trinta opções ninguém acha a sua, e a mensagem vira uma
-        // parede de texto.
-        var quantosIt = await DB.select("chatbot_itens",
-          `chatbot_id=eq.${botIt.id}&tipo=eq.${tipoIt}&select=id`).catch(function () { return { body: [] }; });
-        var TETO = tipoIt === "opcao" ? 12 : 60;
-        if ((quantosIt.body || []).length >= TETO) {
-          return jsonErr(res, "Limite de " + TETO + (tipoIt === "opcao" ? " opções" : " gatilhos") + " atingido.", 409);
-        }
-
-        var criadoIt = await DB.insert("chatbot_itens", {
-          chatbot_id: botIt.id,
-          empresa_id: authPayload.empresa_id,
-          tipo:       tipoIt,
-          rotulo:     rotuloIt,
-          palavras:   palavrasIt,
-          resposta:   respostaIt,
-          ordem:      SANITIZE.int(bodyIt.ordem, 0, 999) || (quantosIt.body || []).length
-        });
-        return jsonOk(res, { item: criadoIt.body && criadoIt.body[0] }, 201);
-      }
-
-      if (method === "PUT" && path.indexOf("/chatbot/itens/") === 0) {
-        var idIt = path.split("/")[3];
-        if (!SANITIZE.uuid(idIt)) return jsonErr(res, "Item inválido");
-        var bodyUp = parseBody(await getBody(req));
-        if (!bodyUp) return jsonErr(res, "Dados inválidos");
-
-        // empresa_id no filtro: sem ele, o id de outra empresa seria
-        // editável por quem o descobrisse.
-        var doItem = await DB.select("chatbot_itens",
-          `id=eq.${idIt}&empresa_id=eq.${authPayload.empresa_id}&select=id,tipo&limit=1`);
-        if (!doItem.body || !doItem.body[0]) return jsonErr(res, "Item não encontrado", 404);
-
-        var mudaIt = {};
-        if (bodyUp.rotulo   !== undefined) mudaIt.rotulo   = SANITIZE.string(bodyUp.rotulo, 80) || null;
-        if (bodyUp.resposta !== undefined) mudaIt.resposta = SANITIZE.string(bodyUp.resposta, 2000) || null;
-        if (bodyUp.palavras !== undefined) mudaIt.palavras = SANITIZE.string(bodyUp.palavras, 300) || null;
-        if (bodyUp.ordem    !== undefined) mudaIt.ordem    = SANITIZE.int(bodyUp.ordem, 0, 999) || 0;
-        if (typeof bodyUp.ativo === "boolean") mudaIt.ativo = bodyUp.ativo;
-        if (mudaIt.rotulo === null || mudaIt.resposta === null) {
-          return jsonErr(res, "Nome e resposta não podem ficar em branco.");
-        }
-        if (!Object.keys(mudaIt).length) return jsonErr(res, "Nada para salvar");
-
-        await DB.update("chatbot_itens", `id=eq.${idIt}`, mudaIt);
-        return jsonOk(res, { ok: true });
-      }
-
-      if (method === "DELETE" && path.indexOf("/chatbot/itens/") === 0) {
-        var idDel = path.split("/")[3];
-        if (!SANITIZE.uuid(idDel)) return jsonErr(res, "Item inválido");
-        var achouDel = await DB.select("chatbot_itens",
-          `id=eq.${idDel}&empresa_id=eq.${authPayload.empresa_id}&select=id&limit=1`);
-        if (!achouDel.body || !achouDel.body[0]) return jsonErr(res, "Item não encontrado", 404);
-        await DB.delete("chatbot_itens", `id=eq.${idDel}`);
-        return jsonOk(res, { ok: true });
-      }
-
-      // ── Testar ──
-      // Passa pela MESMA função de decisão que atende no chat, e não
-      // grava nada. Se o teste usasse outro caminho, ele confirmaria
-      // um comportamento que não é o que a equipe vai receber.
-      if (method === "POST" && path === "/chatbot/testar") {
-        var bodyTe = parseBody(await getBody(req));
-        if (!bodyTe) return jsonErr(res, "Dados inválidos");
-        var textoTe = SANITIZE.string(bodyTe.texto, 2000);
-        if (!textoTe) return jsonErr(res, "Escreva a mensagem do teste.");
-
-        var botTe = await botDaEmpresa();
-        var itensTe = await DB.select("chatbot_itens",
-          `chatbot_id=eq.${botTe.id}&select=id,tipo,rotulo,palavras,resposta,ordem,ativo&order=ordem.asc`
-        ).catch(function () { return { body: [] }; });
-
-        var decisaoTe = decidirRespostaChatbot(botTe, itensTe.body || [], textoTe);
-        return jsonOk(res, {
-          resposta: decisaoTe.resposta,
-          como:     decisaoTe.como,
-          // Avisa que o bot está desligado em vez de deixar o dono
-          // testar com sucesso e depois não entender por que a equipe
-          // não recebe nada.
-          aviso:    botTe.ativo ? null : "O chatbot está desligado — a equipe ainda não recebe estas respostas."
-        });
-      }
-
-      // ── Conversas atendidas ──
-      if (method === "GET" && path === "/chatbot/conversas") {
-        var atend = await DB.select("chatbot_atendimentos",
-          `empresa_id=eq.${authPayload.empresa_id}&select=id,funcionario_id,pergunta,como,resposta,criado_em,canal,contato&order=criado_em.desc&limit=60`
-        ).catch(function () { return { body: [] }; });
-
-        // Nome de quem perguntou, para a lista não ser uma coluna de
-        // uuids. Uma consulta só, não uma por linha.
-        var quemPerguntou = {};
-        var funcs = await DB.select("funcionarios",
-          `empresa_id=eq.${authPayload.empresa_id}&select=id,nome`).catch(function () { return { body: [] }; });
-        (funcs.body || []).forEach(function (f) { quemPerguntou[f.id] = f.nome; });
-
-        return jsonOk(res, {
-          conversas: (atend.body || []).map(function (a) {
-            return {
-              id: a.id, pergunta: a.pergunta, resposta: a.resposta,
-              como: a.como, criado_em: a.criado_em,
-              canal: a.canal || "interno",
-              // No WhatsApp não há funcionário: quem escreveu é um
-              // cliente, e o nome dele veio no próprio evento.
-              quem: a.canal === "whatsapp"
-                ? (a.contato || "Cliente no WhatsApp")
-                : (quemPerguntou[a.funcionario_id] || "Alguém da equipe")
-            };
-          })
-        });
-      }
+      return await rotasDoChatbot(req, res, {
+        prefixo:    "/owner/chatbot",
+        // Nulo de propósito, e não EMPRESA_NENHUMA: este bot não
+        // pertence a empresa nenhuma, e o uuid de zeros gravado numa
+        // coluna com chave estrangeira apontaria para uma empresa que
+        // não existe — ver a trava de escrita em supabase().
+        empresa_id: null,
+        filtro:     "escopo=eq.plataforma",
+        // Já nasce no WhatsApp: a Workap não tem chat interno com
+        // funcionário nenhum, e o padrão 'interno' da tabela deixaria
+        // o bot ligado atendendo em lugar nenhum.
+        nascimento: { escopo: "plataforma", nome: "Assistente Workap", canal: "whatsapp" },
+        paraOLog:   { escopo: "plataforma" }
+      });
     }
 
     // ════════════════════════════════════════
