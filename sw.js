@@ -9,6 +9,11 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v43: o painel Owner ganhou as duas acoes que faltavam na assinatura
+// — liberar quem pagou e o gateway nao confirmou, e reembolsar
+// cortando o acesso na hora, com motivo obrigatorio e historico. E o
+// webhook recusado parou de sumir no console: agora aparece no
+// Diagnostico, junto com a lista de contas com dinheiro parado.
 // v42: entrou o Plano Master — tudo do Pro mais o Chatbot, que atende
 // a equipe no chat interno (menu numerado, palavras-chave, resposta
 // padrao e teste sem mandar mensagem). O preco do Master e definido
@@ -94,7 +99,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v42';
+var CACHE = 'workap-v43';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
