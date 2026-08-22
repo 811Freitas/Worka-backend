@@ -1341,6 +1341,23 @@ tr:hover td{background:var(--g50)}
               <textarea id="cb-fallback" rows="2" maxlength="1000"
                 placeholder="Não entendi. Digite menu para ver as opções."></textarea>
             </div>
+            <div class="field form-full">
+              <label>O que o bot precisa saber sobre o seu negócio</label>
+              <textarea id="cb-contexto" rows="6" maxlength="4000"
+                placeholder="Horário, endereço, preços, formas de pagamento, o que vocês fazem e o que não fazem. Escreva do seu jeito, corrido — não precisa formatar."></textarea>
+              <div style="font-size:.78rem;color:var(--gray500);line-height:1.6;margin-top:6px">
+                É daqui que saem as respostas para o que <strong>não</strong> está no menu.
+                Quem pergunta "vcs abrem sábado?" só é atendido se sábado estiver escrito aqui —
+                o bot não inventa, e diz que vai chamar alguém quando não souber.
+              </div>
+            </div>
+            <div class="field">
+              <label>Responder fora do menu</label>
+              <select id="cb-usa-ia">
+                <option value="sim">Sim — usa o texto acima para responder</option>
+                <option value="nao">Não — só menu e palavras-chave</option>
+              </select>
+            </div>
           </div>
 
           <div class="login-erro" id="cb-erro">Não foi possível salvar.</div>
@@ -3021,6 +3038,23 @@ tr:hover td{background:var(--g50)}
                 <label>Quando não entender</label>
                 <textarea id="ow-fallback" rows="2" maxlength="1000"
                   placeholder="Não entendi. Digite menu para ver as opções — ou espere, que já te respondo."></textarea>
+              </div>
+              <div class="field form-full">
+                <label>O que o bot precisa saber sobre a Workap</label>
+                <textarea id="ow-contexto" rows="6" maxlength="4000"
+                  placeholder="Horário, endereço, preços, formas de pagamento, o que vocês fazem e o que não fazem. Escreva do seu jeito, corrido — não precisa formatar."></textarea>
+                <div style="font-size:.78rem;color:var(--gray500);line-height:1.6;margin-top:6px">
+                  É daqui que saem as respostas para o que <strong>não</strong> está no menu.
+                  Quem pergunta "vcs abrem sábado?" só é atendido se sábado estiver escrito aqui —
+                  o bot não inventa, e diz que vai chamar alguém quando não souber.
+                </div>
+              </div>
+              <div class="field">
+                <label>Responder fora do menu</label>
+                <select id="ow-usa-ia">
+                  <option value="sim">Sim — usa o texto acima para responder</option>
+                  <option value="nao">Não — só menu e palavras-chave</option>
+                </select>
               </div>
             </div>
 
@@ -11547,6 +11581,10 @@ async function carregarChatbot(T){
   campoBot(T, 'boas-vindas').value = bot.boas_vindas || '';
   campoBot(T, 'fallback').value    = bot.fallback || '';
   campoBot(T, 'ativo').value       = bot.ativo ? 'sim' : 'nao';
+  var ctx = campoBot(T, 'contexto');
+  if(ctx) ctx.value = bot.contexto || '';
+  var ia = campoBot(T, 'usa-ia');
+  if(ia) ia.value = bot.usa_ia === false ? 'nao' : 'sim';
 
   var badge = campoBot(T, 'badge');
   badge.textContent = bot.ativo ? 'ligado' : 'desligado';
@@ -12132,6 +12170,8 @@ async function salvarChatbot_(T){
         boas_vindas: (campoBot(T, 'boas-vindas').value || '').trim(),
         fallback:    (campoBot(T, 'fallback').value || '').trim(),
         ativo:       campoBot(T, 'ativo').value === 'sim',
+        contexto:    (campoBot(T, 'contexto') || {}).value || '',
+        usa_ia:      ((campoBot(T, 'usa-ia') || {}).value || 'sim') === 'sim',
         canal:       T.comCanal ? ((campoBot(T, 'canal') || {}).value || 'interno') : 'whatsapp'
       })
     });

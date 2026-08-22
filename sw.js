@@ -9,6 +9,12 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v49: o bot deixou de exigir a palavra exata. Quando o menu nao
+//      cobre, a IA responde lendo o que a empresa escreveu sobre si —
+//      e o bot passou a nascer com menu de exemplo, nunca vazio. Em
+//      producao o primeiro bot ligado passou o dia so dizendo "nao
+//      entendi", porque nao tinha uma opcao sequer cadastrada.
+//
 // v48: entrou o terceiro caminho, o QR code — o servidor entra como
 //      aparelho conectado, igual ao WhatsApp Web. NAO e oficial, e a
 //      tela diz isso antes do botao: numero banido nao volta. Foi
@@ -128,7 +134,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v48';
+var CACHE = 'workap-v49';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
