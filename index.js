@@ -76,6 +76,20 @@ const CONFIG = {
   // webhookCaktoValido().
   CAKTO_WEBHOOK_SECRET:  env("CAKTO_WEBHOOK_SECRET"),
 
+  // iFood. Credenciais do APLICATIVO (a Workap como integradora), não
+  // de cada loja: no modelo deles, um integrador homologado tem um par
+  // de credenciais e as lojas autorizam esse aplicativo. Por isso mora
+  // em variável de ambiente e não numa coluna por empresa.
+  //
+  // O CLIENT_SECRET tem duas funções e as duas são críticas: assina o
+  // pedido de token E é a chave com que eles assinam o webhook. Sem
+  // ele, o endereço do webhook fica aberto para qualquer um mandar
+  // pedido falso — e recusar assinatura inválida é exigência da
+  // homologação, que eles testam de propósito.
+  IFOOD_CLIENT_ID:       env("IFOOD_CLIENT_ID"),
+  IFOOD_CLIENT_SECRET:   env("IFOOD_CLIENT_SECRET"),
+  IFOOD_API:             env("IFOOD_API") || "https://merchant-api.ifood.com.br",
+
   // Para onde o gateway devolve o cliente depois do pagamento.
   SITE_URL:              env("SITE_URL") || "https://workap.com.br",
 
@@ -961,7 +975,7 @@ function supabase(method, table, options = {}) {
     "config_jornada", "erros_plataforma", "eventos_pagamento",
     "links_pagamento",
     "chamados", "chamado_mensagens",
-    "chaves_api", "movimentos_estoque"
+    "chaves_api", "movimentos_estoque", "ifood_eventos"
   ];
   // Procedimento do banco (PostgREST expõe em /rest/v1/rpc/nome).
   // Tem lista própria, separada da de tabelas, pelo mesmo motivo de
@@ -1061,7 +1075,18 @@ function supabase(method, table, options = {}) {
         // confiável — qualquer 4xx/5xx é erro, não resultado.
         if (res.statusCode >= 400) {
           secLog("supabase_error", { table, status: res.statusCode, code: (body && body.code) || null });
-          return reject(new Error((body && body.message) || `Erro ${res.statusCode} no banco de dados`));
+          // O CÓDIGO do Postgres vai junto do erro. Sem ele, quem
+          // chama só tem a frase para se orientar — e a frase muda com
+          // o idioma do servidor e com a versão do PostgREST. Quem
+          // precisa distinguir "chave duplicada" (23505) de "banco
+          // fora do ar" acabava fazendo busca de texto, que acerta num
+          // ambiente e erra no outro. Confundir os dois, num webhook de
+          // pedido, é a diferença entre uma tarefa repetida e um pedido
+          // que nunca virou comida.
+          var erroBanco = new Error((body && body.message) || `Erro ${res.statusCode} no banco de dados`);
+          erroBanco.code = (body && body.code) || null;
+          erroBanco.status = res.statusCode;
+          return reject(erroBanco);
         }
 
         // Consulta bem-sucedida sempre devolve array (GET/POST/PATCH com
@@ -4763,6 +4788,219 @@ function numeroDaApi(v) {
   return n;
 }
 
+// ════════════════════════════════════════════════════════════
+// IFOOD — o pedido que entra vira tarefa da equipe
+// ════════════════════════════════════════════════════════════
+// Fluxo: o iFood chama /webhook/ifood a cada mudança de pedido. A gente
+// confere a assinatura, descobre de qual empresa é pelo merchantId,
+// busca os itens do pedido e cria uma tarefa.
+//
+// Pré-requisito de negócio: o iFood exige homologação antes de
+// qualquer loja real conectar. O código roda e é testável por dentro
+// desde já; pedido de verdade só depois da aprovação deles.
+
+/**
+ * A assinatura do webhook do iFood.
+ *
+ * HMAC-SHA256 do corpo CRU com o client_secret, em hexadecimal, no
+ * cabeçalho x-ifood-signature.
+ *
+ * Três detalhes que, errados, passam despercebidos e derrubam a
+ * homologação (eles testam mandando assinatura errada de propósito):
+ *
+ * 1) O HMAC é sobre o texto exatamente como chegou. Se der JSON.parse e
+ *    stringify de novo antes de conferir, a ordem das chaves e os
+ *    espaços mudam, e a conta nunca bate.
+ * 2) Comparação em tempo constante. Comparar com === vaza, pelo tempo
+ *    de resposta, quantos caracteres iniciais estão certos — dá para
+ *    descobrir a assinatura byte a byte.
+ * 3) timingSafeEqual joga exceção se os tamanhos diferem, então o
+ *    tamanho é conferido antes.
+ */
+function assinaturaIfoodValida(corpoCru, cabecalhos) {
+  if (!CONFIG.IFOOD_CLIENT_SECRET) return false;
+
+  var recebida = String(
+    cabecalhos["x-ifood-signature"] || cabecalhos["X-IFood-Signature"] || ""
+  ).trim().toLowerCase();
+  if (!recebida) return false;
+
+  var esperada = crypto
+    .createHmac("sha256", CONFIG.IFOOD_CLIENT_SECRET)
+    .update(corpoCru, "utf8")
+    .digest("hex");
+
+  var a = Buffer.from(recebida, "utf8");
+  var b = Buffer.from(esperada, "utf8");
+  if (a.length !== b.length) return false;
+  try {
+    return crypto.timingSafeEqual(a, b);
+  } catch (e) {
+    return false;
+  }
+}
+
+// Token do iFood, guardado em memória.
+//
+// Vale 6 horas e eles não mandam refresh para aplicativo centralizado.
+// Pedir um token novo a cada pedido gastaria uma chamada extra em toda
+// venda e ainda esbarraria no limite deles num horário de pico.
+// Renovo 5 minutos antes de vencer — margem para o relógio da máquina
+// estar um pouco adiantado.
+var tokenIfood = { valor: null, expiraEm: 0 };
+
+async function pegarTokenIfood() {
+  if (tokenIfood.valor && Date.now() < tokenIfood.expiraEm) return tokenIfood.valor;
+  if (!CONFIG.IFOOD_CLIENT_ID || !CONFIG.IFOOD_CLIENT_SECRET) return null;
+
+  var corpo = new URLSearchParams({
+    grantType:    "client_credentials",
+    clientId:     CONFIG.IFOOD_CLIENT_ID,
+    clientSecret: CONFIG.IFOOD_CLIENT_SECRET
+  }).toString();
+
+  var resposta = await pedirAoIfood(
+    "/authentication/v1.0/oauth/token", "POST", corpo,
+    { "Content-Type": "application/x-www-form-urlencoded" }
+  ).catch(function (e) {
+    secLog("ifood_token_falhou", { message: e.message });
+    return null;
+  });
+
+  var dados = resposta && resposta.corpo;
+  if (!dados || !dados.accessToken) return null;
+
+  tokenIfood.valor = dados.accessToken;
+  var segundos = Number(dados.expiresIn) || 21600;
+  tokenIfood.expiraEm = Date.now() + Math.max(segundos - 300, 60) * 1000;
+  return tokenIfood.valor;
+}
+
+/** Chamada HTTPS ao iFood. Nunca joga exceção para cima sem contexto. */
+function pedirAoIfood(caminho, metodo, corpo, cabecalhosExtra) {
+  return new Promise(function (resolve, reject) {
+    var alvo = new URL(CONFIG.IFOOD_API);
+    var cabecalhos = Object.assign({ "Accept": "application/json" }, cabecalhosExtra || {});
+    if (corpo) cabecalhos["Content-Length"] = Buffer.byteLength(corpo);
+
+    var req = https.request({
+      hostname: alvo.hostname,
+      port: alvo.port || 443,
+      path: caminho,
+      method: metodo,
+      headers: cabecalhos,
+      timeout: 8000
+    }, function (res) {
+      var cru = "";
+      res.on("data", function (c) { cru += c; });
+      res.on("end", function () {
+        var json = null;
+        try { json = JSON.parse(cru || "null"); } catch (e) {}
+        resolve({ status: res.statusCode, corpo: json, cru: cru.slice(0, 400) });
+      });
+    });
+    // Sem timeout, um iFood lento seguraria o webhook até o iFood
+    // desistir e reenviar o evento — e aí seriam duas tarefas.
+    req.on("timeout", function () { req.destroy(new Error("iFood demorou demais")); });
+    req.on("error", reject);
+    if (corpo) req.write(corpo);
+    req.end();
+  });
+}
+
+/**
+ * Os itens do pedido, para a tarefa dizer o que preparar.
+ *
+ * MELHOR ESFORÇO de propósito: se o token falhar, se o iFood estiver
+ * fora do ar ou se mudarem o formato, a tarefa ainda é criada, só que
+ * sem a lista. Uma tarefa sem detalhe é um aborrecimento; pedido que
+ * não vira tarefa nenhuma é comida que não sai.
+ */
+async function itensDoPedidoIfood(orderId) {
+  var token = await pegarTokenIfood();
+  if (!token) return null;
+
+  var r = await pedirAoIfood(
+    "/order/v1.0/orders/" + encodeURIComponent(orderId), "GET", null,
+    { "Authorization": "Bearer " + token }
+  ).catch(function (e) {
+    secLog("ifood_pedido_falhou", { message: e.message });
+    return null;
+  });
+
+  if (!r || r.status !== 200 || !r.corpo) return null;
+
+  var itens = Array.isArray(r.corpo.items) ? r.corpo.items : [];
+  return {
+    numero: r.corpo.displayId || null,
+    tipo:   (r.corpo.orderType || "").toUpperCase(),
+    itens: itens.map(function (i) {
+      return {
+        nome: SANITIZE.string(i && i.name, 80) || "item",
+        qtd:  Number(i && i.quantity) || 1
+      };
+    }).slice(0, 40)
+  };
+}
+
+/** "2x X-Burguer, 1x Coca 2L" */
+function resumoDosItens(detalhe) {
+  if (!detalhe || !detalhe.itens || !detalhe.itens.length) return "";
+  return detalhe.itens.map(function (i) { return i.qtd + "x " + i.nome; }).join(", ");
+}
+
+/**
+ * O pedido vira tarefa.
+ *
+ * Uma função só, usada pelo webhook e pelo simulador da tela. Se cada
+ * um montasse a sua, o botão "simular" testaria um caminho que não é o
+ * que roda quando o pedido chega de verdade — e a diferença só
+ * apareceria no primeiro sábado cheio.
+ *
+ * Devolve { ok, tarefa_id, resumo } e nunca joga exceção.
+ */
+async function criarTarefaDePedidoIfood(empresa, orderId, detalhe) {
+  var numero = (detalhe && detalhe.numero) ||
+               String(orderId || "").slice(0, 8).toUpperCase() || "—";
+  var resumo = resumoDosItens(detalhe);
+
+  var descricao = resumo
+    ? resumo
+    : "Abra o app do iFood para ver os itens — não consegui buscar a lista agora.";
+  if (detalhe && detalhe.tipo === "TAKEOUT")  descricao += "\nRetirada no balcão.";
+  if (detalhe && detalhe.tipo === "DELIVERY") descricao += "\nEntrega.";
+
+  var criada = await DB.insert("tarefas", {
+    empresa_id: empresa.id,
+    titulo:     "Pedido iFood #" + numero,
+    descricao:  descricao,
+    prioridade: "alta",
+    status:     "pendente",
+    // Sem responsável: quem estiver na cozinha pega. Chutar uma pessoa
+    // faria a tarefa ficar parada justamente quando ela estivesse de
+    // folga — e pedido parado é pedido cancelado.
+    responsavel_id: null,
+    criado_por:     null,
+    // Foto do pedido embalado, se o dono pediu. Item errado e item
+    // faltando são a reclamação número um de delivery, e a foto é o que
+    // encerra a discussão depois.
+    requer_foto: !!empresa.ifood_exigir_foto,
+    // 45 minutos: prazo de preparo, não de entrega. Serve para a tarefa
+    // aparecer como atrasada quando alguém esquece dela.
+    prazo: new Date(Date.now() + 45 * 60 * 1000).toISOString()
+  }).catch(function (e) {
+    secLog("ifood_tarefa_falhou", { empresa_id: empresa.id, message: e.message });
+    return null;
+  });
+
+  if (!criada) return { ok: false };
+  return {
+    ok: true,
+    tarefa_id: (criada.body && criada.body[0] && criada.body[0].id) || null,
+    resumo: resumo || null
+  };
+}
+
 var server = http.createServer(async (req, res) => {
   var ip     = getIP(req);
   var origin = req.headers["origin"] || "";
@@ -6313,6 +6551,126 @@ var server = http.createServer(async (req, res) => {
     // O segredo é seu, não deles — ver webhookCaktoValido(). Responde
     // rápido de propósito: a Cakto exige resposta em 5 segundos, e o
     // trabalho pesado (e-mail) já é disparado sem esperar.
+    // ── WEBHOOK DO IFOOD ─────────────────────────────
+    // Público por definição: quem chama é o iFood. O que separa um
+    // pedido real de um forjado é só a assinatura — por isso ela é a
+    // PRIMEIRA coisa, antes de olhar o conteúdo.
+    if (method === "POST" && path === "/webhook/ifood") {
+      var cruIf = await getBody(req, 256 * 1024);
+
+      if (!assinaturaIfoodValida(cruIf, req.headers)) {
+        secLog("ifood_assinatura_invalida", { ip: ip });
+        // 401 seco, sem dizer o que estava errado. A homologação do
+        // iFood testa este caminho de propósito, mandando assinatura
+        // errada para ver se a gente recusa.
+        return jsonErr(res, "Não autorizado", 401);
+      }
+
+      var evIf = parseBody(cruIf);
+      if (!evIf || !evIf.id) return jsonErr(res, "Evento inválido");
+      var eventoIdIf = String(evIf.id);
+      var codigoIf   = String(evIf.fullCode || evIf.code || "").toUpperCase();
+
+      // Já veio antes? O iFood reenvia quando não recebe 2xx rápido o
+      // bastante. Sem esta conferência, o mesmo pedido viraria três
+      // tarefas e a cozinha faria o prato três vezes.
+      var jaVeioIf = await DB.select("ifood_eventos",
+        `evento_id=eq.${encodeURIComponent(eventoIdIf)}&select=id&limit=1`
+      ).catch(function () { return { body: [] }; });
+      if (jaVeioIf.body && jaVeioIf.body[0]) {
+        return jsonOk(res, { ok: true, repetido: true });
+      }
+
+      var empIf = null;
+      if (evIf.merchantId) {
+        var achouIf = await DB.select("empresas",
+          `ifood_merchant_id=eq.${encodeURIComponent(String(evIf.merchantId))}&select=id,nome,plano,status,trial_fim,assinatura_ate,ifood_exigir_foto&limit=1`
+        ).catch(function () { return { body: [] }; });
+        empIf = achouIf.body && achouIf.body[0];
+      }
+
+      var registroIf = await DB.insert("ifood_eventos", {
+        evento_id:   eventoIdIf,
+        empresa_id:  empIf ? empIf.id : null,
+        merchant_id: evIf.merchantId ? String(evIf.merchantId) : null,
+        order_id:    evIf.orderId ? String(evIf.orderId) : null,
+        full_code:   codigoIf || null,
+        situacao:    "recebido",
+        corpo:       evIf
+      }).catch(function (e) { return { falhou: e }; });
+
+      if (registroIf.falhou) {
+        // Duplicata é o único erro esperado aqui — duas entregas do
+        // mesmo evento chegando ao mesmo tempo, uma passando pela
+        // conferência acima antes de a outra gravar.
+        //
+        // Qualquer OUTRA falha (banco fora do ar, rede) não pode ser
+        // confundida com repetição: responder 200 faria o iFood
+        // considerar entregue um pedido que ninguém registrou, e a
+        // comida simplesmente não sairia. Na dúvida, 500 — o reenvio
+        // deles é a segunda chance, e a trava de unicidade impede a
+        // duplicata se o primeiro tiver gravado.
+        var erroIf = registroIf.falhou || {};
+        var msgIf  = String(erroIf.message || "");
+        // 23505 é o código de violação de unicidade do Postgres. O
+        // texto entra só como reserva, para o caso de a resposta vir
+        // sem código.
+        if (erroIf.code === "23505" || /duplicate key|already exists|chave duplicada/i.test(msgIf)) {
+          return jsonOk(res, { ok: true, repetido: true });
+        }
+        secLog("ifood_registro_falhou", { message: msgIf.slice(0, 120) });
+        return jsonErr(res, "Não foi possível registrar o evento agora", 500);
+      }
+
+      var idRegIf = registroIf.body && registroIf.body[0] && registroIf.body[0].id;
+      function anotarIf(situacao, detalhe, tarefaId) {
+        if (!idRegIf) return Promise.resolve();
+        return DB.update("ifood_eventos", `id=eq.${idRegIf}`,
+          { situacao: situacao, detalhe: detalhe || null, tarefa_id: tarefaId || null }
+        ).catch(function () {});
+      }
+
+      if (!empIf) {
+        await anotarIf("sem_empresa", "Nenhuma empresa com este merchantId.");
+        // 200 mesmo assim: é problema de configuração, e reenviar não
+        // resolve. O evento fica registrado para o dono ver na tela.
+        return jsonOk(res, { ok: true, ignorado: "loja_nao_vinculada" });
+      }
+
+      // Só PLACED vira tarefa. Um pedido passa por vários estados
+      // (confirmado, despachado, concluído) e cada um chega aqui —
+      // reagir a todos criaria cinco tarefas do mesmo pedido. O resto
+      // é registrado e respondido com 200: recusar faria o iFood
+      // reenviar para sempre um evento que a gente só não usa.
+      if (codigoIf !== "PLACED" && codigoIf !== "PLC") {
+        await anotarIf("ignorado", "Evento " + codigoIf + " não gera tarefa.");
+        return jsonOk(res, { ok: true, ignorado: codigoIf });
+      }
+      if (motivoDeBloqueio(empIf)) {
+        await anotarIf("bloqueado", "Conta com acesso suspenso.");
+        return jsonOk(res, { ok: true, ignorado: "conta_bloqueada" });
+      }
+
+      // Os itens são melhor esforço: se o token falhar, se o iFood
+      // estiver fora do ar ou se mudarem o formato, a tarefa nasce
+      // assim mesmo, só que sem a lista. Tarefa sem detalhe é
+      // aborrecimento; pedido que não vira tarefa é comida que não sai.
+      var detalheIf = await itensDoPedidoIfood(evIf.orderId).catch(function () { return null; });
+
+      var feitoIf = await criarTarefaDePedidoIfood(empIf, evIf.orderId, detalheIf);
+      if (!feitoIf.ok) {
+        await anotarIf("erro", "Não foi possível criar a tarefa.");
+        // Libera o registro para o reenvio do iFood poder tentar de
+        // novo — senão a trava de unicidade barraria a segunda chance.
+        if (idRegIf) await DB.delete("ifood_eventos", `id=eq.${idRegIf}`).catch(function () {});
+        return jsonErr(res, "Falha ao registrar o pedido", 500);
+      }
+
+      await anotarIf("tarefa_criada", feitoIf.resumo || null, feitoIf.tarefa_id);
+      secLog("ifood_pedido_recebido", { empresa_id: empIf.id, com_itens: !!feitoIf.resumo });
+      return jsonOk(res, { ok: true, tarefa_id: feitoIf.tarefa_id });
+    }
+
     if (method === "POST" && path === "/webhook/cakto") {
       if (!webhookCaktoValido(url, req.headers)) {
         secLog("webhook_cakto_segredo_invalido", { ip: ip });
@@ -9112,6 +9470,95 @@ var server = http.createServer(async (req, res) => {
 
       await DB.delete("escalas", `id=eq.${idEsc}`);
       return jsonOk(res, { ok: true });
+    }
+
+    // ════════════════════════════════════════
+    // IFOOD — ligar a loja, e simular um pedido
+    // ════════════════════════════════════════
+    if (path === "/integracoes/ifood" || path === "/integracoes/ifood/simular") {
+      if (authPayload.role !== "dono") {
+        return jsonErr(res, "Só o dono da conta liga o iFood.", 403);
+      }
+      if (await exigirPro(res, authPayload.empresa_id, "A integração com o iFood")) return;
+
+      if (method === "GET" && path === "/integracoes/ifood") {
+        var empIfG = await DB.select("empresas",
+          `id=eq.${authPayload.empresa_id}&select=ifood_merchant_id,ifood_exigir_foto,ifood_ligado_em`);
+        var linhaIfG = (empIfG.body && empIfG.body[0]) || {};
+        var eventosIfG = await DB.select("ifood_eventos",
+          `empresa_id=eq.${authPayload.empresa_id}&select=full_code,situacao,detalhe,order_id,recebido_em&order=recebido_em.desc&limit=15`
+        ).catch(function () { return { body: [] }; });
+        return jsonOk(res, {
+          merchant_id: linhaIfG.ifood_merchant_id || null,
+          exigir_foto: !!linhaIfG.ifood_exigir_foto,
+          ligado_em:   linhaIfG.ifood_ligado_em || null,
+          // A tela precisa saber se a plataforma está configurada. Sem
+          // as credenciais no servidor, ligar a loja não adianta nada —
+          // e é melhor dizer isso do que deixar o dono achando que
+          // ligou e esperar por um pedido que nunca chega.
+          plataforma_pronta: !!(CONFIG.IFOOD_CLIENT_ID && CONFIG.IFOOD_CLIENT_SECRET),
+          eventos: eventosIfG.body || []
+        });
+      }
+
+      if (method === "PUT" && path === "/integracoes/ifood") {
+        var bodyIf = parseBody(await getBody(req));
+        if (!bodyIf) return jsonErr(res, "Dados inválidos");
+
+        var mudancasIf = {};
+        if (bodyIf.merchant_id !== undefined) {
+          var midIf = SANITIZE.string(bodyIf.merchant_id || "", 80) || null;
+          if (midIf) {
+            // O merchantId é um uuid no iFood. Conferir aqui evita o
+            // dono colar o nome da loja e ficar semanas esperando um
+            // pedido que nunca vai casar.
+            if (!SANITIZE.uuid(midIf)) {
+              return jsonErr(res, "O ID da loja no iFood tem o formato de um UUID (ex.: 820af392-002c-47b1-bfae-d7ef31743c99).");
+            }
+            var ocupadoIf = await DB.select("empresas",
+              `ifood_merchant_id=eq.${encodeURIComponent(midIf)}&select=id&limit=1`);
+            if (ocupadoIf.body && ocupadoIf.body[0] && ocupadoIf.body[0].id !== authPayload.empresa_id) {
+              return jsonErr(res, "Esta loja do iFood já está ligada a outra conta.", 409);
+            }
+          }
+          mudancasIf.ifood_merchant_id = midIf;
+          mudancasIf.ifood_ligado_em   = midIf ? new Date().toISOString() : null;
+        }
+        if (bodyIf.exigir_foto !== undefined) {
+          mudancasIf.ifood_exigir_foto = bodyIf.exigir_foto === true;
+        }
+        if (!Object.keys(mudancasIf).length) return jsonErr(res, "Nada para salvar");
+
+        await DB.update("empresas", `id=eq.${authPayload.empresa_id}`, mudancasIf);
+        secLog("ifood_configurado", { empresa_id: authPayload.empresa_id, ligado: !!mudancasIf.ifood_merchant_id });
+        return jsonOk(res, { ok: true });
+      }
+
+      // Simular um pedido.
+      //
+      // Existe porque o dono NÃO consegue testar com pedido de verdade
+      // antes de o iFood homologar a integração — e um recurso que só
+      // pode ser conferido depois de semanas de burocracia é um recurso
+      // que ninguém confere. Passa pela MESMA função que o webhook usa,
+      // então o que ele vê aqui é o que vai acontecer lá.
+      if (method === "POST" && path === "/integracoes/ifood/simular") {
+        var empIfS = await DB.select("empresas",
+          `id=eq.${authPayload.empresa_id}&select=id,ifood_exigir_foto`);
+        var linhaIfS = empIfS.body && empIfS.body[0];
+        if (!linhaIfS) return jsonErr(res, "Empresa não encontrada", 404);
+
+        var feitoIfS = await criarTarefaDePedidoIfood(linhaIfS, "SIMULADO", {
+          numero: "TESTE",
+          tipo:   "DELIVERY",
+          itens: [
+            { nome: "X-Burguer", qtd: 2 },
+            { nome: "Batata frita G", qtd: 1 },
+            { nome: "Coca-Cola 2L", qtd: 1 }
+          ]
+        });
+        if (!feitoIfS.ok) return jsonErr(res, "Não foi possível criar a tarefa de teste", 500);
+        return jsonOk(res, { ok: true, tarefa_id: feitoIfS.tarefa_id });
+      }
     }
 
     // ════════════════════════════════════════

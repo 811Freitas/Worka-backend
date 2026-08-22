@@ -293,6 +293,10 @@ tr:hover td{background:var(--g50)}
 /* ── TAREFAS ── */
 .tarefa-card{background:white;border:1px solid var(--gray100);border-radius:var(--r);padding:16px;margin-bottom:10px;transition:transform var(--dur) var(--ease-out),box-shadow var(--dur) var(--ease-out),border-color var(--dur) var(--ease-out);animation:fadeInUp var(--dur) var(--ease-out) both}
 .tarefa-card:hover{border-color:var(--g300);box-shadow:var(--shadow-md);transform:translateY(-2px)}
+/* white-space:pre-line porque a descrição de um pedido vem com quebra
+   de linha ("Entrega." embaixo dos itens) e sem isso viraria um
+   parágrafo corrido. */
+.tarefa-desc{font-size:.83rem;color:var(--gray600);line-height:1.55;margin:6px 0 2px;white-space:pre-line}
 .tarefa-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
 .tarefa-title{font-size:0.9rem;font-weight:600;color:var(--gray900)}
 .tarefa-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -1289,6 +1293,56 @@ tr:hover td{background:var(--g50)}
     <!-- ── COMUNICADOS DA PLATAFORMA (somente owner) ── -->
     <!-- INTEGRAÇÕES (API) — plano Pro -->
     <div class="page" id="pg-integracoes">
+      <div class="card" id="card-ifood" style="margin-bottom:16px">
+        <div class="card-header">
+          <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-utensils></use></svg> iFood</div>
+          <span class="badge" id="ifood-badge">—</span>
+        </div>
+        <div class="card-body">
+          <p style="font-size:.86rem;color:var(--gray500);margin-bottom:16px;line-height:1.6">
+            Cada pedido que entra no iFood vira uma tarefa aqui, com os itens e prazo.
+            Quem estiver na cozinha pega, e fica registrado quem fez.
+          </p>
+
+          <div class="login-erro" id="ifood-aviso-plataforma">
+            O servidor ainda não tem as credenciais do iFood. Enquanto isso, ligar a loja não recebe pedido.
+          </div>
+
+          <div class="field">
+            <label>ID da sua loja no iFood</label>
+            <input id="ifood-merchant" placeholder="820af392-002c-47b1-bfae-d7ef31743c99" autocomplete="off">
+          </div>
+          <p style="font-size:.78rem;color:var(--gray500);margin:-8px 0 14px;line-height:1.6">
+            Está no Portal do Parceiro do iFood, em Configurações da loja. Tem o formato de um código longo com traços.
+          </p>
+
+          <label style="display:flex;align-items:flex-start;gap:10px;font-size:.85rem;color:var(--gray700);margin-bottom:16px;cursor:pointer">
+            <input type="checkbox" id="ifood-foto" style="width:18px;height:18px;margin-top:1px;flex-shrink:0">
+            <span>
+              <strong>Exigir foto do pedido embalado</strong><br>
+              <span style="font-size:.8rem;color:var(--gray500)">A tarefa só fecha com foto. Serve para resolver a discussão quando o cliente diz que faltou item.</span>
+            </span>
+          </label>
+
+          <div class="login-erro" id="ifood-erro">Não foi possível salvar.</div>
+
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-primary" id="ifood-btn-salvar" onclick="salvarIfood()">Salvar</button>
+            <button class="btn btn-secondary" id="ifood-btn-testar" onclick="simularPedidoIfood()">Simular um pedido</button>
+            <button class="btn btn-secondary" id="ifood-btn-desligar" onclick="desligarIfood()" style="display:none">Desligar</button>
+          </div>
+          <p style="font-size:.78rem;color:var(--gray500);margin-top:12px;line-height:1.6">
+            O botão de simular cria uma tarefa de teste igualzinha à de um pedido real —
+            dá para conferir como fica antes de o iFood aprovar a integração.
+          </p>
+
+          <div id="ifood-eventos-bloco" style="display:none;margin-top:20px">
+            <div class="ramo-bloco-rot" style="font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--gray500);margin-bottom:9px">Últimos eventos do iFood</div>
+            <div id="ifood-eventos"></div>
+          </div>
+        </div>
+      </div>
+
       <div class="card" style="margin-bottom:16px">
         <div class="card-header">
           <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-plug></use></svg> Chaves de integração</div>
@@ -5130,6 +5184,7 @@ function abrirPagina(id) {
   if(id==='anotacoes'  && typeof carregarAnotacoes    === 'function') carregarAnotacoes();
   if(id==='contatos'   && typeof carregarContatos     === 'function') carregarContatos();
   if(id==='integracoes'&& typeof carregarChavesApi    === 'function') carregarChavesApi();
+  if(id==='integracoes'&& typeof carregarIfood        === 'function') carregarIfood();
   if(id==='escala'     && typeof carregarEscala      === 'function') carregarEscala();
   if(id==='relatorios' && typeof carregarRelatorios  === 'function') carregarRelatorios();
   if(id==='cargos' && typeof carregarCargos === 'function') carregarCargos();
@@ -6606,8 +6661,16 @@ function carregarTarefasReais(){
         acoes = '<div style="margin-top:10px"><button class="btn btn-sm btn-secondary" onclick="rejeitarTarefa(this)"><svg class=ico aria-hidden=true><use href=#i-return></use></svg> Pedir refação</button></div>';
       }
 
+      // A descrição é onde está o conteúdo da tarefa — os itens de um
+      // pedido do iFood, o que precisa ser feito numa tarefa comum. O
+      // cartão nunca a mostrava: quem abria via só o título e tinha que
+      // adivinhar o resto. Com pedido de delivery isso seria fatal,
+      // porque a lista do que preparar é justamente a descrição.
+      var descTxt = t.descricao ? '<div class="tarefa-desc">'+textoSeguro(t.descricao)+'</div>' : '';
+
       return '<div class="tarefa-card" data-status="'+t.status+'" data-id="'+t.id+'"' + (t.status==='atrasada' ? ' style="border-left:3px solid var(--red)"' : '') + '>' +
-        '<div class="tarefa-header"><div class="tarefa-title">'+icone+' '+t.titulo+'</div>'+badge+'</div>' +
+        '<div class="tarefa-header"><div class="tarefa-title">'+icone+' '+textoSeguro(t.titulo)+'</div>'+badge+'</div>' +
+        descTxt +
         '<div class="tarefa-meta"><span><svg class=ico aria-hidden=true><use href=#i-user></use></svg> '+responsavelTxt+'</span><span><svg class=ico aria-hidden=true><use href=#i-calendar></use></svg> '+prazoTxt+'</span>' + (t.requer_foto ? '<span><svg class=ico aria-hidden=true><use href=#i-camera></use></svg> Requer foto</span>' : '') + '</div>' +
         acoes +
       '</div>';
@@ -10492,6 +10555,159 @@ var ESTILO_CONTATO = {
 var contatoEmEdicao = null;
 
 // ═══════════════════════════════════
+// IFOOD — pedido vira tarefa
+// ═══════════════════════════════════
+
+function mostrarAvisoIfood(el, texto, ok){
+  if(!el) return;
+  el.textContent = texto;
+  el.style.display = 'block';
+  // Verde para confirmação, vermelho para erro. Reaproveita a caixa de
+  // erro em vez de inventar outra: uma caixa só, no mesmo lugar, é onde
+  // a pessoa já está olhando depois de clicar.
+  el.style.background  = ok ? 'var(--g50)' : '';
+  el.style.color       = ok ? 'var(--g600)' : '';
+  el.style.borderColor = ok ? 'var(--g200)' : '';
+}
+
+async function carregarIfood(){
+  if(!sessaoWorka || !sessaoWorka.token) return;
+  var cartao = document.getElementById('card-ifood');
+  if(!cartao) return;
+
+  var d = null;
+  try {
+    var r = await fetch(API_BASE + '/integracoes/ifood', { headers: cabecalhoAuth() });
+    if(r.status === 402){ cartao.style.display = 'none'; return; }
+    if(!r.ok) throw new Error('falhou');
+    d = await r.json();
+  } catch(e){
+    document.getElementById('ifood-badge').textContent = 'indisponível';
+    return;
+  }
+  cartao.style.display = '';
+
+  document.getElementById('ifood-merchant').value = d.merchant_id || '';
+  document.getElementById('ifood-foto').checked   = !!d.exigir_foto;
+
+  var ligado = !!d.merchant_id;
+  var badge = document.getElementById('ifood-badge');
+  badge.textContent = ligado ? 'ligado' : 'desligado';
+  badge.className = 'badge ' + (ligado ? 'badge-green' : '');
+  document.getElementById('ifood-btn-desligar').style.display = ligado ? '' : 'none';
+
+  // Sem as credenciais no servidor, ligar a loja não recebe pedido
+  // nenhum. Dizer isso é melhor do que deixar o dono achando que ligou
+  // e ficar esperando um pedido que nunca vai chegar.
+  var aviso = document.getElementById('ifood-aviso-plataforma');
+  aviso.style.display = d.plataforma_pronta ? 'none' : 'block';
+
+  var bloco = document.getElementById('ifood-eventos-bloco');
+  var lista = document.getElementById('ifood-eventos');
+  var eventos = d.eventos || [];
+  lista.textContent = '';
+  bloco.style.display = eventos.length ? 'block' : 'none';
+
+  var COMO_FOI = {
+    tarefa_criada: ['Virou tarefa', 'var(--g600)'],
+    ignorado:      ['Ignorado', 'var(--gray500)'],
+    sem_empresa:   ['Loja não vinculada', '#b45309'],
+    bloqueado:     ['Conta suspensa', '#b45309'],
+    erro:          ['Falhou', '#dc2626'],
+    recebido:      ['Recebido', 'var(--gray500)']
+  };
+
+  eventos.forEach(function(ev){
+    var linha = document.createElement('div');
+    linha.className = 'chave-linha';
+
+    var esq = document.createElement('div');
+    esq.style.minWidth = '0';
+
+    var topo = document.createElement('div');
+    topo.className = 'chave-nome';
+    topo.textContent = ev.full_code || '—';
+    esq.appendChild(topo);
+
+    var meta = document.createElement('div');
+    meta.className = 'chave-meta';
+    var partes = [];
+    if(ev.recebido_em) partes.push(dataCurtaApi(ev.recebido_em));
+    if(ev.detalhe) partes.push(ev.detalhe);
+    meta.textContent = partes.join(' · ') || '—';
+    esq.appendChild(meta);
+
+    linha.appendChild(esq);
+
+    var como = COMO_FOI[ev.situacao] || [ev.situacao, 'var(--gray500)'];
+    var tag = document.createElement('span');
+    tag.className = 'chave-meta';
+    tag.style.color = como[1];
+    tag.style.fontWeight = '700';
+    tag.style.whiteSpace = 'nowrap';
+    tag.textContent = como[0];
+    linha.appendChild(tag);
+
+    lista.appendChild(linha);
+  });
+}
+
+async function salvarIfood(){
+  var btn  = document.getElementById('ifood-btn-salvar');
+  var erro = document.getElementById('ifood-erro');
+  erro.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Salvando...';
+  try {
+    var r = await fetch(API_BASE + '/integracoes/ifood', {
+      method: 'PUT', headers: cabecalhoAuth(),
+      body: JSON.stringify({
+        merchant_id: (document.getElementById('ifood-merchant').value || '').trim(),
+        exigir_foto: document.getElementById('ifood-foto').checked
+      })
+    });
+    var d = await r.json();
+    if(!r.ok){ mostrarAvisoIfood(erro, d.error || 'Não foi possível salvar.', false); return; }
+    mostrarAvisoIfood(erro, 'Salvo.', true);
+    carregarIfood();
+  } catch(e){
+    mostrarAvisoIfood(erro, 'Sem conexão com o servidor.', false);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Salvar';
+  }
+}
+
+async function desligarIfood(){
+  if(!confirm('Desligar o iFood?\n\nOs pedidos param de virar tarefa. As tarefas que já existem continuam.')) return;
+  try {
+    var r = await fetch(API_BASE + '/integracoes/ifood', {
+      method: 'PUT', headers: cabecalhoAuth(),
+      body: JSON.stringify({ merchant_id: '' })
+    });
+    if(!r.ok){ alert('Não foi possível desligar agora.'); return; }
+    carregarIfood();
+  } catch(e){ alert('Sem conexão com o servidor.'); }
+}
+
+async function simularPedidoIfood(){
+  var btn  = document.getElementById('ifood-btn-testar');
+  var erro = document.getElementById('ifood-erro');
+  erro.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Criando...';
+  try {
+    var r = await fetch(API_BASE + '/integracoes/ifood/simular', {
+      method: 'POST', headers: cabecalhoAuth(), body: '{}'
+    });
+    var d = await r.json();
+    if(!r.ok){ mostrarAvisoIfood(erro, d.error || 'Não foi possível criar a tarefa de teste.', false); return; }
+    mostrarAvisoIfood(erro, 'Tarefa de teste criada — abra Tarefas para ver como o pedido chega.', true);
+  } catch(e){
+    mostrarAvisoIfood(erro, 'Sem conexão com o servidor.', false);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Simular um pedido';
+  }
+}
+
+// ═══════════════════════════════════
 // INTEGRAÇÕES (API) — chaves do cliente
 // ═══════════════════════════════════
 // Tudo montado com createElement e textContent. O nome da chave é
@@ -11301,6 +11517,18 @@ var CORES_CATEGORIA = {
   urgente:     ['Urgente',     'badge-red'],
   financeiro:  ['Financeiro',  'badge-green']
 };
+
+// Escapa texto que vai para innerHTML.
+//
+// Vários trechos deste arquivo montam HTML com concatenação de string.
+// O servidor já tira < e > do que o usuário digita, mas depender só
+// disso significa que o dia em que entrar um campo novo sem esse filtro,
+// a falha aparece aqui — em silêncio.
+function textoSeguro(v){
+  return String(v == null ? '' : v)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 
 function cabecalhoAuth(){
   return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessaoWorka.token };

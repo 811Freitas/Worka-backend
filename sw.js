@@ -9,6 +9,11 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v41: entrou o iFood — o pedido que chega vira tarefa da equipe, com
+// os itens e prazo, e opcionalmente so fecha com foto do pedido
+// embalado. E o cartao de tarefa passou a mostrar a DESCRICAO, que
+// nunca aparecia: sem ela o cozinheiro veria o numero do pedido e
+// nenhum item.
 // v40: a vitrine ganhou a parte interativa — o visitante toca no ramo
 // dele e ve a tela do app mudar (nome da pagina, categorias, campos e
 // cargos), com os dados do proprio catalogo do servidor. Entrou tambem
@@ -83,7 +88,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v40';
+var CACHE = 'workap-v41';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
