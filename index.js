@@ -102,6 +102,26 @@ const CONFIG = {
   // próxima.
   WHATSAPP_API:          env("WHATSAPP_API") || "https://graph.facebook.com/v21.0",
 
+  // ── CONECTAR EM UM CLIQUE (Embedded Signup da Meta) ──
+  //
+  // Estas três são da WORKAP, não do cliente. É a diferença toda: no
+  // caminho manual cada empresa cria o próprio aplicativo na Meta e
+  // cola três chaves; aqui quem tem aplicativo é a Workap, e o cliente
+  // só faz login do Facebook numa janelinha.
+  //
+  // Enquanto estiverem vazias, o botão simplesmente não aparece e a
+  // tela oferece o caminho manual — que continua funcionando. Não há
+  // meio-termo possível: sem APP_ID o SDK da Meta nem carrega.
+  //
+  // Para preencher, a Workap precisa ser aprovada como Tech Provider
+  // (negócio verificado + revisão do aplicativo). É burocracia UMA vez,
+  // aqui, em vez de dez passos por cliente.
+  META_APP_ID:           env("META_APP_ID"),
+  META_APP_SECRET:       env("META_APP_SECRET"),
+  // O id da configuração de Embedded Signup, criada no painel da Meta.
+  // É o que diz à janelinha quais permissões pedir.
+  META_CONFIG_ID:        env("META_CONFIG_ID"),
+
   // Para onde o gateway devolve o cliente depois do pagamento.
   SITE_URL:              env("SITE_URL") || "https://workap.com.br",
 
@@ -5400,10 +5420,12 @@ function pedirAoWhatsApp(caminho, metodo, corpo, token) {
     var alvo = new URL(CONFIG.WHATSAPP_API);
     var texto = corpo ? JSON.stringify(corpo) : null;
 
-    var cabecalhos = {
-      "Accept": "application/json",
-      "Authorization": "Bearer " + token
-    };
+    var cabecalhos = { "Accept": "application/json" };
+    // Sem token, sem cabeçalho — e não "Bearer " vazio, que a Meta lê
+    // como credencial inválida em vez de ausente. A troca do código do
+    // Embedded Signup é a única chamada que se autentica pela própria
+    // URL, e é ela que passa por aqui sem token.
+    if (token) cabecalhos["Authorization"] = "Bearer " + token;
     if (texto) {
       cabecalhos["Content-Type"]   = "application/json";
       cabecalhos["Content-Length"] = Buffer.byteLength(texto);
@@ -5491,6 +5513,100 @@ function marcarLidaNoWhatsApp(bot, messageId) {
 }
 
 /**
+ * Confere, na hora, se as chaves que a pessoa colou funcionam.
+ *
+ * Sem isto, o caminho manual só falha DEPOIS: a tela diz "conectado",
+ * a Meta nunca manda nada, e quem colou não tem como saber se errou o
+ * ID, o token ou o webhook. O erro chega dias depois como "não
+ * funciona", que é a pior forma de erro que existe.
+ *
+ * Uma chamada só, e a mais barata que a Graph API tem: pedir o número
+ * pelo id. Se o token não presta, ela diz. Se o id não é de número
+ * nenhum, ela diz. E de quebra volta o telefone formatado, que a tela
+ * passa a mostrar sem a pessoa precisar digitar.
+ *
+ * Devolve { ok, erro?, numero?, expira_em? } — nunca joga exceção,
+ * porque isto roda dentro do salvar e uma conferência que falha não
+ * pode impedir alguém de guardar o que digitou.
+ */
+async function conferirCredenciaisWhatsApp(numeroId, token) {
+  try {
+    var r = await pedirAoWhatsApp(
+      "/" + encodeURIComponent(numeroId) + "?fields=display_phone_number,verified_name",
+      "GET", null, token
+    );
+
+    if (r.status >= 400) {
+      // SÓ é credencial errada quando quem recusou foi a Meta, e a
+      // Meta sempre diz isso num objeto `error` no corpo. Um 403 de
+      // proxy, um 502 de gateway ou um HTML de erro no meio do caminho
+      // chegariam aqui como "status >= 400" também — e mandar a pessoa
+      // refazer o token por causa da rede é pior que não conferir.
+      if (!r.corpo || !r.corpo.error) {
+        return { ok: null, erro:
+          "Não deu para conferir as chaves com a Meta agora (resposta " + r.status +
+          " de quem está no meio do caminho). Salvamos assim mesmo — mande \u2018oi\u2019 " +
+          "para o número e veja se o bot responde." };
+      }
+
+      var e = r.corpo.error;
+      var msg = e.message || ("HTTP " + r.status);
+
+      // As duas confusões que respondem por quase todo erro aqui, e
+      // que a mensagem crua da Meta não explica para quem é leigo.
+      if (/Unsupported get request|does not exist|Object with ID/i.test(msg)) {
+        return { ok: false, erro:
+          "A Meta não reconheceu esse ID de número. Confira se você copiou o " +
+          "\u2018ID do número de telefone\u2019 (uns 15 dígitos) e não o telefone em si." };
+      }
+      if (/expired|Session has expired|OAuthException|access token/i.test(msg)) {
+        return { ok: false, erro:
+          "A Meta recusou o token. Se você copiou o que aparece na tela de configuração, " +
+          "ele vale só 24 horas — gere o token permanente em Usuários do sistema." };
+      }
+      return { ok: false, erro: "A Meta respondeu: " + msg };
+    }
+
+    return {
+      ok: true,
+      numero: (r.corpo && r.corpo.display_phone_number) || null,
+      nome:   (r.corpo && r.corpo.verified_name) || null
+    };
+  } catch (err) {
+    // Rede fora do ar não é credencial errada, e dizer que é mandaria
+    // a pessoa refazer meia hora de trabalho à toa.
+    return { ok: null, erro: "Não deu para falar com a Meta agora: " + err.message };
+  }
+}
+
+/**
+ * Troca o código do Embedded Signup pelo token do cliente.
+ *
+ * A janelinha do Facebook devolve um `code` de uso único ao navegador.
+ * Ele sozinho não serve para nada — só vira token de verdade aqui, no
+ * servidor, porque a troca exige o APP_SECRET da Workap, que nunca
+ * pode passar pelo navegador de ninguém.
+ */
+async function trocarCodigoDoEmbeddedSignup(codigo) {
+  var caminho = "/oauth/access_token" +
+    "?client_id="     + encodeURIComponent(CONFIG.META_APP_ID) +
+    "&client_secret=" + encodeURIComponent(CONFIG.META_APP_SECRET) +
+    "&code="          + encodeURIComponent(codigo);
+
+  // Sem token no cabeçalho de propósito: esta é a única chamada da
+  // Graph API que se autentica pelo par id/secret na própria URL.
+  var r = await pedirAoWhatsApp(caminho, "GET", null, "");
+
+  if (r.status >= 400 || !r.corpo || !r.corpo.access_token) {
+    var motivo = (r.corpo && r.corpo.error && r.corpo.error.message) || r.cru || ("HTTP " + r.status);
+    var err = new Error(motivo);
+    err.status = r.status;
+    throw err;
+  }
+  return r.corpo.access_token;
+}
+
+/**
  * A assinatura que a Meta põe em todo webhook.
  *
  * Sem conferir isto, o endereço é uma caixa de entrada aberta: qualquer
@@ -5522,6 +5638,26 @@ function assinaturaWhatsAppValida(corpoCru, cabecalhos, appSecret) {
   } catch (e) {
     return false;
   }
+}
+
+/**
+ * O PIN de verificação em duas etapas do número.
+ *
+ * A Meta exige seis dígitos ao registrar. Ele protege o número contra
+ * ser registrado de novo em outro lugar, e a pessoa nunca precisa
+ * digitá-lo — por isso é derivado, e não sorteado: sorteado, ele se
+ * perderia no primeiro reinício e um reconectar depois seria recusado
+ * com "PIN incorreto", sem ninguém ter como descobrir o antigo.
+ *
+ * Sai do id do número mais o segredo do servidor, então é estável para
+ * o mesmo número e impossível de adivinhar de fora.
+ */
+function pinDoNumeroWhatsApp(numeroId) {
+  var bruto = crypto.createHmac("sha256", CONFIG.JWT_SECRET)
+    .update("pin-whatsapp:" + numeroId, "utf8").digest("hex");
+  // Seis dígitos a partir dos primeiros bytes, com zeros à esquerda
+  // preservados: "012345" é um PIN válido e cortar o zero daria cinco.
+  return String(parseInt(bruto.slice(0, 8), 16) % 1000000).padStart(6, "0");
 }
 
 /** O segredo que o dono cola no campo "Token de verificação" da Meta. */
@@ -5747,9 +5883,21 @@ async function rotasDoChatbot(req, res, ctx) {
       wa_conectado_em: botCfg.wa_conectado_em || null,
       wa_ultimo_evento_em: botCfg.wa_ultimo_evento_em || null,
       wa_token_salvo: !!botCfg.wa_token,
-      wa_app_secret_salvo: !!botCfg.wa_app_secret
+      wa_app_secret_salvo: !!botCfg.wa_app_secret,
+      wa_origem: botCfg.wa_origem || "manual"
     };
-    return jsonOk(res, { chatbot: seguro, itens: itensCfg.body || [] });
+
+    // O botão de conectar em um clique só existe se a Workap já tiver
+    // aplicativo aprovado na Meta. O APP_ID é público por definição —
+    // vai no navegador de todo mundo que usa o SDK deles — mas o
+    // APP_SECRET nunca sai daqui.
+    var umClique = {
+      disponivel: !!(CONFIG.META_APP_ID && CONFIG.META_APP_SECRET && CONFIG.META_CONFIG_ID),
+      app_id:     CONFIG.META_APP_ID || null,
+      config_id:  CONFIG.META_CONFIG_ID || null
+    };
+
+    return jsonOk(res, { chatbot: seguro, itens: itensCfg.body || [], um_clique: umClique });
   }
 
   if (method === "PUT" && resto === "") {
@@ -5795,6 +5943,12 @@ async function rotasDoChatbot(req, res, ctx) {
     }
     if (bodyBot.wa_app_secret) {
       mudaBot.wa_app_secret = SANITIZE.string(bodyBot.wa_app_secret, 200);
+      // Colar a chave secreta é assumir o aplicativo: a partir daqui
+      // quem assina o webhook é a Meta do CLIENTE, não a da Workap.
+      // Sem esta linha a origem continuaria dizendo "embedded" para
+      // quem trocou de caminho, e a tela mostraria uma conexão que não
+      // é mais a que existe.
+      mudaBot.wa_origem = "manual";
     }
     if (bodyBot.wa_numero !== undefined) {
       mudaBot.wa_numero = SANITIZE.string(bodyBot.wa_numero, 30) || null;
@@ -5813,12 +5967,35 @@ async function rotasDoChatbot(req, res, ctx) {
     // isso o webhook chega e é recusado, e a tela precisa dizer
     // isso em vez de mostrar um visto verde que não corresponde a
     // nada.
-    var temTudoWa =
-      (mudaBot.wa_phone_number_id || botAtual.wa_phone_number_id) &&
-      (mudaBot.wa_token           || botAtual.wa_token) &&
-      (mudaBot.wa_app_secret      || botAtual.wa_app_secret);
+    var numeroFinalWa = mudaBot.wa_phone_number_id || botAtual.wa_phone_number_id;
+    var tokenFinalWa  = mudaBot.wa_token           || botAtual.wa_token;
+    var temTudoWa = numeroFinalWa && tokenFinalWa &&
+      (mudaBot.wa_app_secret || botAtual.wa_app_secret);
     if (temTudoWa && !botAtual.wa_conectado_em) {
       mudaBot.wa_conectado_em = new Date().toISOString();
+    }
+
+    // CONFERIR ANTES DE GRAVAR, quando número e token acabaram de
+    // chegar juntos.
+    //
+    // Sem isto o caminho manual só falha depois: a tela diz
+    // "conectado", a Meta nunca manda nada, e quem colou não tem como
+    // saber se errou o ID, o token ou o webhook. Uma chamada de menos
+    // de um segundo troca esse silêncio por uma frase que diz o que
+    // fazer — e ainda traz o telefone formatado, que a pessoa não
+    // precisa mais digitar.
+    var avisoWa = null;
+    if ((mudaBot.wa_phone_number_id || mudaBot.wa_token) && numeroFinalWa && tokenFinalWa) {
+      var confereWa = await conferirCredenciaisWhatsApp(numeroFinalWa, tokenFinalWa);
+      // ok === false é credencial errada, e não passa. ok === null é a
+      // Meta fora do ar ou a rede caindo — aí grava mesmo assim e
+      // avisa, porque mandar a pessoa refazer meia hora de trabalho
+      // por causa de uma oscilação seria pior que o problema.
+      if (confereWa.ok === false) return jsonErr(res, confereWa.erro, 400);
+      if (confereWa.ok === null)  avisoWa = confereWa.erro;
+      if (confereWa.ok === true && confereWa.numero && !mudaBot.wa_numero) {
+        mudaBot.wa_numero = confereWa.numero;
+      }
     }
 
     try {
@@ -5836,7 +6013,101 @@ async function rotasDoChatbot(req, res, ctx) {
 
     secLog("chatbot_configurado", Object.assign(
       { ativo: mudaBot.ativo, canal: mudaBot.canal }, ctx.paraOLog));
-    return jsonOk(res, { ok: true });
+    return jsonOk(res, { ok: true, aviso: avisoWa });
+  }
+
+  // ── WhatsApp: conectar em UM CLIQUE ──
+  //
+  // Chega aqui com o `code` que a janelinha do Facebook devolveu ao
+  // navegador, mais o id do número e o da conta que a Meta anunciou
+  // pelo evento da janela. O navegador não consegue fazer nada com o
+  // code sozinho: virar token exige o APP_SECRET da Workap, que mora
+  // só aqui.
+  //
+  // São quatro passos com a Meta, e os quatro precisam dar certo para
+  // a conexão existir. Se um falhar no meio, nada é gravado — melhor
+  // a pessoa clicar de novo do que ficar com um bot "conectado" que
+  // não recebe mensagem e ninguém sabe por quê.
+  if (method === "POST" && resto === "/whatsapp/conectar") {
+    if (!CONFIG.META_APP_ID || !CONFIG.META_APP_SECRET) {
+      return jsonErr(res, "A conexão em um clique ainda não está ligada nesta instalação. Use o formulário abaixo.", 503);
+    }
+
+    var bodyEs = parseBody(await getBody(req));
+    if (!bodyEs) return jsonErr(res, "Dados inválidos");
+
+    var codigoEs = SANITIZE.string(bodyEs.code, 500);
+    var numeroEs = SANITIZE.string(bodyEs.phone_number_id, 40).replace(/\D/g, "");
+    var contaEs  = SANITIZE.string(bodyEs.waba_id, 40).replace(/\D/g, "");
+    if (!codigoEs) return jsonErr(res, "A janela do Facebook fechou antes de concluir. Tente de novo.");
+    if (!numeroEs || !contaEs) {
+      return jsonErr(res, "A Meta não informou qual número foi criado. Tente de novo e conclua todas as etapas da janela.");
+    }
+
+    var botEs = await botDaEmpresa();
+
+    try {
+      // 1. O code vira o token do CLIENTE.
+      var tokenEs = await trocarCodigoDoEmbeddedSignup(codigoEs);
+
+      // 2. Assinar o aplicativo da Workap na conta dele. É este passo
+      //    que faz a mensagem chegar no nosso webhook — sem ele a
+      //    conexão existe e nada é entregue.
+      var assinou = await pedirAoWhatsApp(
+        "/" + encodeURIComponent(contaEs) + "/subscribed_apps", "POST", {}, tokenEs);
+      if (assinou.status >= 400) {
+        throw new Error((assinou.corpo && assinou.corpo.error && assinou.corpo.error.message) ||
+                        "não foi possível assinar as mensagens dessa conta");
+      }
+
+      // 3. Registrar o número na Cloud API. O PIN é exigido pela Meta
+      //    e vale para a verificação em duas etapas do número; ele fica
+      //    guardado com o número, não com a gente.
+      var registro = await pedirAoWhatsApp(
+        "/" + encodeURIComponent(numeroEs) + "/register", "POST",
+        { messaging_product: "whatsapp", pin: pinDoNumeroWhatsApp(numeroEs) }, tokenEs);
+      // Número já registrado não é erro: é o caminho normal de quem
+      // clica duas vezes, ou reconecta depois de desconectar.
+      if (registro.status >= 400) {
+        var msgReg = (registro.corpo && registro.corpo.error && registro.corpo.error.message) || "";
+        if (!/already registered|já registrado/i.test(msgReg)) {
+          secLog("whatsapp_registro_recusado", { motivo: msgReg.slice(0, 120) });
+        }
+      }
+
+      // 4. Conferir, e de quebra pegar o telefone formatado para a tela
+      //    mostrar. Se este passo falha, a conexão não presta — melhor
+      //    dizer agora.
+      var confereEs = await conferirCredenciaisWhatsApp(numeroEs, tokenEs);
+      if (confereEs.ok === false) return jsonErr(res, confereEs.erro, 502);
+
+      await DB.update("chatbots", `id=eq.${botEs.id}`, {
+        wa_phone_number_id: numeroEs,
+        wa_token:           tokenEs,
+        // NULO de propósito: quem assina o webhook destas conexões é o
+        // aplicativo da Workap, e a chave dele é variável de ambiente.
+        // Ver a migração 034.
+        wa_app_secret:      null,
+        wa_origem:          "embedded",
+        wa_numero:          confereEs.numero || null,
+        wa_conectado_em:    new Date().toISOString(),
+        wa_verify_token:    botEs.wa_verify_token || gerarVerifyTokenWhatsApp(),
+        // Conectou pelo botão: o canal só pode ser WhatsApp, ou o bot
+        // ficaria ligado sem atender no número que a pessoa acabou de
+        // conectar.
+        canal:              botEs.canal === "ambos" ? "ambos" : "whatsapp"
+      });
+
+      secLog("whatsapp_conectado_em_um_clique", Object.assign({ numero_id: numeroEs }, ctx.paraOLog));
+      return jsonOk(res, { ok: true, numero: confereEs.numero || null });
+
+    } catch (eEs) {
+      registrarErro("whatsapp", eEs.message, {
+        rota: ctx.prefixo + "/whatsapp/conectar", metodo: "POST",
+        status: eEs.status || null, empresa_id: ctx.empresa_id
+      });
+      return jsonErr(res, "Não deu para concluir a conexão: " + eEs.message, 502);
+    }
   }
 
   // ── WhatsApp: desligar ──
@@ -5851,6 +6122,10 @@ async function rotasDoChatbot(req, res, ctx) {
       wa_app_secret: null,
       wa_numero: null,
       wa_conectado_em: null,
+      // Volta a "manual" junto com o resto: a próxima conexão pode
+      // entrar por qualquer um dos dois caminhos, e deixar a origem
+      // antiga faria a tela descrever uma ligação que não existe mais.
+      wa_origem: "manual",
       // O canal volta para interno: deixá-lo em "whatsapp" sem
       // credencial nenhuma é um bot ligado que não atende em lugar
       // nenhum — e ninguém descobre por quê.
@@ -7753,12 +8028,22 @@ var server = http.createServer(async (req, res) => {
         res.writeHead(200); return res.end("ok");
       }
 
-      if (!assinaturaWhatsAppValida(cruWa, req.headers, botWa.wa_app_secret)) {
+      // QUAL CHAVE VALIDA ESTE WEBHOOK depende de por onde a conexão
+      // entrou. Colada na mão, o aplicativo da Meta é do cliente e a
+      // chave é dele, guardada na linha. Conectada pelo botão, o
+      // aplicativo é o da Workap e a chave é UMA só, em variável de
+      // ambiente — copiá-la para cada linha seria espalhar o mesmo
+      // segredo por centenas de registros para ter que trocar todos
+      // juntos no dia em que ela mudasse.
+      var chaveDoWebhookWa = botWa.wa_app_secret || CONFIG.META_APP_SECRET;
+
+      if (!assinaturaWhatsAppValida(cruWa, req.headers, chaveDoWebhookWa)) {
         secLog("whatsapp_assinatura_invalida", { ip: ip, empresa_id: botWa.empresa_id });
         registrarErro("whatsapp",
-          botWa.wa_app_secret
-            ? "Webhook do WhatsApp recusado: a assinatura não confere com o App Secret cadastrado."
-            : "Webhook do WhatsApp recusado: App Secret não cadastrado — nenhuma mensagem será atendida.", {
+          chaveDoWebhookWa
+            ? ("Webhook do WhatsApp recusado: a assinatura não confere com o App Secret " +
+               (botWa.wa_app_secret ? "cadastrado nesta conta." : "da Workap (META_APP_SECRET)."))
+            : "Webhook do WhatsApp recusado: nenhum App Secret disponível — nenhuma mensagem será atendida.", {
           rota: "/webhook/whatsapp", metodo: "POST", status: 401,
           empresa_id: botWa.empresa_id
         });
