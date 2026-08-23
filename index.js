@@ -188,6 +188,61 @@ const CONFIG = {
     return (isNaN(v) || v < 0) ? 2000000 : v;
   })(),
 
+  // ── O DINHEIRO QUE EXISTE DE VERDADE ──────────────────────
+  //
+  // O teto acima é POR EMPRESA. Sozinho, ele não protege de nada que
+  // importe: dez empresas dentro do limite delas somam dez vezes o
+  // limite, e quem paga a conta é a Workap. Este aqui é o crédito
+  // comprado — quando ele acaba, acabou para todo mundo.
+  //
+  // 5.000.000 = US$ 5,00, que é o crédito que existe hoje. Dá cerca de
+  // 1.580 respostas no Grok 4.6.
+  IA_TETO_GLOBAL_MICRODOLARES: (function () {
+    var v = parseInt(env("IA_TETO_GLOBAL_MICRODOLARES") || "", 10);
+    return (isNaN(v) || v < 0) ? 5000000 : v;
+  })(),
+
+  // Fatia garantida do bot da própria Workap, em porcento do global.
+  //
+  // Ele não é um cliente: é o que RESPONDE quem chega perguntando
+  // preço. Deixá-lo disputar crédito em pé de igualdade com as contas
+  // que ele mesmo trouxe é cortar a venda para servir quem já comprou.
+  // 25% de US$ 5,00 = US$ 1,25, cerca de 395 conversas de venda.
+  IA_RESERVA_PLATAFORMA_PCT: (function () {
+    var v = parseInt(env("IA_RESERVA_PLATAFORMA_PCT") || "", 10);
+    return (isNaN(v) || v < 0 || v > 90) ? 25 : v;
+  })(),
+
+  // Piso por empresa. Enquanto houver dinheiro no bolo, nenhuma conta
+  // recebe menos que isto — mesmo que a divisão por muitas empresas
+  // desse menos.
+  //
+  // Existe porque uma cota minúscula é pior que nenhuma: o bot
+  // responde as três primeiras perguntas do mês e emudece, e o dono
+  // conclui que o Plano Master não funciona. 300.000 = US$ 0,30, umas
+  // 95 respostas.
+  IA_PISO_EMPRESA_MICRODOLARES: (function () {
+    var v = parseInt(env("IA_PISO_EMPRESA_MICRODOLARES") || "", 10);
+    return (isNaN(v) || v < 0) ? 300000 : v;
+  })(),
+
+  // Por quanto tempo o panorama de gasto fica guardado em memória.
+  //
+  // Ele é lido antes de cada resposta de IA, e reler o mês inteiro a
+  // cada mensagem seria uma consulta pesada em todo "oi" que chega.
+  // Por outro lado, quanto mais tempo guardado, mais o gasto pode
+  // passar do teto antes de alguém perceber — a 3.160 micro-dólares
+  // por resposta, vinte segundos de rajada custam centavos, e é esse
+  // o tamanho do erro que se aceita aqui.
+  //
+  // Existe como variável porque um cache que não dá para desligar é um
+  // cache que não dá para TESTAR: com ele fixo, nenhuma suíte
+  // conseguia provar que o teto realmente barra.
+  IA_PANORAMA_CACHE_MS: (function () {
+    var v = parseInt(env("IA_PANORAMA_CACHE_MS") || "", 10);
+    return (isNaN(v) || v < 0) ? 20000 : v;
+  })(),
+
   // WhatsApp de vendas, para quem prefere negociar a assinar sozinho.
   // Aparece no e-mail de fim de trial e na tela de bloqueio.
   //
@@ -1724,26 +1779,184 @@ function custoEmMicrodolares(modelo, tokensEntrada, tokensSaida) {
 }
 
 /**
- * Quanto esta empresa já gastou de IA no mês corrente.
+ * O gasto de IA do mês inteiro, de todo mundo, numa consulta só.
+ *
+ * UMA consulta e não uma por empresa: isto roda antes de CADA resposta
+ * de IA, e o rateio precisa saber quantas empresas estão dividindo o
+ * bolo. Perguntar isso empresa por empresa seria uma tempestade de
+ * requisições em cada "oi" que chega.
+ *
+ * Guardado por alguns segundos (IA_PANORAMA_CACHE_MS). O rateio muda
+ * quando entra uma empresa nova no mês — coisa de dias, não de
+ * segundos — e a defasagem no pior caso deixa passar algumas respostas
+ * a mais. Barato perto de consultar o mês inteiro a cada mensagem.
  */
-async function gastoDeIaNoMes(empresaId) {
+var panoramaIa = { em: 0, dados: null };
+
+async function panoramaDeIaNoMes() {
+  if (panoramaIa.dados && (Date.now() - panoramaIa.em) < CONFIG.IA_PANORAMA_CACHE_MS) {
+    return panoramaIa.dados;
+  }
+
   var inicio = new Date();
   inicio.setDate(1); inicio.setHours(0, 0, 0, 0);
 
-  // Nulo = gasto da própria plataforma, do chatbot da Workap. O filtro
-  // muda de forma: `eq.null` não casa com nada em PostgREST, e o teto
-  // do bot que mais atende nunca dispararia.
-  var filtro = empresaId ? ("empresa_id=eq." + empresaId) : "empresa_id=is.null";
-
   var r = await DB.select("ia_usos",
-    filtro +
-    "&criado_em=gte." + inicio.toISOString() +
-    "&select=custo_microdolares&limit=5000"
-  ).catch(function () { return { body: [] }; });
+    "criado_em=gte." + inicio.toISOString() +
+    "&select=empresa_id,custo_microdolares&limit=20000"
+  ).catch(function () { return { body: null }; });
 
-  return (r.body || []).reduce(function (soma, l) {
-    return soma + (l.custo_microdolares || 0);
-  }, 0);
+  // Sem resposta do banco NÃO é "gastou zero". Tratar falha de leitura
+  // como bolo cheio faria o teto sumir justo quando ele mais importa —
+  // então devolve o panorama anterior, e na falta dele, um panorama
+  // que bloqueia. Preferir travar a preferir estourar a fatura.
+  if (!r.body) {
+    return panoramaIa.dados || { total: Infinity, plataforma: Infinity, porEmpresa: {}, empresas: 0, cego: true };
+  }
+
+  var total = 0, plataforma = 0, porEmpresa = {};
+  r.body.forEach(function (l) {
+    var c = l.custo_microdolares || 0;
+    total += c;
+    if (!l.empresa_id) plataforma += c;
+    else porEmpresa[l.empresa_id] = (porEmpresa[l.empresa_id] || 0) + c;
+  });
+
+  var dados = {
+    total: total,
+    plataforma: plataforma,
+    porEmpresa: porEmpresa,
+    empresas: Object.keys(porEmpresa).length,
+    cego: false
+  };
+  panoramaIa = { em: Date.now(), dados: dados };
+  return dados;
+}
+
+/**
+ * Soma um gasto que ACABOU de acontecer ao panorama em memória.
+ *
+ * Sem isto, o teto vazava: o panorama fica alguns segundos em cache, e
+ * durante esses segundos as respostas seguintes liam o gasto de antes
+ * — um bot respondendo rápido passava da cota e só era barrado no
+ * próximo refresh. Contar aqui deixa a conta certa dentro da janela;
+ * a leitura do banco continua sendo quem corrige o que veio de outra
+ * instância.
+ */
+function contabilizarGastoDeIa(empresaId, custo) {
+  if (!custo || !panoramaIa.dados || panoramaIa.dados.cego) return;
+  var p = panoramaIa.dados;
+  p.total += custo;
+  if (!empresaId || empresaId === EMPRESA_NENHUMA) {
+    p.plataforma += custo;
+  } else {
+    if (!(empresaId in p.porEmpresa)) p.empresas += 1;
+    p.porEmpresa[empresaId] = (p.porEmpresa[empresaId] || 0) + custo;
+  }
+}
+
+/**
+ * Quanto esta conta ainda pode gastar de IA, e por quê.
+ *
+ * TRÊS PERGUNTAS, nesta ordem, e a ordem é a regra:
+ *
+ *  1. Ainda existe crédito comprado? Se o bolo acabou, acabou para
+ *     todo mundo — não adianta a conta ter cota se não há dinheiro.
+ *  2. É o bot da própria Workap? Ele tem uma fatia reservada, porque é
+ *     ele que atende quem chega perguntando preço. Sem reserva, as
+ *     contas que ele trouxe consumiriam o crédito e a próxima venda
+ *     ficaria sem resposta.
+ *  3. É uma empresa? A cota é o bolo dos clientes dividido pelas
+ *     empresas que usaram IA neste mês — com um piso, porque cota
+ *     minúscula é pior que nenhuma.
+ *
+ * O RATEIO É DINÂMICO de propósito. Com um cliente, ele fica com tudo
+ * que sobra; com cinco, cada um fica com um quinto. Uma cota fixa
+ * deixaria crédito parado enquanto o único cliente pagante emudece.
+ *
+ * Devolve sempre os números, mesmo quando bloqueia — é deles que a
+ * tela do dono se alimenta.
+ */
+async function limiteDeIa(empresaId) {
+  var ehPlataforma = !empresaId || empresaId === EMPRESA_NENHUMA;
+  var global = CONFIG.IA_TETO_GLOBAL_MICRODOLARES;
+
+  // Teto global desligado (0) = sem controle nenhum. Só para quem sabe
+  // o que está fazendo.
+  if (global <= 0) return { permitido: true, cota: 0, gasto: 0, restante: 0, sem_teto: true };
+
+  var p = await panoramaDeIaNoMes();
+
+  if (p.total >= global) {
+    return { permitido: false, motivo: "credito_acabou",
+             cota: 0, gasto: p.total, restante: 0, global: global, total: p.total };
+  }
+
+  var reserva = Math.round(global * (CONFIG.IA_RESERVA_PLATAFORMA_PCT / 100));
+
+  if (ehPlataforma) {
+    // A plataforma usa o que sobrar, e nunca menos que a reserva:
+    // mesmo que as empresas tenham consumido tudo, a venda continua
+    // sendo atendida até a reserva acabar.
+    var gastoEmpresas = p.total - p.plataforma;
+    var cotaPlat = Math.max(reserva, global - gastoEmpresas);
+    return {
+      permitido: p.plataforma < cotaPlat,
+      motivo: p.plataforma < cotaPlat ? null : "cota_da_plataforma",
+      cota: cotaPlat, gasto: p.plataforma,
+      restante: Math.max(0, cotaPlat - p.plataforma),
+      global: global, total: p.total
+    };
+  }
+
+  // Bolo dos clientes, dividido entre quem usou. `+1` quando esta
+  // empresa ainda não gastou nada no mês: sem isso, a primeira
+  // resposta dela seria calculada como se ela não existisse, e a cota
+  // encolheria no exato instante em que ela começa a usar.
+  var poolClientes = Math.max(0, global - reserva);
+  var jaGastou = p.porEmpresa[empresaId] || 0;
+  var quantas = p.empresas + (jaGastou > 0 ? 0 : 1);
+  var cota = Math.max(CONFIG.IA_PISO_EMPRESA_MICRODOLARES,
+                      Math.floor(poolClientes / Math.max(1, quantas)));
+
+  // O teto por empresa continua valendo como travão adicional: quem
+  // configurou um limite menor que a cota quis um limite menor.
+  if (CONFIG.IA_TETO_MES_MICRODOLARES > 0) {
+    cota = Math.min(cota, CONFIG.IA_TETO_MES_MICRODOLARES);
+  }
+
+  return {
+    permitido: jaGastou < cota,
+    motivo: jaGastou < cota ? null : "cota_da_empresa",
+    cota: cota, gasto: jaGastou,
+    restante: Math.max(0, cota - jaGastou),
+    global: global, total: p.total, dividindo_com: quantas
+  };
+}
+
+/**
+ * Avisa o DONO quando o crédito está acabando — e só ele.
+ *
+ * O cliente do cliente nunca ouve falar disto: para ele o bot
+ * simplesmente volta a responder pelo menu, que é o comportamento
+ * normal de um bot. Quem precisa saber que a conta está no fim é quem
+ * paga a conta, e o lugar disso é o painel, não o WhatsApp de um
+ * desconhecido.
+ */
+var avisouCreditoBaixo = 0;
+function avisarSeCreditoBaixo(total, global) {
+  if (global <= 0 || total < global * 0.8) return;
+  // Uma vez a cada 6 horas: o aviso serve para aparecer no painel, não
+  // para encher a tela de erros com a mesma linha.
+  if (Date.now() - avisouCreditoBaixo < 6 * 60 * 60 * 1000) return;
+  avisouCreditoBaixo = Date.now();
+
+  registrarErro("ia_credito_baixo",
+    "O crédito de IA do mês está em " + Math.round(total / global * 100) + "% do total. " +
+    "Quando acabar, os chatbots voltam a responder só o menu — sem erro para o cliente, " +
+    "mas sem entender pergunta escrita de outro jeito.", {
+    rota: "/chatbot", status: 200
+  });
 }
 
 /**
@@ -1761,13 +1974,11 @@ async function chamarIA(empresaId, tipo, sistema, pergunta, maxTokens) {
   var cliente = clienteIA();
   if (!cliente) return { ok: false, motivo: "sem_chave" };
 
-  if (CONFIG.IA_TETO_MES_MICRODOLARES > 0) {
-    var gasto = await gastoDeIaNoMes(
-      (empresaId && empresaId !== EMPRESA_NENHUMA) ? empresaId : null);
-    if (gasto >= CONFIG.IA_TETO_MES_MICRODOLARES) {
-      secLog("ia_teto_atingido", { empresa_id: empresaId, gasto: gasto, tipo: tipo });
-      return { ok: false, motivo: "teto_do_mes" };
-    }
+  var limite = await limiteDeIa(empresaId);
+  avisarSeCreditoBaixo(limite.total || 0, limite.global || 0);
+  if (!limite.permitido) {
+    secLog("ia_teto_atingido", { empresa_id: empresaId, tipo: tipo, motivo: limite.motivo });
+    return { ok: false, motivo: limite.motivo || "teto_do_mes" };
   }
 
   try {
@@ -1799,6 +2010,7 @@ async function chamarIA(empresaId, tipo, sistema, pergunta, maxTokens) {
       tokens_entrada: entrada, tokens_saida: saida,
       custo_microdolares: custo, modelo: CONFIG.IA_MODELO
     }).catch(function () {});
+    contabilizarGastoDeIa(empresaId, custo);
 
     secLog("ia_chamada", {
       empresa_id: empresaId, tipo: tipo, modelo: CONFIG.IA_MODELO,
@@ -5623,13 +5835,17 @@ async function conversarComIA(quemPaga, sistema, mensagens, ferramentas, bot, qu
   var cliente = clienteIA();
   if (!cliente) return { ok: false, motivo: "sem_chave" };
 
-  if (CONFIG.IA_TETO_MES_MICRODOLARES > 0) {
-    var gasto = await gastoDeIaNoMes(
-      (quemPaga && quemPaga !== EMPRESA_NENHUMA) ? quemPaga : null);
-    if (gasto >= CONFIG.IA_TETO_MES_MICRODOLARES) {
-      secLog("ia_teto_atingido", { tipo: "chatbot" });
-      return { ok: false, motivo: "teto_do_mes" };
-    }
+  // O limite é conferido AQUI, e o que ele devolve quando bloqueia é
+  // um `ok: false` — que lá em cima vira o fallback escrito pelo dono.
+  // O cliente do outro lado do WhatsApp NUNCA ouve falar de crédito,
+  // cota ou limite: para ele o bot só voltou a responder pelo menu,
+  // que é o comportamento normal de um bot. Quem precisa saber que a
+  // conta está no fim é quem paga a conta, e o lugar disso é o painel.
+  var limite = await limiteDeIa(quemPaga);
+  avisarSeCreditoBaixo(limite.total || 0, limite.global || 0);
+  if (!limite.permitido) {
+    secLog("ia_teto_atingido", { tipo: "chatbot", motivo: limite.motivo });
+    return { ok: false, motivo: limite.motivo || "teto_do_mes" };
   }
 
   var conversa = mensagens.slice();
@@ -5658,6 +5874,7 @@ async function conversarComIA(quemPaga, sistema, mensagens, ferramentas, bot, qu
         tokens_entrada: entrada, tokens_saida: saida,
         custo_microdolares: custo, modelo: CONFIG.IA_MODELO
       }).catch(function () {});
+      contabilizarGastoDeIa(quemPaga, custo);
 
       var blocos = resposta.content || [];
       var pedidosDeFerramenta = blocos.filter(function (b) { return b.type === "tool_use"; });
@@ -6844,18 +7061,26 @@ async function rotasDoChatbot(req, res, ctx) {
     // configurado. Foi assim que um teto velho demais passou
     // despercebido — ele cortava o bot na 29ª resposta do mês e não
     // havia onde ver isso.
-    var gastoIa = await gastoDeIaNoMes(ctx.empresa_id).catch(function () { return 0; });
-    var custoDaIa = {
-      gasto_microdolares: gastoIa,
-      teto_microdolares:  CONFIG.IA_TETO_MES_MICRODOLARES,
-      // Quantas respostas ainda cabem, pela média medida de ~1.700
-      // micro-dólares. É estimativa, e a tela diz isso — mas "sobram
-      // umas 900" informa muito mais que um número em micro-dólares.
-      respostas_restantes: CONFIG.IA_TETO_MES_MICRODOLARES > 0
-        ? Math.max(0, Math.floor((CONFIG.IA_TETO_MES_MICRODOLARES - gastoIa) / 1700))
-        : null,
-      tem_chave: !!CONFIG.ANTHROPIC_API_KEY
-    };
+    var lim = await limiteDeIa(ctx.empresa_id).catch(function () { return null; });
+
+    // Quantas respostas cabem no que sobra. O custo por resposta sai do
+    // preço configurado, e não de um número fixo: com o Grok 4.6 uma
+    // resposta custa quase o dobro de uma no Haiku, e uma estimativa
+    // presa a um modelo mentiria na troca do outro.
+    var precoAgora = precoDoModeloDeIa(CONFIG.IA_MODELO);
+    var porResposta = Math.max(1, Math.round((1400 * precoAgora.entrada + 60 * precoAgora.saida) / 1000000));
+
+    var custoDaIa = lim ? {
+      gasto_microdolares:  lim.gasto,
+      cota_microdolares:   lim.cota,
+      restante_microdolares: lim.restante,
+      respostas_restantes: lim.sem_teto ? null : Math.floor(lim.restante / porResposta),
+      // Quantas contas estão dividindo o crédito. Sem isto, uma cota
+      // que encolheu porque entrou cliente novo pareceria defeito.
+      dividindo_com:       lim.dividindo_com || null,
+      credito_acabou:      lim.motivo === "credito_acabou",
+      tem_chave:           !!CONFIG.ANTHROPIC_API_KEY
+    } : { tem_chave: !!CONFIG.ANTHROPIC_API_KEY };
 
     return jsonOk(res, {
       chatbot: seguro, itens: itensCfg.body || [],
