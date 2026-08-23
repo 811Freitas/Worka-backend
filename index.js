@@ -236,6 +236,23 @@ const CONFIG = {
     return (isNaN(v) || v < 0) ? 300000 : v;
   })(),
 
+  // Piso de quem comprou SÓ o assistente.
+  //
+  // O piso comum (US$ 0,30, ~95 respostas) serve para quem tem o bot
+  // como extra: se acabar, o resto do sistema continua de pé. Para
+  // quem assinou o Plano Chatbot não existe "resto" — o bot é o
+  // produto inteiro, e 95 respostas no mês é o produto falhando.
+  //
+  // 1.580.000 = US$ 1,58, cerca de 500 respostas no Grok 4.6. Com a
+  // mensalidade em R$ 55,90 (≈ US$ 10,35), isso é 15% da receita
+  // reservado como custo — folgado, e é o número que faz a promessa
+  // do plano ser verdade em vez de depender de quantos vizinhos
+  // estão usando IA no mesmo mês.
+  IA_PISO_CHATBOT_MICRODOLARES: (function () {
+    var v = parseInt(env("IA_PISO_CHATBOT_MICRODOLARES") || "", 10);
+    return (isNaN(v) || v < 0) ? 1580000 : v;
+  })(),
+
   // Por quanto tempo o panorama de gasto fica guardado em memória.
   //
   // Ele é lido antes de cada resposta de IA, e reler o mês inteiro a
@@ -358,7 +375,7 @@ const CONFIG = {
       nome: "Plano Chatbot",
       // Preço padrão, sobrescrito pelo painel do owner igual ao
       // Master (config_plataforma, chave preco_chatbot_centavos).
-      centavos: 7999,
+      centavos: 5590,
       resumo: "Só o assistente com IA no WhatsApp da sua empresa — responde cliente " +
               "24h, com o seu jeito de falar. Sem ponto, folha ou estoque."
     }
@@ -830,6 +847,20 @@ function planoTemChatbot(nome) {
  */
 function planoTemGestao(nome) {
   return planoValido(nome) !== "chatbot";
+}
+
+/**
+ * A conta comprou SÓ o assistente?
+ *
+ * Diferente de planoTemChatbot(): o Master também tem chatbot, mas tem
+ * o sistema inteiro junto. Esta pergunta é sobre quem não tem mais
+ * nada — e é por isso que o piso de IA dela é outro.
+ *
+ * Recebe o nome do plano em vez de ir ao banco: isto é consultado a
+ * cada resposta de IA, e o plano já foi lido pelo caminho que chamou.
+ */
+function planoSoTemChatbot(nome) {
+  return typeof nome === "string" && planoValido(nome) === "chatbot";
 }
 
 /**
@@ -1988,7 +2019,7 @@ function contabilizarGastoDeIa(empresaId, custo) {
  * Devolve sempre os números, mesmo quando bloqueia — é deles que a
  * tela do dono se alimenta.
  */
-async function limiteDeIa(empresaId) {
+async function limiteDeIa(empresaId, plano) {
   var ehPlataforma = !empresaId || empresaId === EMPRESA_NENHUMA;
   var global = CONFIG.IA_TETO_GLOBAL_MICRODOLARES;
 
@@ -2027,8 +2058,23 @@ async function limiteDeIa(empresaId) {
   var poolClientes = Math.max(0, global - reserva);
   var jaGastou = p.porEmpresa[empresaId] || 0;
   var quantas = p.empresas + (jaGastou > 0 ? 0 : 1);
-  var cota = Math.max(CONFIG.IA_PISO_EMPRESA_MICRODOLARES,
-                      Math.floor(poolClientes / Math.max(1, quantas)));
+
+  // O PISO DEPENDE DO QUE A CONTA COMPROU.
+  //
+  // Para quem tem o bot como extra, o piso comum basta: se a cota
+  // acabar, o resto do sistema continua de pé. Para quem assinou o
+  // Plano Chatbot não existe "resto" — o bot é o produto inteiro, e
+  // deixá-lo cair no piso comum seria vender uma coisa e entregar
+  // noventa e cinco respostas.
+  //
+  // O rateio continua valendo por cima: com poucos clientes ele dá
+  // MAIS que o piso, e o piso só aparece quando entra gente demais
+  // dividindo. É essa a garantia.
+  var piso = planoSoTemChatbot(plano)
+    ? CONFIG.IA_PISO_CHATBOT_MICRODOLARES
+    : CONFIG.IA_PISO_EMPRESA_MICRODOLARES;
+
+  var cota = Math.max(piso, Math.floor(poolClientes / Math.max(1, quantas)));
 
   // O teto por empresa continua valendo como travão adicional: quem
   // configurou um limite menor que a cota quis um limite menor.
@@ -2043,6 +2089,59 @@ async function limiteDeIa(empresaId) {
     restante: Math.max(0, cota - jaGastou),
     global: global, total: p.total, dividindo_com: quantas
   };
+}
+
+/**
+ * Avisa quando as GARANTIAS vendidas passam do crédito comprado.
+ *
+ * É o aviso que evita a falha antes dela existir. O piso do Plano
+ * Chatbot é uma promessa: quem paga R$ 55,90 tem 500 respostas
+ * garantidas no mês, aconteça o que acontecer com os vizinhos. Vender
+ * o oitavo desses planos com US$ 5,00 de crédito é prometer 4.000
+ * respostas onde cabem 1.582 — e a conta só estoura no fim do mês,
+ * com todos os bots emudecendo ao mesmo tempo.
+ *
+ * Aqui o problema aparece no dia da venda, com um número no lugar de
+ * uma surpresa: quantos planos foram vendidos, quanto isso garante, e
+ * quanto de crédito existe.
+ *
+ * Roda uma vez por dia, junto das rotinas. Não é urgência de minuto —
+ * é decisão de comprar crédito, que se toma com dias de folga.
+ */
+var avisouGarantiaEstourada = 0;
+async function conferirGarantiasDeIa() {
+  var global = CONFIG.IA_TETO_GLOBAL_MICRODOLARES;
+  if (global <= 0) return;
+
+  var r = await DB.select("empresas",
+    "plano=eq.chatbot&status=in.(ativa,trial)&select=id&limit=1000"
+  ).catch(function () { return { body: null }; });
+  if (!r.body) return;   // falha de leitura não vira alarme falso
+
+  var quantos = r.body.length;
+  if (!quantos) return;
+
+  var reserva  = Math.round(global * (CONFIG.IA_RESERVA_PLATAFORMA_PCT / 100));
+  var disponivel = Math.max(0, global - reserva);
+  var prometido  = quantos * CONFIG.IA_PISO_CHATBOT_MICRODOLARES;
+  if (prometido <= disponivel) return;
+
+  if (Date.now() - avisouGarantiaEstourada < 24 * 60 * 60 * 1000) return;
+  avisouGarantiaEstourada = Date.now();
+
+  var precoIa   = precoDoModeloDeIa(CONFIG.IA_MODELO);
+  var porResposta = Math.max(1,
+    Math.round((1400 * precoIa.entrada + 60 * precoIa.saida) / 1000000));
+  var faltam = prometido - disponivel;
+
+  registrarErro("credito_nao_cobre_os_planos",
+    quantos + " conta(s) no Plano Chatbot garantem " +
+    Math.floor(prometido / porResposta) + " respostas no mês, e o crédito comprado " +
+    "cobre " + Math.floor(disponivel / porResposta) + ". Faltam cerca de US$ " +
+    (faltam / 1000000).toFixed(2) + " para honrar o que já foi vendido — " +
+    "compre crédito ou pare de vender o plano até comprar.", {
+    rota: "/rotinas", metodo: "GET", status: 200
+  });
 }
 
 /**
@@ -4987,6 +5086,26 @@ async function verificarAssinaturasVencidas() {
 setInterval(verificarAssinaturasVencidas, 6 * 60 * 60 * 1000);
 
 // ════════════════════════════════════════
+// CRON — o crédito de IA ainda cobre o que foi vendido?
+// ════════════════════════════════════════
+//
+// Uma vez por dia. Escrever a checagem e não agendá-la seria o mesmo
+// "construído e não ligado" que já mordeu este projeto quatro vezes —
+// e aqui o sintoma seria o pior possível: todos os bots do Plano
+// Chatbot emudecendo juntos no fim do mês, sem aviso nenhum antes.
+setInterval(function () {
+  conferirGarantiasDeIa().catch(function (e) {
+    secLog("cron_error", { job: "garantias_ia", message: e.message });
+  });
+}, 24 * 60 * 60 * 1000);
+
+// E uma vez no arranque, com folga para o banco responder: um deploy
+// no dia da venda não pode adiar o aviso em 24 horas.
+setTimeout(function () {
+  conferirGarantiasDeIa().catch(function () {});
+}, 60 * 1000);
+
+// ════════════════════════════════════════
 // CRON — lembrete de contas a pagar
 // ════════════════════════════════════════
 /**
@@ -5719,7 +5838,11 @@ async function exigirMaster(res, empresaId, oQue) {
     .catch(function () { return { body: [] }; });
   var linha = emp.body && emp.body[0];
   if (linha && planoTemChatbot(linha.plano)) return false;
-  jsonErr(res, oQue + " faz parte do Plano Master.", 402);
+  // "faz parte do Plano Master" virou meia verdade quando entrou o
+  // Plano Chatbot. Quem lê isso está decidindo o que assinar; mandá-lo
+  // para o plano de R$ 149,99 quando o de R$ 55,90 resolve é empurrar
+  // a venda errada — e a pessoa costuma não assinar nenhum dos dois.
+  jsonErr(res, oQue + " faz parte do Plano Chatbot e do Plano Master.", 402);
   return true;
 }
 
@@ -6033,7 +6156,7 @@ async function rodarFerramentaDoBot(bot, nome, args, quemFalou) {
  * laço gastaria a cota do mês numa conversa só — e o cliente ficaria
  * olhando para o WhatsApp esperando. Estourou, responde com o que tem.
  */
-async function conversarComIA(quemPaga, sistema, mensagens, ferramentas, bot, quemFalou, tetoSaida) {
+async function conversarComIA(quemPaga, sistema, mensagens, ferramentas, bot, quemFalou, tetoSaida, planoDoDono) {
   var cliente = clienteIA();
   if (!cliente) return { ok: false, motivo: "sem_chave" };
 
@@ -6043,7 +6166,7 @@ async function conversarComIA(quemPaga, sistema, mensagens, ferramentas, bot, qu
   // cota ou limite: para ele o bot só voltou a responder pelo menu,
   // que é o comportamento normal de um bot. Quem precisa saber que a
   // conta está no fim é quem paga a conta, e o lugar disso é o painel.
-  var limite = await limiteDeIa(quemPaga);
+  var limite = await limiteDeIa(quemPaga, planoDoDono);
   avisarSeCreditoBaixo(limite.total || 0, limite.global || 0);
   if (!limite.permitido) {
     secLog("ia_teto_atingido", { tipo: "chatbot", motivo: limite.motivo });
@@ -6276,7 +6399,7 @@ async function decidirComIa(bot, itens, textoBruto, quem) {
 
   var r = await conversarComIA(
     quemPaga, sistema, conversa, ferramentasDoBot(bot), bot, quem && quem.nome,
-    economia ? 200 : 500
+    economia ? 200 : 500, bot.plano_do_dono
   ).catch(function () { return { ok: false, motivo: "erro" }; });
 
   if (!r || !r.ok || !r.texto) {
@@ -6304,6 +6427,9 @@ async function responderChatbot(empresaId, plano, textoPessoa, quemPergunta) {
     var achado = await DB.select("chatbots", `empresa_id=eq.${empresaId}&select=*&limit=1`);
     var bot = achado.body && achado.body[0];
     if (!bot || !bot.ativo) return null;
+    // Carimbado no bot para o teto de IA saber QUE PLANO paga por ele,
+    // sem uma segunda consulta por mensagem — o plano já foi lido aqui.
+    bot.plano_do_dono = plano;
 
     // O canal manda. Uma empresa que mudou o bot para atender no
     // WhatsApp não quer ele respondendo também no chat da equipe — e
@@ -7070,6 +7196,7 @@ async function atenderPeloSoquete(vivo, m, de) {
     var dono = emp.body && emp.body[0];
     if (!dono || !planoTemChatbot(dono.plano)) return;
     if (dono.status !== "ativa" && dono.status !== "trial") return;
+    bot.plano_do_dono = dono.plano;
   }
 
   // No endereçamento por LID o que vem antes do @ é um identificador
@@ -7341,7 +7468,16 @@ async function rotasDoChatbot(req, res, ctx) {
     // configurado. Foi assim que um teto velho demais passou
     // despercebido — ele cortava o bot na 29ª resposta do mês e não
     // havia onde ver isso.
-    var lim = await limiteDeIa(ctx.empresa_id).catch(function () { return null; });
+    // O plano vai junto porque o piso garantido depende dele: quem
+    // comprou só o assistente tem um piso maior, e a tela precisa
+    // mostrar o número que vale para AQUELA conta, não uma média.
+    var planoDaTela = null;
+    if (ctx.empresa_id && ctx.empresa_id !== EMPRESA_NENHUMA) {
+      var empPl = await DB.select("empresas", "id=eq." + ctx.empresa_id + "&select=plano&limit=1")
+        .catch(function () { return { body: [] }; });
+      planoDaTela = empPl.body && empPl.body[0] && empPl.body[0].plano;
+    }
+    var lim = await limiteDeIa(ctx.empresa_id, planoDaTela).catch(function () { return null; });
 
     // Quantas respostas cabem no que sobra. O custo por resposta sai do
     // preço configurado, e não de um número fixo: com o Grok 4.6 uma
@@ -7860,6 +7996,15 @@ async function rotasDoChatbot(req, res, ctx) {
     // contato, então isto não alcança bot de mais ninguém.
     var contatoTe = SANITIZE.string(bodyTe.contato_chave, 120) || null;
     var quemTe = contatoTe ? { chave: contatoTe, nome: null } : undefined;
+
+    // Mesmo carimbo dos caminhos de atendimento: sem ele o teste
+    // usaria o piso comum e mostraria ao dono do Plano Chatbot um
+    // comportamento que não é o que o cliente dele recebe.
+    if (ctx.empresa_id && ctx.empresa_id !== EMPRESA_NENHUMA) {
+      var empTe = await DB.select("empresas", "id=eq." + ctx.empresa_id + "&select=plano&limit=1")
+        .catch(function () { return { body: [] }; });
+      botTe.plano_do_dono = empTe.body && empTe.body[0] && empTe.body[0].plano;
+    }
 
     var decisaoTe = await decidirComIa(botTe, itensTe.body || [], textoTe, quemTe);
     return jsonOk(res, {
@@ -9679,6 +9824,7 @@ var server = http.createServer(async (req, res) => {
         var donoPlanoWa = empWa.body && empWa.body[0];
         if (!donoPlanoWa || !planoTemChatbot(donoPlanoWa.plano)) return;
         if (donoPlanoWa.status !== "ativa" && donoPlanoWa.status !== "trial") return;
+        botWa.plano_do_dono = donoPlanoWa.plano;
       }
 
       for (var iWa = 0; iWa < recebidasWa.length; iWa++) {
