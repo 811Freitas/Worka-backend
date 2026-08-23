@@ -1379,6 +1379,80 @@ tr:hover td{background:var(--g50)}
         </div>
       </div>
 
+
+      <!-- PERSONALIDADE, MEMÓRIA E ECONOMIA.
+           Cartão separado do de cima porque são perguntas diferentes:
+           lá se diz O QUE o bot sabe, aqui COMO ele fala, DO QUE ele
+           lembra e QUANTO ele gasta. Juntar tudo num formulário só
+           faria o dono rolar por dez campos para mexer no tom. -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header">
+          <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-message></use></svg> Personalidade e memória</div>
+        </div>
+        <div class="card-body">
+          <p style="font-size:.86rem;color:var(--gray500);margin-bottom:16px;line-height:1.6">
+            O jeito de falar não muda o que ele sabe — o conteúdo continua saindo do texto
+            sobre o negócio. Aqui você escolhe o <strong>tom</strong>, o quanto ele
+            <strong>lembra</strong> da conversa, e se ele deve <strong>gastar menos</strong>.
+          </p>
+
+          <div class="form-grid">
+            <div class="field form-full">
+              <label>Como ele fala</label>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+                <button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:6px 12px"
+                  onclick="usarTomPronto('cb','simpatico')">Simpático</button>
+                <button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:6px 12px"
+                  onclick="usarTomPronto('cb','direto')">Direto</button>
+                <button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:6px 12px"
+                  onclick="usarTomPronto('cb','formal')">Formal</button>
+                <button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:6px 12px"
+                  onclick="usarTomPronto('cb','descontraido')">Descontraído</button>
+              </div>
+              <textarea id="cb-personalidade" rows="3" maxlength="600"
+                placeholder="Ex.: fale como um atendente experiente de padaria de bairro, chame a pessoa de você, seja breve e caloroso."></textarea>
+              <div style="font-size:.78rem;color:var(--gray500);line-height:1.6;margin-top:6px">
+                Os botões acima só preenchem o campo — depois você edita do seu jeito.
+                O tom nunca libera o bot a inventar preço ou horário: isso continua
+                valendo acima de qualquer estilo.
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Do que ele lembra</label>
+              <select id="cb-memoria" onchange="mostrarEfeitoDaEconomia('cb')">
+                <option value="0">Nada — cada mensagem é isolada</option>
+                <option value="2">As 2 últimas trocas</option>
+                <option value="4">As 4 últimas trocas</option>
+                <option value="6">As 6 últimas trocas (recomendado)</option>
+                <option value="8">As 8 últimas trocas</option>
+                <option value="12">As 12 últimas trocas</option>
+              </select>
+              <div style="font-size:.78rem;color:var(--gray500);line-height:1.6;margin-top:6px">
+                Com memória, quem pergunta o preço e emenda <em>"e pra três lojas?"</em>
+                é entendido. Sem ela, a segunda pergunta chega como se fosse a primeira —
+                mais barato, e mais burro.
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Economia de tokens</label>
+              <select id="cb-economia" onchange="mostrarEfeitoDaEconomia('cb')">
+                <option value="nao">Normal — respostas mais completas</option>
+                <option value="sim">Economia — mais respostas pelo mesmo crédito</option>
+              </select>
+              <div style="font-size:.78rem;color:var(--gray500);line-height:1.6;margin-top:6px">
+                Ligado, o bot recebe menos contexto e responde em até 2 frases.
+                Ele continua <strong>sem inventar</strong> e continua chamando a equipe
+                quando não sabe — o que encolhe é o tamanho, não a honestidade.
+              </div>
+            </div>
+          </div>
+
+          <div id="cb-efeito-economia" style="display:none;font-size:.8rem;line-height:1.6;border-left:2px solid var(--gray200);padding:2px 0 2px 12px;margin-top:12px"></div>
+          <button class="btn btn-primary" onclick="salvarChatbot()">Salvar</button>
+        </div>
+      </div>
       <!-- WHATSAPP.
            O menu, as palavras-chave e as respostas são os MESMOS: o
            WhatsApp é só mais um lugar onde este assistente atende. Por
@@ -3091,6 +3165,80 @@ tr:hover td{background:var(--g50)}
           </div>
         </div>
 
+
+      <!-- PERSONALIDADE, MEMÓRIA E ECONOMIA.
+           Cartão separado do de cima porque são perguntas diferentes:
+           lá se diz O QUE o bot sabe, aqui COMO ele fala, DO QUE ele
+           lembra e QUANTO ele gasta. Juntar tudo num formulário só
+           faria o dono rolar por dez campos para mexer no tom. -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header">
+          <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-message></use></svg> Personalidade e memória</div>
+        </div>
+        <div class="card-body">
+          <p style="font-size:.86rem;color:var(--gray500);margin-bottom:16px;line-height:1.6">
+            O jeito de falar não muda o que ele sabe — o conteúdo continua saindo do texto
+            sobre o negócio. Aqui você escolhe o <strong>tom</strong>, o quanto ele
+            <strong>lembra</strong> da conversa, e se ele deve <strong>gastar menos</strong>.
+          </p>
+
+          <div class="form-grid">
+            <div class="field form-full">
+              <label>Como ele fala</label>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+                <button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:6px 12px"
+                  onclick="usarTomPronto('ow','simpatico')">Simpático</button>
+                <button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:6px 12px"
+                  onclick="usarTomPronto('ow','direto')">Direto</button>
+                <button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:6px 12px"
+                  onclick="usarTomPronto('ow','formal')">Formal</button>
+                <button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:6px 12px"
+                  onclick="usarTomPronto('ow','descontraido')">Descontraído</button>
+              </div>
+              <textarea id="ow-personalidade" rows="3" maxlength="600"
+                placeholder="Ex.: fale como um atendente experiente de padaria de bairro, chame a pessoa de você, seja breve e caloroso."></textarea>
+              <div style="font-size:.78rem;color:var(--gray500);line-height:1.6;margin-top:6px">
+                Os botões acima só preenchem o campo — depois você edita do seu jeito.
+                O tom nunca libera o bot a inventar preço ou horário: isso continua
+                valendo acima de qualquer estilo.
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Do que ele lembra</label>
+              <select id="ow-memoria" onchange="mostrarEfeitoDaEconomia('ow')">
+                <option value="0">Nada — cada mensagem é isolada</option>
+                <option value="2">As 2 últimas trocas</option>
+                <option value="4">As 4 últimas trocas</option>
+                <option value="6">As 6 últimas trocas (recomendado)</option>
+                <option value="8">As 8 últimas trocas</option>
+                <option value="12">As 12 últimas trocas</option>
+              </select>
+              <div style="font-size:.78rem;color:var(--gray500);line-height:1.6;margin-top:6px">
+                Com memória, quem pergunta o preço e emenda <em>"e pra três lojas?"</em>
+                é entendido. Sem ela, a segunda pergunta chega como se fosse a primeira —
+                mais barato, e mais burro.
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Economia de tokens</label>
+              <select id="ow-economia" onchange="mostrarEfeitoDaEconomia('ow')">
+                <option value="nao">Normal — respostas mais completas</option>
+                <option value="sim">Economia — mais respostas pelo mesmo crédito</option>
+              </select>
+              <div style="font-size:.78rem;color:var(--gray500);line-height:1.6;margin-top:6px">
+                Ligado, o bot recebe menos contexto e responde em até 2 frases.
+                Ele continua <strong>sem inventar</strong> e continua chamando a equipe
+                quando não sabe — o que encolhe é o tamanho, não a honestidade.
+              </div>
+            </div>
+          </div>
+
+          <div id="ow-efeito-economia" style="display:none;font-size:.8rem;line-height:1.6;border-left:2px solid var(--gray200);padding:2px 0 2px 12px;margin-top:12px"></div>
+          <button class="btn btn-primary" onclick="salvarChatbotOwner()">Salvar</button>
+        </div>
+      </div>
         <div class="card" id="ow-card-whatsapp" style="margin-bottom:16px">
           <div class="card-header">
             <div class="card-title">Conexão com a Meta</div>
@@ -11615,6 +11763,12 @@ async function carregarChatbot(T){
   if(ia) ia.value = bot.usa_ia === false ? 'nao' : 'sim';
   var fer = campoBot(T, 'usa-ferramentas');
   if(fer) fer.value = bot.usa_ferramentas === false ? 'nao' : 'sim';
+  var pers = campoBot(T, 'personalidade');
+  if(pers) pers.value = bot.personalidade || '';
+  var mem = campoBot(T, 'memoria');
+  if(mem) mem.value = String(bot.memoria_trocas === undefined || bot.memoria_trocas === null ? 6 : bot.memoria_trocas);
+  var eco = campoBot(T, 'economia');
+  if(eco) eco.value = bot.modo_economia ? 'sim' : 'nao';
 
   var badge = campoBot(T, 'badge');
   badge.textContent = bot.ativo ? 'ligado' : 'desligado';
@@ -11622,10 +11776,71 @@ async function carregarChatbot(T){
 
   preencherWhatsAppChatbot(T, bot, d.um_clique);
   mostrarCustoDaIa(T, d.custo_ia);
+  T.custoIa = d.custo_ia || null;
+  mostrarEfeitoDaEconomia(T.pre);
 
   T.itens = d.itens || [];
   desenharItensChatbot(T);
   carregarConversasChatbot_(T);
+}
+
+// Tons prontos.
+//
+// Eles PREENCHEM o campo em vez de virarem uma opção fixa guardada no
+// banco. Assim o dono vê exatamente o texto que vai para o bot, edita
+// uma palavra que não combina com o negócio dele, e não fica preso a
+// quatro personalidades que alguém escolheu por ele. Também evita uma
+// coluna de enum que teria que crescer toda vez que faltasse um tom.
+var TONS_PRONTOS = {
+  simpatico:    'Fale de forma calorosa e próxima, como quem conhece o cliente. Cumprimente pelo nome quando souber, agradeça quando ele agradecer, e seja gentil sem enrolar.',
+  direto:       'Vá direto ao ponto. Responda o que foi perguntado, sem rodeio, sem oferecer o que não pediram e sem repetir o que já foi dito.',
+  formal:       'Trate a pessoa por senhor ou senhora. Use português correto e educado, sem gíria e sem abreviação, mantendo as frases curtas.',
+  descontraido: 'Fale de forma leve e informal, como uma conversa de WhatsApp entre conhecidos. Pode usar um emoji de vez em quando, sem exagero.'
+};
+
+function usarTomPronto(pre, qual){
+  var campo = document.getElementById(pre + '-personalidade');
+  if(!campo) return;
+  campo.value = TONS_PRONTOS[qual] || '';
+  campo.focus();
+}
+
+// O que a economia faz com o número de respostas, ANTES de ligar.
+//
+// Um botão cujo efeito só aparece depois de salvar é um botão que
+// ninguém aperta: o dono não sabe se vale a pena e deixa como está.
+// Aqui a conta é feita com os dois custos que o servidor mandou, então
+// ela acompanha o modelo configurado em vez de repetir um número fixo
+// que envelheceria na próxima troca de provedor.
+function mostrarEfeitoDaEconomia(pre){
+  var el = document.getElementById(pre + '-efeito-economia');
+  if(!el) return;
+  var T = pre === 'ow' ? TELA_BOT_WORKAP : TELA_BOT_EMPRESA;
+  var c = T.custoIa;
+  if(!c || !c.micro_por_resposta_normal || !c.micro_por_resposta_economia || !c.restante_microdolares){
+    el.style.display = 'none'; return;
+  }
+
+  var eco = ((document.getElementById(pre + '-economia') || {}).value || 'nao') === 'sim';
+  var normal   = Math.floor(c.restante_microdolares / c.micro_por_resposta_normal);
+  var poupando = Math.floor(c.restante_microdolares / c.micro_por_resposta_economia);
+  if(normal <= 0) { el.style.display = 'none'; return; }
+
+  el.style.display = '';
+  el.textContent = '';
+  var linha = document.createElement('div');
+  linha.style.fontWeight = '600';
+  linha.textContent = eco
+    ? 'Com economia ligada, cabem cerca de ' + poupando + ' respostas no que sobra.'
+    : 'No modo normal, cabem cerca de ' + normal + ' respostas no que sobra.';
+
+  var comp = document.createElement('div');
+  comp.style.color = 'var(--gray500)';
+  comp.textContent = eco
+    ? 'Sem economia seriam ' + normal + '. O bot responde mais curto e com menos contexto.'
+    : 'Ligando a economia, seriam ' + poupando + ' — respostas mais curtas, mesma honestidade.';
+
+  el.appendChild(linha); el.appendChild(comp);
 }
 
 // Quanto de IA já foi usado no mês.
@@ -12260,6 +12475,13 @@ async function salvarChatbot_(T){
         contexto:    (campoBot(T, 'contexto') || {}).value || '',
         usa_ia:      ((campoBot(T, 'usa-ia') || {}).value || 'sim') === 'sim',
         usa_ferramentas: ((campoBot(T, 'usa-ferramentas') || {}).value || 'sim') === 'sim',
+        // Personalidade, memória e economia salvam JUNTO com o resto:
+        // os dois botões "Salvar" da tela mandam o formulário inteiro.
+        // Um PUT parcial por cartão pareceria mais limpo e criaria a
+        // chance de o segundo salvar apagar o que o primeiro gravou.
+        personalidade:   (campoBot(T, 'personalidade') || {}).value || '',
+        memoria_trocas:  parseInt((campoBot(T, 'memoria') || {}).value || '6', 10),
+        modo_economia:   ((campoBot(T, 'economia') || {}).value || 'nao') === 'sim',
         canal:       T.comCanal ? ((campoBot(T, 'canal') || {}).value || 'interno') : 'whatsapp'
       })
     });
@@ -12282,7 +12504,13 @@ async function testarChatbot_(T){
   btn.disabled = true; btn.textContent = 'Testando...';
   try {
     var r = await fetch(API_BASE + T.base + '/testar', {
-      method:'POST', headers: cabecalhoAuth(), body: JSON.stringify({ texto: texto })
+      method:'POST', headers: cabecalhoAuth(),
+      // Um contato fixo para a caixa de teste, para que duas perguntas
+      // seguidas formem CONVERSA. Sem ele, quem acabou de configurar a
+      // memória testaria "quanto custa?" e "e pra três lojas?" e
+      // concluiria que ela não funciona — a segunda chegaria ao modelo
+      // como se ninguém tivesse falado de preço.
+      body: JSON.stringify({ texto: texto, contato_chave: 'painel-de-teste' })
     });
     var d = await r.json();
     alvo.textContent = '';

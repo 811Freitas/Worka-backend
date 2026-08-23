@@ -9,6 +9,21 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v53: o dono passou a escolher COMO o bot fala, DO QUE ele lembra e
+//      QUANTO ele gasta. O tom entra no prompt como estilo e nunca
+//      acima das regras — nenhuma personalidade autoriza inventar
+//      preco ou assumir que e robo, porque essas duas viram
+//      reclamacao no balcao. A memoria era 6 fixo no codigo e virou
+//      ajustavel de 0 a 12. E o modo economia encolhe o pedido de
+//      verdade: contexto aparado, menu so com os rotulos, historico
+//      em 2 trocas e resposta em 2 frases — cerca de duas vezes mais
+//      respostas pelo mesmo credito, com as mesmas travas.
+//
+//      De quebra, a caixa de testar passou a manter o fio entre uma
+//      pergunta e a seguinte. Sem isso, quem acabasse de configurar a
+//      memoria testaria duas perguntas seguidas e concluiria que ela
+//      nao funciona.
+//
 // v52: o credito de IA passou a ser rateado. Antes era um teto por
 //      empresa e nada olhava a soma: dez contas dentro do limite delas
 //      somavam dez vezes o limite e a fatura era da Workap. Agora
@@ -157,7 +172,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v52';
+var CACHE = 'workap-v53';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
