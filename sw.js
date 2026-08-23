@@ -12,7 +12,7 @@
 // v51: o teto de gasto de IA cortava o bot na 29a resposta do mes, em
 //      silencio — ele foi escrito para um resumo diario e ficou para
 //      tras quando o chatbot passou a atender cliente. Subiu para
-//      US\$ 2,00 (~1.150 respostas), e o quanto sobra agora aparece na
+//      US$ 2,00 (~1.150 respostas), e o quanto sobra agora aparece na
 //      tela: teto silencioso e um bot que parece burro sem motivo.
 //
 // v50: o bot virou atendente. A conversa passou a ter fio — ele lembra
