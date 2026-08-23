@@ -784,21 +784,35 @@
 
     .price-amount {
       font-family: var(--font-display);
-      font-size: 3.5rem; font-weight: 800;
+      /* 2.9rem e nao 3.5: com quatro planos lado a lado a coluna ficou
+         mais estreita, e "R$ 149,99" a 3,5rem quebrava — o "R$" caia
+         numa linha e o numero noutra, como se fossem duas coisas. O
+         nowrap garante que nao volte a acontecer se entrar um preco
+         maior. */
+      font-size: 2.9rem; font-weight: 800; white-space: nowrap;
       color: var(--green-600); letter-spacing: -2px; margin: 16px 0 4px;
     }
     .price-period { font-size: 0.875rem; color: var(--gray-500); margin-bottom: 32px; }
     .price-features { list-style: none; text-align: left; margin-bottom: 32px; display: flex; flex-direction: column; gap: 12px; }
+    /* NÃO usar flex aqui.
+       Era `display:flex`, e com isso cada <strong> do texto virava um
+       ITEM DE FLEX separado, quebrando linha por conta própria — "Só o
+       assistente — sem sistema de gestão" aparecia como um bloco em
+       negrito e outro de texto, um ao lado do outro. Passou despercebido
+       enquanto os cartões eram largos; com quatro planos lado a lado a
+       coluna estreitou e ficou impossível de ler.
+       Marcador posicionado por absolute deixa o li ser um bloco normal,
+       e aí o texto e os negritos fluem juntos, como uma frase. */
     .price-features li {
-      display: flex; align-items: flex-start; gap: 10px;
-      font-size: 0.9rem; color: var(--gray-700);
+      position: relative; padding-left: 26px;
+      font-size: 0.9rem; color: var(--gray-700); line-height: 1.5;
     }
     /* Antes era content:'✓' (caractere de fonte). Trocado por máscara
        SVG: mesmo traço dos demais ícones do sistema, nitidez de vetor
        em qualquer tela e cor controlada por background — pseudo-elemento
        não aceita <svg> inline. */
     .price-features li::before {
-      content: ''; flex-shrink: 0; margin-top: 3px;
+      content: ''; position: absolute; left: 0; top: 4px;
       width: 1.05em; height: 1.05em;
       background: var(--green-500);
       -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E") center/contain no-repeat;
@@ -1401,7 +1415,11 @@
     <!-- Os planos lado a lado. O Pro vem em destaque porque resolve
          o problema mais caro do mês: somar cartão de ponto na mão; o
          Master só aparece se o owner o tiver posto à venda. -->
-    <div id="grade-planos" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:24px;max-width:1080px;margin:0 auto;text-align:left;align-items:start">
+    <!-- 1240px e nao 1080: com quatro planos a venda, a largura antiga
+         cabia tres e jogava o quarto sozinho numa segunda linha, como
+         se fosse de outra categoria. auto-fit continua cuidando das
+         telas menores — quatro viram tres, dois e um conforme aperta. -->
+    <div id="grade-planos" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:20px;max-width:1240px;margin:0 auto;text-align:left;align-items:start">
 
       <div class="pricing-card reveal" style="margin:0">
         <div style="font-size:.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--green-500)">Plano Completo</div>
@@ -1439,6 +1457,29 @@
         </ul>
         <a href="#" onclick="escolherPlano('pro');return false;" class="btn-block">Começar grátis</a>
         <p class="price-note">O que você manda hoje para o contador, pronto e conferido</p>
+      </div>
+
+      <!-- CHATBOT — nasce escondido, igual ao Master.
+           A posição dele na tela NÃO é a daqui: ordenarCartoesPorPreco()
+           reordena todos os cartões depois que os preços chegam. Tem que
+           ser assim porque o valor do Chatbot e o do Master saem do
+           painel do dono, e nada garante qual dos quatro é o mais
+           barato. -->
+      <div class="pricing-card reveal" id="cartao-chatbot" style="margin:0;display:none">
+        <div style="font-size:.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--green-500)">Plano Chatbot</div>
+        <div class="price-amount" id="chatbot-preco">R$ —</div>
+        <div class="price-period">por mês · assinatura recorrente</div>
+        <ul class="price-features">
+          <li><strong>Só o assistente</strong> — sem sistema de gestão</li>
+          <li>Atende no <strong>WhatsApp da sua empresa</strong>, no seu número</li>
+          <li>Responde com IA o que não está no menu, do jeito que você escreveu</li>
+          <li>Você define o tom de voz e o quanto ele lembra da conversa</li>
+          <li>Menu de opções e palavras-chave que respondem sozinhas</li>
+          <li>Chama uma pessoa da equipe quando não souber</li>
+          <li>Veja o que perguntaram e o que ele não soube responder</li>
+        </ul>
+        <a href="#" onclick="escolherPlano('chatbot');return false;" class="btn-block">Começar grátis</a>
+        <p class="price-note">Para quem não perde venda por falta de sistema — perde por ninguém responder</p>
       </div>
 
       <!-- MASTER — nasce escondido.
@@ -2895,13 +2936,47 @@ function escolherPlano(slug){
 // É o mesmo dado que alimenta o checkout, então vitrine e cobrança não
 // têm como divergir.
 function mostrarPlanoMaster(){
-  var cartao = document.getElementById('cartao-master');
+  mostrarPlanoOpcional('master',  'cartao-master',  'master-preco');
+  mostrarPlanoOpcional('chatbot', 'cartao-chatbot', 'chatbot-preco');
+  ordenarCartoesPorPreco();
+}
+
+function mostrarPlanoOpcional(slug, idCartao, idPreco){
+  var cartao = document.getElementById(idCartao);
   if(!cartao) return;
-  var master = planosDisponiveis.filter(function(p){ return p.slug === 'master'; })[0];
-  if(!master) return;
-  var preco = document.getElementById('master-preco');
-  if(preco) preco.textContent = 'R$ ' + master.preco_reais;
+  var plano = planosDisponiveis.filter(function(p){ return p.slug === slug; })[0];
+  if(!plano) return;
+  var preco = document.getElementById(idPreco);
+  if(preco) preco.textContent = 'R$ ' + plano.preco_reais;
+  cartao.dataset.centavos = plano.centavos;
   cartao.style.display = '';
+}
+
+// Os cartões ficam em ordem de preço, do menor para o maior.
+//
+// Não dá para fixar a posição no HTML: o preço do Chatbot e o do Master
+// são definidos pelo dono no painel, e nada garante que o Chatbot seja
+// mais barato que o Completo. Eu tinha escrito "o Chatbot vai sempre
+// primeiro porque é o mais barato" — com o padrão de R$ 79,99 ele
+// aparecia antes do Completo de R$ 49,99, e a tabela de preços subia e
+// descia. Quem lê preço lê de baixo para cima.
+function ordenarCartoesPorPreco(){
+  var grade = document.getElementById('grade-planos');
+  if(!grade) return;
+
+  // Os cartões fixos (Completo e Pro) têm o preço escrito no HTML;
+  // os opcionais receberam data-centavos acima. Ler o texto cobre os
+  // dois sem precisar repetir os valores aqui.
+  var cartoes = [].slice.call(grade.querySelectorAll('.pricing-card'));
+  cartoes.forEach(function(c){
+    if(c.dataset.centavos) return;
+    var m = (c.textContent || '').match(/R\$\s*([\d.]*\d),(\d{2})/);
+    c.dataset.centavos = m ? String(parseInt(m[1].replace(/\./g,''),10) * 100 + parseInt(m[2],10)) : '0';
+  });
+
+  cartoes
+    .sort(function(a,b){ return Number(a.dataset.centavos) - Number(b.dataset.centavos); })
+    .forEach(function(c){ grade.appendChild(c); });
 }
 
 // Busca os planos assim que a página abre, só para decidir se o cartão
