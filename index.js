@@ -1681,8 +1681,43 @@ var PRECO_IA = {
   "claude-opus-5":    { entrada: 5000000,  saida: 25000000 }
 };
 
+/**
+ * O preço do modelo em uso, com a última palavra do ambiente.
+ *
+ * POR QUE O AMBIENTE PODE MANDAR AQUI. Este backend fala o protocolo
+ * da Anthropic, e outros provedores aceitam o mesmo SDK trocando só a
+ * URL — a xAI (Grok) é um deles. Trocar de provedor por variável de
+ * ambiente funciona; o que NÃO acompanha é esta tabela.
+ *
+ * E o erro dai é invisível do jeito ruim: um modelo desconhecido cai
+ * no preço do Opus, o mais caro da lista, e o teto do mês fecha muito
+ * antes da hora. Se o modelo real for barato — o Grok mais em conta
+ * custa um quinto do Haiku na entrada — o dono compraria mil respostas
+ * e receberia cem, com o bot voltando a "não entendi" sem explicação.
+ *
+ * IA_PRECO_ENTRADA_MICRO e IA_PRECO_SAIDA_MICRO são o conserto: quem
+ * troca de modelo declara quanto ele custa por milhão de tokens, em
+ * micro-dólares (US$ 1,00 = 1000000). Referências de agosto de 2026:
+ *
+ *   claude-haiku-4-5      1000000 / 5000000
+ *   grok mais em conta     200000 /  500000
+ *   grok intermediário    1250000 / 2500000
+ *   grok topo de linha    2000000 / 6000000
+ *
+ * Sem as variáveis, nada muda: vale a tabela acima, e o desconhecido
+ * continua caindo no mais caro.
+ */
+function precoDoModeloDeIa(modelo) {
+  var entradaEnv = parseInt(env("IA_PRECO_ENTRADA_MICRO") || "", 10);
+  var saidaEnv   = parseInt(env("IA_PRECO_SAIDA_MICRO")   || "", 10);
+  if (!isNaN(entradaEnv) && entradaEnv >= 0 && !isNaN(saidaEnv) && saidaEnv >= 0) {
+    return { entrada: entradaEnv, saida: saidaEnv };
+  }
+  return PRECO_IA[modelo] || { entrada: 5000000, saida: 25000000 };
+}
+
 function custoEmMicrodolares(modelo, tokensEntrada, tokensSaida) {
-  var p = PRECO_IA[modelo] || { entrada: 5000000, saida: 25000000 };
+  var p = precoDoModeloDeIa(modelo);
   return Math.round(
     (tokensEntrada * p.entrada + tokensSaida * p.saida) / 1000000
   );
