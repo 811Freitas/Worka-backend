@@ -3565,6 +3565,43 @@ tr:hover td{background:var(--g50)}
 
         <div class="card">
           <div class="card-header">
+            <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-message></use></svg> Plano Chatbot</div>
+            <span class="badge" id="owc-chatbot-badge">—</span>
+          </div>
+          <div class="card-body">
+            <div style="font-size:.82rem;color:var(--gray500);line-height:1.55;margin-bottom:14px">
+              Só o assistente do WhatsApp, sem sistema de gestão. É outro comprador, não um
+              Master mais barato: o dono que já controla o ponto no papel e só perde venda
+              porque ninguém responde no sábado.
+            </div>
+
+            <div class="form-grid">
+              <div class="field">
+                <label>Preço mensal (R$)</label>
+                <input id="owc-chatbot-preco" inputmode="decimal" placeholder="79,99" autocomplete="off">
+              </div>
+              <div class="field">
+                <label>Status</label>
+                <select id="owc-chatbot-ativo">
+                  <option value="nao">Inativo — não aparece na vitrine</option>
+                  <option value="sim">Ativo — em venda</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="login-erro" id="owc-chatbot-erro">Erro</div>
+            <button class="btn btn-primary" id="owc-btn-chatbot" onclick="salvarPlanoChatbot()"><svg class=ico aria-hidden=true><use href=#i-check></use></svg> Salvar</button>
+
+            <div style="margin-top:16px;padding:12px 14px;background:var(--gray50,#f7f9f7);border-radius:var(--r);font-size:.78rem;color:var(--gray500);line-height:1.6">
+              <strong style="color:var(--gray700,#3a3d39)">Ponto, folha e estoque ficam de fora.</strong>
+              E ficam de fora no servidor, não só no menu: quem assina este plano recebe um
+              aviso para mudar de plano se tentar abrir qualquer tela de gestão.
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
             <div class="card-title"><svg class=ico aria-hidden=true><use href=#i-megaphone></use></svg> Utmify — rastreio de origem das vendas</div>
             <span class="badge" id="owc-utm-badge">—</span>
           </div>
@@ -4550,6 +4587,31 @@ function botaoOcupado(btn, texto) {
   return liberar;
 }
 
+// O Plano Chatbot compra SÓ o assistente do WhatsApp.
+//
+// Esconder os itens aqui é conveniência: quem digitar a URL da tela ou
+// chamar a rota direto continua barrado pelo servidor, que é onde o
+// controle mora de verdade. Mas deixar o menu inteiro à vista seria
+// vender o que a conta não alcança — a pessoa clica, leva 402 e
+// conclui que o sistema está quebrado.
+function planoSoChatbot(plano){
+  return String(plano || '').trim().toLowerCase() === 'chatbot';
+}
+
+// O que sobra no menu dele. Mesma lista do servidor
+// (rotaDoPlanoChatbot), pelo lado da tela.
+var MENU_DO_PLANO_CHATBOT = ['chatbot', 'notificacoes', 'suporte'];
+
+function filtrarMenuPeloPlano(itens, plano){
+  if(!planoSoChatbot(plano)) return itens;
+  return itens.filter(function(item){
+    // As divisórias de seção só fazem sentido se sobrar item embaixo.
+    // Sem esta linha o menu viraria três títulos soltos.
+    if(item.sec) return false;
+    return MENU_DO_PLANO_CHATBOT.indexOf(item.id) >= 0;
+  });
+}
+
 var menus = {
   dono: [
     {sec:'Principal'},
@@ -4682,7 +4744,8 @@ function entrarComoDono(token, empresa, trial, ramoConfig){
 
   var nav = document.getElementById('sidebar-nav');
   nav.innerHTML = '';
-  (menus['dono']||[]).forEach(function(item){
+  var itensDoMenu = filtrarMenuPeloPlano(menus['dono']||[], empresa && empresa.plano);
+  itensDoMenu.forEach(function(item){
     if(item.sec){
       var s=document.createElement('div');s.className='nav-section';s.textContent=item.sec;nav.appendChild(s);
     } else {
@@ -4693,7 +4756,10 @@ function entrarComoDono(token, empresa, trial, ramoConfig){
       nav.appendChild(el);
     }
   });
-  abrirPagina('dashboard');
+  // Quem assinou só o assistente não tem dashboard: a conta dele não
+  // tem ponto nem tarefa para resumir. Abrir a tela do que ele
+  // comprou é o comeco certo.
+  abrirPagina(planoSoChatbot(empresa && empresa.plano) ? 'chatbot' : 'dashboard');
   if(typeof iniciarRelogio === 'function') iniciarRelogio();
   // carregarTarefasReais() resolve nome do responsável usando
   // funcionariosCache, preenchido só depois que o fetch de
@@ -10664,6 +10730,16 @@ async function carregarConfigOwner(){
   if(campoPrecoM) campoPrecoM.value = c.master_preco_reais || '';
   var selMaster = document.getElementById('owc-master-ativo');
   if(selMaster) selMaster.value = c.master_ativo ? 'sim' : 'nao';
+  var campoPrecoCb = document.getElementById('owc-chatbot-preco');
+  if(campoPrecoCb) campoPrecoCb.value = c.chatbot_preco_reais || '';
+  var selCb = document.getElementById('owc-chatbot-ativo');
+  if(selCb) selCb.value = c.chatbot_plano_ativo ? 'sim' : 'nao';
+  var badgeCb = document.getElementById('owc-chatbot-badge');
+  if(badgeCb){
+    badgeCb.textContent = c.chatbot_plano_ativo ? 'Ativo · R$ ' + (c.chatbot_preco_reais || '—') : 'Inativo';
+    badgeCb.className = 'badge ' + (c.chatbot_plano_ativo ? 'badge-green' : '');
+  }
+
   var badgeM = document.getElementById('owc-master-badge');
   if(badgeM){
     badgeM.textContent = c.master_ativo ? 'Ativo · R$ ' + (c.master_preco_reais || '—') : 'Inativo';
@@ -10684,6 +10760,30 @@ async function salvarMaster(){
       body: JSON.stringify({
         master_preco_reais: (document.getElementById('owc-master-preco').value || '').trim(),
         master_ativo:       document.getElementById('owc-master-ativo').value === 'sim'
+      })
+    });
+    var d = await r.json();
+    if(!r.ok){
+      if(erro){ erro.textContent = d.error || 'Não foi possível salvar.'; erro.style.display = 'block'; }
+      return;
+    }
+    carregarConfigOwner();
+  } catch(e){
+    if(erro){ erro.textContent = 'Sem conexão com o servidor.'; erro.style.display = 'block'; }
+  } finally { btn.disabled = false; }
+}
+
+async function salvarPlanoChatbot(){
+  var erro = document.getElementById('owc-chatbot-erro');
+  var btn  = document.getElementById('owc-btn-chatbot');
+  if(erro) erro.style.display = 'none';
+  btn.disabled = true;
+  try {
+    var r = await fetch(API_BASE + '/owner/config', {
+      method:'PUT', headers: cabecalhoAuth(),
+      body: JSON.stringify({
+        chatbot_preco_reais: (document.getElementById('owc-chatbot-preco').value || '').trim(),
+        chatbot_plano_ativo: document.getElementById('owc-chatbot-ativo').value === 'sim'
       })
     });
     var d = await r.json();

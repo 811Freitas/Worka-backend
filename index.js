@@ -335,7 +335,32 @@ const CONFIG = {
       // precoDoPlanoAtual(). Este número só entra enquanto ninguém
       // configurou nada, para o plano nunca aparecer sem preço.
       centavos: 14999,
-      resumo: "Tudo do Pro + chatbot que atende a equipe no chat interno."
+      // O texto dizia "chatbot que atende a equipe no chat interno".
+      // Era verdade quando foi escrito e virou mentira por baixo: o
+      // assistente passou a atender no WhatsApp da empresa, com IA,
+      // memória e consulta ao estoque. Vender pelo texto velho é
+      // cobrar R$ 149,99 escondendo o que justifica o preço.
+      resumo: "Tudo do Pro + assistente com IA no WhatsApp da sua empresa, " +
+              "que responde cliente 24h, consulta o estoque e chama a equipe quando precisa."
+    },
+    // ── SÓ O ASSISTENTE ──────────────────────────────
+    //
+    // Para quem não quer sistema de gestão nenhum: quer o WhatsApp
+    // respondendo sozinho. É outro comprador, não um Master mais
+    // barato — o dono de loja que já tem controle de ponto em papel e
+    // só perde venda porque ninguém responde no sábado.
+    //
+    // Por isso ele NÃO herda nada dos outros planos. Ponto, folha,
+    // estoque e escala ficam de fora, e ficam de fora no SERVIDOR —
+    // ver planoTemGestao(). Um plano mais barato que alcança o produto
+    // inteiro não é um plano de entrada, é um vazamento de receita.
+    chatbot: {
+      nome: "Plano Chatbot",
+      // Preço padrão, sobrescrito pelo painel do owner igual ao
+      // Master (config_plataforma, chave preco_chatbot_centavos).
+      centavos: 7999,
+      resumo: "Só o assistente com IA no WhatsApp da sua empresa — responde cliente " +
+              "24h, com o seu jeito de falar. Sem ponto, folha ou estoque."
     }
   },
   // Plano padrão de quem se cadastra sem escolher.
@@ -725,14 +750,17 @@ function precoDoPlano(nome) {
  */
 async function precoDoPlanoAtual(nome) {
   var slug = planoValido(nome);
-  if (slug !== "master") return precoDoPlano(slug);
+  // Master e Chatbot são os dois que o owner precifica no painel. Eles
+  // não estão impressos na vitrine estática como os outros dois.
+  var chaveCfg = { master: "preco_master_centavos", chatbot: "preco_chatbot_centavos" }[slug];
+  if (!chaveCfg) return precoDoPlano(slug);
 
   var cfg = await lerConfigPlataforma().catch(function () { return {}; });
-  var configurado = parseInt(cfg.preco_master_centavos, 10);
+  var configurado = parseInt(cfg[chaveCfg], 10);
   // Preço abaixo de R$ 1,00 não é preço: é campo em branco ou dedo
   // errado. Cair no padrão evita cobrar centavos de alguém.
   if (isFinite(configurado) && configurado >= 100) return configurado;
-  return precoDoPlano("master");
+  return precoDoPlano(slug);
 }
 
 /**
@@ -745,6 +773,17 @@ async function masterAtivo() {
   // oferecido depois de o owner definir o preço dele. Nascer ligado com
   // o preço padrão colocaria à venda um valor que ninguém escolheu.
   return cfg.master_ativo === "1";
+}
+
+/**
+ * O Plano Chatbot aparece na vitrine? Mesma regra do Master, e pelo
+ * mesmo motivo: nasce DESLIGADO, porque o preço dele é decisão de
+ * negócio e ninguém deve descobrir o plano à venda por um padrão que
+ * o dono não escolheu.
+ */
+async function chatbotPlanoAtivo() {
+  var cfg = await lerConfigPlataforma().catch(function () { return {}; });
+  return cfg.chatbot_plano_ativo === "1";
 }
 
 /**
@@ -775,7 +814,52 @@ function planoAvancado(nome) {
  * funcionando no Completo.
  */
 function planoTemChatbot(nome) {
-  return planoValido(nome) === "master";
+  var p = planoValido(nome);
+  return p === "master" || p === "chatbot";
+}
+
+/**
+ * A conta alcança o sistema de gestão — ponto, folha, estoque, escala,
+ * tudo que não é o assistente?
+ *
+ * Só o plano Chatbot fica de fora, e é a razão de ele existir: ele
+ * custa menos porque entrega menos. Sem esta trava no SERVIDOR, quem
+ * assinasse o mais barato teria o produto inteiro escondendo o menu —
+ * e esconder menu é conveniência visual, nunca controle de acesso.
+ * Foi assim que a jornada, vendida como Pro, funcionou no Completo.
+ */
+function planoTemGestao(nome) {
+  return planoValido(nome) !== "chatbot";
+}
+
+/**
+ * O que o plano Chatbot PODE alcançar.
+ *
+ * Lista de PERMITIDOS, e não de proibidos, e a direção importa: aqui
+ * o que cresce com o tempo são as ROTAS do sistema de gestão. Numa
+ * lista de proibidos, cada rota nova nasceria liberada para o plano
+ * mais barato, e ninguém perceberia — o defeito só apareceria como
+ * receita que não veio.
+ *
+ * (No filtro de mensagem do WhatsApp a decisão foi a oposta, e pelo
+ * mesmo raciocínio invertido: lá o que crescia eram os FORMATOS DE
+ * ENDEREÇO do WhatsApp, e uma lista de permitidos fez o bot emudecer
+ * calado quando eles inventaram o @lid.)
+ */
+function rotaDoPlanoChatbot(caminho) {
+  // O assistente, que é o que ele comprou.
+  if (caminho.indexOf("/chatbot") === 0) return true;
+  // Assinatura, suporte e sessão: sem isso ele não consegue nem pagar,
+  // nem pedir ajuda, nem sair.
+  if (caminho.indexOf("/assinatura") === 0) return true;
+  if (caminho.indexOf("/suporte/") === 0)   return true;
+  if (caminho.indexOf("/webauthn/") === 0)  return true;
+  if (caminho === "/me" || caminho === "/logout") return true;
+  // Os dados da própria empresa (nome, ramo, senha) e o aviso de push.
+  if (caminho.indexOf("/empresa") === 0)      return true;
+  if (caminho.indexOf("/notificacoes") === 0) return true;
+  if (caminho.indexOf("/push") === 0)         return true;
+  return false;
 }
 
 /**
@@ -9240,11 +9324,14 @@ var server = http.createServer(async (req, res) => {
       // O site é estático e lê os preços daqui. É por isso que mudar o
       // valor do Master no painel muda a vitrine e o checkout juntos,
       // sem deploy — e é por isso que ESTA rota é a única fonte.
-      var masterLigado = await masterAtivo();
+      var masterLigado  = await masterAtivo();
+      var chatbotLigado = await chatbotPlanoAtivo();
       var slugsPlanos = Object.keys(CONFIG.PLANOS).filter(function (slug) {
-        // Master desligado some da vitrine. Quem já assinou continua
-        // com a conta funcionando: o que sai é a OFERTA, não o plano.
-        return slug !== "master" || masterLigado;
+        // Plano desligado some da vitrine. Quem já assinou continua com
+        // a conta funcionando: o que sai é a OFERTA, não o plano.
+        if (slug === "master")  return masterLigado;
+        if (slug === "chatbot") return chatbotLigado;
+        return true;
       });
       var listaPlanos = [];
       for (var iPl = 0; iPl < slugsPlanos.length; iPl++) {
@@ -9977,6 +10064,27 @@ var server = http.createServer(async (req, res) => {
         res.writeHead(423, { "Content-Type": "application/json" });
         return res.end(JSON.stringify(
           await corpoDoBloqueio(acesso.motivo, acesso.empresa, authPayload.role)));
+      }
+
+      // ── O PLANO CHATBOT NÃO ALCANÇA O SISTEMA DE GESTÃO ──
+      //
+      // Aqui, e não em cada rota: uma checagem por módulo é uma
+      // checagem que alguém esquece — foi o que aconteceu com a
+      // jornada. Neste ponto passa TODA rota autenticada, então a
+      // trava não tem por onde escapar.
+      //
+      // 402 e não 403: o app já traduz 402 como "seu plano não inclui
+      // esta tela" e mostra o convite para subir de plano. 403 diria
+      // "você não tem permissão", que é outra conversa — a pessoa tem
+      // permissão, o que falta é o plano.
+      if (acesso.empresa && !planoTemGestao(acesso.empresa.plano) &&
+          !rotaDoPlanoChatbot(path)) {
+        secLog("plano_sem_gestao", {
+          empresa_id: authPayload.empresa_id, plano: acesso.empresa.plano, path: path
+        });
+        return jsonErr(res,
+          "O Plano Chatbot inclui só o assistente do WhatsApp. Para usar ponto, " +
+          "tarefas, estoque e o resto do sistema, mude para o Plano Completo.", 402);
       }
     }
 
@@ -10875,7 +10983,12 @@ var server = http.createServer(async (req, res) => {
         // checkout ao mesmo tempo, porque os dois leem GET /planos.
         master_preco_reais: centavosParaReais(await precoDoPlanoAtual("master")),
         master_ativo:       await masterAtivo(),
-        master_nome:        CONFIG.PLANOS.master.nome
+        master_nome:        CONFIG.PLANOS.master.nome,
+
+        // Plano Chatbot: mesmo tratamento do Master.
+        chatbot_preco_reais: centavosParaReais(await precoDoPlanoAtual("chatbot")),
+        chatbot_plano_ativo: await chatbotPlanoAtivo(),
+        chatbot_nome:        CONFIG.PLANOS.chatbot.nome
       });
     }
 
@@ -10900,6 +11013,21 @@ var server = http.createServer(async (req, res) => {
       }
       if (typeof bodyCfg.master_ativo === "boolean") {
         await gravarConfigPlataforma("master_ativo", bodyCfg.master_ativo ? "1" : "0");
+      }
+
+      // ── Plano Chatbot ──
+      if (bodyCfg.chatbot_preco_reais !== undefined) {
+        var reaisCb = reaisDigitados(bodyCfg.chatbot_preco_reais);
+        if (reaisCb === null || reaisCb < 1) {
+          return jsonErr(res, "Preço do Chatbot inválido. Informe um valor a partir de R$ 1,00.");
+        }
+        if (reaisCb > 99999) {
+          return jsonErr(res, "Preço do Chatbot acima do limite.");
+        }
+        await gravarConfigPlataforma("preco_chatbot_centavos", String(Math.round(reaisCb * 100)));
+      }
+      if (typeof bodyCfg.chatbot_plano_ativo === "boolean") {
+        await gravarConfigPlataforma("chatbot_plano_ativo", bodyCfg.chatbot_plano_ativo ? "1" : "0");
       }
 
       if (typeof bodyCfg.utmify_ativo === "boolean") {

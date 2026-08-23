@@ -9,6 +9,34 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v55: entra o Plano Chatbot, e o Master passa a dizer o que faz.
+//
+//      O texto do Master vendia "chatbot que atende a equipe no chat
+//      interno". Era verdade quando foi escrito e virou mentira por
+//      baixo: o assistente passou a atender no WhatsApp da empresa,
+//      com IA, memoria e consulta ao estoque. Cobrar R$ 149,99
+//      escondendo o que justifica o preco e perder a venda de graca.
+//
+//      O Plano Chatbot e outro comprador, nao um Master mais barato: o
+//      dono que ja controla o ponto no papel e so perde venda porque
+//      ninguem responde no sabado. Ele leva o assistente e NAO leva
+//      ponto, folha, estoque nem escala — e nao leva no SERVIDOR, numa
+//      lista de PERMITIDOS conferida em toda rota autenticada. Lista de
+//      permitidos porque o que cresce com o tempo sao as rotas de
+//      gestao: numa lista de proibidos, cada rota nova nasceria
+//      liberada para o plano mais barato, e o defeito apareceria como
+//      receita que nao veio.
+//
+//      Preco e visibilidade saem do painel do dono, igual ao Master, e
+//      os cartoes da vitrine passaram a se ordenar por PRECO — com
+//      quatro planos e dois deles precificados no painel, nada garante
+//      qual e o mais barato.
+//
+//      De quebra, dois defeitos de layout que so a quarta coluna
+//      revelou: o preco quebrava o "R$" numa linha e o numero noutra, e
+//      `display:flex` no item da lista fazia cada <strong> virar uma
+//      coluna propria, picando a frase.
+//
 // v54: botao "Ja paguei" na tela de bloqueio.
 //
 //      A liberacao dependia so do webhook, e webhook falha calado:
@@ -193,7 +221,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v54';
+var CACHE = 'workap-v55';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
