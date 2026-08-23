@@ -1358,6 +1358,19 @@ tr:hover td{background:var(--g50)}
                 <option value="nao">Não — só menu e palavras-chave</option>
               </select>
             </div>
+            <div class="field form-full">
+              <label>Consultar e chamar ajuda</label>
+              <select id="cb-usa-ferramentas">
+                <option value="sim">Sim — pode olhar o estoque e chamar a equipe</option>
+                <option value="nao">Não — só responde com o texto acima</option>
+              </select>
+              <div style="font-size:.78rem;color:var(--gray500);line-height:1.6;margin-top:6px">
+                Ligado, o bot procura o produto no seu estoque quando perguntam
+                <em>"tem X?"</em>, e abre uma <strong>tarefa para a equipe</strong> quando o
+                cliente pede uma pessoa. Ele só <strong>lê</strong> — nunca dá baixa,
+                cadastra ou apaga nada.
+              </div>
+            </div>
           </div>
 
           <div class="login-erro" id="cb-erro">Não foi possível salvar.</div>
@@ -3055,6 +3068,19 @@ tr:hover td{background:var(--g50)}
                   <option value="sim">Sim — usa o texto acima para responder</option>
                   <option value="nao">Não — só menu e palavras-chave</option>
                 </select>
+              </div>
+              <div class="field form-full">
+                <label>Consultar e chamar ajuda</label>
+                <select id="ow-usa-ferramentas">
+                  <option value="sim">Sim — pode olhar o estoque e chamar a equipe</option>
+                  <option value="nao">Não — só responde com o texto acima</option>
+                </select>
+                <div style="font-size:.78rem;color:var(--gray500);line-height:1.6;margin-top:6px">
+                  Ligado, o bot procura o produto no seu estoque quando perguntam
+                  <em>"tem X?"</em>, e abre uma <strong>tarefa para a equipe</strong> quando o
+                  cliente pede uma pessoa. Ele só <strong>lê</strong> — nunca dá baixa,
+                  cadastra ou apaga nada.
+                </div>
               </div>
             </div>
 
@@ -11585,6 +11611,8 @@ async function carregarChatbot(T){
   if(ctx) ctx.value = bot.contexto || '';
   var ia = campoBot(T, 'usa-ia');
   if(ia) ia.value = bot.usa_ia === false ? 'nao' : 'sim';
+  var fer = campoBot(T, 'usa-ferramentas');
+  if(fer) fer.value = bot.usa_ferramentas === false ? 'nao' : 'sim';
 
   var badge = campoBot(T, 'badge');
   badge.textContent = bot.ativo ? 'ligado' : 'desligado';
@@ -12172,6 +12200,7 @@ async function salvarChatbot_(T){
         ativo:       campoBot(T, 'ativo').value === 'sim',
         contexto:    (campoBot(T, 'contexto') || {}).value || '',
         usa_ia:      ((campoBot(T, 'usa-ia') || {}).value || 'sim') === 'sim',
+        usa_ferramentas: ((campoBot(T, 'usa-ferramentas') || {}).value || 'sim') === 'sim',
         canal:       T.comCanal ? ((campoBot(T, 'canal') || {}).value || 'interno') : 'whatsapp'
       })
     });
