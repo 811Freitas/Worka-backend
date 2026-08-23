@@ -9,6 +9,31 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v56: o Plano Chatbot custa R$ 55,90 e ganha piso GARANTIDO de IA.
+//
+//      O piso comum e US$ 0,30 — cerca de 95 respostas no mes. Serve
+//      para quem tem o bot como extra: se acabar, o resto do sistema
+//      continua de pe. Para quem assinou este plano nao existe
+//      "resto": o bot e o produto inteiro, e 95 respostas e o produto
+//      falhando.
+//
+//      Entao o piso dele e US$ 1,58, cerca de 500 respostas — 15% da
+//      mensalidade reservado como custo. O rateio continua valendo por
+//      cima: com poucos clientes ele leva MAIS que isso. O piso e o
+//      chao, nao o teto.
+//
+//      E entrou o aviso que evita a falha antes dela existir: uma vez
+//      por dia o servidor confere se as garantias vendidas ainda cabem
+//      no credito comprado. Vender oito desses planos com US$ 5,00 e
+//      prometer 4.000 respostas onde cabem 1.582 — e a conta so
+//      estouraria no fim do mes, com todos os bots emudecendo juntos.
+//      Agora o problema aparece no dia da venda, com numero.
+//
+//      O 402 tambem parou de mandar todo mundo para o Master: ele
+//      dizia "faz parte do Plano Master" e virou meia verdade quando o
+//      Chatbot passou a ter o modulo. Empurrar o plano de R$ 149,99
+//      para quem o de R$ 55,90 resolve costuma nao vender nenhum.
+//
 // v55: entra o Plano Chatbot, e o Master passa a dizer o que faz.
 //
 //      O texto do Master vendia "chatbot que atende a equipe no chat
@@ -221,7 +246,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v55';
+var CACHE = 'workap-v56';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
