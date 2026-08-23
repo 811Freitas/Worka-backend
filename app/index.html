@@ -11654,6 +11654,8 @@ function mostrarCustoDaIa(T, custo){
   }
 
   var restam = custo.respostas_restantes;
+  if(restam === null || restam === undefined){ el.style.display = 'none'; return; }
+
   var acabou = restam === 0;
   el.style.borderLeftColor = acabou ? '#b45309' : 'var(--gray200)';
 
@@ -11662,14 +11664,24 @@ function mostrarCustoDaIa(T, custo){
   linha.textContent = acabou
     ? 'O limite de IA deste mês acabou.'
     : 'Ainda cabem cerca de ' + restam + ' respostas de IA neste mês.';
+  el.appendChild(linha);
 
   var detalhe = document.createElement('div');
   detalhe.style.color = 'var(--gray500)';
   detalhe.textContent = acabou
-    ? 'Até virar o mês, o bot responde só o menu e as palavras-chave.'
+    ? 'O bot continua atendendo pelo menu e pelas palavras-chave — quem escreve não percebe diferença nenhuma, só não recebe resposta para pergunta fora deles.'
     : 'Menu e palavras-chave não gastam nada — só as perguntas fora deles.';
+  el.appendChild(detalhe);
 
-  el.appendChild(linha); el.appendChild(detalhe);
+  // Explica a cota antes que ela pareça defeito. Quem viu "1.100
+  // respostas" no mês passado e vê "550" agora precisa saber que
+  // entrou gente dividindo, não que algo quebrou.
+  if(custo.dividindo_com > 1){
+    var rateio = document.createElement('div');
+    rateio.style.color = 'var(--gray500)';
+    rateio.textContent = 'O crédito está sendo dividido entre ' + custo.dividindo_com + ' contas neste mês.';
+    el.appendChild(rateio);
+  }
 }
 
 // ── WHATSAPP ─────────────────────────────────────────────────

@@ -9,6 +9,18 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v52: o credito de IA passou a ser rateado. Antes era um teto por
+//      empresa e nada olhava a soma: dez contas dentro do limite delas
+//      somavam dez vezes o limite e a fatura era da Workap. Agora
+//      existe um teto do bolo inteiro (US$ 5), uma fatia reservada
+//      para o bot de venda da propria Workap — sem ela, as contas que
+//      ele traz consumiriam o credito e a proxima venda ficaria sem
+//      resposta — e o resto dividido entre as empresas que usaram IA
+//      no mes, com piso. Quando a cota acaba o cliente do cliente NAO
+//      ouve falar de credito: o bot so volta a responder pelo menu e
+//      pelo texto que o dono escreveu. Quem precisa saber que a conta
+//      acabou e quem paga a conta, e isso vai para o painel.
+//
 // v51: o teto de gasto de IA cortava o bot na 29a resposta do mes, em
 //      silencio — ele foi escrito para um resumo diario e ficou para
 //      tras quando o chatbot passou a atender cliente. Subiu para
@@ -145,7 +157,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v51';
+var CACHE = 'workap-v52';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
