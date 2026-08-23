@@ -253,6 +253,23 @@ const CONFIG = {
     return (isNaN(v) || v < 0) ? 20000 : v;
   })(),
 
+  // Intervalo minimo entre duas conferencias de pagamento da MESMA
+  // empresa.
+  //
+  // Cada clique vira uma ida ao gateway, e quem esta na tela de
+  // bloqueio depois de pagar clica com pressa. 15s corta a rajada sem
+  // atrapalhar quem espera a compensacao do Pix.
+  //
+  // Existe como variavel porque um limite que nao da para desligar e um
+  // limite que nao da para TESTAR: com ele fixo, a suite teria que
+  // dormir quinze segundos entre blocos ou trocar de empresa a cada
+  // asserção — e foi tentando trocar de empresa que eu descobri que o
+  // login pede confirmacao de dispositivo depois de algumas vezes.
+  CONFERIR_PAGAMENTO_INTERVALO_MS: (function () {
+    var v = parseInt(env("CONFERIR_PAGAMENTO_INTERVALO_MS") || "", 10);
+    return (isNaN(v) || v < 0) ? 15000 : v;
+  })(),
+
   // WhatsApp de vendas, para quem prefere negociar a assinar sozinho.
   // Aparece no e-mail de fim de trial e na tela de bloqueio.
   //
@@ -2108,7 +2125,21 @@ function motivoDeBloqueio(empresa) {
  * nessa direção que um minuto a mais não custa nada.
  */
 var cacheAcesso = new Map();
-var ACESSO_TTL = 60 * 1000;
+// Quanto tempo o estado de acesso fica guardado.
+//
+// 60s em producao: e uma consulta por requisicao autenticada, e o
+// estado muda em dias, nao em segundos. Quando muda de verdade —
+// pagou, foi liberado, foi reembolsado — quem mexe chama
+// esquecerAcesso() e a porta abre na hora.
+//
+// Configuravel porque com ele fixo nao da para testar bloqueio e
+// liberacao na MESMA suite: depois do primeiro desbloqueio, todo bloco
+// seguinte le "liberado" do cache por um minuto, e assercoes de "nao
+// pode liberar" passariam sem tocar no codigo que elas cobram.
+var ACESSO_TTL = (function () {
+  var v = parseInt(env("ACESSO_CACHE_MS") || "", 10);
+  return (isNaN(v) || v < 0) ? 60 * 1000 : v;
+})();
 
 function esquecerAcesso(empresaId) {
   if (empresaId) cacheAcesso.delete(String(empresaId));
@@ -3564,6 +3595,76 @@ function reaisParaCentavosDoGateway(valor) {
  * essa regra por cada handler é como as bases acabam com metade das
  * contas num estado e metade no outro.
  */
+// Quando cada empresa consultou o gateway pela última vez.
+// Em memória de propósito: se o processo reiniciar, o pior que
+// acontece é uma consulta a mais.
+var conferenciasDePagamento = {};
+
+/**
+ * Procura, na lista de pedidos do gateway, um que seja DESTA empresa e
+ * esteja PAGO.
+ *
+ * As duas metades importam igualmente, e por motivos opostos:
+ *
+ *  - errar o "desta empresa" para mais libera quem não pagou;
+ *  - errar o "está pago" para mais libera quem só abriu o checkout.
+ *
+ * Por isso a identificação nunca cai para algo frouxo. São três
+ * chaves, todas fortes: o empresa_id que o próprio Workap carimbou no
+ * metadata da cobrança, o id da assinatura guardado na empresa, e o
+ * e-mail da conta. Não existe casamento por nome nem por valor — dois
+ * clientes pagando R$ 49,99 no mesmo dia não podem virar um só.
+ *
+ * E o status: só entra o que a Cakto chama de pago. "pending",
+ * "waiting_payment" e "processing" são exatamente os estados de quem
+ * gerou o boleto e não pagou.
+ */
+function acharPagamentoDaEmpresa(pedidos, empresa) {
+  var PAGOS = ["paid", "approved", "completed", "confirmed"];
+  var emailEmp = String(empresa.email || "").trim().toLowerCase();
+  var assinaturaEmp = empresa.pagamento_assinatura_id
+    ? String(empresa.pagamento_assinatura_id) : null;
+
+  for (var i = 0; i < pedidos.length; i++) {
+    var p = pedidos[i] || {};
+    var meta = p.metadata || {};
+
+    var status = String(p.status || p.payment_status || "").toLowerCase();
+    if (PAGOS.indexOf(status) < 0) continue;
+
+    var ehDela = false;
+
+    // 1. O carimbo que o próprio Workap pôs na cobrança. É o mais
+    //    confiável: ninguém de fora escreve neste campo.
+    if (meta.empresa_id && String(meta.empresa_id) === String(empresa.id)) ehDela = true;
+
+    // 2. A assinatura que ficou gravada na empresa quando o checkout
+    //    foi criado.
+    if (!ehDela && assinaturaEmp &&
+        (String(p.subscription_id || "") === assinaturaEmp ||
+         String(p.product_id || "") === assinaturaEmp ||
+         String(p.id || "") === assinaturaEmp)) ehDela = true;
+
+    // 3. O e-mail da conta. Último recurso, e ainda assim exato —
+    //    comparação inteira, sem "contém".
+    if (!ehDela && emailEmp) {
+      var emailPedido = String(
+        p.customer_email || (p.customer && p.customer.email) || ""
+      ).trim().toLowerCase();
+      if (emailPedido && emailPedido === emailEmp) ehDela = true;
+    }
+
+    if (!ehDela) continue;
+
+    // O plano vem do metadata quando existe. Sem ele, aplicarAssinatura
+    // mantém o que a empresa já tinha — melhor que adivinhar por valor
+    // e entregar Master para quem pagou Completo.
+    p.plano_meta = planoValido(meta.plano) ? meta.plano : null;
+    return p;
+  }
+  return null;
+}
+
 async function aplicarAssinaturaCakto(empresaId, dados, planoMeta) {
   dados = dados || {};
 
@@ -10137,6 +10238,103 @@ var server = http.createServer(async (req, res) => {
         // gateway. Mostrar sempre daria erro para quem nunca assinou.
         tem_portal: !!eAtual.pagamento_cliente_id
       });
+    }
+
+    // ── JÁ PAGUEI, E CONTINUO BLOQUEADO ───────────────
+    //
+    // Existe porque a confirmação depende do webhook, e webhook é
+    // exatamente o tipo de coisa que falha calada: segredo não
+    // configurado, endereço errado no painel do gateway, aviso perdido
+    // na rede. O cliente não tem culpa de nada disso e não tem como
+    // saber — ele pagou, e a tela continua dizendo que a assinatura
+    // acabou. Foi o que aconteceu com uma conta real aqui.
+    //
+    // Então este botão inverte quem pergunta: em vez de esperar o
+    // gateway avisar, o Workap vai lá e olha. É o mesmo desbloqueio
+    // do webhook — aplicarAssinaturaCakto — e não um segundo caminho
+    // que poderia liberar por critério diferente.
+    if (method === "POST" && path === "/assinatura/conferir") {
+      // Mesma regra do cancelar, e pelo mesmo motivo: quem mexe na
+      // assinatura é quem paga por ela. A permissão nomeada que eu
+      // quase usei aqui não existe neste projeto — hasPermission com
+      // nome inventado devolve falso e o dono levaria 403 na cara,
+      // bloqueado, depois de ter pago.
+      if (!authPayload || authPayload.role !== "dono") {
+        return jsonErr(res, "Apenas o dono da empresa pode conferir o pagamento", 403);
+      }
+
+      var eConf = (await DB.select("empresas",
+        "id=eq." + authPayload.empresa_id +
+        "&select=id,nome,email,plano,status,assinatura_ate,pagamento_assinatura_id,pagamento_gateway"
+      ).catch(function () { return { body: [] }; })).body[0];
+      if (!eConf) return jsonErr(res, "Empresa não encontrada", 404);
+
+      // Já liberou (o webhook chegou enquanto ele lia a tela, ou ele
+      // clicou duas vezes). Dizer "não achei" aqui seria mentir para
+      // quem está com o acesso na mão.
+      var acessoConf = await estadoDeAcesso(eConf.id);
+      if (!acessoConf.motivo) {
+        return jsonOk(res, { liberado: true, ja_estava: true,
+          mensagem: "Seu acesso já está liberado." });
+      }
+
+      // Uma consulta por vez, com folga entre elas. Sem isto, um
+      // cliente ansioso na tela de bloqueio martela o botão e cada
+      // toque vira uma ida ao gateway.
+      var agoraConf = Date.now();
+      if (CONFIG.CONFERIR_PAGAMENTO_INTERVALO_MS > 0 &&
+          conferenciasDePagamento[eConf.id] &&
+          agoraConf - conferenciasDePagamento[eConf.id] < CONFIG.CONFERIR_PAGAMENTO_INTERVALO_MS) {
+        return jsonErr(res, "Aguarde alguns segundos antes de conferir de novo.", 429);
+      }
+      conferenciasDePagamento[eConf.id] = agoraConf;
+
+      var pedidosConf = null;
+      try {
+        var respConf = await caktoRequest("GET", CAKTO.listarPedidos, null);
+        pedidosConf = (respConf && (respConf.results || respConf.data || respConf)) || [];
+        if (!Array.isArray(pedidosConf)) pedidosConf = [];
+      } catch (e) {
+        // Gateway fora do ar NÃO é "você não pagou". Confundir os dois
+        // manda embora um cliente que está com o comprovante na mão.
+        secLog("conferir_pagamento_falhou", { empresa_id: eConf.id, message: e.message.slice(0, 120) });
+        return jsonErr(res,
+          "Não consegui falar com o sistema de pagamento agora. Tente de novo em um minuto — " +
+          "se continuar, fale com a gente que a gente libera na mão.", 502);
+      }
+
+      var pagoConf = acharPagamentoDaEmpresa(pedidosConf, eConf);
+
+      if (!pagoConf) {
+        // O dono da Workap precisa SABER que alguém pagou e continua
+        // batendo na porta. Sem isto, o cliente desiste em silêncio e
+        // o defeito do webhook segue invisível — que é como ele durou
+        // dias na primeira vez.
+        registrarErro("pagamento_nao_encontrado",
+          "A conta " + eConf.nome + " (" + eConf.email + ") disse que pagou e nenhuma " +
+          "cobrança confirmada foi encontrada no gateway.", {
+          rota: "/assinatura/conferir", metodo: "POST", status: 200, empresa_id: eConf.id
+        });
+        return jsonOk(res, { liberado: false,
+          mensagem: "Ainda não encontrei a confirmação do seu pagamento. Pix e cartão " +
+                    "costumam levar alguns minutos; boleto pode levar até 2 dias úteis. " +
+                    "Se você já pagou faz tempo, fale com a gente que a gente resolve." });
+      }
+
+      await aplicarAssinaturaCakto(eConf.id, pagoConf, pagoConf.plano_meta);
+
+      secLog("assinatura_liberada_por_conferencia", {
+        empresa_id: eConf.id, pedido: pagoConf.id || null
+      });
+      registrarErro("webhook_nao_chegou",
+        "A conta " + eConf.nome + " foi liberada pelo botão \"Já paguei\" — o pagamento " +
+        "existia no gateway e o webhook não avisou. Confira a URL do webhook e o " +
+        "CAKTO_WEBHOOK_SECRET.", {
+        rota: "/assinatura/conferir", metodo: "POST", status: 200, empresa_id: eConf.id
+      });
+
+      return jsonOk(res, { liberado: true,
+        mensagem: "Pagamento confirmado! Seu acesso está liberado." });
     }
 
     if (method === "POST" && path === "/assinatura/cancelar") {

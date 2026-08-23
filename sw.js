@@ -9,6 +9,27 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v54: botao "Ja paguei" na tela de bloqueio.
+//
+//      A liberacao dependia so do webhook, e webhook falha calado:
+//      segredo nao configurado, endereco errado no painel do gateway,
+//      aviso perdido. O cliente paga e continua olhando a tela que
+//      diz que a assinatura acabou — aconteceu com uma conta real.
+//
+//      Agora quem pergunta e o Workap: o botao vai ao gateway, procura
+//      um pedido PAGO daquela empresa, e libera pelo mesmo caminho do
+//      webhook. Nao acha, explica os prazos de Pix, cartao e boleto —
+//      sem acusar quem pagou.
+//
+//      A desconfianca e maior que a do webhook, e de proposito: um
+//      botao que destranca a porta a pedido do proprio interessado tem
+//      que casar por empresa_id, id da assinatura ou e-mail exato, e
+//      so aceitar status pago. Nada de casar por valor ou por nome.
+//
+//      Gateway fora do ar responde "tente de novo", nunca "voce nao
+//      pagou" — confundir os dois manda embora quem esta com o
+//      comprovante na mao.
+//
 // v53: o dono passou a escolher COMO o bot fala, DO QUE ele lembra e
 //      QUANTO ele gasta. O tom entra no prompt como estilo e nunca
 //      acima das regras — nenhuma personalidade autoriza inventar
@@ -172,7 +193,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v53';
+var CACHE = 'workap-v54';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';

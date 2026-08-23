@@ -4311,6 +4311,65 @@ function mostrarAcessoEncerrado(d) {
     cartao.appendChild(aviso);
   }
 
+  // JÁ PAGUEI.
+  //
+  // Fica ANTES do WhatsApp de propósito: quem já pagou não quer
+  // negociar, quer entrar. Deixar só o link de conversa obriga a
+  // pessoa que acabou de pagar a explicar por escrito o que o sistema
+  // pode conferir sozinho em dois segundos.
+  //
+  // Só para quem pode assinar — funcionário não paga a conta do
+  // patrão, então o botão não faria nada para ele.
+  if (d.pode_assinar) {
+    var jaPaguei = nova('button',
+      'display:block;width:100%;background:none;border:1.5px solid #1e8a40;color:#1e8a40;' +
+      'border-radius:12px;padding:13px;font-weight:700;font-size:.9rem;cursor:pointer;' +
+      'font-family:inherit;margin-bottom:10px', 'Já paguei — conferir agora');
+    var recado = nova('div',
+      'display:none;font-size:.82rem;line-height:1.55;border-radius:10px;padding:11px 13px;margin-bottom:12px');
+
+    jaPaguei.onclick = async function () {
+      jaPaguei.disabled = true;
+      jaPaguei.textContent = 'Conferindo...';
+      recado.style.display = 'none';
+      try {
+        var r = await fetch(API_BASE + '/assinatura/conferir', {
+          method: 'POST', headers: cabecalhoAuth()
+        });
+        var dd = await r.json().catch(function () { return {}; });
+
+        if (r.ok && dd.liberado) {
+          recado.style.cssText += ';background:#f0fdf4;color:#166534';
+          recado.textContent = dd.mensagem || 'Pagamento confirmado!';
+          recado.style.display = 'block';
+          jaPaguei.textContent = 'Entrando...';
+          // Recarrega para o app subir já com o acesso valendo. Voltar
+          // para a mesma tela dizendo "liberado" e continuar bloqueado
+          // seria pior que não ter o botão.
+          setTimeout(function () { location.reload(); }, 1200);
+          return;
+        }
+
+        recado.style.cssText += ';background:#fffbeb;color:#78350f';
+        recado.textContent = dd.mensagem || dd.error ||
+          'Não consegui conferir agora. Tente de novo em instantes.';
+        recado.style.display = 'block';
+      } catch (e) {
+        recado.style.cssText += ';background:#fffbeb;color:#78350f';
+        recado.textContent = 'Sem conexão com o servidor. Tente de novo em instantes.';
+        recado.style.display = 'block';
+      } finally {
+        if (jaPaguei.textContent === 'Conferindo...') {
+          jaPaguei.textContent = 'Já paguei — conferir agora';
+        }
+        jaPaguei.disabled = false;
+      }
+    };
+
+    cartao.appendChild(jaPaguei);
+    cartao.appendChild(recado);
+  }
+
   if (d.whatsapp) {
     var zap = document.createElement('a');
     zap.href = 'https://wa.me/' + d.whatsapp +
