@@ -179,13 +179,23 @@ const CONFIG = {
   // erro nenhum, caindo no "não entendi" como se estivesse mal
   // configurado.
   //
-  // US$ 2,00 dá cerca de 1.150 respostas por empresa por mês. Para um
-  // plano que se vende a mais de cem reais, é margem folgada — e
-  // continua sendo um teto: quem usar muito para de gastar em vez de
-  // aparecer na fatura.
+  // HOJE O PADRÃO É 0, ou seja, DESLIGADO — e isso é uma correção.
+  //
+  // Enquanto este era o único teto, ele precisava de um valor. Depois
+  // veio o rateio (logo abaixo), que já limita cada empresa a uma
+  // fatia do crédito que existe de verdade. Deixar os dois ligados
+  // significa que vale o MENOR dos dois, e o menor era este: com um
+  // único cliente, o rateio lhe dava US$ 3,75 e este teto cortava em
+  // US$ 2,00 — a tela dizia um número e a régua era outra.
+  //
+  // É exatamente o defeito que já aconteceu duas vezes aqui: um teto
+  // escrito para um mundo anterior, que ninguém lembra que existe,
+  // emudecendo o bot cedo demais e parecendo bot ruim. O rateio é a
+  // régua agora; este continua disponível para quem quiser um travão
+  // extra por empresa, mas só entra em cena se for pedido.
   IA_TETO_MES_MICRODOLARES: (function () {
     var v = parseInt(env("IA_TETO_MES_MICRODOLARES") || "", 10);
-    return (isNaN(v) || v < 0) ? 2000000 : v;
+    return (isNaN(v) || v < 0) ? 0 : v;
   })(),
 
   // ── O DINHEIRO QUE EXISTE DE VERDADE ──────────────────────
