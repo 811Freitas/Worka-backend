@@ -1373,6 +1373,7 @@ tr:hover td{background:var(--g50)}
             </div>
           </div>
 
+          <div id="cb-custo-ia" style="display:none;font-size:.8rem;line-height:1.6;border-left:2px solid var(--gray200);padding:2px 0 2px 12px;margin-top:12px"></div>
           <div class="login-erro" id="cb-erro">Não foi possível salvar.</div>
           <button class="btn btn-primary" id="cb-btn-salvar" onclick="salvarChatbot()">Salvar</button>
         </div>
@@ -3084,6 +3085,7 @@ tr:hover td{background:var(--g50)}
               </div>
             </div>
 
+            <div id="ow-custo-ia" style="display:none;font-size:.8rem;line-height:1.6;border-left:2px solid var(--gray200);padding:2px 0 2px 12px;margin-top:12px"></div>
             <div class="login-erro" id="ow-erro">Não foi possível salvar.</div>
             <button class="btn btn-primary" id="ow-btn-salvar" onclick="salvarChatbotOwner()">Salvar</button>
           </div>
@@ -11619,10 +11621,55 @@ async function carregarChatbot(T){
   badge.className = 'badge ' + (bot.ativo ? 'badge-green' : '');
 
   preencherWhatsAppChatbot(T, bot, d.um_clique);
+  mostrarCustoDaIa(T, d.custo_ia);
 
   T.itens = d.itens || [];
   desenharItensChatbot(T);
   carregarConversasChatbot_(T);
+}
+
+// Quanto de IA já foi usado no mês.
+//
+// Está na tela porque o teto é silencioso por natureza: quando estoura,
+// o bot volta a responder "não entendi" e parece mal configurado, sem
+// erro em lugar nenhum. Foi exatamente assim que um teto velho demais
+// passou despercebido, cortando o bot na 29ª resposta do mês.
+function mostrarCustoDaIa(T, custo){
+  var el = campoBot(T, 'custo-ia');
+  if(!el) return;
+  if(!custo){ el.style.display = 'none'; return; }
+  el.style.display = '';
+  el.textContent = '';
+
+  if(!custo.tem_chave){
+    el.style.borderLeftColor = '#b45309';
+    var aviso = document.createElement('div');
+    aviso.style.cssText = 'color:#b45309;font-weight:600';
+    aviso.textContent = 'A chave da IA não está configurada neste servidor.';
+    var expl = document.createElement('div');
+    expl.style.color = 'var(--gray500)';
+    expl.textContent = 'O bot responde o menu e as palavras-chave normalmente, mas não entende pergunta fora deles.';
+    el.appendChild(aviso); el.appendChild(expl);
+    return;
+  }
+
+  var restam = custo.respostas_restantes;
+  var acabou = restam === 0;
+  el.style.borderLeftColor = acabou ? '#b45309' : 'var(--gray200)';
+
+  var linha = document.createElement('div');
+  linha.style.cssText = acabou ? 'color:#b45309;font-weight:600' : 'font-weight:600';
+  linha.textContent = acabou
+    ? 'O limite de IA deste mês acabou.'
+    : 'Ainda cabem cerca de ' + restam + ' respostas de IA neste mês.';
+
+  var detalhe = document.createElement('div');
+  detalhe.style.color = 'var(--gray500)';
+  detalhe.textContent = acabou
+    ? 'Até virar o mês, o bot responde só o menu e as palavras-chave.'
+    : 'Menu e palavras-chave não gastam nada — só as perguntas fora deles.';
+
+  el.appendChild(linha); el.appendChild(detalhe);
 }
 
 // ── WHATSAPP ─────────────────────────────────────────────────

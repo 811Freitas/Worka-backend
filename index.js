@@ -161,15 +161,31 @@ const CONFIG = {
   IA_MODELO: env("IA_MODELO") || "claude-haiku-4-5",
 
   // Teto de gasto por empresa, por mês, em micro-dólares.
-  // 50000 = US$ 0,05 = cerca de 15 resumos diários + escrita à vontade.
   //
   // Existe porque IA é o único custo que cresce com o uso: sem teto,
   // uma conta que usa muito não aparece em lugar nenhum até chegar a
   // fatura. Estourou, o recurso para para AQUELA empresa e volta no
   // mês seguinte — o resto do sistema continua igual.
+  //
+  // 2.000.000 = US$ 2,00 por empresa por mês.
+  //
+  // O padrão era 50.000 (US$ 0,05), dimensionado para o que existia
+  // quando foi escrito: um resumo diário, uma vez por dia. Depois o
+  // chatbot passou a atender cliente no WhatsApp, e a conta virou
+  // outra — uma resposta custa cerca de 1.700 micro-dólares (regras +
+  // contexto do negócio + menu + histórico + ferramentas na entrada,
+  // três frases na saída). Com o teto antigo, o bot do Plano Master
+  // parava de entender depois de VINTE E NOVE respostas no mês, sem
+  // erro nenhum, caindo no "não entendi" como se estivesse mal
+  // configurado.
+  //
+  // US$ 2,00 dá cerca de 1.150 respostas por empresa por mês. Para um
+  // plano que se vende a mais de cem reais, é margem folgada — e
+  // continua sendo um teto: quem usar muito para de gastar em vez de
+  // aparecer na fatura.
   IA_TETO_MES_MICRODOLARES: (function () {
     var v = parseInt(env("IA_TETO_MES_MICRODOLARES") || "", 10);
-    return (isNaN(v) || v < 0) ? 50000 : v;
+    return (isNaN(v) || v < 0) ? 2000000 : v;
   })(),
 
   // WhatsApp de vendas, para quem prefere negociar a assinar sozinho.
@@ -6786,7 +6802,30 @@ async function rotasDoChatbot(req, res, ctx) {
       config_id:  CONFIG.META_CONFIG_ID || null
     };
 
-    return jsonOk(res, { chatbot: seguro, itens: itensCfg.body || [], um_clique: umClique });
+    // QUANTO JÁ FOI GASTO DE IA NESTE MÊS.
+    //
+    // Vai para a tela porque o teto é silencioso por natureza: quando
+    // estoura, o bot volta a responder "não entendi" e parece mal
+    // configurado. Foi assim que um teto velho demais passou
+    // despercebido — ele cortava o bot na 29ª resposta do mês e não
+    // havia onde ver isso.
+    var gastoIa = await gastoDeIaNoMes(ctx.empresa_id).catch(function () { return 0; });
+    var custoDaIa = {
+      gasto_microdolares: gastoIa,
+      teto_microdolares:  CONFIG.IA_TETO_MES_MICRODOLARES,
+      // Quantas respostas ainda cabem, pela média medida de ~1.700
+      // micro-dólares. É estimativa, e a tela diz isso — mas "sobram
+      // umas 900" informa muito mais que um número em micro-dólares.
+      respostas_restantes: CONFIG.IA_TETO_MES_MICRODOLARES > 0
+        ? Math.max(0, Math.floor((CONFIG.IA_TETO_MES_MICRODOLARES - gastoIa) / 1700))
+        : null,
+      tem_chave: !!CONFIG.ANTHROPIC_API_KEY
+    };
+
+    return jsonOk(res, {
+      chatbot: seguro, itens: itensCfg.body || [],
+      um_clique: umClique, custo_ia: custoDaIa
+    });
   }
 
   if (method === "PUT" && resto === "") {
