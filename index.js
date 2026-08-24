@@ -1856,9 +1856,183 @@ function marcarEtapaDoFunil(etapa, ip, origem) {
 // TUDO aqui degrada em silêncio: sem chave da API, o resumo não sai e
 // o botão some da tela. Nenhuma rota do produto depende disto.
 
+// ── QUAL FORMATO DE API O PROVEDOR FALA ───────────────────
+//
+// Existem dois no mercado, e um provedor serve um ou outro:
+//
+//   anthropic = POST /v1/messages, com `system` separado e blocos de
+//               conteúdo tipados. É o que a Anthropic serve.
+//   openai    = POST /v1/chat/completions, com o system dentro da
+//               lista de mensagens e `tool_calls` no lugar dos blocos.
+//               É o que a xAI, a OpenAI, a Groq e quase todo o resto
+//               servem.
+//
+// ISTO NASCEU DE UM DEFEITO REAL, e caro: o backend falava só o
+// formato da Anthropic e foi apontado para a xAI, que TINHA
+// compatibilidade com ele e a DESATIVOU. Toda chamada passou a morrer
+// no endereço que não existe mais, o bot caía no fallback, e o
+// registro de gasto — que é escrito só quando a resposta chega — ficou
+// vazio. Do lado de fora parecia "a IA não presta"; do lado de dentro
+// não havia sequer uma chamada.
+//
+// Trocar de provedor deixa de ser deploy: é variável de ambiente.
+function formatoDaIa() {
+  var escolhido = String(env("IA_FORMATO") || "").trim().toLowerCase();
+  if (escolhido === "anthropic" || escolhido === "openai") return escolhido;
+
+  // Sem escolha explícita, o endereço decide. Quem aponta para fora da
+  // Anthropic quase sempre fala o formato da OpenAI, e adivinhar
+  // errado aqui custa exatamente o que já custou uma vez.
+  var base = String(CONFIG.ANTHROPIC_BASE_URL || env("ANTHROPIC_BASE_URL") || "");
+  if (base && base.indexOf("anthropic.com") < 0) return "openai";
+  return "anthropic";
+}
+
+/**
+ * O endereço completo do /chat/completions, aceitando as duas formas
+ * de escrever a base.
+ *
+ * A variável pode vir como "https://api.x.ai" ou "https://api.x.ai/v1"
+ * — as duas aparecem em tutorial, e mandar o usuário adivinhar qual é
+ * a certa é criar um defeito que só aparece em produção.
+ */
+function urlDoChatCompletions() {
+  var base = String(CONFIG.ANTHROPIC_BASE_URL || env("ANTHROPIC_BASE_URL") || "https://api.openai.com")
+    .trim().replace(/\/+$/, "");
+  if (/\/v\d+$/.test(base)) return base + "/chat/completions";
+  return base + "/v1/chat/completions";
+}
+
+/**
+ * Traduz um pedido no formato Anthropic para o formato OpenAI.
+ *
+ * O resto do código foi escrito contra a forma da Anthropic e continua
+ * assim: é ela que tem bloco tipado, que é mais fácil de ler. Quem se
+ * dobra é esta função, num lugar só.
+ */
+function pedidoEmFormatoOpenAI(p) {
+  var msgs = [];
+  if (p.system) msgs.push({ role: "system", content: String(p.system) });
+
+  (p.messages || []).forEach(function (m) {
+    // Conteúdo em texto puro passa direto.
+    if (typeof m.content === "string") {
+      msgs.push({ role: m.role, content: m.content });
+      return;
+    }
+
+    var blocos = m.content || [];
+
+    // Resultado de ferramenta vira uma mensagem de papel "tool" POR
+    // resultado — no formato da OpenAI eles não se agrupam.
+    var resultados = blocos.filter(function (b) { return b.type === "tool_result"; });
+    if (resultados.length) {
+      resultados.forEach(function (r) {
+        msgs.push({ role: "tool", tool_call_id: r.tool_use_id, content: String(r.content) });
+      });
+      return;
+    }
+
+    var texto = blocos.filter(function (b) { return b.type === "text"; })
+                      .map(function (b) { return b.text; }).join("\n");
+    var chamadas = blocos.filter(function (b) { return b.type === "tool_use"; })
+      .map(function (b) {
+        return { id: b.id, type: "function",
+                 function: { name: b.name, arguments: JSON.stringify(b.input || {}) } };
+      });
+
+    var saida = { role: m.role, content: texto || null };
+    if (chamadas.length) saida.tool_calls = chamadas;
+    msgs.push(saida);
+  });
+
+  var pedido = { model: p.model, messages: msgs, max_tokens: p.max_tokens };
+  if (p.tools && p.tools.length) {
+    pedido.tools = p.tools.map(function (t) {
+      return { type: "function",
+               function: { name: t.name, description: t.description, parameters: t.input_schema } };
+    });
+  }
+  return pedido;
+}
+
+/** E a resposta de volta, para a forma que o resto do código espera. */
+function respostaEmFormatoAnthropic(json) {
+  var escolha = (json.choices && json.choices[0]) || {};
+  var msg = escolha.message || {};
+  var blocos = [];
+
+  if (msg.content) blocos.push({ type: "text", text: String(msg.content) });
+
+  (msg.tool_calls || []).forEach(function (c) {
+    var args = {};
+    // Argumento vem como TEXTO com JSON dentro, e modelo às vezes
+    // entrega JSON quebrado. Um parse solto aqui derrubaria a
+    // conversa inteira em vez de só perder uma consulta.
+    try { args = JSON.parse((c.function && c.function.arguments) || "{}"); } catch (e) { args = {}; }
+    blocos.push({ type: "tool_use", id: c.id,
+                  name: c.function && c.function.name, input: args });
+  });
+
+  return {
+    content: blocos,
+    usage: {
+      input_tokens:  (json.usage && json.usage.prompt_tokens)     || 0,
+      output_tokens: (json.usage && json.usage.completion_tokens) || 0
+    }
+  };
+}
+
+/** O cliente que fala com quem serve /chat/completions. */
+function clienteEmFormatoOpenAI() {
+  return {
+    messages: {
+      create: function (p) {
+        return new Promise(function (resolve, reject) {
+          var corpo = JSON.stringify(pedidoEmFormatoOpenAI(p));
+          var alvo;
+          try { alvo = new URL(urlDoChatCompletions()); }
+          catch (e) { return reject(new Error("IA: endereço inválido")); }
+
+          var req = require("https").request({
+            hostname: alvo.hostname,
+            port: alvo.port || 443,
+            path: alvo.pathname + alvo.search,
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Content-Length": Buffer.byteLength(corpo),
+              "Authorization": "Bearer " + CONFIG.ANTHROPIC_API_KEY
+            }
+          }, function (resp) {
+            var cru = "";
+            resp.on("data", function (d) { cru += d; });
+            resp.on("end", function () {
+              if (resp.statusCode < 200 || resp.statusCode >= 300) {
+                // A mensagem do provedor vai junto: é ela que diz se o
+                // problema é a chave, o modelo ou o endereço — e sem
+                // ela o dono fica com "não funciona" e nada mais.
+                var e = new Error("IA " + resp.statusCode + ": " + cru.slice(0, 300));
+                e.status = resp.statusCode;
+                return reject(e);
+              }
+              try { resolve(respostaEmFormatoAnthropic(JSON.parse(cru))); }
+              catch (err) { reject(new Error("IA: resposta ilegível")); }
+            });
+          });
+          req.on("error", function (e) { reject(e); });
+          req.setTimeout(45000, function () { req.destroy(new Error("IA: tempo esgotado")); });
+          req.end(corpo);
+        });
+      }
+    }
+  };
+}
+
 var anthropic = null;
 function clienteIA() {
   if (!CONFIG.ANTHROPIC_API_KEY) return null;
+  if (formatoDaIa() === "openai") return clienteEmFormatoOpenAI();
   if (!anthropic) {
     var Anthropic = require("@anthropic-ai/sdk");
     anthropic = new Anthropic({ apiKey: CONFIG.ANTHROPIC_API_KEY });
@@ -6241,8 +6415,34 @@ async function conversarComIA(quemPaga, sistema, mensagens, ferramentas, bot, qu
 
   } catch (e) {
     secLog("chatbot_ia_erro", { chatbot_id: bot.id, classe: e && e.constructor && e.constructor.name });
+
+    // ISTO PRECISA APARECER NO PAINEL, e não só no console.
+    //
+    // Foi assim que a xAI desativar o endpoint passou despercebido:
+    // toda chamada morria, o bot caía no fallback, e o único rastro
+    // era uma linha de log que ninguém lê. Do lado de fora o sintoma
+    // era "a IA não presta" — e não havia como distinguir isso de um
+    // modelo ruim, de chave errada ou de cota estourada.
+    //
+    // A mensagem do provedor vai junto porque é ela que diz QUAL das
+    // três é. Uma vez por hora: o objetivo é o dono descobrir, não
+    // encher a tela com a mesma linha a cada mensagem que chega.
+    avisarDeFalhaDaIa(e);
     return { ok: false, motivo: "erro" };
   }
+}
+
+var avisouFalhaDaIa = 0;
+function avisarDeFalhaDaIa(e) {
+  if (Date.now() - avisouFalhaDaIa < 60 * 60 * 1000) return;
+  avisouFalhaDaIa = Date.now();
+  registrarErro("ia_falhou",
+    "O provedor de IA recusou a chamada, e o chatbot está caindo no texto de " +
+    "\"não entendi\" sem avisar ninguém. Resposta: " +
+    String((e && e.message) || e).slice(0, 300), {
+    rota: "/chatbot", metodo: "POST", status: 502,
+    detalhe: { modelo: CONFIG.IA_MODELO, formato: formatoDaIa() }
+  });
 }
 
 /**
