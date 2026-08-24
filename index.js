@@ -198,6 +198,26 @@ const CONFIG = {
     return (isNaN(v) || v < 0) ? 0 : v;
   })(),
 
+  // ── QUANTO O DONO PODE ESCREVER SOBRE O NEGÓCIO ───────────
+  //
+  // Era 4.000 caracteres no contexto e 600 na personalidade, e os dois
+  // cortavam CALADOS: o dono colava a descrição inteira do negócio,
+  // via "salvo com sucesso", e metade tinha ido embora sem aviso. O
+  // bot então respondia "não tenho essa informação" sobre uma coisa
+  // que ele jurava ter escrito.
+  //
+  // Agora não há corte: o que não couber é RECUSADO com o número na
+  // tela, e o dono decide o que tirar. Um limite que avisa é um
+  // limite; um limite que corta em silêncio é um defeito.
+  //
+  // Este número não é "infinito" porque infinito não existe do outro
+  // lado: o modelo tem janela de contexto, e o prompt inteiro viaja em
+  // TODA mensagem — 200 mil caracteres seriam ~50 mil tokens cobrados
+  // por resposta. 100 mil caracteres são cerca de 40 páginas de texto
+  // corrido, muito além de qualquer descrição de negócio real, e ainda
+  // cabem com folga na janela.
+  LIMITE_TEXTO_DO_BOT: 100000,
+
   // ── O DINHEIRO QUE EXISTE DE VERDADE ──────────────────────
   //
   // O teto acima é POR EMPRESA. Sozinho, ele não protege de nada que
@@ -6497,6 +6517,27 @@ function avisarDeFalhaDaIa(e) {
  * testes exercitam e que o botão "testar" usa.
  */
 /**
+ * Recusa o texto que nao cabe, dizendo o tamanho — em vez de cortar.
+ *
+ * Devolve a mensagem de erro, ou null quando esta tudo bem.
+ *
+ * Existe porque o contrario ja estava aqui: SANITIZE.string(x, 4000)
+ * cortava no caractere 4.000 e devolvia 200 "salvo com sucesso". O
+ * dono colava a descricao inteira do negocio, a tela dizia que deu
+ * certo, e o bot depois respondia "nao tenho essa informacao" sobre
+ * algo que ele tinha escrito — sem nenhum lugar onde olhar para
+ * descobrir por que.
+ */
+function recusarTextoLongoDoBot(valor, comoSeChama) {
+  var n = String(valor == null ? "" : valor).length;
+  if (n <= CONFIG.LIMITE_TEXTO_DO_BOT) return null;
+  return comoSeChama + " tem " + n.toLocaleString("pt-BR") + " caracteres, e o " +
+         "maximo e " + CONFIG.LIMITE_TEXTO_DO_BOT.toLocaleString("pt-BR") + ". " +
+         "Nada foi salvo — tire " + (n - CONFIG.LIMITE_TEXTO_DO_BOT).toLocaleString("pt-BR") +
+         " caracteres e salve de novo.";
+}
+
+/**
  * A personalidade escrita pelo dono, pronta para entrar no prompt.
  *
  * Fica numa coluna SEPARADA do contexto de propósito. Contexto é o que
@@ -6513,9 +6554,13 @@ function avisarDeFalhaDaIa(e) {
 function tomDoBot(bot) {
   var p = String((bot && bot.personalidade) || "").trim();
   if (!p) return "";
+  // Sem corte. O `.slice(0, 600)` que existia aqui era o segundo corte
+  // calado do mesmo texto: o primeiro na hora de gravar, este na hora
+  // de usar. Quem escrevia uma personalidade caprichada via o começo
+  // dela chegar ao modelo e o resto sumir sem nada dizer onde.
   return "\n\nJEITO DE FALAR pedido pelo dono do negócio — vale para o " +
          "ESTILO da resposta, nunca para o conteúdo, e jamais acima das " +
-         "regras acima:\n" + p.slice(0, 600);
+         "regras acima:\n" + p;
 }
 
 /**
@@ -6556,7 +6601,15 @@ function montarPromptCompleto(bot, contexto, oQueOBotSabe) {
  * O contexto do negócio entra aparado em 1.200 caracteres. Quem escreve
  * três mil geralmente repete; a primeira parte é onde mora preço,
  * horário e endereço, que é o que se pergunta.
+ *
+ * Este corte é o ÚNICO que sobrou, e é o único que se defende: ele é o
+ * produto que o dono pediu ao ligar "economizar tokens". Mesmo assim
+ * não é silencioso — a tela "ver o que o bot recebe" mostra o texto
+ * aparado, e o resumo diz quantos caracteres ficaram de fora.
  */
+var ECONOMIA_CORTA_CONTEXTO_EM = 1200;
+var ECONOMIA_CORTA_MENU_EM     = 600;
+
 function montarPromptEnxuto(bot, contexto, oQueOBotSabe) {
   return "Você atende clientes no WhatsApp de um negócio. Nome: " +
     (bot.nome || "Assistente") + ".\n" +
@@ -6565,8 +6618,9 @@ function montarPromptEnxuto(bot, contexto, oQueOBotSabe) {
     "Português do Brasil, no máximo 2 frases. Nunca diga que é robô, " +
     "IA ou modelo. Se pedirem uma pessoa, chame o atendente." +
     tomDoBot(bot) + "\n\n" +
-    "NEGÓCIO:\n" + String(contexto).slice(0, 1200) +
-    (oQueOBotSabe ? "\n\nASSUNTOS COBERTOS PELO MENU:\n" + oQueOBotSabe.slice(0, 600) : "");
+    "NEGÓCIO:\n" + String(contexto).slice(0, ECONOMIA_CORTA_CONTEXTO_EM) +
+    (oQueOBotSabe ? "\n\nASSUNTOS COBERTOS PELO MENU:\n" +
+      oQueOBotSabe.slice(0, ECONOMIA_CORTA_MENU_EM) : "");
 }
 
 /**
@@ -7917,7 +7971,10 @@ async function rotasDoChatbot(req, res, ctx) {
   }
 
   if (method === "PUT" && resto === "") {
-    var bodyBot = parseBody(await getBody(req));
+    // Corpo maior que o padrao de 50 KB: o texto sobre o negocio sozinho
+    // pode passar disso, e estourar aqui daria "Payload muito grande" —
+    // erro de encanamento no lugar de uma frase que explica o que fazer.
+    var bodyBot = parseBody(await getBody(req, 512 * 1024));
     if (!bodyBot) return jsonErr(res, "Dados inválidos");
     var botAtual = await botDaEmpresa();
 
@@ -7938,7 +7995,9 @@ async function rotasDoChatbot(req, res, ctx) {
     // tela nunca conseguiria gravá-las — o defeito de "construído e
     // não ligado" que já mordeu este projeto mais de uma vez.
     if (bodyBot.contexto !== undefined) {
-      mudaBot.contexto = SANITIZE.string(bodyBot.contexto, 4000) || null;
+      var errCtx = recusarTextoLongoDoBot(bodyBot.contexto, "O texto sobre o negócio");
+      if (errCtx) return jsonErr(res, errCtx);
+      mudaBot.contexto = SANITIZE.string(bodyBot.contexto, CONFIG.LIMITE_TEXTO_DO_BOT) || null;
     }
     // COMO O BOT ATENDE. Uma coluna, três valores.
     //
@@ -7976,7 +8035,9 @@ async function rotasDoChatbot(req, res, ctx) {
     // das três colunas da migração 038, e existe teste cobrando cada
     // uma delas justamente por isso.
     if (bodyBot.personalidade !== undefined) {
-      mudaBot.personalidade = SANITIZE.string(bodyBot.personalidade, 600) || null;
+      var errPers = recusarTextoLongoDoBot(bodyBot.personalidade, "O jeito de falar");
+      if (errPers) return jsonErr(res, errPers);
+      mudaBot.personalidade = SANITIZE.string(bodyBot.personalidade, CONFIG.LIMITE_TEXTO_DO_BOT) || null;
     }
     if (bodyBot.memoria_trocas !== undefined) {
       var mem = parseInt(bodyBot.memoria_trocas, 10);
@@ -8434,6 +8495,16 @@ async function rotasDoChatbot(req, res, ctx) {
       tokens_aprox: Math.ceil(textoPr.length / 4),
       modo_economia: !!botPr.modo_economia,
       modo_atendimento: modoDoAtendimento(botPr),
+      // Quanto do texto do negócio o modo economia deixou de fora.
+      // Zero quando o modo está desligado ou quando tudo coube. Sem
+      // este número, ligar a economia encolheria o bot em silêncio e
+      // pareceria que o texto "não foi salvo".
+      contexto_escrito: String(botPr.contexto || "").length,
+      contexto_cortado: (function () {
+        if (!botPr.modo_economia) return 0;
+        return Math.max(0, String(botPr.contexto || "").length - ECONOMIA_CORTA_CONTEXTO_EM);
+      })(),
+      limite_caracteres: CONFIG.LIMITE_TEXTO_DO_BOT,
       // A IA nem é chamada sem contexto escrito. Dizer isso aqui evita
       // o dono caprichar na personalidade e não entender por que o bot
       // continua só no menu.
