@@ -12171,6 +12171,9 @@ function olharOQr(T){
       if(!r.ok) return;
       var d = await r.json();
       desenharOQr(T, d);
+      // Reconectando NÃO para o acompanhamento: é justamente o estado
+      // em que a tela precisa continuar olhando, para virar "conectado"
+      // sozinha quando o vigia terminar o serviço.
       if(d.status === 'conectado' || d.status === 'banido') pararDeOlharOQr(T);
     } catch(e){ /* oscilação de rede: a próxima volta pega */ }
   }
@@ -12201,6 +12204,17 @@ function desenharOQr(T, d){
   if(d.status === 'conectado'){
     estado.textContent = 'Conectado' + (d.numero ? ' no ' + d.numero : '') + '. Mande "oi" para o número e veja o bot responder.';
     estado.style.color = '#16622f';
+    sair.style.display = ''; btn.style.display = 'none';
+  } else if(d.status === 'reconectando'){
+    // A sessão existe e o servidor não está recebendo sinal dela. O
+    // vigia reabre sozinho em até dois minutos — dizer "conectado"
+    // aqui, como a tela fazia antes, era pedir para o dono não
+    // procurar o problema enquanto o cliente falava sozinho.
+    estado.textContent = 'A conexão caiu e está voltando sozinha' +
+      (d.numero ? ' no ' + d.numero : '') +
+      '. Costuma levar até dois minutos — não precisa ler o QR de novo. ' +
+      'Se passar disso, desconecte e conecte outra vez.';
+    estado.style.color = '#b45309';
     sair.style.display = ''; btn.style.display = 'none';
   } else if(d.status === 'banido'){
     estado.textContent = 'O WhatsApp recusou esta conexão. É o risco que o aviso acima descreve — este número não conecta mais por aqui.';
