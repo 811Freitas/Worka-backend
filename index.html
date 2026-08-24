@@ -2166,11 +2166,9 @@ function abrirCheckout() {
   marcarEtapa('abriu_cadastro');
   document.getElementById('checkout-overlay').style.display = 'block';
   document.body.style.overflow = 'hidden';
+  // Ela mesma aplica o segmento vindo do funil, depois de montar a lista.
   carregarRamosNoCadastro();
   carregarPlanos().then(aplicarPlanoNaTela);
-  // Quem passou pelo funil já escolheu: o campo vem preenchido.
-  var sel = document.getElementById('f-ramo');
-  if (sel && segmentoDoFunil) { sel.value = segmentoDoFunil; mostrarDicaDoRamo(); }
 }
 function fecharCheckout() {
   document.getElementById('checkout-overlay').style.display = 'none';
@@ -3094,6 +3092,14 @@ function carregarRamosNoCadastro() {
         sel.appendChild(o);
       });
       sel.onchange = mostrarDicaDoRamo;
+
+      // Quem passou pelo funil ja escolheu o segmento — e a escolha so
+      // pode ser aplicada AQUI, depois que as <option> existem. Aplicar
+      // antes (era o que abrirCheckout fazia) nao pegava: ou a opcao
+      // ainda nao existia, ou esta linha limpava o <select> em seguida.
+      // O resultado era a pessoa escolher "Concessionaria" no funil e
+      // achar o campo vazio na hora de pagar.
+      if (segmentoDoFunil) { sel.value = segmentoDoFunil; mostrarDicaDoRamo(); }
     })
     .catch(function () {
       // Sem a lista, o cadastro NÃO trava: o campo some e a conta

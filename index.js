@@ -2344,6 +2344,35 @@ function avisarSeCreditoBaixo(total, global) {
 }
 
 /**
+ * A chamada foi barrada por falta de cota/crédito — e não por erro?
+ *
+ * Existe porque só "teto_do_mes" era tratado como cota nas rotas, e o
+ * rateio devolve OUTROS nomes: cota_da_empresa, cota_da_plataforma,
+ * credito_acabou. Quem batia na cota recebia "tente de novo em
+ * instantes" e um 502 — o conselho errado (tentar de novo não resolve)
+ * e a causa escondida. É o mesmo defeito que já deixou o chatbot
+ * parecendo burro sem ninguém saber por quê.
+ */
+function ehFaltaDeCotaDeIa(motivo) {
+  return motivo === "teto_do_mes" || motivo === "cota_da_empresa" ||
+         motivo === "cota_da_plataforma" || motivo === "credito_acabou";
+}
+
+/**
+ * O que o dono lê quando a cota acabou. Distingue a cota DELE do
+ * crédito da plataforma: dizer "sua cota do mês" quando quem acabou
+ * foi o crédito da Workap é mandar ele esperar uma virada de mês que
+ * não vai resolver nada.
+ */
+function recadoDeCotaDeIa(motivo) {
+  if (motivo === "credito_acabou" || motivo === "cota_da_plataforma") {
+    return "A IA está temporariamente indisponível. Já avisamos o suporte — " +
+           "tente de novo mais tarde.";
+  }
+  return "Você usou toda a cota de IA deste mês. Ela volta na virada do mês.";
+}
+
+/**
  * Chama o modelo e registra o que custou.
  *
  * Devolve { ok, texto, motivo }. Nunca lança: quem chama é um cron ou
@@ -6553,6 +6582,38 @@ function modoDoAtendimento(bot) {
   return (bot && bot.usa_ia === false) ? "comandos" : "misto";
 }
 
+/**
+ * O prompt que o bot recebe, montado por inteiro.
+ *
+ * Extraída de decidirComIa() para ter UMA fonte, e não duas: a tela
+ * "ver o que o bot recebe" tem que mostrar exatamente o texto que vai
+ * para o modelo. Uma segunda montagem só para a tela ficaria
+ * desatualizada na primeira mudança de regra, e mostraria ao dono um
+ * prompt que não é o que roda — pior que não mostrar nada.
+ */
+function promptDoBot(bot, itens) {
+  var economia = !!bot.modo_economia;
+  var contexto = String((bot && bot.contexto) || "").trim();
+
+  // O menu vai junto no contexto: perguntas do tipo "o que vocês fazem"
+  // são respondidas melhor por quem enxerga as opções configuradas.
+  //
+  // No modo economia ele entra ENCURTADO — só o rótulo, sem a resposta
+  // inteira. É a maior peça do pedido depois do contexto, e o rótulo
+  // sozinho já diz ao modelo que o assunto existe e está coberto pelo
+  // menu; a resposta completa quem entrega é o próprio menu, de graça.
+  var oQueOBotSabe = (itens || [])
+    .filter(function (i) { return i.ativo; })
+    .map(function (i) {
+      return economia ? "- " + i.rotulo : "- " + i.rotulo + ": " + i.resposta;
+    })
+    .join("\n");
+
+  return economia
+    ? montarPromptEnxuto(bot, contexto, oQueOBotSabe)
+    : montarPromptCompleto(bot, contexto, oQueOBotSabe);
+}
+
 async function decidirComIa(bot, itens, textoBruto, quem) {
   var modo = modoDoAtendimento(bot);
   var decisao = decidirRespostaChatbot(bot, itens, textoBruto);
@@ -6592,30 +6653,25 @@ async function decidirComIa(bot, itens, textoBruto, quem) {
   // Sem contexto escrito, a IA não teria de onde tirar resposta — e
   // inventar horário de funcionamento é pior que dizer "não sei".
   var contexto = String(bot.contexto || "").trim();
-  if (!contexto) return dosComandos;
+  if (!contexto) {
+    // Causa silenciosa e comum: o dono capricha na personalidade, não
+    // escreve o contexto, e o bot segue só no menu. Sem este motivo a
+    // tela diria "não entendeu" e ele procuraria o problema no lugar
+    // errado.
+    dosComandos.motivo_ia = "sem_contexto";
+    return dosComandos;
+  }
 
   var pergunta = String(textoBruto || "").trim();
   if (!pergunta) return dosComandos;
 
+  // O modo economia manda em três coisas: o prompt (dentro de
+  // promptDoBot), o tamanho do fio e o teto de saída. As duas últimas
+  // são aqui — e foi por elas que a extração do prompt derrubou a
+  // rota: levei o `var economia` junto e o resto da função continuou
+  // usando.
   var economia = !!bot.modo_economia;
-
-  // O menu vai junto no contexto: perguntas do tipo "o que vocês fazem"
-  // são respondidas melhor por quem enxerga as opções configuradas.
-  //
-  // No modo economia ele entra ENCURTADO — só o rótulo, sem a resposta
-  // inteira. É a maior peça do pedido depois do contexto, e o rótulo
-  // sozinho já diz ao modelo que o assunto existe e está coberto pelo
-  // menu; a resposta completa quem entrega é o próprio menu, de graça.
-  var oQueOBotSabe = itens
-    .filter(function (i) { return i.ativo; })
-    .map(function (i) {
-      return economia ? "- " + i.rotulo : "- " + i.rotulo + ": " + i.resposta;
-    })
-    .join("\n");
-
-  var sistema = economia
-    ? montarPromptEnxuto(bot, contexto, oQueOBotSabe)
-    : montarPromptCompleto(bot, contexto, oQueOBotSabe);
+  var sistema = promptDoBot(bot, itens);
 
   // O teto de gasto é por empresa. O bot da plataforma não tem
   // empresa — passa o id da própria conta de plataforma para o
@@ -6646,6 +6702,11 @@ async function decidirComIa(bot, itens, textoBruto, quem) {
   if (!r || !r.ok || !r.texto) {
     if (r && r.motivo) {
       secLog("chatbot_ia_nao_respondeu", { chatbot_id: bot.id, motivo: r.motivo });
+      // O motivo viaja junto para a TELA DE TESTE. Sem ele, o dono vê
+      // "não entendeu" e não sabe se foi falta de contexto, cota
+      // estourada ou o provedor recusando — foi assim que um 403 da
+      // xAI passou horas parecendo "a IA não presta".
+      dosComandos.motivo_ia = r.motivo;
     }
     // Volta para o que os COMANDOS responderiam. No modo misto isso é
     // o fallback do dono; no modo IA pode ser o menu inteiro, que é
@@ -8341,6 +8402,45 @@ async function rotasDoChatbot(req, res, ctx) {
     return jsonOk(res, { ok: true });
   }
 
+  // ── O QUE O BOT RECEBE ───────────────────────────
+  //
+  // Mostra o prompt montado: as regras, a personalidade escrita pelo
+  // dono, o contexto do negócio e o menu — na ordem e no texto exatos
+  // que vão para o modelo.
+  //
+  // Existe porque a personalidade era INVISÍVEL. O dono escrevia "fale
+  // como um padeiro simpático", salvava, e não tinha como saber se
+  // aquilo chegou ao bot. Quando a resposta vinha estranha, não dava
+  // para distinguir "o texto não chegou" de "chegou e o modelo
+  // ignorou" — e as duas coisas se consertam de formas opostas.
+  //
+  // Vem do mesmo promptDoBot() que o atendimento usa. Uma segunda
+  // montagem só para a tela mostraria um prompt que não é o que roda.
+  if (method === "GET" && resto === "/prompt") {
+    var botPr = await botDaEmpresa();
+    var itensPr = botPr.id
+      ? await DB.select("chatbot_itens",
+          `chatbot_id=eq.${botPr.id}&select=id,tipo,rotulo,resposta,ordem,ativo&order=ordem.asc`
+        ).catch(function () { return { body: [] }; })
+      : { body: [] };
+
+    var textoPr = promptDoBot(botPr, itensPr.body || []);
+
+    return jsonOk(res, {
+      prompt: textoPr,
+      // Contagem aproximada, para o dono ver o tamanho do que paga:
+      // cerca de 4 caracteres por token em português.
+      caracteres: textoPr.length,
+      tokens_aprox: Math.ceil(textoPr.length / 4),
+      modo_economia: !!botPr.modo_economia,
+      modo_atendimento: modoDoAtendimento(botPr),
+      // A IA nem é chamada sem contexto escrito. Dizer isso aqui evita
+      // o dono caprichar na personalidade e não entender por que o bot
+      // continua só no menu.
+      tem_contexto: !!String(botPr.contexto || "").trim()
+    });
+  }
+
   // ── Testar ──
   // Passa pela MESMA função de decisão que atende no chat, e não
   // grava nada. Se o teste usasse outro caminho, ele confirmaria
@@ -8383,6 +8483,8 @@ async function rotasDoChatbot(req, res, ctx) {
     return jsonOk(res, {
       resposta: decisaoTe.resposta,
       como:     decisaoTe.como,
+      // Por que a IA não entrou, quando não entrou.
+      motivo_ia: decisaoTe.motivo_ia || null,
       // Avisa que o bot está desligado em vez de deixar o dono
       // testar com sucesso e depois não entender por que a equipe
       // não recebe nada.
@@ -14946,8 +15048,8 @@ var server = http.createServer(async (req, res) => {
         "Últimos 90 dias de " + pessoa.nome + ":\n\n" + JSON.stringify(dados, null, 1), 500);
 
       if (!ficha.ok) {
-        if (ficha.motivo === "teto_do_mes") {
-          return jsonErr(res, "Você usou toda a cota de IA deste mês. Ela volta na virada do mês.", 429);
+        if (ehFaltaDeCotaDeIa(ficha.motivo)) {
+          return jsonErr(res, recadoDeCotaDeIa(ficha.motivo), 429);
         }
         return jsonErr(res, "Não consegui montar a ficha agora. Tente de novo em instantes.", 502);
       }
@@ -15022,8 +15124,8 @@ var server = http.createServer(async (req, res) => {
         // Cada motivo tem uma saída diferente para o dono. "Erro ao
         // gerar" nos três casos faria ele tentar de novo justamente
         // quando tentar de novo não resolve.
-        if (saida.motivo === "teto_do_mes") {
-          return jsonErr(res, "Você usou toda a cota de IA deste mês. Ela volta na virada do mês.", 429);
+        if (ehFaltaDeCotaDeIa(saida.motivo)) {
+          return jsonErr(res, recadoDeCotaDeIa(saida.motivo), 429);
         }
         if (saida.motivo === "sem_chave") {
           return jsonErr(res, "Recurso de IA não está configurado.", 503);

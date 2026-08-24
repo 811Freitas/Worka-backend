@@ -1452,7 +1452,18 @@ tr:hover td{background:var(--g50)}
           </div>
 
           <div id="cb-efeito-economia" style="display:none;font-size:.8rem;line-height:1.6;border-left:2px solid var(--gray200);padding:2px 0 2px 12px;margin-top:12px"></div>
-          <button class="btn btn-primary" onclick="salvarChatbot()">Salvar</button>
+
+          <!-- A personalidade era invisivel: o dono escrevia, salvava, e
+               nao tinha como saber se aquilo chegou ao bot. Quando a
+               resposta vinha estranha, "o texto nao chegou" e "chegou e
+               o modelo ignorou" pareciam a mesma coisa — e se
+               consertam de formas opostas. -->
+          <button type="button" class="btn btn-ghost" style="font-size:.8rem;padding:8px 14px;margin-top:12px"
+            onclick="verOPromptDoBot('cb')">Ver o que o bot recebe</button>
+          <pre id="cb-prompt" style="display:none;white-space:pre-wrap;word-break:break-word;background:var(--gray50,#f7f9f7);border-radius:var(--r);padding:14px;margin-top:10px;font-size:.76rem;line-height:1.6;max-height:340px;overflow:auto;font-family:ui-monospace,monospace"></pre>
+          <div id="cb-prompt-resumo" style="display:none;font-size:.76rem;color:var(--gray500);margin-top:6px"></div>
+
+          <button class="btn btn-primary" style="margin-top:14px" onclick="salvarChatbot()">Salvar</button>
         </div>
       </div>
       <!-- WHATSAPP.
@@ -3240,7 +3251,18 @@ tr:hover td{background:var(--g50)}
           </div>
 
           <div id="ow-efeito-economia" style="display:none;font-size:.8rem;line-height:1.6;border-left:2px solid var(--gray200);padding:2px 0 2px 12px;margin-top:12px"></div>
-          <button class="btn btn-primary" onclick="salvarChatbotOwner()">Salvar</button>
+
+          <!-- A personalidade era invisivel: o dono escrevia, salvava, e
+               nao tinha como saber se aquilo chegou ao bot. Quando a
+               resposta vinha estranha, "o texto nao chegou" e "chegou e
+               o modelo ignorou" pareciam a mesma coisa — e se
+               consertam de formas opostas. -->
+          <button type="button" class="btn btn-ghost" style="font-size:.8rem;padding:8px 14px;margin-top:12px"
+            onclick="verOPromptDoBot('ow')">Ver o que o bot recebe</button>
+          <pre id="ow-prompt" style="display:none;white-space:pre-wrap;word-break:break-word;background:var(--gray50,#f7f9f7);border-radius:var(--r);padding:14px;margin-top:10px;font-size:.76rem;line-height:1.6;max-height:340px;overflow:auto;font-family:ui-monospace,monospace"></pre>
+          <div id="ow-prompt-resumo" style="display:none;font-size:.76rem;color:var(--gray500);margin-top:6px"></div>
+
+          <button class="btn btn-primary" style="margin-top:14px" onclick="salvarChatbotOwner()">Salvar</button>
         </div>
       </div>
         <div class="card" id="ow-card-whatsapp" style="margin-bottom:16px">
@@ -11947,6 +11969,54 @@ async function carregarChatbot(T){
   carregarConversasChatbot_(T);
 }
 
+// Mostra o prompt montado — o texto exato que vai para o modelo.
+//
+// Sai do servidor, do mesmo promptDoBot() que o atendimento usa. Montar
+// uma previa aqui no navegador seria mais rapido e mostraria um prompt
+// que nao e o que roda, que e pior que nao mostrar nada.
+async function verOPromptDoBot(pre){
+  var T = pre === 'ow' ? TELA_BOT_WORKAP : TELA_BOT_EMPRESA;
+  var caixa   = document.getElementById(pre + '-prompt');
+  var resumo  = document.getElementById(pre + '-prompt-resumo');
+  if(!caixa) return;
+
+  // Segundo clique fecha.
+  if(caixa.style.display !== 'none'){
+    caixa.style.display = 'none';
+    if(resumo) resumo.style.display = 'none';
+    return;
+  }
+
+  caixa.style.display = '';
+  caixa.textContent = 'Montando...';
+  try {
+    var r = await fetch(API_BASE + T.base + '/prompt', { headers: cabecalhoAuth() });
+    var d = await r.json();
+    if(!r.ok){ caixa.textContent = d.error || 'Nao foi possivel montar.'; return; }
+
+    caixa.textContent = d.prompt || '(vazio)';
+    if(resumo){
+      resumo.style.display = '';
+      var partes = [
+        d.caracteres + ' caracteres (~' + d.tokens_aprox + ' tokens por resposta)',
+        d.modo_economia ? 'modo economia ligado' : 'modo normal'
+      ];
+      // A IA nem e chamada sem contexto escrito. Dizer isso aqui evita
+      // o dono caprichar na personalidade e nao entender por que o bot
+      // continua so no menu.
+      if(!d.tem_contexto){
+        partes.push('SEM texto sobre o negocio — a IA nao e chamada assim');
+        resumo.style.color = '#b45309';
+      } else {
+        resumo.style.color = 'var(--gray500)';
+      }
+      resumo.textContent = partes.join(' · ');
+    }
+  } catch(e){
+    caixa.textContent = 'Sem conexao com o servidor.';
+  }
+}
+
 // O que cada modo faz, dito na hora de escolher.
 //
 // Os três nomes não se explicam sozinhos, e a diferença entre eles é
@@ -12745,6 +12815,32 @@ async function testarChatbot_(T){
     explica.style.cssText = 'font-size:.78rem;color:var(--gray500);margin-top:8px';
     explica.textContent = 'O assistente ' + (COMO[d.como] || d.como) + '.';
     alvo.appendChild(explica);
+
+    // POR QUE a IA não entrou.
+    //
+    // Isto existe por causa de um dia inteiro perdido: o provedor
+    // passou horas recusando as chamadas e a tela dizia só "não
+    // entendeu". Do lado de fora, cota estourada, chave recusada e
+    // falta de contexto são indistinguíveis — e cada uma se conserta
+    // num lugar diferente.
+    if(d.motivo_ia){
+      var POR_QUE = {
+        sem_chave:          'A chave da IA não está configurada neste servidor.',
+        sem_contexto:       'Você não escreveu o texto sobre o negócio — sem ele a IA nem é chamada.',
+        credito_acabou:     'O crédito de IA do mês acabou para toda a plataforma.',
+        cota_da_empresa:    'A cota de IA desta conta acabou neste mês.',
+        cota_da_plataforma: 'A cota de IA da Workap acabou neste mês.',
+        teto_do_mes:        'O teto de gasto de IA do mês foi atingido.',
+        resposta_vazia:     'A IA respondeu, mas veio em branco.',
+        rodadas_demais:     'A IA ficou consultando sem concluir e foi interrompida.',
+        erro:               'O provedor de IA recusou a chamada — veja o Diagnóstico, a resposta dele está lá.'
+      };
+      var motivo = document.createElement('div');
+      motivo.style.cssText = 'font-size:.78rem;color:#b45309;margin-top:4px;line-height:1.55';
+      motivo.textContent = 'A IA não respondeu: ' +
+        (POR_QUE[d.motivo_ia] || d.motivo_ia);
+      alvo.appendChild(motivo);
+    }
 
     if(d.aviso){
       var alerta = document.createElement('div');
