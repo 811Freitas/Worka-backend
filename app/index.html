@@ -1343,8 +1343,9 @@ tr:hover td{background:var(--g50)}
             </div>
             <div class="field form-full">
               <label>O que o bot precisa saber sobre o seu negócio</label>
-              <textarea id="cb-contexto" rows="6" maxlength="4000"
+              <textarea id="cb-contexto" rows="6"
                 placeholder="Horário, endereço, preços, formas de pagamento, o que vocês fazem e o que não fazem. Escreva do seu jeito, corrido — não precisa formatar."></textarea>
+              <div id="cb-contexto-conta" style="font-size:.72rem;color:var(--gray500);text-align:right;margin-top:4px"></div>
               <div style="font-size:.78rem;color:var(--gray500);line-height:1.6;margin-top:6px">
                 É daqui que saem as respostas para o que <strong>não</strong> está no menu.
                 Quem pergunta "vcs abrem sábado?" só é atendido se sábado estiver escrito aqui —
@@ -1411,8 +1412,9 @@ tr:hover td{background:var(--g50)}
                 <button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:6px 12px"
                   onclick="usarTomPronto('cb','descontraido')">Descontraído</button>
               </div>
-              <textarea id="cb-personalidade" rows="3" maxlength="600"
+              <textarea id="cb-personalidade" rows="3"
                 placeholder="Ex.: fale como um atendente experiente de padaria de bairro, chame a pessoa de você, seja breve e caloroso."></textarea>
+              <div id="cb-personalidade-conta" style="font-size:.72rem;color:var(--gray500);text-align:right;margin-top:4px"></div>
               <div style="font-size:.78rem;color:var(--gray500);line-height:1.6;margin-top:6px">
                 Os botões acima só preenchem o campo — depois você edita do seu jeito.
                 O tom nunca libera o bot a inventar preço ou horário: isso continua
@@ -3142,8 +3144,9 @@ tr:hover td{background:var(--g50)}
               </div>
               <div class="field form-full">
                 <label>O que o bot precisa saber sobre a Workap</label>
-                <textarea id="ow-contexto" rows="6" maxlength="4000"
+                <textarea id="ow-contexto" rows="6"
                   placeholder="Horário, endereço, preços, formas de pagamento, o que vocês fazem e o que não fazem. Escreva do seu jeito, corrido — não precisa formatar."></textarea>
+              <div id="ow-contexto-conta" style="font-size:.72rem;color:var(--gray500);text-align:right;margin-top:4px"></div>
                 <div style="font-size:.78rem;color:var(--gray500);line-height:1.6;margin-top:6px">
                   É daqui que saem as respostas para o que <strong>não</strong> está no menu.
                   Quem pergunta "vcs abrem sábado?" só é atendido se sábado estiver escrito aqui —
@@ -3210,8 +3213,9 @@ tr:hover td{background:var(--g50)}
                 <button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:6px 12px"
                   onclick="usarTomPronto('ow','descontraido')">Descontraído</button>
               </div>
-              <textarea id="ow-personalidade" rows="3" maxlength="600"
+              <textarea id="ow-personalidade" rows="3"
                 placeholder="Ex.: fale como um atendente experiente de padaria de bairro, chame a pessoa de você, seja breve e caloroso."></textarea>
+              <div id="ow-personalidade-conta" style="font-size:.72rem;color:var(--gray500);text-align:right;margin-top:4px"></div>
               <div style="font-size:.78rem;color:var(--gray500);line-height:1.6;margin-top:6px">
                 Os botões acima só preenchem o campo — depois você edita do seu jeito.
                 O tom nunca libera o bot a inventar preço ou horário: isso continua
@@ -11954,6 +11958,10 @@ async function carregarChatbot(T){
   if(mem) mem.value = String(bot.memoria_trocas === undefined || bot.memoria_trocas === null ? 6 : bot.memoria_trocas);
   var eco = campoBot(T, 'economia');
   if(eco) eco.value = bot.modo_economia ? 'sim' : 'nao';
+  // O contador so reage a digitacao; ao abrir a tela ninguem digitou,
+  // e o dono que ja escreveu tres mil caracteres veria o campo mudo.
+  contarTextoDoBot(T.pre + '-contexto');
+  contarTextoDoBot(T.pre + '-personalidade');
 
   var badge = campoBot(T, 'badge');
   badge.textContent = bot.ativo ? 'ligado' : 'desligado';
@@ -11974,6 +11982,44 @@ async function carregarChatbot(T){
 // Sai do servidor, do mesmo promptDoBot() que o atendimento usa. Montar
 // uma previa aqui no navegador seria mais rapido e mostraria um prompt
 // que nao e o que roda, que e pior que nao mostrar nada.
+// ── QUANTO VOCE ESCREVEU, E QUANTO ISSO CUSTA ──
+//
+// Os campos nao tem mais teto de caracteres. Isso e bom para quem tem
+// muito a dizer sobre o negocio, e e uma conta a pagar: o texto inteiro
+// viaja em TODA mensagem que a IA responde. Um numero que so aparece na
+// fatura no fim do mes e um numero que nao ajuda ninguem a decidir.
+//
+// ~4 caracteres por token em portugues.
+var LIMITE_TEXTO_DO_BOT = 100000;
+
+function contarTextoDoBot(id){
+  var campo = document.getElementById(id);
+  var saida = document.getElementById(id + '-conta');
+  if(!campo || !saida) return;
+
+  var n = campo.value.length;
+  if(!n){ saida.textContent = ''; return; }
+
+  var partes = [n.toLocaleString('pt-BR') + ' caracteres',
+                '~' + Math.ceil(n/4).toLocaleString('pt-BR') + ' tokens por resposta'];
+
+  if(n > LIMITE_TEXTO_DO_BOT){
+    saida.style.color = '#dc2626';
+    partes.push('passou do maximo de ' + LIMITE_TEXTO_DO_BOT.toLocaleString('pt-BR') +
+                ' — tire ' + (n - LIMITE_TEXTO_DO_BOT).toLocaleString('pt-BR'));
+  } else {
+    saida.style.color = 'var(--gray500)';
+  }
+  saida.textContent = partes.join(' · ');
+}
+
+// Liga o contador nos quatro campos, sem depender de qual tela abriu.
+['cb-contexto','ow-contexto','cb-personalidade','ow-personalidade'].forEach(function(id){
+  document.addEventListener('input', function(e){
+    if(e.target && e.target.id === id) contarTextoDoBot(id);
+  });
+});
+
 async function verOPromptDoBot(pre){
   var T = pre === 'ow' ? TELA_BOT_WORKAP : TELA_BOT_EMPRESA;
   var caixa   = document.getElementById(pre + '-prompt');
@@ -12006,6 +12052,16 @@ async function verOPromptDoBot(pre){
       // continua so no menu.
       if(!d.tem_contexto){
         partes.push('SEM texto sobre o negocio — a IA nao e chamada assim');
+        resumo.style.color = '#b45309';
+      } else if(d.contexto_cortado > 0){
+        // O modo economia apara o texto do negocio. Sem dizer aqui, quem
+        // escreveu muito acharia que o texto "nao foi salvo" — e o lugar
+        // certo de descobrir isso e olhando o prompt, nao pela reclamacao
+        // de um cliente que perguntou algo que estava escrito.
+        partes.push('modo economia deixou de fora ' +
+                    d.contexto_cortado.toLocaleString('pt-BR') +
+                    ' dos ' + d.contexto_escrito.toLocaleString('pt-BR') +
+                    ' caracteres do negocio');
         resumo.style.color = '#b45309';
       } else {
         resumo.style.color = 'var(--gray500)';
@@ -12070,6 +12126,7 @@ function usarTomPronto(pre, qual){
   var campo = document.getElementById(pre + '-personalidade');
   if(!campo) return;
   campo.value = TONS_PRONTOS[qual] || '';
+  contarTextoDoBot(pre + '-personalidade');   // preencher por codigo nao dispara "input"
   campo.focus();
 }
 

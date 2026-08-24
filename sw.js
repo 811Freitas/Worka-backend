@@ -9,6 +9,28 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v60: o texto sobre o negocio deixa de ter teto de caracteres.
+//
+//      Eram 4.000 no contexto e 600 na personalidade, e os dois
+//      cortavam CALADOS: o dono colava a descricao inteira do negocio,
+//      via "salvo com sucesso", e metade tinha ido embora. O bot depois
+//      respondia "nao tenho essa informacao" sobre algo que ele jurava
+//      ter escrito, e nao havia onde olhar para descobrir por que.
+//
+//      Agora nao ha corte. O que passar de 100 mil caracteres — cerca
+//      de 40 paginas, muito alem de qualquer descricao real — e
+//      RECUSADO com o numero na tela, e o dono decide o que tirar. Um
+//      limite que avisa e um limite; um que corta em silencio e um
+//      defeito.
+//
+//      O campo agora conta o que voce escreveu e quanto isso custa por
+//      resposta, porque o prompt viaja em TODA mensagem — numero que so
+//      aparece na fatura no fim do mes nao ajuda ninguem a decidir.
+//
+//      O unico corte que sobrou e o do modo economia, que e o produto
+//      que o dono pediu ao liga-lo — e mesmo esse a tela declara,
+//      dizendo quantos caracteres ficaram de fora.
+
 // v59: a personalidade do bot deixa de ser ato de fe.
 //
 //      O dono escrevia a personalidade, salvava, e nao tinha como
@@ -335,7 +357,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v59';
+var CACHE = 'workap-v60';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
