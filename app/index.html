@@ -274,6 +274,44 @@ tr:hover td{background:var(--g50)}
 .btn-sm{padding:6px 12px;font-size:0.75rem}
 
 /* ── FORMULÁRIOS ── */
+/* ── PERSONALIDADE DO BOT ────────────────────────────────
+   O painel do prompt e os botoes de tom viviam com medidas fixas
+   escritas no atributo style. Num celular de 360px o painel de 340px
+   de altura virava uma janelinha de texto monoespacado, e os quatro
+   botoes de tom quebravam em duas fileiras irregulares. */
+
+/* Como funciona: tres passos que dizem o que o bot faz com o texto. */
+.bot-passos{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0 18px}
+.bot-passo{background:var(--gray50,#f7f9f7);border-radius:var(--r);padding:12px 14px;min-width:0}
+.bot-passo b{display:block;font-size:.8rem;color:var(--gray900);margin-bottom:3px}
+.bot-passo span{font-size:.76rem;color:var(--gray500);line-height:1.5}
+.bot-passo-n{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;
+  border-radius:50%;background:var(--verde,#1e8a40);color:#fff;font-size:.76rem;font-weight:800;
+  line-height:1;margin-bottom:6px}
+
+/* Botoes de tom: uma grade que se reparte igual, em vez de wrap torto. */
+.bot-tons{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+.bot-tons .btn{font-size:.78rem;padding:8px 6px;width:100%}
+
+/* O painel do prompt. Altura relativa a tela: num celular deitado ou
+   numa janela baixa, 340px fixos escondiam quase tudo. */
+.bot-prompt{white-space:pre-wrap;word-break:break-word;background:var(--gray50,#f7f9f7);
+  border-radius:var(--r);padding:14px;margin-top:10px;font-size:.76rem;line-height:1.6;
+  max-height:min(55vh,420px);overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  border:1px solid var(--gray100)}
+
+@media(max-width:768px){
+  /* Tres passos empilham: lado a lado em 360px sobra uma palavra por linha. */
+  .bot-passos{grid-template-columns:1fr;gap:8px}
+  .bot-tons{grid-template-columns:repeat(2,1fr)}
+  /* Texto do prompt um ponto maior no celular: monoespacado em .76rem
+     numa tela estreita e onde a leitura realmente cansa. */
+  .bot-prompt{font-size:.8rem;max-height:min(60vh,480px);padding:12px}
+}
+@media(max-width:340px){
+  .bot-tons{grid-template-columns:1fr}
+}
+
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .form-full{grid-column:1/-1}
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(10,20,14,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:100;align-items:center;justify-content:center;padding:20px;animation:fadeIn var(--dur) var(--ease) both}
@@ -1394,23 +1432,48 @@ tr:hover td{background:var(--g50)}
         </div>
         <div class="card-body">
           <p style="font-size:.86rem;color:var(--gray500);margin-bottom:16px;line-height:1.6">
-            O jeito de falar não muda o que ele sabe — o conteúdo continua saindo do texto
-            sobre o negócio. Aqui você escolhe o <strong>tom</strong>, o quanto ele
+            O bot <strong>lê tudo o que você escreveu</strong> sobre o negócio e responde
+            o cliente <strong>com base nessas informações</strong> — não com base no que ele
+            acha. Aqui você escolhe o <strong>tom</strong> dessa resposta, o quanto ele
             <strong>lembra</strong> da conversa, e se ele deve <strong>gastar menos</strong>.
           </p>
+
+          <!-- O QUE ELE FAZ COM O QUE VOCE ESCREVEU.
+               O cartao dizia como ajustar o tom e nao dizia o principal: que
+               o texto do negocio e lido a cada mensagem e e de la que sai a
+               resposta. Sem isso, o dono escrevia o texto sem saber para que
+               servia, e nao tinha como ligar "escrevi X" a "o bot respondeu
+               Y" — que e justamente o que ele precisa entender para
+               melhorar o proprio texto. -->
+          <div class="bot-passos">
+            <div class="bot-passo">
+              <span class="bot-passo-n">1</span>
+              <b>Você escreve</b>
+              <span>Horário, endereço, preços, o que vocês fazem — no campo acima,
+              do seu jeito, sem formatar.</span>
+            </div>
+            <div class="bot-passo">
+              <span class="bot-passo-n">2</span>
+              <b>O bot lê</b>
+              <span>A cada mensagem que chega, esse texto inteiro vai junto com a
+              pergunta do cliente. Confira em <em>“Ver o que o bot recebe”</em>.</span>
+            </div>
+            <div class="bot-passo">
+              <span class="bot-passo-n">3</span>
+              <b>E responde com base nele</b>
+              <span>Só com o que está escrito. O que não estiver ali, ele não
+              inventa: diz que a equipe responde em seguida.</span>
+            </div>
+          </div>
 
           <div class="form-grid">
             <div class="field form-full">
               <label>Como ele fala</label>
-              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
-                <button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:6px 12px"
-                  onclick="usarTomPronto('cb','simpatico')">Simpático</button>
-                <button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:6px 12px"
-                  onclick="usarTomPronto('cb','direto')">Direto</button>
-                <button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:6px 12px"
-                  onclick="usarTomPronto('cb','formal')">Formal</button>
-                <button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:6px 12px"
-                  onclick="usarTomPronto('cb','descontraido')">Descontraído</button>
+              <div class="bot-tons">
+                <button type="button" class="btn btn-ghost" onclick="usarTomPronto('cb','simpatico')">Simpático</button>
+                <button type="button" class="btn btn-ghost" onclick="usarTomPronto('cb','direto')">Direto</button>
+                <button type="button" class="btn btn-ghost" onclick="usarTomPronto('cb','formal')">Formal</button>
+                <button type="button" class="btn btn-ghost" onclick="usarTomPronto('cb','descontraido')">Descontraído</button>
               </div>
               <textarea id="cb-personalidade" rows="3"
                 placeholder="Ex.: fale como um atendente experiente de padaria de bairro, chame a pessoa de você, seja breve e caloroso."></textarea>
@@ -1460,9 +1523,14 @@ tr:hover td{background:var(--g50)}
                resposta vinha estranha, "o texto nao chegou" e "chegou e
                o modelo ignorou" pareciam a mesma coisa — e se
                consertam de formas opostas. -->
-          <button type="button" class="btn btn-ghost" style="font-size:.8rem;padding:8px 14px;margin-top:12px"
+          <button type="button" id="cb-btn-prompt" class="btn btn-ghost" style="font-size:.8rem;padding:8px 14px;margin-top:12px"
             onclick="verOPromptDoBot('cb')">Ver o que o bot recebe</button>
-          <pre id="cb-prompt" style="display:none;white-space:pre-wrap;word-break:break-word;background:var(--gray50,#f7f9f7);border-radius:var(--r);padding:14px;margin-top:10px;font-size:.76rem;line-height:1.6;max-height:340px;overflow:auto;font-family:ui-monospace,monospace"></pre>
+          <div id="cb-prompt-titulo" style="display:none;font-size:.78rem;color:var(--gray500);line-height:1.6;margin-top:10px">
+            Isto e o que vai junto de <strong>cada</strong> mensagem do cliente: as regras,
+            o seu texto sobre o negocio e o jeito de falar que voce pediu. O bot le tudo
+            isto antes de responder, e a resposta sai daqui.
+          </div>
+          <pre id="cb-prompt" class="bot-prompt" style="display:none"></pre>
           <div id="cb-prompt-resumo" style="display:none;font-size:.76rem;color:var(--gray500);margin-top:6px"></div>
 
           <button class="btn btn-primary" style="margin-top:14px" onclick="salvarChatbot()">Salvar</button>
@@ -3195,23 +3263,48 @@ tr:hover td{background:var(--g50)}
         </div>
         <div class="card-body">
           <p style="font-size:.86rem;color:var(--gray500);margin-bottom:16px;line-height:1.6">
-            O jeito de falar não muda o que ele sabe — o conteúdo continua saindo do texto
-            sobre o negócio. Aqui você escolhe o <strong>tom</strong>, o quanto ele
+            O bot <strong>lê tudo o que você escreveu</strong> sobre o negócio e responde
+            o cliente <strong>com base nessas informações</strong> — não com base no que ele
+            acha. Aqui você escolhe o <strong>tom</strong> dessa resposta, o quanto ele
             <strong>lembra</strong> da conversa, e se ele deve <strong>gastar menos</strong>.
           </p>
+
+          <!-- O QUE ELE FAZ COM O QUE VOCE ESCREVEU.
+               O cartao dizia como ajustar o tom e nao dizia o principal: que
+               o texto do negocio e lido a cada mensagem e e de la que sai a
+               resposta. Sem isso, o dono escrevia o texto sem saber para que
+               servia, e nao tinha como ligar "escrevi X" a "o bot respondeu
+               Y" — que e justamente o que ele precisa entender para
+               melhorar o proprio texto. -->
+          <div class="bot-passos">
+            <div class="bot-passo">
+              <span class="bot-passo-n">1</span>
+              <b>Você escreve</b>
+              <span>Horário, endereço, preços, o que vocês fazem — no campo acima,
+              do seu jeito, sem formatar.</span>
+            </div>
+            <div class="bot-passo">
+              <span class="bot-passo-n">2</span>
+              <b>O bot lê</b>
+              <span>A cada mensagem que chega, esse texto inteiro vai junto com a
+              pergunta do cliente. Confira em <em>“Ver o que o bot recebe”</em>.</span>
+            </div>
+            <div class="bot-passo">
+              <span class="bot-passo-n">3</span>
+              <b>E responde com base nele</b>
+              <span>Só com o que está escrito. O que não estiver ali, ele não
+              inventa: diz que a equipe responde em seguida.</span>
+            </div>
+          </div>
 
           <div class="form-grid">
             <div class="field form-full">
               <label>Como ele fala</label>
-              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
-                <button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:6px 12px"
-                  onclick="usarTomPronto('ow','simpatico')">Simpático</button>
-                <button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:6px 12px"
-                  onclick="usarTomPronto('ow','direto')">Direto</button>
-                <button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:6px 12px"
-                  onclick="usarTomPronto('ow','formal')">Formal</button>
-                <button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:6px 12px"
-                  onclick="usarTomPronto('ow','descontraido')">Descontraído</button>
+              <div class="bot-tons">
+                <button type="button" class="btn btn-ghost" onclick="usarTomPronto('ow','simpatico')">Simpático</button>
+                <button type="button" class="btn btn-ghost" onclick="usarTomPronto('ow','direto')">Direto</button>
+                <button type="button" class="btn btn-ghost" onclick="usarTomPronto('ow','formal')">Formal</button>
+                <button type="button" class="btn btn-ghost" onclick="usarTomPronto('ow','descontraido')">Descontraído</button>
               </div>
               <textarea id="ow-personalidade" rows="3"
                 placeholder="Ex.: fale como um atendente experiente de padaria de bairro, chame a pessoa de você, seja breve e caloroso."></textarea>
@@ -3261,9 +3354,14 @@ tr:hover td{background:var(--g50)}
                resposta vinha estranha, "o texto nao chegou" e "chegou e
                o modelo ignorou" pareciam a mesma coisa — e se
                consertam de formas opostas. -->
-          <button type="button" class="btn btn-ghost" style="font-size:.8rem;padding:8px 14px;margin-top:12px"
+          <button type="button" id="ow-btn-prompt" class="btn btn-ghost" style="font-size:.8rem;padding:8px 14px;margin-top:12px"
             onclick="verOPromptDoBot('ow')">Ver o que o bot recebe</button>
-          <pre id="ow-prompt" style="display:none;white-space:pre-wrap;word-break:break-word;background:var(--gray50,#f7f9f7);border-radius:var(--r);padding:14px;margin-top:10px;font-size:.76rem;line-height:1.6;max-height:340px;overflow:auto;font-family:ui-monospace,monospace"></pre>
+          <div id="ow-prompt-titulo" style="display:none;font-size:.78rem;color:var(--gray500);line-height:1.6;margin-top:10px">
+            Isto e o que vai junto de <strong>cada</strong> mensagem do cliente: as regras,
+            o seu texto sobre o negocio e o jeito de falar que voce pediu. O bot le tudo
+            isto antes de responder, e a resposta sai daqui.
+          </div>
+          <pre id="ow-prompt" class="bot-prompt" style="display:none"></pre>
           <div id="ow-prompt-resumo" style="display:none;font-size:.76rem;color:var(--gray500);margin-top:6px"></div>
 
           <button class="btn btn-primary" style="margin-top:14px" onclick="salvarChatbotOwner()">Salvar</button>
@@ -12024,15 +12122,18 @@ async function verOPromptDoBot(pre){
   var T = pre === 'ow' ? TELA_BOT_WORKAP : TELA_BOT_EMPRESA;
   var caixa   = document.getElementById(pre + '-prompt');
   var resumo  = document.getElementById(pre + '-prompt-resumo');
+  var titulo  = document.getElementById(pre + '-prompt-titulo');
   if(!caixa) return;
 
   // Segundo clique fecha.
   if(caixa.style.display !== 'none'){
     caixa.style.display = 'none';
     if(resumo) resumo.style.display = 'none';
+    if(titulo) titulo.style.display = 'none';
     return;
   }
 
+  if(titulo) titulo.style.display = '';
   caixa.style.display = '';
   caixa.textContent = 'Montando...';
   try {
