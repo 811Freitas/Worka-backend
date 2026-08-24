@@ -9,6 +9,29 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v62: sem limite de caracteres. Nenhum.
+//
+//      A v60 tinha trocado o corte calado de 4.000 por uma recusa em
+//      100.000. Melhor, mas ainda era um teto -- um numero que alguem
+//      escolheu e que um dia ia barrar o texto de alguem.
+//
+//      Saiu. Cole o cardapio inteiro, a tabela de precos, as trinta
+//      perguntas frequentes. A coluna no Postgres e `text` e nao tem
+//      limite pratico, e o SANITIZE recebe Infinity de proposito: um
+//      numero grande no lugar dele seria o mesmo teto com outra roupa.
+//
+//      Sobra uma fronteira, e ela nao e nossa: o modelo tem janela de
+//      contexto, e o texto viaja em TODA mensagem. Nenhuma das duas
+//      coisas justifica impedir o dono de escrever -- justificam ele
+//      VER o tamanho do que escreveu. O contador embaixo do campo faz
+//      isso, e nao barra nada: acima de 40 mil caracteres ele lembra
+//      que o texto vai junto em cada resposta, e acima de 400 mil avisa
+//      que o proprio modelo pode recusar de uma vez.
+//
+//      O unico teto que ficou e o do CORPO da requisicao, 8 MB, que e
+//      outra coisa: sem ele um pedido de gigabytes derruba o servidor
+//      de todo mundo por falta de memoria. 8 MB sao ~1.600 paginas.
+
 // v61: a aba de personalidade diz o que o bot FAZ com o texto.
 //
 //      O cartao explicava como ajustar o tom e nao dizia o principal:
@@ -378,7 +401,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v61';
+var CACHE = 'workap-v62';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';

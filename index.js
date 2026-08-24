@@ -200,23 +200,27 @@ const CONFIG = {
 
   // ── QUANTO O DONO PODE ESCREVER SOBRE O NEGÓCIO ───────────
   //
-  // Era 4.000 caracteres no contexto e 600 na personalidade, e os dois
-  // cortavam CALADOS: o dono colava a descrição inteira do negócio,
-  // via "salvo com sucesso", e metade tinha ido embora sem aviso. O
-  // bot então respondia "não tenho essa informação" sobre uma coisa
-  // que ele jurava ter escrito.
+  // Nada. Não há teto de caracteres, e é uma decisão, não um
+  // esquecimento: quem tem um cardápio inteiro, uma tabela de preços ou
+  // trinta perguntas frequentes escreve tudo, e o bot passa a saber
+  // tudo. A coluna no Postgres é `text`, que não tem limite prático.
   //
-  // Agora não há corte: o que não couber é RECUSADO com o número na
-  // tela, e o dono decide o que tirar. Um limite que avisa é um
-  // limite; um limite que corta em silêncio é um defeito.
+  // O que existia aqui antes: 4.000 caracteres cortando CALADO, depois
+  // um teto de 100.000 que RECUSAVA. Os dois saíram.
   //
-  // Este número não é "infinito" porque infinito não existe do outro
-  // lado: o modelo tem janela de contexto, e o prompt inteiro viaja em
-  // TODA mensagem — 200 mil caracteres seriam ~50 mil tokens cobrados
-  // por resposta. 100 mil caracteres são cerca de 40 páginas de texto
-  // corrido, muito além de qualquer descrição de negócio real, e ainda
-  // cabem com folga na janela.
-  LIMITE_TEXTO_DO_BOT: 100000,
+  // Sobra uma única fronteira, e ela não é nossa: o modelo tem janela
+  // de contexto, e o prompt inteiro viaja em TODA mensagem. Um texto
+  // grande demais é recusado pelo provedor, e um texto grande custa
+  // mais em cada resposta. Nenhuma das duas coisas é motivo para
+  // impedir o dono de escrever — são motivo para ele VER o tamanho do
+  // que escreveu, que é o que a tela faz embaixo do campo.
+  //
+  // O número abaixo é o teto do CORPO da requisição HTTP, que é outra
+  // coisa: sem ele, um pedido de gigabytes derruba o servidor de todo
+  // mundo por falta de memória. 8 MB são cerca de 1.600 páginas de
+  // texto corrido — nenhuma descrição de negócio chega perto, e a
+  // proteção continua de pé.
+  CORPO_MAXIMO_DO_CHATBOT: 8 * 1024 * 1024,
 
   // ── O DINHEIRO QUE EXISTE DE VERDADE ──────────────────────
   //
@@ -6517,27 +6521,6 @@ function avisarDeFalhaDaIa(e) {
  * testes exercitam e que o botão "testar" usa.
  */
 /**
- * Recusa o texto que nao cabe, dizendo o tamanho — em vez de cortar.
- *
- * Devolve a mensagem de erro, ou null quando esta tudo bem.
- *
- * Existe porque o contrario ja estava aqui: SANITIZE.string(x, 4000)
- * cortava no caractere 4.000 e devolvia 200 "salvo com sucesso". O
- * dono colava a descricao inteira do negocio, a tela dizia que deu
- * certo, e o bot depois respondia "nao tenho essa informacao" sobre
- * algo que ele tinha escrito — sem nenhum lugar onde olhar para
- * descobrir por que.
- */
-function recusarTextoLongoDoBot(valor, comoSeChama) {
-  var n = String(valor == null ? "" : valor).length;
-  if (n <= CONFIG.LIMITE_TEXTO_DO_BOT) return null;
-  return comoSeChama + " tem " + n.toLocaleString("pt-BR") + " caracteres, e o " +
-         "maximo e " + CONFIG.LIMITE_TEXTO_DO_BOT.toLocaleString("pt-BR") + ". " +
-         "Nada foi salvo — tire " + (n - CONFIG.LIMITE_TEXTO_DO_BOT).toLocaleString("pt-BR") +
-         " caracteres e salve de novo.";
-}
-
-/**
  * A personalidade escrita pelo dono, pronta para entrar no prompt.
  *
  * Fica numa coluna SEPARADA do contexto de propósito. Contexto é o que
@@ -7974,7 +7957,7 @@ async function rotasDoChatbot(req, res, ctx) {
     // Corpo maior que o padrao de 50 KB: o texto sobre o negocio sozinho
     // pode passar disso, e estourar aqui daria "Payload muito grande" —
     // erro de encanamento no lugar de uma frase que explica o que fazer.
-    var bodyBot = parseBody(await getBody(req, 512 * 1024));
+    var bodyBot = parseBody(await getBody(req, CONFIG.CORPO_MAXIMO_DO_CHATBOT));
     if (!bodyBot) return jsonErr(res, "Dados inválidos");
     var botAtual = await botDaEmpresa();
 
@@ -7995,9 +7978,11 @@ async function rotasDoChatbot(req, res, ctx) {
     // tela nunca conseguiria gravá-las — o defeito de "construído e
     // não ligado" que já mordeu este projeto mais de uma vez.
     if (bodyBot.contexto !== undefined) {
-      var errCtx = recusarTextoLongoDoBot(bodyBot.contexto, "O texto sobre o negócio");
-      if (errCtx) return jsonErr(res, errCtx);
-      mudaBot.contexto = SANITIZE.string(bodyBot.contexto, CONFIG.LIMITE_TEXTO_DO_BOT) || null;
+      // Infinity, e não um número grande: um número grande é um teto que
+      // alguém escolheu e que um dia vai cortar o texto de alguém sem
+      // avisar. SANITIZE continua limpando o que é perigoso; o que ele
+      // não faz mais é decidir quanto o dono pode escrever.
+      mudaBot.contexto = SANITIZE.string(bodyBot.contexto, Infinity) || null;
     }
     // COMO O BOT ATENDE. Uma coluna, três valores.
     //
@@ -8035,9 +8020,7 @@ async function rotasDoChatbot(req, res, ctx) {
     // das três colunas da migração 038, e existe teste cobrando cada
     // uma delas justamente por isso.
     if (bodyBot.personalidade !== undefined) {
-      var errPers = recusarTextoLongoDoBot(bodyBot.personalidade, "O jeito de falar");
-      if (errPers) return jsonErr(res, errPers);
-      mudaBot.personalidade = SANITIZE.string(bodyBot.personalidade, CONFIG.LIMITE_TEXTO_DO_BOT) || null;
+      mudaBot.personalidade = SANITIZE.string(bodyBot.personalidade, Infinity) || null;
     }
     if (bodyBot.memoria_trocas !== undefined) {
       var mem = parseInt(bodyBot.memoria_trocas, 10);
@@ -8504,7 +8487,10 @@ async function rotasDoChatbot(req, res, ctx) {
         if (!botPr.modo_economia) return 0;
         return Math.max(0, String(botPr.contexto || "").length - ECONOMIA_CORTA_CONTEXTO_EM);
       })(),
-      limite_caracteres: CONFIG.LIMITE_TEXTO_DO_BOT,
+      // Sem teto de caracteres. A tela usa isto para NAO mostrar aviso de
+      // limite — e para o dia em que alguem reintroduzir um limite aqui
+      // sem lembrar de contar para a tela.
+      limite_caracteres: null,
       // A IA nem é chamada sem contexto escrito. Dizer isso aqui evita
       // o dono caprichar na personalidade e não entender por que o bot
       // continua só no menu.
