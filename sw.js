@@ -9,6 +9,27 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v61: a aba de personalidade diz o que o bot FAZ com o texto.
+//
+//      O cartao explicava como ajustar o tom e nao dizia o principal:
+//      que o texto sobre o negocio e lido a cada mensagem e e de la que
+//      sai a resposta. O dono escrevia sem saber para que servia, e nao
+//      tinha como ligar "escrevi X" a "o bot respondeu Y" -- que e
+//      justamente o que ele precisa entender para melhorar o texto.
+//
+//      Agora abre com tres passos: voce escreve, o bot le, ele responde
+//      com base nisso. E o painel do prompt ganhou uma linha dizendo
+//      que aquilo vai junto de CADA mensagem, em vez de ser uma parede
+//      de texto sem legenda.
+//
+//      RESPONSIVIDADE: as medidas fixas escritas nos atributos style
+//      sairam para classes proprias. O painel do prompt tinha 340px de
+//      altura fixa -- numa tela baixa isso virava uma janelinha; agora
+//      acompanha a tela. Os quatro botoes de tom quebravam em fileiras
+//      irregulares; viraram grade de 4, 2 ou 1 coluna conforme a
+//      largura. E os tres passos empilham no celular, onde lado a lado
+//      sobraria uma palavra por linha.
+
 // v60: o texto sobre o negocio deixa de ter teto de caracteres.
 //
 //      Eram 4.000 no contexto e 600 na personalidade, e os dois
@@ -357,7 +378,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v60';
+var CACHE = 'workap-v61';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
