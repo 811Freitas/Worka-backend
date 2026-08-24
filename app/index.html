@@ -1351,12 +1351,14 @@ tr:hover td{background:var(--g50)}
                 o bot não inventa, e diz que vai chamar alguém quando não souber.
               </div>
             </div>
-            <div class="field">
-              <label>Responder fora do menu</label>
-              <select id="cb-usa-ia">
-                <option value="sim">Sim — usa o texto acima para responder</option>
-                <option value="nao">Não — só menu e palavras-chave</option>
+            <div class="field form-full">
+              <label>Como o bot atende</label>
+              <select id="cb-modo" onchange="explicarModoDoBot('cb')">
+                <option value="misto">Comandos primeiro, IA no que sobrar (recomendado)</option>
+                <option value="ia">Por IA — ele conversa, em vez de pedir número</option>
+                <option value="comandos">Só pelos meus comandos — sem IA</option>
               </select>
+              <div id="cb-modo-explica" style="font-size:.78rem;color:var(--gray500);line-height:1.6;margin-top:6px"></div>
             </div>
             <div class="field form-full">
               <label>Consultar e chamar ajuda</label>
@@ -3137,13 +3139,15 @@ tr:hover td{background:var(--g50)}
                   o bot não inventa, e diz que vai chamar alguém quando não souber.
                 </div>
               </div>
-              <div class="field">
-                <label>Responder fora do menu</label>
-                <select id="ow-usa-ia">
-                  <option value="sim">Sim — usa o texto acima para responder</option>
-                  <option value="nao">Não — só menu e palavras-chave</option>
-                </select>
-              </div>
+              <div class="field form-full">
+              <label>Como o bot atende</label>
+              <select id="ow-modo" onchange="explicarModoDoBot('ow')">
+                <option value="misto">Comandos primeiro, IA no que sobrar (recomendado)</option>
+                <option value="ia">Por IA — ele conversa, em vez de pedir número</option>
+                <option value="comandos">Só pelos meus comandos — sem IA</option>
+              </select>
+              <div id="ow-modo-explica" style="font-size:.78rem;color:var(--gray500);line-height:1.6;margin-top:6px"></div>
+            </div>
               <div class="field form-full">
                 <label>Consultar e chamar ajuda</label>
                 <select id="ow-usa-ferramentas">
@@ -11918,8 +11922,8 @@ async function carregarChatbot(T){
   campoBot(T, 'ativo').value       = bot.ativo ? 'sim' : 'nao';
   var ctx = campoBot(T, 'contexto');
   if(ctx) ctx.value = bot.contexto || '';
-  var ia = campoBot(T, 'usa-ia');
-  if(ia) ia.value = bot.usa_ia === false ? 'nao' : 'sim';
+  var modo = campoBot(T, 'modo');
+  if(modo){ modo.value = bot.modo_atendimento || 'misto'; explicarModoDoBot(T.pre); }
   var fer = campoBot(T, 'usa-ferramentas');
   if(fer) fer.value = bot.usa_ferramentas === false ? 'nao' : 'sim';
   var pers = campoBot(T, 'personalidade');
@@ -11941,6 +11945,41 @@ async function carregarChatbot(T){
   T.itens = d.itens || [];
   desenharItensChatbot(T);
   carregarConversasChatbot_(T);
+}
+
+// O que cada modo faz, dito na hora de escolher.
+//
+// Os três nomes não se explicam sozinhos, e a diferença entre eles é
+// dinheiro: no modo IA toda mensagem vira uma chamada paga, no modo
+// comandos nenhuma. Esconder isso atrás de um seletor faria o dono
+// escolher o mais caro achando que era só "o mais moderno" — e
+// descobrir no fim do mês.
+var EXPLICACAO_DO_MODO = {
+  comandos: 'O bot responde só o que você escreveu: menu numerado e palavras-chave, ' +
+            'com o texto exatamente como você digitou. É instantâneo e não gasta nada — ' +
+            'mas quem perguntar de um jeito que você não previu recebe a mensagem de "não entendi".',
+  misto:    'O menu e as palavras-chave respondem primeiro, na hora e de graça. A IA entra ' +
+            'só quando nada casou, usando o texto sobre o seu negócio. É o que gasta menos ' +
+            'para o que entrega mais.',
+  ia:       'A IA conduz a conversa: a pessoa escreve do jeito dela e ele entende, em vez de ' +
+            'pedir para digitar um número. O menu continua valendo se ela digitar o número. ' +
+            'Atende melhor e gasta mais: aqui quase toda mensagem vira uma resposta paga.'
+};
+
+function explicarModoDoBot(pre){
+  var sel = document.getElementById(pre + '-modo');
+  var alvo = document.getElementById(pre + '-modo-explica');
+  if(!sel || !alvo) return;
+  alvo.textContent = EXPLICACAO_DO_MODO[sel.value] || '';
+
+  // No modo comandos o texto sobre o negócio não é lido por ninguém.
+  // Deixá-lo em pé, pedindo para ser preenchido, faria o dono escrever
+  // mil caracteres que nunca seriam usados.
+  var ctx = document.getElementById(pre + '-contexto');
+  if(ctx && ctx.closest){
+    var caixa = ctx.closest('.field');
+    if(caixa) caixa.style.opacity = sel.value === 'comandos' ? '.45' : '';
+  }
 }
 
 // Tons prontos.
@@ -12646,7 +12685,7 @@ async function salvarChatbot_(T){
         fallback:    (campoBot(T, 'fallback').value || '').trim(),
         ativo:       campoBot(T, 'ativo').value === 'sim',
         contexto:    (campoBot(T, 'contexto') || {}).value || '',
-        usa_ia:      ((campoBot(T, 'usa-ia') || {}).value || 'sim') === 'sim',
+        modo_atendimento: (campoBot(T, 'modo') || {}).value || 'misto',
         usa_ferramentas: ((campoBot(T, 'usa-ferramentas') || {}).value || 'sim') === 'sim',
         // Personalidade, memória e economia salvam JUNTO com o resto:
         // os dois botões "Salvar" da tela mandam o formulário inteiro.
