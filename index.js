@@ -7064,6 +7064,24 @@ async function abrirSessaoDoWhatsApp(bot) {
   var vivo = { sock: sock, bot: bot, sessaoId: sessao.id, fechando: false };
   soquetesAbertos.set(bot.id, vivo);
 
+  // BATIMENTO.
+  //
+  // `status` sozinho mente. Ele ficou "conectado" por 1h24 depois de o
+  // processo morrer, porque quem escreveria "desconectado" é o handler
+  // de close — e ele não roda quando o processo é encerrado DE FORA:
+  // hibernação do Render, deploy, crash. A tela mostrava um bot vivo e
+  // o cliente falava com o vazio.
+  //
+  // Um carimbo por minuto resolve pelo lado certo: em vez de tentar
+  // adivinhar a morte, a sessão prova que está viva. Sem prova
+  // recente, está morta — e é assim que o vigia e a tela decidem.
+  vivo.batimento = setInterval(function () {
+    DB.update("whatsapp_sessoes", "id=eq." + sessao.id,
+      { visto_em: new Date().toISOString() }).catch(function () {});
+  }, 60 * 1000);
+  // Não segura o processo de pé por causa de um timer.
+  if (vivo.batimento.unref) vivo.batimento.unref();
+
   sock.ev.on("creds.update", auth.salvarCreds);
 
   sock.ev.on("connection.update", async function (u) {
@@ -7081,7 +7099,8 @@ async function abrirSessaoDoWhatsApp(bot) {
         var numero = ((sock.user || {}).id || "").split(":")[0].split("@")[0];
         await anotarNaSessao(sessao.id, {
           status: "conectado", qr: null, qr_em: null,
-          numero: numero || null, conectado_em: new Date().toISOString()
+          numero: numero || null, conectado_em: new Date().toISOString(),
+          visto_em: new Date().toISOString()
         });
         await DB.update("chatbots", "id=eq." + bot.id, {
           wa_origem: "qr",
@@ -7093,6 +7112,7 @@ async function abrirSessaoDoWhatsApp(bot) {
       }
 
       if (u.connection === "close") {
+        if (vivo.batimento) clearInterval(vivo.batimento);
         soquetesAbertos.delete(bot.id);
         if (vivo.fechando) return;
 
@@ -7246,6 +7266,7 @@ async function fecharSessaoDoWhatsApp(chatbotId) {
   var vivo = soquetesAbertos.get(chatbotId);
   if (!vivo) return;
   vivo.fechando = true;
+  if (vivo.batimento) clearInterval(vivo.batimento);
   soquetesAbertos.delete(chatbotId);
   try { vivo.sock.end(undefined); } catch (e) {}
 }
@@ -7278,6 +7299,74 @@ async function sairDoWhatsApp(bot) {
  * e o Render reinicia sozinho. As credenciais estão no banco
  * exatamente para isso.
  */
+/**
+ * O VIGIA. É ele que tira o dedo do botão "Salvar".
+ *
+ * O relato foi: "depois de alguns minutos o bot para, e eu tenho que
+ * ir na aba WhatsApp e clicar Salvar". Isso não é coincidência — é o
+ * diagnóstico inteiro. Clicar Salvar é uma requisição HTTP, e uma
+ * requisição HTTP é o que acorda o serviço; ao acordar, ele roda
+ * restaurarSessoesDoWhatsApp() e o bot volta. Qualquer clique no site
+ * faria o mesmo.
+ *
+ * Ou seja: não faltava reconexão para queda de rede — essa já existia,
+ * no connection.update. Faltava alguém para reabrir quando o PROCESSO
+ * morre, porque aí não sobra código rodando para perceber.
+ *
+ * Este vigia cobre os dois casos que sobravam:
+ *
+ *  1. o processo voltou (hibernação, deploy, crash) e há sessão que
+ *     devia estar de pé — reabre;
+ *  2. o processo está vivo mas o soquete morreu sem avisar. Acontece:
+ *     um socket pode ficar semiaberto sem disparar 'close', e nesse
+ *     estado ele não recebe nem erra. O batimento parado denuncia.
+ *
+ * A verdade vem do BATIMENTO e não do status: status é o que a linha
+ * diz, batimento é o que ela prova.
+ */
+var VIGIA_SESSAO_MS = 2 * 60 * 1000;
+
+async function vigiarSessoesDoWhatsApp() {
+  var r = await DB.select("whatsapp_sessoes",
+    "status=in.(conectado,conectando)&select=id,chatbot_id,visto_em,status&limit=200"
+  ).catch(function () { return { body: null }; });
+  // Falha de leitura não é "ninguém está conectado". Tratar assim
+  // mandaria reabrir tudo a cada oscilação do banco, e reabrir soquete
+  // à toa é o padrão que o WhatsApp lê como automação.
+  if (!r.body) return;
+
+  var agora = Date.now();
+
+  for (var i = 0; i < r.body.length; i++) {
+    var sess = r.body[i];
+
+    // Soquete vivo na memória e batendo: nada a fazer.
+    if (soquetesAbertos.has(sess.chatbot_id)) {
+      var visto = sess.visto_em ? new Date(sess.visto_em).getTime() : 0;
+      // Três minutos sem batimento com o soquete "na memória" é soquete
+      // zumbi: o objeto existe, o timer não está escrevendo. Derruba
+      // para o ciclo seguinte reabrir limpo.
+      if (visto && agora - visto > 3 * 60 * 1000) {
+        secLog("whatsapp_soquete_zumbi", { chatbot_id: sess.chatbot_id });
+        await fecharSessaoDoWhatsApp(sess.chatbot_id).catch(function () {});
+      }
+      continue;
+    }
+
+    var bots = await DB.select("chatbots", "id=eq." + sess.chatbot_id + "&select=*&limit=1")
+      .catch(function () { return { body: [] }; });
+    var bot = bots.body && bots.body[0];
+    if (!bot || !bot.ativo) continue;
+
+    secLog("whatsapp_vigia_reabrindo", { chatbot_id: bot.id, status: sess.status });
+    await abrirSessaoDoWhatsApp(bot).catch(function (e) {
+      secLog("whatsapp_vigia_falhou", { chatbot_id: bot.id, message: e.message });
+    });
+    // Uma de cada vez, pelo mesmo motivo da restauração no arranque.
+    await new Promise(function (r2) { setTimeout(r2, 1500); });
+  }
+}
+
 async function restaurarSessoesDoWhatsApp() {
   try {
     var abertas = await DB.select("whatsapp_sessoes",
@@ -7793,9 +7882,25 @@ async function rotasDoChatbot(req, res, ctx) {
     if (!botEstado.id) return jsonOk(res, { status: "desconectado" });
 
     var linhaQr = await DB.select("whatsapp_sessoes",
-      "chatbot_id=eq." + botEstado.id + "&select=status,qr,qr_em,numero,conectado_em&limit=1"
+      "chatbot_id=eq." + botEstado.id + "&select=status,qr,qr_em,numero,conectado_em,visto_em&limit=1"
     ).catch(function () { return { body: [] }; });
     var ses = (linhaQr.body && linhaQr.body[0]) || { status: "desconectado" };
+
+    // A TELA DIZ O QUE SABE, NÃO O QUE A LINHA DIZ.
+    //
+    // "conectado" gravado no banco não prova nada: quando o processo
+    // morre de fora — hibernação do servidor, deploy, crash — ninguém
+    // escreve "caiu", e a linha fica mentindo. Aconteceu por 1h24, com
+    // a tela mostrando um bot vivo enquanto o cliente falava sozinho.
+    //
+    // O batimento é a prova. Sem batimento recente, "conectado" vira
+    // "reconectando" — que é a verdade, porque o vigia está justamente
+    // reabrindo. Dizer "conectado" ali seria pedir para o dono não
+    // procurar o problema.
+    var batendo = ses.visto_em &&
+      (Date.now() - new Date(ses.visto_em).getTime()) < 4 * 60 * 1000;
+    var statusReal = ses.status || "desconectado";
+    if (statusReal === "conectado" && !batendo) statusReal = "reconectando";
 
     // O QR vai como IMAGEM pronta. Mandar o texto cru obrigaria a tela
     // a carregar uma biblioteca de desenho de fora, que a política de
@@ -7806,9 +7911,10 @@ async function rotasDoChatbot(req, res, ctx) {
     }
 
     return jsonOk(res, {
-      status:  ses.status || "desconectado",
+      status:  statusReal,
       qr:      imagem,
       numero:  ses.numero || null,
+      visto_em: ses.visto_em || null,
       // Quantos segundos este código ainda vale, para a tela avisar em
       // vez de deixar a pessoa mirando um QR morto.
       expira_em: ses.qr_em
@@ -15176,6 +15282,48 @@ server.listen(CONFIG.PORT, () => {
       restaurarSessoesDoWhatsApp().catch(function () {});
     }
   }, 5000);
+
+  // ── NÃO DEIXAR O SERVIDOR DORMIR ──────────────────
+  //
+  // O plano free do Render hiberna o serviço depois de ~15 minutos sem
+  // requisição HTTP. Hibernar mata o processo, e com ele o soquete do
+  // WhatsApp e todos os timers — inclusive o vigia acima. É por isso
+  // que o bot "parava depois de alguns minutos" e voltava ao clicar em
+  // Salvar: o clique era a requisição que acordava o serviço.
+  //
+  // Um pedido a si mesmo a cada 10 minutos é tráfego de entrada, e
+  // tráfego de entrada é exatamente o que adia a hibernação. Funciona
+  // porque o processo nunca chega a dormir; se dormir (janela de
+  // deploy, queda), ele só acorda com alguém de fora — este ping não
+  // ressuscita, ele impede.
+  //
+  // ISTO É REMENDO, e o comentário fica para quem vier depois: a
+  // correção de verdade é uma instância que não hiberna. Um produto
+  // vendido como "o assistente que atende 24h" rodando em máquina que
+  // dorme é uma promessa que o servidor não tem como cumprir.
+  var enderecoProprio = env("RENDER_EXTERNAL_URL") || env("AUTO_PING_URL") || "";
+  if (enderecoProprio) {
+    setInterval(function () {
+      var alvo = enderecoProprio.replace(/\/+$/, "") + "/health";
+      try {
+        var mod = alvo.indexOf("https:") === 0 ? require("https") : require("http");
+        var req = mod.get(alvo, function (resp) { resp.resume(); });
+        req.on("error", function () {});   // falhar aqui não é notícia
+        req.setTimeout(8000, function () { req.destroy(); });
+      } catch (e) {}
+    }, 10 * 60 * 1000);
+    console.log("[startup] auto-ping ligado:", enderecoProprio);
+  }
+
+  // E o vigia, que é quem cobre o que a restauração de arranque não
+  // cobre: o soquete que cai com o processo VIVO. Sem ele, a única
+  // forma de reabrir era reiniciar o servidor — que na prática era o
+  // dono clicando em Salvar no site.
+  setInterval(function () {
+    vigiarSessoesDoWhatsApp().catch(function (e) {
+      secLog("cron_error", { job: "vigia_whatsapp", message: e.message });
+    });
+  }, VIGIA_SESSAO_MS);
 
   // Este aviso existe porque a falha é silenciosa e cara: o sistema sobe
   // inteiro, responde tudo, e só o cadastro de cliente novo não funciona

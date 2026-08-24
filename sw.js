@@ -9,6 +9,38 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v57: o bot parava depois de alguns minutos, e o jeito de trazer de
+//      volta era ir no site e clicar em Salvar.
+//
+//      Isso nao era coincidencia — era o diagnostico inteiro. Clicar
+//      Salvar e uma requisicao HTTP, e requisicao HTTP e o que acorda
+//      o servico no plano free do Render, que hiberna depois de ~15
+//      minutos parado. Ao acordar, o arranque restaurava a sessao e o
+//      bot voltava. Qualquer clique no site faria o mesmo.
+//
+//      Nao faltava reconexao para queda de rede: essa ja existia. O
+//      que faltava era alguem para reabrir quando o PROCESSO morre —
+//      porque ai nao sobra codigo rodando para perceber.
+//
+//      Tres pecas:
+//
+//      1. BATIMENTO. O banco dizia "conectado" ha 1h24 sem ninguem
+//         tocar na linha: quem escreveria "caiu" e o handler de close,
+//         e ele nao roda quando o processo e morto de fora. Agora a
+//         sessao carimba visto_em a cada minuto — em vez de adivinhar
+//         a morte, ela prova que esta viva.
+//
+//      2. VIGIA. A cada dois minutos: sessao que devia estar de pe e
+//         nao tem soquete volta a abrir. Cobre tambem o soquete zumbi,
+//         que existe na memoria e parou de bater sem disparar close.
+//
+//      3. AUTO-PING. Um pedido a si mesmo a cada dez minutos adia a
+//         hibernacao. E remendo, e esta escrito assim no codigo: a
+//         correcao de verdade e uma instancia que nao dorme.
+//
+//      E a tela parou de repetir a mentira: sem batimento recente,
+//      "conectado" vira "a conexao caiu e esta voltando sozinha".
+//
 // v56: o Plano Chatbot custa R$ 55,90 e ganha piso GARANTIDO de IA.
 //
 //      O piso comum e US$ 0,30 — cerca de 95 respostas no mes. Serve
@@ -246,7 +278,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v56';
+var CACHE = 'workap-v57';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
