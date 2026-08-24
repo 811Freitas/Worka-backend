@@ -9,6 +9,41 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v58: o dono escolhe COMO o bot atende. Tres modos, um seletor.
+//
+//      Antes existia um campo chamado "Responder fora do menu" com
+//      sim/nao. Ele funcionava, mas escondia a escolha atras de um
+//      nome que nao dizia o que estava em jogo — e o que esta em jogo
+//      e dinheiro.
+//
+//      comandos = so o que o dono escreveu. Menu numerado e palavras-
+//                 chave, texto identico ao que ele digitou.
+//                 Instantaneo e nao gasta NADA. Nao entende pergunta
+//                 fora do previsto, e a tela diz isso.
+//      misto    = comando ganha; a IA cobre o que sobra. O de antes,
+//                 e continua sendo o recomendado.
+//      ia       = a IA conduz a conversa. A pessoa escreve do jeito
+//                 dela em vez de digitar numero. Atende melhor e
+//                 quase toda mensagem vira uma resposta paga.
+//
+//      O numero do menu continua ganhando da IA mesmo no modo IA: um
+//      bot que mostra lista numerada e depois ignora o numero e pior
+//      que um bot sem menu.
+//
+//      E a rede que impede o modo IA de ficar PIOR que o modo
+//      comandos: quando a IA nao pode responder — sem contexto
+//      escrito, fora do ar, cota estourada — a resposta volta a ser a
+//      dos comandos. Sem isso, um bot em modo IA sem contexto diria
+//      "nao entendi" a quem digitou "menu", jogando fora uma resposta
+//      que existia e era de graca.
+//
+//      Uma coluna, tres valores, e nao dois booleanos: "usa IA" +
+//      "IA na frente" seriam duas fontes de verdade para uma pergunta
+//      so, com uma combinacao sem sentido possivel. O campo antigo
+//      continua ACEITO na API, traduzido para o modo — deixar de
+//      honra-lo devolveria 200 sem mudar comportamento, que e a
+//      falha que custa caro.
+//
 // v57: o bot parava depois de alguns minutos, e o jeito de trazer de
 //      volta era ir no site e clicar em Salvar.
 //
@@ -278,7 +313,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v57';
+var CACHE = 'workap-v58';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';

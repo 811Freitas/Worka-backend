@@ -6340,21 +6340,62 @@ function montarPromptEnxuto(bot, contexto, oQueOBotSabe) {
     (oQueOBotSabe ? "\n\nASSUNTOS COBERTOS PELO MENU:\n" + oQueOBotSabe.slice(0, 600) : "");
 }
 
+/**
+ * O modo escolhido pelo dono, normalizado.
+ *
+ * Contas anteriores à migração 040 não têm a coluna preenchida em
+ * memória em todo caminho, então o antigo `usa_ia` ainda serve de
+ * palpite — mas só como palpite. Quem manda é modo_atendimento.
+ */
+function modoDoAtendimento(bot) {
+  var m = String((bot && bot.modo_atendimento) || "").trim().toLowerCase();
+  if (m === "comandos" || m === "misto" || m === "ia") return m;
+  return (bot && bot.usa_ia === false) ? "comandos" : "misto";
+}
+
 async function decidirComIa(bot, itens, textoBruto, quem) {
+  var modo = modoDoAtendimento(bot);
   var decisao = decidirRespostaChatbot(bot, itens, textoBruto);
 
-  // Menu, opção e gatilho ganham da IA sempre. São a palavra do dono.
-  if (decisao.como !== "fallback") return decisao;
+  // MODO COMANDOS: só o que o dono escreveu. A IA não entra nem
+  // quando nada casa — é para isso que este modo existe.
+  if (modo === "comandos") return decisao;
 
-  if (!bot.usa_ia) return decisao;
+  // A REDE DE SEGURANÇA do modo IA.
+  //
+  // Guardo o que os comandos responderiam ANTES de passar a vez à IA.
+  // Sem isto, um bot em modo IA sem contexto escrito — ou com a IA
+  // fora do ar, ou com a cota estourada — responderia o fallback a
+  // quem digitou "menu", jogando fora uma resposta que existia e era
+  // de graça. Ficaria PIOR que o modo comandos, que é o oposto do que
+  // o dono pediu ao escolher IA.
+  var dosComandos = decisao;
+
+  // MODO IA: a IA conduz a conversa.
+  //
+  // O número do menu continua ganhando dela, e isso NÃO é exceção
+  // solta: se a pessoa acabou de ver uma lista numerada, digitar "2"
+  // tem que levar à opção 2. Um bot que mostra menu e depois ignora o
+  // número é pior que um bot sem menu.
+  //
+  // O resto — inclusive palavra-chave e "oi" — vai para a IA, porque
+  // é justamente o que o dono pediu ao escolher este modo: conversa,
+  // não formulário.
+  if (modo === "ia" && decisao.como !== "opcao") {
+    decisao = { como: "fallback", resposta: bot.fallback, item_id: null };
+  }
+
+  // MODO MISTO (e o que sobrou do IA): comando que casou ganha da IA.
+  // São a palavra do dono, instantâneos e de graça.
+  if (decisao.como !== "fallback") return decisao;
 
   // Sem contexto escrito, a IA não teria de onde tirar resposta — e
   // inventar horário de funcionamento é pior que dizer "não sei".
   var contexto = String(bot.contexto || "").trim();
-  if (!contexto) return decisao;
+  if (!contexto) return dosComandos;
 
   var pergunta = String(textoBruto || "").trim();
-  if (!pergunta) return decisao;
+  if (!pergunta) return dosComandos;
 
   var economia = !!bot.modo_economia;
 
@@ -6406,7 +6447,10 @@ async function decidirComIa(bot, itens, textoBruto, quem) {
     if (r && r.motivo) {
       secLog("chatbot_ia_nao_respondeu", { chatbot_id: bot.id, motivo: r.motivo });
     }
-    return decisao;   // volta ao fallback escrito pelo dono
+    // Volta para o que os COMANDOS responderiam. No modo misto isso é
+    // o fallback do dono; no modo IA pode ser o menu inteiro, que é
+    // melhor que "não entendi" e não custa nada.
+    return dosComandos;
   }
 
   return { como: "ia", resposta: r.texto, item_id: null };
@@ -7524,7 +7568,7 @@ async function rotasDoChatbot(req, res, ctx) {
       boas_vindas: botCfg.boas_vindas, fallback: botCfg.fallback,
       canal: botCfg.canal || "interno",
       contexto: botCfg.contexto || "",
-      usa_ia: botCfg.usa_ia !== false,
+      modo_atendimento: modoDoAtendimento(botCfg),
       usa_ferramentas: botCfg.usa_ferramentas !== false,
       personalidade: botCfg.personalidade || "",
       memoria_trocas: (botCfg.memoria_trocas === undefined ||
@@ -7635,7 +7679,30 @@ async function rotasDoChatbot(req, res, ctx) {
     if (bodyBot.contexto !== undefined) {
       mudaBot.contexto = SANITIZE.string(bodyBot.contexto, 4000) || null;
     }
-    if (typeof bodyBot.usa_ia === "boolean") mudaBot.usa_ia = bodyBot.usa_ia;
+    // COMO O BOT ATENDE. Uma coluna, três valores.
+    //
+    // `usa_ia` continua sendo gravada junto, e não por indecisão: há
+    // linhas antigas no banco e caminhos que ainda a leem como
+    // palpite. Mantê-la coerente com o modo evita o pior dos mundos,
+    // que é duas colunas discordando sobre a mesma pergunta.
+    if (bodyBot.modo_atendimento !== undefined) {
+      var MODOS = ["comandos", "misto", "ia"];
+      if (MODOS.indexOf(bodyBot.modo_atendimento) < 0) {
+        return jsonErr(res, "Modo de atendimento inválido.");
+      }
+      mudaBot.modo_atendimento = bodyBot.modo_atendimento;
+      mudaBot.usa_ia = bodyBot.modo_atendimento !== "comandos";
+    } else if (typeof bodyBot.usa_ia === "boolean") {
+      // APELIDO ANTIGO, aceito de propósito.
+      //
+      // `usa_ia` era o liga-desliga antes da migração 040. Deixar de
+      // honrá-lo seria pior que removê-lo: quem mandasse o campo
+      // continuaria recebendo 200 e o bot não mudaria de
+      // comportamento — falha silenciosa, que é a que custa caro.
+      // Traduzido para o modo correspondente, ele segue funcionando.
+      mudaBot.usa_ia = bodyBot.usa_ia;
+      mudaBot.modo_atendimento = bodyBot.usa_ia ? "misto" : "comandos";
+    }
     if (typeof bodyBot.usa_ferramentas === "boolean") {
       mudaBot.usa_ferramentas = bodyBot.usa_ferramentas;
     }
