@@ -9,6 +9,28 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v59: a personalidade do bot deixa de ser ato de fe.
+//
+//      O dono escrevia a personalidade, salvava, e nao tinha como
+//      saber se aquilo chegou ao modelo. Quando a resposta vinha
+//      estranha, "o texto nao chegou" e "chegou e o modelo ignorou"
+//      pareciam a mesma coisa — e se consertam de formas opostas.
+//
+//      Agora ha um botao "Ver o que o bot recebe" que abre o prompt
+//      exato, montado pela MESMA funcao que o motor usa. Montar um
+//      segundo texto so para a tela seria mostrar um prompt que nao e
+//      o que roda, e a divergencia apareceria justamente no dia em que
+//      alguem fosse depurar.
+//
+//      Junto: a caixa de teste passou a dizer POR QUE a IA nao entrou
+//      (sem chave, sem texto do negocio, cota, credito, erro do
+//      provedor) em vez de so cair no fallback em silencio.
+//
+//      E a cota de IA parou de virar 502 "tente de novo em instantes":
+//      o rateio devolve cota_da_empresa/credito_acabou, nomes que as
+//      rotas nao tratavam, e o dono recebia o conselho errado — tentar
+//      de novo nao resolve — com a causa escondida.
+
 // v58: o dono escolhe COMO o bot atende. Tres modos, um seletor.
 //
 //      Antes existia um campo chamado "Responder fora do menu" com
@@ -313,7 +335,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v58';
+var CACHE = 'workap-v59';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
