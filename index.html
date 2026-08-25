@@ -1841,24 +1841,27 @@
     </div>
 
     <!-- TRIAL: Ativado com sucesso -->
-    <div id="step-trial-ok" style="display:none;padding:32px;text-align:center">
-      <div style="font-size:3rem;margin-bottom:12px"><svg class=ico aria-hidden=true><use href=#i-gift></use></svg></div>
+    <div id="step-trial-ok" class="festa" style="display:none;padding:32px;text-align:center">
+      <div class="festa-palco" id="festa-palco-trial"></div>
+      <div class="festa-selo">
+        <svg class="festa-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12.5l5 5 10-10"/></svg>
+      </div>
       <!-- Os textos abaixo têm id porque quem PAGOU antes de se
            cadastrar cai nesta mesma tela, e "trial de 7 dias" seria a
            mensagem errada para quem acabou de comprar 30 dias. O
            backend já responde plano_ja_pago; quem reescreve é
            ajustarTelaDeSucesso(). -->
-      <div id="trial-ok-titulo" style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:#0a2e1a;margin-bottom:8px">Trial ativado!</div>
-      <div style="font-size:.85rem;color:#6b7068;line-height:1.6;margin-bottom:20px">
+      <div id="trial-ok-titulo" class="festa-linha" style="--passo:0;font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:#0a2e1a;margin-bottom:8px">Trial ativado!</div>
+      <div class="festa-linha" style="--passo:1;font-size:.85rem;color:#6b7068;line-height:1.6;margin-bottom:20px">
         <span id="trial-ok-texto">Seu período de <strong>7 dias grátis</strong> começou agora.</span><br>
         <span id="trial-ok-renovacao">Quando expirar, você será avisado para renovar.</span>
       </div>
-      <div style="background:#edfaf2;border-radius:12px;padding:16px;margin-bottom:20px">
+      <div class="festa-linha" style="--passo:2;background:#edfaf2;border-radius:12px;padding:16px;margin-bottom:20px">
         <div id="trial-ok-rotulo" style="font-size:.78rem;color:#16622f;font-weight:600"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg> Trial expira em:</div>
         <div id="trial-ok-prazo" style="font-family:'Syne',sans-serif;font-size:1.8rem;font-weight:800;color:#1e8a40">7 dias</div>
       </div>
-      <a href="app/" style="display:block;width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;text-decoration:none;text-align:center">
-        Acessar o Workap <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>
+      <a href="app/" class="festa-linha" style="--passo:3;display:block;width:100%;background:#1e8a40;color:white;border:none;padding:14px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;text-decoration:none;text-align:center">
+        Acessar o Workap <svg class="ico ico-seta" aria-hidden=true><use href=#i-arrow-right></use></svg>
       </a>
     </div>
 
@@ -1896,17 +1899,150 @@
       </div>
     </div>
     <!-- PASSO 2: confirmação (era o QR Code do PIX) -->
-    <div id="step-ok" style="display:none;padding:40px 28px;text-align:center;">
-      <div style="width:72px;height:72px;background:#edfaf2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:2rem;"><svg class=ico aria-hidden=true><use href=#i-check-circle></use></svg></div>
-      <div style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:#16622f;margin-bottom:8px;">Pagamento confirmado!</div>
-      <p style="font-size:0.9rem;color:#6b7068;margin-bottom:24px;">Seu acesso ao Workap foi liberado. Verifique seu e-mail para as próximas etapas.</p>
-      <button onclick="fecharCheckout()" style="background:#1e8a40;color:white;border:none;padding:14px 32px;border-radius:10px;font-size:0.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Acessar o Workap <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></button>
+    <div id="step-ok" class="festa" style="display:none;padding:40px 28px;text-align:center;">
+      <div class="festa-palco" id="festa-palco-pago"></div>
+      <div class="festa-selo">
+        <svg class="festa-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12.5l5 5 10-10"/></svg>
+      </div>
+      <div class="festa-linha" style="--passo:0;font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:#16622f;margin-bottom:8px;">Pagamento confirmado!</div>
+      <p class="festa-linha" style="--passo:1;font-size:0.9rem;color:#6b7068;margin-bottom:24px;">Seu acesso ao Workap foi liberado. Verifique seu e-mail para as próximas etapas.</p>
+      <button class="festa-linha" onclick="fecharCheckout()" style="--passo:2;background:#1e8a40;color:white;border:none;padding:14px 32px;border-radius:10px;font-size:0.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">Acessar o Workap <svg class="ico ico-seta" aria-hidden=true><use href=#i-arrow-right></use></svg></button>
     </div>
 
   </div>
 </div>
 
 <style>
+/* ══ PAGAMENTO APROVADO ═══════════════════════════════════
+   O momento em que o dinheiro entra é o único da jornada em que
+   o cliente merece uma comemoração — e era o mais sem graça de
+   todos: um check parado e um parágrafo. Quem acabou de pagar
+   fica olhando a tela por dois segundos esperando ter certeza de
+   que deu certo; esses dois segundos são de graça e valem muito.
+
+   Tudo aqui é CSS e SVG puros. O app funciona offline, e puxar
+   uma biblioteca de confete pela rede justamente na tela de
+   "pagamento confirmado" seria trocar uma alegria por um risco. */
+
+/* O anel que cresce e some por trás do check — a "onda" do acerto. */
+@keyframes festaOnda{
+  0%  {transform:scale(.5);opacity:.55}
+  70% {opacity:.14}
+  100%{transform:scale(2.5);opacity:0}
+}
+/* O selo entra com um exagero curto e assenta. */
+@keyframes festaSelo{
+  0%  {transform:scale(0) rotate(-25deg);opacity:0}
+  55% {transform:scale(1.12) rotate(4deg);opacity:1}
+  75% {transform:scale(.96) rotate(-2deg)}
+  100%{transform:scale(1) rotate(0);opacity:1}
+}
+/* O risco do check se DESENHA. É o detalhe que faz parecer feito
+   à mão em vez de aparecer pronto. */
+@keyframes festaRisco{to{stroke-dashoffset:0}}
+/* Cada pedaço de confete cai girando. --x, --giro e --queda vêm do
+   JS, para nenhum papelzinho repetir a trajetória do vizinho. */
+@keyframes festaConfete{
+  0%  {transform:translate3d(0,0,0) rotate(0);opacity:1}
+  100%{transform:translate3d(var(--x),var(--queda),0) rotate(var(--giro));opacity:0}
+}
+@keyframes festaSobe{
+  from{opacity:0;transform:translateY(12px)}
+  to  {opacity:1;transform:none}
+}
+
+.festa{position:relative;display:flex;flex-direction:column;align-items:center}
+/* O palco do confete não pode empurrar nada nem capturar clique:
+   ele é uma camada por cima, e o botão embaixo dele continua
+   clicável — senão a comemoração impede de entrar no app. */
+.festa-palco{position:absolute;inset:-40px -20px auto;height:260px;overflow:hidden;
+  pointer-events:none;z-index:2}
+.festa-papel{position:absolute;top:52px;left:50%;width:9px;height:14px;border-radius:2px;
+  animation:festaConfete var(--tempo,1.5s) cubic-bezier(.2,.6,.5,1) forwards;
+  animation-delay:var(--atraso,0s)}
+
+/* margin auto, e nao so o align-items do .festa: o #step-ok carrega
+   display:none no atributo style, e quem o mostra escreve display:block
+   ali mesmo -- inline vence a classe, o flex nunca acontece e o selo
+   fica encostado na esquerda. Centralizar por margem funciona nos dois
+   casos. */
+.festa-selo{position:relative;width:88px;height:88px;border-radius:50%;
+  background:linear-gradient(135deg,#1e8a40,#3dd669);
+  display:flex;align-items:center;justify-content:center;
+  margin:0 auto 18px;
+  box-shadow:0 10px 30px rgba(30,138,64,.34);
+  animation:festaSelo .72s cubic-bezier(.16,1,.3,1) both;z-index:3}
+.festa-selo::before,.festa-selo::after{content:'';position:absolute;inset:0;
+  border-radius:50%;border:2px solid #3dd669;animation:festaOnda 1.5s var(--ease-out,cubic-bezier(.16,1,.3,1)) infinite}
+.festa-selo::after{animation-delay:.5s}
+
+.festa-check{width:44px;height:44px;stroke:#fff;stroke-width:3.4;fill:none;
+  stroke-linecap:round;stroke-linejoin:round}
+.festa-check path{stroke-dasharray:34;stroke-dashoffset:34;
+  animation:festaRisco .42s cubic-bezier(.65,0,.35,1) .38s forwards}
+
+/* Texto em escada: o olho lê na ordem em que aparece.
+   O atraso vem de --passo, escrito em cada linha, e NÃO de
+   :nth-of-type: as linhas são um div, um p e um button, e nth-of-type
+   conta por tag — os três viravam "o primeiro da sua espécie" e
+   subiam todos juntos, que é justamente o contrário de uma escada. */
+.festa-linha{animation:festaSobe .5s var(--ease-out,cubic-bezier(.16,1,.3,1)) both;
+  animation-delay:calc(.42s + var(--passo,0) * .12s)}
+
+/* Quem pediu menos movimento continua sabendo que deu certo: o selo
+   e o check ficam, parados. O que sai é o que só enfeita — confete,
+   ondas e o balanço da entrada. Zerar tudo deixaria a tela mais
+   pobre que a de antes, e não é isso que a preferência pede. */
+@media (prefers-reduced-motion:reduce){
+  .festa-palco{display:none}
+  .festa-selo{animation:none}
+  .festa-selo::before,.festa-selo::after{animation:none;opacity:0}
+  .festa-check path{animation:none;stroke-dashoffset:0}
+  .festa-linha{animation:none;opacity:1;transform:none}
+}
+
+
+/* ══ ÍCONES QUE RESPONDEM ══════════════════════════════════
+   A mesma linguagem do app, para o site e o produto parecerem a
+   mesma mão: hover cresce o ícone, e a seta anda para onde aponta.
+   Os cartões de recurso já tinham isso (.feature-card:hover
+   .feature-icon); daqui para baixo é o resto da página alcançando
+   o mesmo padrão. */
+.btn .ico,.btn-primario .ico,.plan-cta .ico,a .ico{transition:transform .22s cubic-bezier(.16,1,.3,1)}
+button:hover .ico,a:hover .ico{transform:scale(1.1)}
+
+@keyframes icoSeta{0%,100%{transform:translateX(0)}50%{transform:translateX(4px)}}
+button:hover .ico-seta,a:hover .ico-seta{animation:icoSeta .7s cubic-bezier(.4,0,.2,1) infinite}
+
+/* O check de cada item do plano dá um pop quando o cartão entra na
+   tela, um depois do outro — a lista é LIDA de cima para baixo em
+   vez de piscar inteira de uma vez.
+   O escalonamento vem de :nth-child, e não de um --i escrito por JS:
+   é uma lista fixa no HTML, e um índice em JS seria uma peça a mais
+   para dar errado numa animação puramente decorativa.
+   REGRA DE SEGURANÇA: o estado padrão do check é VISÍVEL, e a
+   animação só entra com .in-view. Assim, se o observador de scroll
+   não rodar — JS bloqueado, captura automatizada, leitor de tela —
+   o pior caso é a lista aparecer sem pop, nunca sem os checks. */
+@keyframes icoCheckPop{
+  0%  {transform:scale(0);opacity:0}
+  60% {transform:scale(1.25);opacity:1}
+  100%{transform:scale(1);opacity:1}
+}
+.in-view .price-features li::before{animation:icoCheckPop .42s cubic-bezier(.16,1,.3,1) both}
+.in-view .price-features li:nth-child(1)::before{animation-delay:.10s}
+.in-view .price-features li:nth-child(2)::before{animation-delay:.17s}
+.in-view .price-features li:nth-child(3)::before{animation-delay:.24s}
+.in-view .price-features li:nth-child(4)::before{animation-delay:.31s}
+.in-view .price-features li:nth-child(5)::before{animation-delay:.38s}
+.in-view .price-features li:nth-child(6)::before{animation-delay:.45s}
+.in-view .price-features li:nth-child(n+7)::before{animation-delay:.52s}
+
+@media (prefers-reduced-motion:reduce){
+  button:hover .ico-seta,a:hover .ico-seta{animation:none}
+  .in-view .price-features li::before{animation:none;opacity:1;transform:none}
+}
+
   @keyframes spin { to { transform: rotate(360deg); } }
 /* Botão ocupado: giro + trava de clique enquanto a rede não responde.
    currentColor faz o giro herdar a cor do texto do botão, então serve
@@ -2286,10 +2422,65 @@ function aplicarCupom(){
     fb.style.display = 'block';
   });
 }
+// ── A COMEMORAÇÃO DO PAGAMENTO ────────────────────────────
+//
+// Solta o confete dentro de `palco`. Chamada quando a tela de
+// sucesso aparece — nunca no carregamento, senão o efeito acontece
+// escondido e o cliente chega numa festa que já acabou.
+//
+// Os papéis são criados e removidos: deixá-los no DOM manteria
+// dezenas de nós animando para sempre atrás de uma tela invisível,
+// e em celular isso aparece como aquecimento e bateria.
+var FESTA_CORES = ['#1e8a40','#3dd669','#a7f3c9','#facc15','#fb923c','#60a5fa'];
+
+function soltarConfete(palco, quantos){
+  if(!palco) return;
+  // Respeita quem pediu menos movimento: sem papéis, e sem o custo
+  // de criar e animar noventa nós que o CSS vai esconder.
+  try{
+    if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  }catch(e){}
+
+  palco.textContent = '';
+  var n = quantos || 46;
+  for(var i=0;i<n;i++){
+    var p = document.createElement('i');
+    var lado = (Math.random()*2-1);            // -1 (esquerda) a 1 (direita)
+    p.className = 'festa-papel';
+    p.style.setProperty('--x',     Math.round(lado*170) + 'px');
+    p.style.setProperty('--queda', (150 + Math.random()*110).toFixed(0) + 'px');
+    p.style.setProperty('--giro',  Math.round(Math.random()*900-450) + 'deg');
+    p.style.setProperty('--tempo', (1.1 + Math.random()*.9).toFixed(2) + 's');
+    p.style.setProperty('--atraso',(Math.random()*.32).toFixed(2) + 's');
+    p.style.background = FESTA_CORES[i % FESTA_CORES.length];
+    // Um em cada três vira círculo: confete de verdade não é só
+    // retângulo, e a mistura tira o ar de "gerado por laço".
+    if(i % 3 === 0){ p.style.borderRadius = '50%'; p.style.width = '8px'; p.style.height = '8px'; }
+    palco.appendChild(p);
+  }
+  // 2,6s cobre o papel mais lento (1,1+0,9 de queda + 0,32 de atraso).
+  setTimeout(function(){ if(palco) palco.textContent = ''; }, 2600);
+}
+
+// Uma passagem só: aqui é o unico lugar que troca de tela no checkout,
+// entao e aqui que a comemoracao nasce. Soltar o confete no
+// carregamento faria a festa acontecer escondida, e o cliente chegaria
+// numa comemoracao que ja acabou.
+var FESTA_DE = { 'ok': 'festa-palco-pago', 'trial-ok': 'festa-palco-trial' };
+
 function mostrarStep(s) {
   ['form','verify','ok','trial','trial-verify','trial-ok'].forEach(id => {
     document.getElementById('step-'+id).style.display = (id === s ? 'block' : 'none');
   });
+
+  if (FESTA_DE[s]) {
+    // requestAnimationFrame: o display acabou de mudar, e criar os
+    // papeis no mesmo quadro faria o navegador comecar a animacao
+    // antes de ter calculado o layout do palco.
+    requestAnimationFrame(function () {
+      soltarConfete(document.getElementById(FESTA_DE[s]));
+    });
+  }
 }
 
 // ── Fechar clicando fora ──────────────────────────────────────
@@ -2766,7 +2957,7 @@ function entrarNoModoPagou(email, convite) {
   // ícone e escapa todo o resto como texto — qualquer outra tag
   // apareceria escrita na cara do botão.
   var btn = document.getElementById('btn-gerar');
-  if (btn) escreverComIcones(btn, 'Continuar <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>');
+  if (btn) escreverComIcones(btn, 'Continuar <svg class="ico ico-seta" aria-hidden=true><use href=#i-arrow-right></use></svg>');
 
   // O resumo de preço e o campo de cupom são de quem está comprando.
   // Para quem já comprou, os dois só levantam a dúvida "vou pagar de
@@ -2883,7 +3074,7 @@ function escolherAssinarAgora(){
     var camposPag = document.getElementById('trial-verify-pagamento-campos');
     if (camposPag) camposPag.style.display = 'block';
     var btnConf = document.getElementById('btn-trial-confirmar');
-    if (btnConf) escreverComIcones(btnConf, 'Confirmar e continuar para pagamento <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>');
+    if (btnConf) escreverComIcones(btnConf, 'Confirmar e continuar para pagamento <svg class="ico ico-seta" aria-hidden=true><use href=#i-arrow-right></use></svg>');
     mostrarStep('trial-verify');
   })
   .catch(function(){
@@ -3224,7 +3415,7 @@ async function confirmarTrialCodigo() {
     if (!r.ok || !data.ok) throw new Error(data.error || 'Código inválido');
 
     // O backend retorna token quando cria a empresa (nome+senha
-    // enviados) — sem isso, "Acessar o Workap <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>" levaria a pessoa
+    // enviados) — sem isso, "Acessar o Workap <svg class="ico ico-seta" aria-hidden=true><use href=#i-arrow-right></use></svg>" levaria a pessoa
     // pra tela de login pedindo credenciais que ela já acabou de
     // digitar aqui. Salva para o app já abrir logado.
     if (data.token) localStorage.setItem('worka_token', data.token);
@@ -3343,7 +3534,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
     <div id="acesso-erro" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px;font-size:0.8rem;color:#dc2626;margin-bottom:12px;"></div>
 
-    <button id="acesso-btn-entrar" onclick="entrarNoApp()" style="width:100%;background:#1e8a40;color:white;border:none;padding:13px;border-radius:10px;font-size:0.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:12px;">Entrar no Workap <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></button>
+    <button id="acesso-btn-entrar" onclick="entrarNoApp()" style="width:100%;background:#1e8a40;color:white;border:none;padding:13px;border-radius:10px;font-size:0.95rem;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:12px;">Entrar no Workap <svg class="ico ico-seta" aria-hidden=true><use href=#i-arrow-right></use></svg></button>
     <div style="text-align:center;margin-bottom:10px;">
       <!-- ?recuperar=1 abre o app já na tela de redefinição, em vez de
            só na tela de login pedindo pra clicar de novo. -->
@@ -3370,7 +3561,7 @@ function setAcessoTipo(tipo){
   document.getElementById('acesso-dispositivo').style.display='none';
   document.getElementById('acesso-erro').style.display='none';
   var btnEntrar = document.getElementById('acesso-btn-entrar');
-  if(btnEntrar) escreverComIcones(btnEntrar, 'Entrar no Workap <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>');
+  if(btnEntrar) escreverComIcones(btnEntrar, 'Entrar no Workap <svg class="ico ico-seta" aria-hidden=true><use href=#i-arrow-right></use></svg>');
 
   document.getElementById('acesso-dono').style.display=tipo==='dono'?'block':'none';
   document.getElementById('acesso-func').style.display=tipo==='funcionario'?'block':'none';
@@ -3423,7 +3614,7 @@ function mostrarPassoDispositivo(email, senha, tipo){
   document.getElementById('ac-disp-codigo').value = '';
   document.getElementById('acesso-erro').style.display = 'none';
   var btn = document.getElementById('acesso-btn-entrar');
-  if(btn) escreverComIcones(btn, 'Confirmar e entrar <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>');
+  if(btn) escreverComIcones(btn, 'Confirmar e entrar <svg class="ico ico-seta" aria-hidden=true><use href=#i-arrow-right></use></svg>');
 }
 
 function confirmarDispositivoSite(){
@@ -3453,7 +3644,7 @@ function confirmarDispositivoSite(){
   })
   .then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }); })
   .then(function(res){
-    if(btn){ escreverComIcones(btn, 'Confirmar e entrar <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'); btn.disabled = false; }
+    if(btn){ escreverComIcones(btn, 'Confirmar e entrar <svg class="ico ico-seta" aria-hidden=true><use href=#i-arrow-right></use></svg>'); btn.disabled = false; }
     if(res.status !== 200 || !res.data.token){
       erro.textContent = res.data.error || 'Não foi possível confirmar o aparelho.';
       erro.style.display = 'block';
@@ -3465,7 +3656,7 @@ function confirmarDispositivoSite(){
     window.location.href = 'app/';
   })
   .catch(function(){
-    if(btn){ escreverComIcones(btn, 'Confirmar e entrar <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>'); btn.disabled = false; }
+    if(btn){ escreverComIcones(btn, 'Confirmar e entrar <svg class="ico ico-seta" aria-hidden=true><use href=#i-arrow-right></use></svg>'); btn.disabled = false; }
     erro.textContent = 'Erro de conexão. Tente novamente.';
     erro.style.display = 'block';
   });
@@ -3641,7 +3832,7 @@ document.getElementById('acesso-overlay').addEventListener('click',function(e){i
         <div class="dor-card"><svg class=ico aria-hidden=true><use href=#i-key></use></svg> Sem controle de quem pode ver o quê no sistema</div>
         <div class="dor-card"><svg class=ico aria-hidden=true><use href=#i-pin></use></svg> Funcionário bate ponto de casa e você não sabe</div>
       </div>
-      <button onclick="irParaPasso(3)" class="funil-btn">Isso acontece comigo <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></button>
+      <button onclick="irParaPasso(3)" class="funil-btn">Isso acontece comigo <svg class="ico ico-seta" aria-hidden=true><use href=#i-arrow-right></use></svg></button>
     </div>
 
     <div id="funil-3" class="funil-step" style="display:none;">
@@ -3655,7 +3846,7 @@ document.getElementById('acesso-overlay').addEventListener('click',function(e){i
         <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;"><svg class=ico aria-hidden=true><use href=#i-palette></use></svg></span><div><strong>Sua marca, suas cores</strong><p>O app fica com o nome e visual da sua empresa.</p></div></div>
         <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;"><svg class=ico aria-hidden=true><use href=#i-pin></use></svg></span><div><strong>Localização na batida de ponto</strong><p>Veja no Google Maps exatamente onde cada funcionário bateu o ponto.</p></div></div>
       </div>
-      <button onclick="irParaPasso(4)" class="funil-btn">Quero saber mais <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></button>
+      <button onclick="irParaPasso(4)" class="funil-btn">Quero saber mais <svg class="ico ico-seta" aria-hidden=true><use href=#i-arrow-right></use></svg></button>
     </div>
 
     <div id="funil-4" class="funil-step" style="display:none;">
@@ -3666,7 +3857,7 @@ document.getElementById('acesso-overlay').addEventListener('click',function(e){i
         <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:20px;"><div style="font-size:1.3rem;margin-bottom:8px;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg></div><div style="font-weight:700;color:#fff;margin-bottom:4px;">Hierarquia e permissões customizáveis</div><div style="font-size:0.82rem;color:rgba(255,255,255,0.6);">Crie os cargos que seu negócio precisa com permissões por checkbox.</div></div>
         <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:20px;"><div style="font-size:1.3rem;margin-bottom:8px;"><svg class=ico aria-hidden=true><use href=#i-phone></use></svg></div><div style="font-weight:700;color:#fff;margin-bottom:4px;">Entrada segura por ID único</div><div style="font-size:0.82rem;color:rgba(255,255,255,0.6);">Nenhum funcionário entra sem sua aprovação.</div></div>
       </div>
-      <button onclick="irParaPasso(5)" class="funil-btn">Como começo <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></button>
+      <button onclick="irParaPasso(5)" class="funil-btn">Como começo <svg class="ico ico-seta" aria-hidden=true><use href=#i-arrow-right></use></svg></button>
     </div>
 
     <!-- Este passo mostrava três depoimentos — "Carla M. · Salão de
@@ -3686,7 +3877,7 @@ document.getElementById('acesso-overlay').addEventListener('click',function(e){i
         <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;"><svg class=ico aria-hidden=true><use href=#i-key></use></svg></span><div><strong>Sua equipe entra pelo ID da empresa</strong><p>Você passa o código, cada um se cadastra — e ninguém entra sem a sua aprovação.</p></div></div>
         <div class="sol-card"><span style="color:#3dd669;font-size:1.3rem;flex-shrink:0;"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg></span><div><strong>No 8º dia você decide</strong><p>Se não servir, é só não assinar. Não cobramos nada e não pedimos motivo.</p></div></div>
       </div>
-      <button onclick="irParaPasso(6)" class="funil-btn">Ver os planos <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></button>
+      <button onclick="irParaPasso(6)" class="funil-btn">Ver os planos <svg class="ico ico-seta" aria-hidden=true><use href=#i-arrow-right></use></svg></button>
     </div>
 
     <div id="funil-6" class="funil-step" style="display:none;">

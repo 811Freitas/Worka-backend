@@ -87,6 +87,144 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{box-shadow:var(-
 @keyframes popIn{0%{transform:scale(.9);opacity:0}70%{transform:scale(1.02)}100%{transform:scale(1);opacity:1}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}}
 
+/* ══ PAGAMENTO APROVADO ═══════════════════════════════════
+   O momento em que o dinheiro entra é o único da jornada em que
+   o cliente merece uma comemoração — e era o mais sem graça de
+   todos: um check parado e um parágrafo. Quem acabou de pagar
+   fica olhando a tela por dois segundos esperando ter certeza de
+   que deu certo; esses dois segundos são de graça e valem muito.
+
+   Tudo aqui é CSS e SVG puros. O app funciona offline, e puxar
+   uma biblioteca de confete pela rede justamente na tela de
+   "pagamento confirmado" seria trocar uma alegria por um risco. */
+
+/* O anel que cresce e some por trás do check — a "onda" do acerto. */
+@keyframes festaOnda{
+  0%  {transform:scale(.5);opacity:.55}
+  70% {opacity:.14}
+  100%{transform:scale(2.5);opacity:0}
+}
+/* O selo entra com um exagero curto e assenta. */
+@keyframes festaSelo{
+  0%  {transform:scale(0) rotate(-25deg);opacity:0}
+  55% {transform:scale(1.12) rotate(4deg);opacity:1}
+  75% {transform:scale(.96) rotate(-2deg)}
+  100%{transform:scale(1) rotate(0);opacity:1}
+}
+/* O risco do check se DESENHA. É o detalhe que faz parecer feito
+   à mão em vez de aparecer pronto. */
+@keyframes festaRisco{to{stroke-dashoffset:0}}
+/* Cada pedaço de confete cai girando. --x, --giro e --queda vêm do
+   JS, para nenhum papelzinho repetir a trajetória do vizinho. */
+@keyframes festaConfete{
+  0%  {transform:translate3d(0,0,0) rotate(0);opacity:1}
+  100%{transform:translate3d(var(--x),var(--queda),0) rotate(var(--giro));opacity:0}
+}
+@keyframes festaSobe{
+  from{opacity:0;transform:translateY(12px)}
+  to  {opacity:1;transform:none}
+}
+
+.festa{position:relative;display:flex;flex-direction:column;align-items:center}
+/* O palco do confete não pode empurrar nada nem capturar clique:
+   ele é uma camada por cima, e o botão embaixo dele continua
+   clicável — senão a comemoração impede de entrar no app. */
+.festa-palco{position:absolute;inset:-40px -20px auto;height:260px;overflow:hidden;
+  pointer-events:none;z-index:2}
+.festa-papel{position:absolute;top:52px;left:50%;width:9px;height:14px;border-radius:2px;
+  animation:festaConfete var(--tempo,1.5s) cubic-bezier(.2,.6,.5,1) forwards;
+  animation-delay:var(--atraso,0s)}
+
+/* margin auto, e nao so o align-items do .festa: o #step-ok carrega
+   display:none no atributo style, e quem o mostra escreve display:block
+   ali mesmo -- inline vence a classe, o flex nunca acontece e o selo
+   fica encostado na esquerda. Centralizar por margem funciona nos dois
+   casos. */
+.festa-selo{position:relative;width:88px;height:88px;border-radius:50%;
+  background:linear-gradient(135deg,#1e8a40,#3dd669);
+  display:flex;align-items:center;justify-content:center;
+  margin:0 auto 18px;
+  box-shadow:0 10px 30px rgba(30,138,64,.34);
+  animation:festaSelo .72s cubic-bezier(.16,1,.3,1) both;z-index:3}
+.festa-selo::before,.festa-selo::after{content:'';position:absolute;inset:0;
+  border-radius:50%;border:2px solid #3dd669;animation:festaOnda 1.5s var(--ease-out,cubic-bezier(.16,1,.3,1)) infinite}
+.festa-selo::after{animation-delay:.5s}
+
+.festa-check{width:44px;height:44px;stroke:#fff;stroke-width:3.4;fill:none;
+  stroke-linecap:round;stroke-linejoin:round}
+.festa-check path{stroke-dasharray:34;stroke-dashoffset:34;
+  animation:festaRisco .42s cubic-bezier(.65,0,.35,1) .38s forwards}
+
+/* Texto em escada: o olho lê na ordem em que aparece.
+   O atraso vem de --passo, escrito em cada linha, e NÃO de
+   :nth-of-type: as linhas são um div, um p e um button, e nth-of-type
+   conta por tag — os três viravam "o primeiro da sua espécie" e
+   subiam todos juntos, que é justamente o contrário de uma escada. */
+.festa-linha{animation:festaSobe .5s var(--ease-out,cubic-bezier(.16,1,.3,1)) both;
+  animation-delay:calc(.42s + var(--passo,0) * .12s)}
+
+/* Quem pediu menos movimento continua sabendo que deu certo: o selo
+   e o check ficam, parados. O que sai é o que só enfeita — confete,
+   ondas e o balanço da entrada. Zerar tudo deixaria a tela mais
+   pobre que a de antes, e não é isso que a preferência pede. */
+@media (prefers-reduced-motion:reduce){
+  .festa-palco{display:none}
+  .festa-selo{animation:none}
+  .festa-selo::before,.festa-selo::after{animation:none;opacity:0}
+  .festa-check path{animation:none;stroke-dashoffset:0}
+  .festa-linha{animation:none;opacity:1;transform:none}
+}
+
+/* ══ ÍCONES QUE RESPONDEM ══════════════════════════════════
+   Uma linguagem só, para o app inteiro parecer a mesma mão:
+     · passar o mouse por cima → o ícone cresce um pouco;
+     · seta → anda na direção que ela aponta;
+     · sino → só balança quando tem coisa nova.
+   O ultimo e o que separa enfeite de informacao: um sino que
+   balanca sempre vira ruido de fundo e para de ser lido. */
+
+/* Todo icone dentro de algo clicavel acompanha o hover. Fica no
+   ICONE, e nao no container, para o texto ao lado nao esticar
+   junto — letra que muda de tamanho no hover parece defeito. */
+.nav-item .ico,.btn .ico,.stat-card .ico,.card-header .ico,.notif-btn .ico{
+  transition:transform var(--dur) var(--ease-out)}
+.nav-item:hover .ico,.card-header:hover .ico{transform:scale(1.14)}
+.btn:hover .ico{transform:scale(1.1)}
+
+/* A seta anda para onde aponta. */
+@keyframes icoSeta{0%,100%{transform:translateX(0)}50%{transform:translateX(3px)}}
+.btn:hover .ico-seta{animation:icoSeta .7s var(--ease,cubic-bezier(.4,0,.2,1)) infinite}
+
+/* O quadradinho colorido do painel: gira de leve e cresce. */
+.stat-card-icon{transition:transform var(--dur-slow) var(--ease-out),
+  box-shadow var(--dur) var(--ease-out)}
+.stat-card:hover .stat-card-icon{transform:scale(1.09) rotate(-5deg);
+  box-shadow:inset 0 0 0 1px rgba(10,30,20,.04),0 6px 16px rgba(10,30,20,.09)}
+
+/* O SINO balanca no hover, e so no hover.
+   A ideia primeira era balancar quando houvesse notificacao nao
+   lida — mas o #notif-count nunca e preenchido por ninguem: a
+   pagina "Notificacoes" cuida de LIGAR o push, nao de listar
+   mensagens. Nao existe contador de nao-lidas neste app hoje.
+   Animar por "novidade" seria animar por um sinal que nao existe:
+   ou nunca dispararia, ou dispararia sempre e viraria mentira. */
+@keyframes icoSino{
+  0%,60%,100%{transform:rotate(0)}
+  66%{transform:rotate(13deg)} 72%{transform:rotate(-11deg)}
+  78%{transform:rotate(8deg)}  84%{transform:rotate(-6deg)} 90%{transform:rotate(3deg)}
+}
+.notif-btn:hover .ico{animation:icoSino 1.1s var(--ease,cubic-bezier(.4,0,.2,1));
+  transform-origin:50% 15%}
+
+/* Icone de estado dentro de um cartao vazio: respira devagar, para
+   a tela sem dados nao parecer tela travada. */
+@keyframes icoRespira{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+.empty-state .icon{animation:icoRespira 3.4s var(--ease,cubic-bezier(.4,0,.2,1)) infinite}
+
+@media(prefers-reduced-motion:reduce){
+  .btn:hover .ico-seta,.notif-btn:hover .ico,.empty-state .icon{animation:none}
+}
+
 /* ── SKELETON LOADER ── */
 .skel{position:relative;overflow:hidden;background:var(--gray100);border-radius:8px;background-image:linear-gradient(90deg,var(--gray100) 0px,var(--gray50) 40px,var(--gray100) 80px);background-size:600px 100%;animation:shimmer 1.4s ease-in-out infinite}
 .skel-text{height:12px;border-radius:6px;margin:6px 0}
@@ -2093,7 +2231,7 @@ tr:hover td{background:var(--g50)}
           <div class="chat-envio" id="chat-envio" style="display:none">
             <input id="chat-texto" type="text" maxlength="2000" placeholder="Escreva a mensagem" onkeydown="if(event.key==='Enter')enviarMensagem()">
             <button class="btn btn-primary" onclick="enviarMensagem()">
-              <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg>
+              <svg class="ico ico-seta" aria-hidden=true><use href=#i-arrow-right></use></svg>
             </button>
           </div>
         </div>
@@ -4508,14 +4646,14 @@ function mostrarAcessoEncerrado(d) {
         var dd = await r.json().catch(function () { return {}; });
 
         if (r.ok && dd.liberado) {
-          recado.style.cssText += ';background:#f0fdf4;color:#166534';
-          recado.textContent = dd.mensagem || 'Pagamento confirmado!';
-          recado.style.display = 'block';
-          jaPaguei.textContent = 'Entrando...';
-          // Recarrega para o app subir já com o acesso valendo. Voltar
-          // para a mesma tela dizendo "liberado" e continuar bloqueado
-          // seria pior que não ter o botão.
-          setTimeout(function () { location.reload(); }, 1200);
+          // A MESMA comemoração do checkout do site. Quem destrava aqui
+          // pagou igual a quem pagou lá, e receber um recadinho de duas
+          // linhas onde o outro recebe uma festa faz o cliente de
+          // segunda classe justamente no momento em que ele pagou.
+          festejarNoBloqueio(cartao, dd.mensagem || 'Pagamento confirmado!');
+          // 2,2s em vez de 1,2s: o recarregamento cortava a animação
+          // no meio, e uma festa cortada é pior que festa nenhuma.
+          setTimeout(function () { location.reload(); }, 2200);
           return;
         }
 
@@ -7576,7 +7714,7 @@ async function baterPonto(tipo, btnEl) {
     var aviso;
     if(err && err.code === 1){        // PERMISSION_DENIED
       aviso = '<svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Permissão de localização negada. O ponto foi registrado sem GPS. ' +
-              'Para ativar: Ajustes do navegador <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg> Site workap.com.br <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg> Localização <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg> Permitir.';
+              'Para ativar: Ajustes do navegador <svg class="ico ico-seta" aria-hidden=true><use href=#i-arrow-right></use></svg> Site workap.com.br <svg class="ico ico-seta" aria-hidden=true><use href=#i-arrow-right></use></svg> Localização <svg class="ico ico-seta" aria-hidden=true><use href=#i-arrow-right></use></svg> Permitir.';
     } else if(err && err.code === 2){ // POSITION_UNAVAILABLE
       aviso = '<svg class=ico aria-hidden=true><use href=#i-alert></use></svg> Não foi possível obter o sinal de GPS agora. Ponto registrado sem localização.';
     } else if(err && err.code === 3){ // TIMEOUT
@@ -12084,6 +12222,84 @@ async function carregarChatbot(T){
 // Sai do servidor, do mesmo promptDoBot() que o atendimento usa. Montar
 // uma previa aqui no navegador seria mais rapido e mostraria um prompt
 // que nao e o que roda, que e pior que nao mostrar nada.
+// ── A COMEMORAÇÃO DO PAGAMENTO ────────────────────────────
+//
+// Solta o confete dentro de `palco`. Chamada quando a tela de
+// sucesso aparece — nunca no carregamento, senão o efeito acontece
+// escondido e o cliente chega numa festa que já acabou.
+//
+// Os papéis são criados e removidos: deixá-los no DOM manteria
+// dezenas de nós animando para sempre atrás de uma tela invisível,
+// e em celular isso aparece como aquecimento e bateria.
+var FESTA_CORES = ['#1e8a40','#3dd669','#a7f3c9','#facc15','#fb923c','#60a5fa'];
+
+function soltarConfete(palco, quantos){
+  if(!palco) return;
+  // Respeita quem pediu menos movimento: sem papéis, e sem o custo
+  // de criar e animar noventa nós que o CSS vai esconder.
+  try{
+    if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  }catch(e){}
+
+  palco.textContent = '';
+  var n = quantos || 46;
+  for(var i=0;i<n;i++){
+    var p = document.createElement('i');
+    var lado = (Math.random()*2-1);            // -1 (esquerda) a 1 (direita)
+    p.className = 'festa-papel';
+    p.style.setProperty('--x',     Math.round(lado*170) + 'px');
+    p.style.setProperty('--queda', (150 + Math.random()*110).toFixed(0) + 'px');
+    p.style.setProperty('--giro',  Math.round(Math.random()*900-450) + 'deg');
+    p.style.setProperty('--tempo', (1.1 + Math.random()*.9).toFixed(2) + 's');
+    p.style.setProperty('--atraso',(Math.random()*.32).toFixed(2) + 's');
+    p.style.background = FESTA_CORES[i % FESTA_CORES.length];
+    // Um em cada três vira círculo: confete de verdade não é só
+    // retângulo, e a mistura tira o ar de "gerado por laço".
+    if(i % 3 === 0){ p.style.borderRadius = '50%'; p.style.width = '8px'; p.style.height = '8px'; }
+    palco.appendChild(p);
+  }
+  // 2,6s cobre o papel mais lento (1,1+0,9 de queda + 0,32 de atraso).
+  setTimeout(function(){ if(palco) palco.textContent = ''; }, 2600);
+}
+
+// ── DESTRAVOU: a mesma festa do checkout ──────────────────
+//
+// Troca o conteudo do cartao de bloqueio pela comemoracao. Substituir
+// em vez de acrescentar e de proposito: os botoes de pagar e de falar
+// no WhatsApp deixaram de fazer sentido no instante em que o acesso
+// abriu, e deixa-los na tela convida a pagar duas vezes.
+function festejarNoBloqueio(cartao, mensagem){
+  if(!cartao) return;
+  cartao.classList.add('festa');
+  cartao.style.textAlign = 'center';
+  cartao.textContent = '';
+
+  var palco = document.createElement('div');
+  palco.className = 'festa-palco';
+
+  var selo = document.createElement('div');
+  selo.className = 'festa-selo';
+  selo.style.margin = '0 auto 18px';
+  selo.innerHTML = '<svg class="festa-check" viewBox="0 0 24 24" aria-hidden="true">' +
+                   '<path d="M4.5 12.5l5 5 10-10"/></svg>';
+
+  var titulo = document.createElement('div');
+  titulo.className = 'festa-linha';
+  titulo.style.cssText = '--passo:0;font-size:1.25rem;font-weight:800;color:#166534;margin-bottom:6px';
+  titulo.textContent = mensagem;
+
+  var sub = document.createElement('div');
+  sub.className = 'festa-linha';
+  sub.style.cssText = '--passo:1;font-size:.86rem;color:var(--gray500);line-height:1.6';
+  sub.textContent = 'Acesso liberado. Abrindo o Workap...';
+
+  cartao.appendChild(palco);
+  cartao.appendChild(selo);
+  cartao.appendChild(titulo);
+  cartao.appendChild(sub);
+  requestAnimationFrame(function(){ soltarConfete(palco); });
+}
+
 // ── QUANTO VOCE ESCREVEU, E QUANTO ISSO CUSTA ──
 //
 // Os campos NAO tem limite de caracteres. Escreva o cardapio inteiro, a
@@ -15128,7 +15344,7 @@ function verificarTrial() {
 function mostrarAvisoTrial(dias) {
   var aviso = document.createElement('div');
   aviso.style.cssText = 'position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:9000;background:#fffbeb;border:1.5px solid #f59e0b;border-radius:10px;padding:10px 16px;font-size:.78rem;color:#92400e;display:flex;align-items:center;gap:8px;max-width:360px;width:90%;box-shadow:0 4px 12px rgba(0,0,0,.1)';
-  aviso.innerHTML = '<svg class=ico aria-hidden=true><use href=#i-clock></use></svg> <span>Seu trial expira em <strong>' + dias + ' dia' + (dias > 1 ? 's' : '') + '</strong>. <a href="' + '../' + '" style="color:#1e8a40;font-weight:700">Assinar agora <svg class=ico aria-hidden=true><use href=#i-arrow-right></use></svg></a></span><button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:#92400e;margin-left:auto"><svg class=ico aria-hidden=true><use href=#i-x></use></svg></button>';
+  aviso.innerHTML = '<svg class=ico aria-hidden=true><use href=#i-clock></use></svg> <span>Seu trial expira em <strong>' + dias + ' dia' + (dias > 1 ? 's' : '') + '</strong>. <a href="' + '../' + '" style="color:#1e8a40;font-weight:700">Assinar agora <svg class="ico ico-seta" aria-hidden=true><use href=#i-arrow-right></use></svg></a></span><button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:#92400e;margin-left:auto"><svg class=ico aria-hidden=true><use href=#i-x></use></svg></button>';
   document.body.appendChild(aviso);
   setTimeout(() => { if(aviso.parentElement) aviso.remove(); }, 8000);
 }
