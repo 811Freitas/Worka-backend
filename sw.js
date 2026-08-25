@@ -9,6 +9,39 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
+// v63: o pagamento aprovado vira uma comemoracao.
+//
+//      O momento em que o dinheiro entra era o mais sem graca da
+//      jornada: um check parado e um paragrafo. Quem acabou de pagar
+//      fica olhando a tela esperando ter certeza de que deu certo, e
+//      esses dois segundos sao de graca.
+//
+//      Agora tem selo que entra girando, check que se DESENHA, duas
+//      ondas saindo do selo, confete e o texto subindo em escada. Nas
+//      tres portas: pagamento confirmado e trial ativado no site, e o
+//      "Ja paguei" do app -- quem destrava la pagou igual, e receber
+//      um recadinho de duas linhas onde o outro recebe uma festa faz
+//      o cliente de segunda classe bem na hora em que ele pagou.
+//
+//      Tudo em CSS e SVG puros. Puxar uma biblioteca de confete pela
+//      rede justamente na tela de "pagamento confirmado" seria trocar
+//      uma alegria por um risco, e o app funciona offline.
+//
+//      ICONES: uma linguagem so, para o site e o app parecerem a mesma
+//      mao. Hover cresce o icone, a seta anda para onde aponta, o
+//      quadradinho do painel gira de leve, e os checks do plano dao um
+//      pop em escada quando o cartao entra na tela.
+//
+//      O check do plano NASCE visivel e a animacao so acrescenta o
+//      pop: se o observador de scroll nao rodar, o pior caso e uma
+//      lista sem pop, nunca uma lista sem checks.
+//
+//      E o sino: a ideia era balancar quando houvesse notificacao nao
+//      lida, mas o contador nunca e preenchido por ninguem -- a pagina
+//      "Notificacoes" liga o push, nao lista mensagens. Balancar por um
+//      sinal que nao existe ou nunca dispararia ou dispararia sempre.
+//      Ficou no hover, que e verdade.
+
 // v62: sem limite de caracteres. Nenhum.
 //
 //      A v60 tinha trocado o corte calado de 4.000 por uma recusa em
@@ -401,7 +434,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v62';
+var CACHE = 'workap-v63';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';
