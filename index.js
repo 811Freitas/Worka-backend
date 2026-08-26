@@ -73,7 +73,7 @@ const CONFIG = {
   // Segredo que vai na URL do webhook cadastrada no painel da Cakto.
   // VOCÊ inventa este valor — não vem deles. Sem ele, qualquer um que
   // descubra o endereço avisa "pago" e ganha acesso de graça. Ver
-  // webhookCaktoValido().
+  // conferirSegredoDoWebhook().
   CAKTO_WEBHOOK_SECRET:  env("CAKTO_WEBHOOK_SECRET"),
 
   // iFood. Credenciais do APLICATIVO (a Workap como integradora), não
@@ -3291,37 +3291,73 @@ function limparDetalhe(obj) {
   return limpo;
 }
 
-// Guarda para não entrar em laço: se o próprio banco cair, gravar o
-// erro no banco falha, o que geraria outro erro, que tentaria gravar...
-var gravandoErro = false;
+// FILA, e não uma tranca de um erro por vez.
+//
+// Aqui havia um booleano: enquanto um erro estava sendo gravado,
+// qualquer outro era DESCARTADO em silêncio. O motivo original era
+// evitar laço — se o banco cai, gravar o erro falha, o que geraria
+// outro erro, que tentaria gravar... — mas esse laço já não existe: o
+// .catch() da gravação só escreve no console, nunca chama esta função
+// de volta.
+//
+// O preço do booleano era alto e invisível. Dois erros no mesmo
+// instante viravam um; uma rajada — que é justamente o que acontece
+// quando algo quebra de verdade, ou quando um gateway repete o webhook
+// recusado — virava uma linha só. E esta tabela existe exatamente para
+// ser o lugar onde se olha quando o dinheiro entra e o acesso não abre.
+// Perder linhas dela é perder o único registro do problema.
+//
+// A fila tem teto: se estourar, o que sobra é contado e dito, em vez de
+// crescer sem limite segurando memória num servidor que já está mal.
+var filaDeErros = [];
+var drenandoErros = false;
+var errosDescartados = 0;
+var FILA_DE_ERROS_MAX = 25;
+
+function drenarErros() {
+  if (drenandoErros) return;
+  var proximo = filaDeErros.shift();
+  if (!proximo) return;
+  drenandoErros = true;
+
+  supabase("POST", "erros_plataforma", { body: proximo, prefer: "return=minimal" })
+    .catch(function (e) {
+      // NUNCA registrarErro() aqui: é o laço que a tranca antiga temia.
+      console.error("[ERRO] falhou ao gravar o erro:", e.message);
+    })
+    .then(function () {
+      drenandoErros = false;
+      if (filaDeErros.length) drenarErros();
+    });
+}
 
 function registrarErro(tipo, mensagem, extra) {
   extra = extra || {};
   console.error("[ERRO:" + tipo + "] " + mensagem, JSON.stringify(limparDetalhe(extra) || {}));
 
-  if (gravandoErro) return;
-  gravandoErro = true;
+  if (filaDeErros.length >= FILA_DE_ERROS_MAX) {
+    errosDescartados++;
+    console.error("[ERRO] fila cheia, " + errosDescartados + " erro(s) nao gravado(s)");
+    return;
+  }
+
+  filaDeErros.push({
+    tipo:       String(tipo).slice(0, 40),
+    rota:       extra.rota   ? String(extra.rota).slice(0, 200) : null,
+    metodo:     extra.metodo ? String(extra.metodo).slice(0, 10) : null,
+    status:     typeof extra.status === "number" ? extra.status : null,
+    mensagem:   String(mensagem || "sem mensagem").slice(0, 1000),
+    detalhe:    limparDetalhe(extra.detalhe),
+    // Erro disparado pela conta da plataforma não pertence a empresa
+    // nenhuma. Sem isto a trava de escrita recusaria o insert e o
+    // erro seria PERDIDO — justamente o que esta tabela existe para
+    // impedir.
+    empresa_id: (extra.empresa_id && extra.empresa_id !== EMPRESA_NENHUMA) ? extra.empresa_id : null
+  });
 
   // Fire-and-forget: registrar erro não pode atrasar a resposta da rota
   // nem, muito menos, derrubá-la.
-  supabase("POST", "erros_plataforma", {
-    body: {
-      tipo:       String(tipo).slice(0, 40),
-      rota:       extra.rota   ? String(extra.rota).slice(0, 200) : null,
-      metodo:     extra.metodo ? String(extra.metodo).slice(0, 10) : null,
-      status:     typeof extra.status === "number" ? extra.status : null,
-      mensagem:   String(mensagem || "sem mensagem").slice(0, 1000),
-      detalhe:    limparDetalhe(extra.detalhe),
-      // Erro disparado pela conta da plataforma não pertence a empresa
-      // nenhuma. Sem isto a trava de escrita recusaria o insert e o
-      // erro seria PERDIDO — justamente o que esta tabela existe para
-      // impedir.
-      empresa_id: (extra.empresa_id && extra.empresa_id !== EMPRESA_NENHUMA) ? extra.empresa_id : null
-    },
-    prefer: "return=minimal"
-  })
-    .catch(function (e) { console.error("[ERRO] falhou ao gravar o erro:", e.message); })
-    .then(function () { gravandoErro = false; });
+  drenarErros();
 }
 
 // Chamada de função no Postgres (RPC). O PostgREST não expõe o catálogo
@@ -4123,15 +4159,68 @@ async function aplicarAssinaturaCakto(empresaId, dados, planoMeta) {
  * Se a Cakto assinar os avisos, trocar isto por HMAC é a primeira
  * melhoria a fazer.
  */
-function webhookCaktoValido(url, headers) {
-  if (!CONFIG.CAKTO_WEBHOOK_SECRET) return false;
-  var candidato = url.searchParams.get("s") ||
-                  url.searchParams.get("secret") ||
-                  headers["x-webhook-secret"] || "";
-  if (!candidato) return false;
-  var a = Buffer.from(String(candidato), "utf8");
-  var b = Buffer.from(CONFIG.CAKTO_WEBHOOK_SECRET, "utf8");
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+/**
+ * De onde o segredo do webhook pode chegar.
+ *
+ * A query string (?s=) é a que ESTÁ sob nosso controle: nós montamos a
+ * URL, então ela funciona independente do que o gateway faça. Os
+ * cabeçalhos são tentativa: o painel da Cakto tem um campo "Chave
+ * secreta do webhook" e não diz em qual cabeçalho ele viaja. Aceitar os
+ * nomes usuais custa nada e evita descobrir o nome certo do jeito caro,
+ * que é um cliente pagando e o acesso não abrindo.
+ */
+var CABECALHOS_DE_SEGREDO = [
+  "x-webhook-secret", "x-webhook-token", "x-cakto-signature",
+  "x-cakto-secret", "x-signature", "x-hub-signature", "secret"
+];
+
+/**
+ * Confere o segredo e DIZ o que chegou quando recusa.
+ *
+ * Devolve { ok, achou, vistos }:
+ *   ok     — bateu com CAKTO_WEBHOOK_SECRET;
+ *   achou  — de onde veio o valor que bateu (ou null);
+ *   vistos — os lugares onde CHEGOU algum valor, batendo ou não.
+ *
+ * `vistos` é o que faltava. Antes a recusa dizia só "o segredo não
+ * confere", e não dava para distinguir três coisas que se consertam de
+ * jeitos diferentes: o gateway não mandou nada, mandou num cabeçalho
+ * que não conhecemos, ou mandou no lugar certo com o valor errado.
+ * Com a lista de nomes no log, a próxima falha se resolve olhando uma
+ * linha em vez de adivinhando.
+ *
+ * Só NOMES entram na lista — nunca o valor. Um segredo recusado ainda
+ * é um segredo, e log é lido por mais gente que banco.
+ */
+function conferirSegredoDoWebhook(url, headers) {
+  var vistos = [];
+  var alvo = CONFIG.CAKTO_WEBHOOK_SECRET;
+
+  function bate(valor) {
+    if (!valor || !alvo) return false;
+    var a = Buffer.from(String(valor), "utf8");
+    var b = Buffer.from(alvo, "utf8");
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  }
+
+  var daQuery = url.searchParams.get("s") || url.searchParams.get("secret");
+  if (daQuery) {
+    vistos.push("query");
+    if (bate(daQuery)) return { ok: true, achou: "query", vistos: vistos };
+  }
+
+  for (var i = 0; i < CABECALHOS_DE_SEGREDO.length; i++) {
+    var nome = CABECALHOS_DE_SEGREDO[i];
+    var valor = headers[nome];
+    if (!valor) continue;
+    vistos.push(nome);
+    // "Bearer xyz" e "sha256=xyz" aparecem em gateway que assina; o
+    // valor util e o que vem depois do separador.
+    var limpo = String(valor).replace(/^(Bearer|sha256|sha1)[\s=]+/i, "");
+    if (bate(valor) || bate(limpo)) return { ok: true, achou: nome, vistos: vistos };
+  }
+
+  return { ok: false, achou: null, vistos: vistos };
 }
 
 /**
@@ -10499,12 +10588,13 @@ var server = http.createServer(async (req, res) => {
     // Cadastre no painel da Cakto como:
     //   https://SEU-BACKEND/webhook/cakto?s=<CAKTO_WEBHOOK_SECRET>
     //
-    // O segredo é seu, não deles — ver webhookCaktoValido(). Responde
+    // O segredo é seu, não deles — ver conferirSegredoDoWebhook(). Responde
     // rápido de propósito: a Cakto exige resposta em 5 segundos, e o
     // trabalho pesado (e-mail) já é disparado sem esperar.
     if (method === "POST" && path === "/webhook/cakto") {
-      if (!webhookCaktoValido(url, req.headers)) {
-        secLog("webhook_cakto_segredo_invalido", { ip: ip });
+      var confCk = conferirSegredoDoWebhook(url, req.headers);
+      if (!confCk.ok) {
+        secLog("webhook_cakto_segredo_invalido", { ip: ip, vistos: confCk.vistos });
 
         // ISTO PRECISA APARECER NO PAINEL, e não só no console.
         //
@@ -10516,10 +10606,22 @@ var server = http.createServer(async (req, res) => {
         // Registrado como erro de plataforma, aparece na aba
         // Diagnóstico — que é o lugar onde alguém procura quando o
         // dinheiro entra e o acesso não abre.
-        registrarErro("webhook_recusado",
-          CONFIG.CAKTO_WEBHOOK_SECRET
-            ? "Webhook da Cakto recusado: o segredo enviado não confere com CAKTO_WEBHOOK_SECRET."
-            : "Webhook da Cakto recusado: CAKTO_WEBHOOK_SECRET não está definido no servidor — NENHUM pagamento consegue liberar acesso.",
+        // A mensagem DIZ o caso, porque os três se consertam de jeitos
+        // diferentes: faltou a variável no servidor, o gateway não
+        // mandou segredo nenhum (URL sem ?s=), ou mandou e não bate.
+        var recadoCk;
+        if (!CONFIG.CAKTO_WEBHOOK_SECRET) {
+          recadoCk = "Webhook da Cakto recusado: CAKTO_WEBHOOK_SECRET não está definido no " +
+                     "servidor — NENHUM pagamento consegue liberar acesso.";
+        } else if (!confCk.vistos.length) {
+          recadoCk = "Webhook da Cakto recusado: a chamada chegou SEM segredo nenhum. " +
+                     "A URL cadastrada na Cakto precisa terminar em ?s=<CAKTO_WEBHOOK_SECRET>.";
+        } else {
+          recadoCk = "Webhook da Cakto recusado: veio segredo em [" + confCk.vistos.join(", ") +
+                     "] e nenhum confere com CAKTO_WEBHOOK_SECRET. Confira se o valor no " +
+                     "painel da Cakto e o do servidor são exatamente o mesmo.";
+        }
+        registrarErro("webhook_recusado", recadoCk,
           { rota: "/webhook/cakto", metodo: "POST", status: 401 });
 
         return jsonErr(res, "Não autorizado", 401);
