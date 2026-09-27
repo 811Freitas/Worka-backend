@@ -70,11 +70,12 @@ const CONFIG = {
   // cobrança e devolve só o link.
   CAKTO_CLIENT_ID:       env("CAKTO_CLIENT_ID"),
   CAKTO_CLIENT_SECRET:   env("CAKTO_CLIENT_SECRET"),
-  // Segredo que vai na URL do webhook cadastrada no painel da Cakto.
-  // VOCÊ inventa este valor — não vem deles. Sem ele, qualquer um que
+  // Chave secreta configurada no webhook da Cakto; ela envia no JSON
+  // como `secret`. VOCÊ inventa este valor. Sem ele, qualquer um que
   // descubra o endereço avisa "pago" e ganha acesso de graça. Ver
   // conferirSegredoDoWebhook().
   CAKTO_WEBHOOK_SECRET:  env("CAKTO_WEBHOOK_SECRET"),
+  CAKTO_WEBHOOK_URL:     env("CAKTO_WEBHOOK_URL") || env("RENDER_EXTERNAL_URL"),
 
   // iFood. Credenciais do APLICATIVO (a Workap como integradora), não
   // de cada loja: no modelo deles, um integrador homologado tem um par
@@ -3457,7 +3458,7 @@ var CAKTO = {
   listarProdutos:"/public_api/products/",
   criarOferta:   "/public_api/offers/",
   listarPedidos: "/public_api/orders/",
-  criarWebhook:  "/public_api/webhooks/",
+  criarWebhook:  "/public_api/webhook/",
 
   // Onde procurar o link de pagamento na resposta. Lista porque não sei
   // o nome exato do campo, e tentar vários é mais barato do que
@@ -3487,7 +3488,7 @@ var CAKTO = {
   // registrado e ignorado — reagir a "checkout iniciado" liberaria
   // acesso para quem só abriu a tela.
   eventosPagos:     ["purchase_approved", "purchase_approved_recurrence", "subscription_renewed"],
-  eventosCancelados:["purchase_refunded", "purchase_chargeback", "subscription_canceled"]
+  eventosCancelados:["refund", "chargeback", "subscription_canceled", "purchase_refunded", "purchase_chargeback"]
 };
 
 // Token OAuth2 com cache. Sem o cache, cada cobrança faria duas
@@ -4009,11 +4010,36 @@ async function criarCobrancaCakto(opcoes) {
     if (link) secLog("cakto_link_veio_da_oferta", { produto: criado.id });
   }
 
+  // Cada checkout cria um produto novo. Um webhook configurado no painel
+  // para produtos antigos não acompanha os futuros automaticamente.
+  // Só entregar o link depois que o produto estiver inscrito evita
+  // cobrar alguém sem que o aviso de pagamento possa chegar.
+  await registrarWebhookDoProdutoCakto(criado.id);
+
   return {
     id: criado.id || idDaOfertaCakto(criado) || null,
     url: link,
     resposta: criado
   };
+}
+
+async function registrarWebhookDoProdutoCakto(produtoId) {
+  if (!produtoId || !CONFIG.CAKTO_WEBHOOK_SECRET || !CONFIG.CAKTO_WEBHOOK_URL) {
+    throw new Error("Webhook da Cakto não configurado: defina CAKTO_WEBHOOK_SECRET e CAKTO_WEBHOOK_URL");
+  }
+  var destino = new URL(CONFIG.CAKTO_WEBHOOK_URL);
+  if (destino.protocol !== "https:") throw new Error("O webhook da Cakto precisa usar HTTPS");
+  destino.pathname = "/webhook/cakto";
+  // A API de criação gera uma chave própria em fields.secret e não permite
+  // definir a chave compartilhada do painel. A query autentica os avisos
+  // destes produtos criados automaticamente; nunca registrar a URL em logs.
+  destino.search = "?s=" + encodeURIComponent(CONFIG.CAKTO_WEBHOOK_SECRET);
+  await caktoRequest("POST", CAKTO.criarWebhook, {
+    name: "Workap - " + String(produtoId).slice(0, 36),
+    url: destino.toString(),
+    products: [String(produtoId)],
+    events: ["purchase_approved", "subscription_renewed", "subscription_canceled", "refund", "chargeback"]
+  });
 }
 
 /**
@@ -4114,7 +4140,8 @@ function acharPagamentoDaEmpresa(pedidos, empresa) {
 async function aplicarAssinaturaCakto(empresaId, dados, planoMeta) {
   dados = dados || {};
 
-  var fimTexto = dados.next_charge_date || dados.next_billing_date ||
+  var fimTexto = (dados.subscription && dados.subscription.next_payment_date) ||
+                 dados.next_charge_date || dados.next_billing_date ||
                  dados.expires_at || dados.valid_until;
   var fim = fimTexto ? new Date(fimTexto) : null;
   // Sem data, 30 dias. Um acesso sem prazo é o bug que motivou toda a
@@ -4126,8 +4153,11 @@ async function aplicarAssinaturaCakto(empresaId, dados, planoMeta) {
     assinatura_ate:    fim.toISOString(),
     status:            "ativa"
   };
-  if (dados.subscription_id || dados.product_id) {
-    mudancas.pagamento_assinatura_id = String(dados.subscription_id || dados.product_id);
+  if ((dados.subscription && dados.subscription.id) || dados.subscription_id ||
+      (dados.product && dados.product.id) || dados.product_id) {
+    mudancas.pagamento_assinatura_id = String(
+      (dados.subscription && dados.subscription.id) || dados.subscription_id ||
+      (dados.product && dados.product.id) || dados.product_id);
   }
   if (planoValido(planoMeta)) mudancas.plano = planoMeta;
 
@@ -4144,17 +4174,12 @@ async function aplicarAssinaturaCakto(empresaId, dados, planoMeta) {
 /**
  * Confere que o webhook veio mesmo da Cakto.
  *
- * A busca não revelou nenhuma assinatura HMAC no aviso da Cakto — os
- * campos de criação do webhook são status, name, url, products e
- * events, sem segredo. Como não dá para confiar num campo que talvez
- * não exista, a prova de identidade é algo que NÃO depende deles: um
- * segredo que só eu conheço, embutido na própria URL cadastrada.
+ * O contrato oficial envia a chave cadastrada no painel no campo
+ * `secret` do JSON. A URL com ?s= continua aceita para instalações
+ * antigas. Conferimos em tempo constante antes de processar o pedido.
  *
- * Isso funciona qualquer que seja o formato do aviso — mas é mais fraco
- * que HMAC: quem interceptar a URL uma vez pode repetir o aviso. Duas
- * defesas compensam em parte: comparação em tempo constante, e
- * idempotência por id de evento, que impede a repetição de virar mês de
- * acesso extra.
+ * Chave compartilhada não é assinatura HMAC: quem souber a chave pode
+ * simular um evento. Não a incluir em logs nem enviar ao navegador.
  *
  * Se a Cakto assinar os avisos, trocar isto por HMAC é a primeira
  * melhoria a fazer.
@@ -4162,12 +4187,8 @@ async function aplicarAssinaturaCakto(empresaId, dados, planoMeta) {
 /**
  * De onde o segredo do webhook pode chegar.
  *
- * A query string (?s=) é a que ESTÁ sob nosso controle: nós montamos a
- * URL, então ela funciona independente do que o gateway faça. Os
- * cabeçalhos são tentativa: o painel da Cakto tem um campo "Chave
- * secreta do webhook" e não diz em qual cabeçalho ele viaja. Aceitar os
- * nomes usuais custa nada e evita descobrir o nome certo do jeito caro,
- * que é um cliente pagando e o acesso não abrindo.
+ * O campo `secret` do corpo é o contrato oficial. A query string (?s=)
+ * e os cabeçalhos são caminhos antigos, mantidos para compatibilidade.
  */
 var CABECALHOS_DE_SEGREDO = [
   "x-webhook-secret", "x-webhook-token", "x-cakto-signature",
@@ -4192,7 +4213,7 @@ var CABECALHOS_DE_SEGREDO = [
  * Só NOMES entram na lista — nunca o valor. Um segredo recusado ainda
  * é um segredo, e log é lido por mais gente que banco.
  */
-function conferirSegredoDoWebhook(url, headers) {
+function conferirSegredoDoWebhook(url, headers, corpo) {
   var vistos = [];
   var alvo = CONFIG.CAKTO_WEBHOOK_SECRET;
 
@@ -4207,6 +4228,13 @@ function conferirSegredoDoWebhook(url, headers) {
   if (daQuery) {
     vistos.push("query");
     if (bate(daQuery)) return { ok: true, achou: "query", vistos: vistos };
+  }
+
+  // Contrato oficial da Cakto: a chave configurada no painel vem no
+  // campo `secret` do JSON. A URL antiga continua aceita.
+  if (corpo && corpo.secret) {
+    vistos.push("body.secret");
+    if (bate(corpo.secret)) return { ok: true, achou: "body.secret", vistos: vistos };
   }
 
   for (var i = 0; i < CABECALHOS_DE_SEGREDO.length; i++) {
@@ -6244,7 +6272,7 @@ function decidirRespostaChatbot(bot, itens, textoBruto) {
       // "conferias", e o bot responderia coisa nenhuma a ver.
       var casa = texto === palavra ||
                  texto.indexOf(palavra + " ") === 0 ||
-                 texto.indexOf(" " + palavra) === texto.length - palavra.length - 1 ||
+                 texto.endsWith(" " + palavra) ||
                  texto.indexOf(" " + palavra + " ") >= 0;
       if (casa && palavra.length > tamanhoMelhor) {
         melhor = g; tamanhoMelhor = palavra.length;
@@ -6446,7 +6474,11 @@ async function rodarFerramentaDoBot(bot, nome, args, quemFalou) {
           descricao:   motivo + "\n\nChegou pelo assistente do WhatsApp.",
           prioridade:  "alta",
           status:      "pendente"
-        }).catch(function () {});
+        });
+      } else {
+        // A plataforma não tem uma empresa nem uma fila de tarefas.
+        // Não afirmar que alguém foi avisado quando não existe destino.
+        return "Não consegui avisar a equipe automaticamente. Peça ao cliente para aguardar uma pessoa nesta conversa.";
       }
 
       secLog("chatbot_chamou_humano", { chatbot_id: bot.id });
@@ -6456,7 +6488,9 @@ async function rodarFerramentaDoBot(bot, nome, args, quemFalou) {
     return "Ferramenta desconhecida.";
   } catch (e) {
     secLog("chatbot_ferramenta_falhou", { chatbot_id: bot.id, ferramenta: nome, message: e.message });
-    return "Não consegui fazer essa consulta agora.";
+    return nome === "chamar_atendente"
+      ? "Não consegui avisar a equipe automaticamente. Peça ao cliente para aguardar uma pessoa nesta conversa."
+      : "Não consegui fazer essa consulta agora.";
   }
 }
 
@@ -10450,7 +10484,9 @@ var server = http.createServer(async (req, res) => {
 
       for (var iWa = 0; iWa < recebidasWa.length; iWa++) {
         var msgWa = recebidasWa[iWa];
-        if (!msgWa.de) continue;
+        // Um envelope pode conter mais de uma mudança. Nunca atender
+        // mensagens de outro número usando as credenciais deste bot.
+        if (!msgWa.de || !msgWa.id || msgWa.phone_number_id !== numeroIdWa) continue;
         try {
           await atenderNoWhatsApp(botWa, msgWa);
         } catch (eWa) {
@@ -10583,16 +10619,20 @@ var server = http.createServer(async (req, res) => {
       return jsonOk(res, { ok: true, tarefa_id: feitoIf.tarefa_id });
     }
 
-    // ── WEBHOOK DA CAKTO (rota pública, com segredo na URL) ──
+    // ── WEBHOOK DA CAKTO (rota pública, com chave no JSON) ──
     //
     // Cadastre no painel da Cakto como:
-    //   https://SEU-BACKEND/webhook/cakto?s=<CAKTO_WEBHOOK_SECRET>
+    //   https://SEU-BACKEND/webhook/cakto
     //
-    // O segredo é seu, não deles — ver conferirSegredoDoWebhook(). Responde
-    // rápido de propósito: a Cakto exige resposta em 5 segundos, e o
+    // A chave secreta do webhook deve ser igual à variável
+    // CAKTO_WEBHOOK_SECRET — ver conferirSegredoDoWebhook(). Responde
+    // rápido de propósito: a Cakto exige resposta em 8 segundos, e o
     // trabalho pesado (e-mail) já é disparado sem esperar.
     if (method === "POST" && path === "/webhook/cakto") {
-      var confCk = conferirSegredoDoWebhook(url, req.headers);
+      var corpoCk = await getBody(req, 256 * 1024);
+      var evCk = parseBody(corpoCk);
+      if (!evCk || typeof evCk !== "object") return jsonErr(res, "Evento inválido");
+      var confCk = conferirSegredoDoWebhook(url, req.headers, evCk);
       if (!confCk.ok) {
         secLog("webhook_cakto_segredo_invalido", { ip: ip, vistos: confCk.vistos });
 
@@ -10614,8 +10654,8 @@ var server = http.createServer(async (req, res) => {
           recadoCk = "Webhook da Cakto recusado: CAKTO_WEBHOOK_SECRET não está definido no " +
                      "servidor — NENHUM pagamento consegue liberar acesso.";
         } else if (!confCk.vistos.length) {
-          recadoCk = "Webhook da Cakto recusado: a chamada chegou SEM segredo nenhum. " +
-                     "A URL cadastrada na Cakto precisa terminar em ?s=<CAKTO_WEBHOOK_SECRET>.";
+          recadoCk = "Webhook da Cakto recusado: não chegou a chave configurada no painel " +
+                     "(campo secret do JSON ou ?s= na URL).";
         } else {
           recadoCk = "Webhook da Cakto recusado: veio segredo em [" + confCk.vistos.join(", ") +
                      "] e nenhum confere com CAKTO_WEBHOOK_SECRET. Confira se o valor no " +
@@ -10627,17 +10667,13 @@ var server = http.createServer(async (req, res) => {
         return jsonErr(res, "Não autorizado", 401);
       }
 
-      var corpoCk = await getBody(req, 256 * 1024);
-      var evCk = parseBody(corpoCk);
-      if (!evCk) return jsonErr(res, "Evento inválido");
-
       var dadosCk = evCk.data || evCk.order || evCk;
       var tipoCk  = String(evCk.event || evCk.type || evCk.event_type || "desconhecido");
 
       // Id do evento para a idempotência. Sem um id próprio, o hash do
       // corpo serve: dois avisos idênticos geram a mesma chave e o
       // segundo é recusado pelo banco.
-      var idCk = evCk.id || evCk.event_id ||
+      var idCk = evCk.event_id || (dadosCk.id && tipoCk + ":" + dadosCk.id) ||
                  crypto.createHash("sha256").update(corpoCk).digest("hex").slice(0, 40);
 
       try {
@@ -10647,8 +10683,16 @@ var server = http.createServer(async (req, res) => {
           prefer: "return=minimal"
         });
       } catch (e) {
-        secLog("webhook_cakto_repetido", { evento: idCk, tipo: tipoCk });
-        return jsonOk(res, { recebido: true, repetido: true });
+        // Só chave duplicada é repetição. Falta de tabela, permissão ou
+        // indisponibilidade do banco não podem fingir pagamento tratado.
+        if (e.code !== "23505" && !/duplicate key|chave duplicada/i.test(e.message || "")) throw e;
+        var jaCk = await DB.select("eventos_pagamento",
+          "id=eq." + encodeURIComponent(idCk) + "&select=processado_em&limit=1");
+        if (jaCk.body && jaCk.body[0] && jaCk.body[0].processado_em) {
+          secLog("webhook_cakto_repetido", { evento: idCk, tipo: tipoCk });
+          return jsonOk(res, { recebido: true, repetido: true });
+        }
+        // A tentativa anterior foi interrompida; executa de novo.
       }
 
       try {
@@ -10657,7 +10701,7 @@ var server = http.createServer(async (req, res) => {
         // Cakto preenche — e liberar acesso por "checkout iniciado"
         // daria plano de graça para quem só abriu a tela.
         var statusCk = String(dadosCk.status || "").toLowerCase();
-        var pagoCk = CAKTO.eventosPagos.indexOf(tipoCk) >= 0 || statusCk === "paid";
+        var pagoCk = CAKTO.eventosPagos.indexOf(tipoCk) >= 0 && statusCk === "paid";
         var canceladoCk = CAKTO.eventosCancelados.indexOf(tipoCk) >= 0 ||
                           statusCk === "refunded" || statusCk === "chargeback";
 
@@ -10668,9 +10712,10 @@ var server = http.createServer(async (req, res) => {
           // continuar cairia na busca por empresa — que não acharia nada
           // e registraria um erro falso de "pagamento sem empresa".
           var idLinkCk = metaCk.link_id;
-          if (!idLinkCk && dadosCk.product_id) {
+          var produtoCk = dadosCk.product_id || (dadosCk.product && dadosCk.product.id);
+          if (!idLinkCk && produtoCk) {
             var porProduto = await DB.select("links_pagamento",
-              "gateway_id=eq." + encodeURIComponent(String(dadosCk.product_id)) + "&select=id");
+              "gateway_id=eq." + encodeURIComponent(String(produtoCk)) + "&select=id");
             idLinkCk = porProduto.body && porProduto.body[0] && porProduto.body[0].id;
           }
 
@@ -10695,7 +10740,7 @@ var server = http.createServer(async (req, res) => {
                   // de só anotar no log — ver convidarParaCriarConta.
                   //
                   // Sem await e com catch próprio: a Cakto corta o
-                  // webhook em 5 segundos e reenvia o que não respondeu.
+                  // webhook em 8 segundos e reenvia o que não respondeu.
                   // Falhar aqui não pode desfazer um pagamento que já
                   // está gravado; o owner enxerga o caso na aba
                   // Cobranças ("Pago, mas sem conta ainda") de qualquer
@@ -10710,7 +10755,7 @@ var server = http.createServer(async (req, res) => {
               }
 
               // Aviso ao dono da Workap. Sem await: a Cakto espera
-              // resposta em 5 segundos, e somar o mês mais mandar
+              // resposta em 8 segundos, e somar o mês mais mandar
               // e-mail não pode entrar nessa conta. O pagamento já está
               // gravado — o aviso é conveniência.
               if (lkCk) {
@@ -10731,15 +10776,30 @@ var server = http.createServer(async (req, res) => {
                 });
               }
             }
+            await DB.update("eventos_pagamento", "id=eq." + encodeURIComponent(idCk),
+              { processado_em: new Date().toISOString() });
             return jsonOk(res, { recebido: true });
+          }
+
+          // Uma cobrança avulsa sem link correspondente não pode cair
+          // na busca por e-mail das assinaturas e abrir um plano errado.
+          if (dadosCk.product && dadosCk.product.type === "unique") {
+            throw new Error("Pagamento avulso sem link correspondente: " + String(produtoCk || "sem produto"));
           }
 
           // Assinatura.
           var empIdCk = metaCk.empresa_id;
-          if (!empIdCk && dadosCk.product_id) {
+          var assIdCk = (dadosCk.subscription && dadosCk.subscription.id) ||
+                        dadosCk.subscription_id || produtoCk;
+          if (!empIdCk && assIdCk) {
             var porAss = await DB.select("empresas",
-              "pagamento_assinatura_id=eq." + encodeURIComponent(String(dadosCk.product_id)) + "&select=id");
+              "pagamento_assinatura_id=eq." + encodeURIComponent(String(assIdCk)) + "&select=id");
             empIdCk = porAss.body && porAss.body[0] && porAss.body[0].id;
+          }
+          if (!empIdCk && produtoCk) {
+            var porProdutoAss = await DB.select("empresas",
+              "pagamento_assinatura_id=eq." + encodeURIComponent(String(produtoCk)) + "&select=id");
+            empIdCk = porProdutoAss.body && porProdutoAss.body[0] && porProdutoAss.body[0].id;
           }
           if (!empIdCk && (dadosCk.customer_email || (dadosCk.customer && dadosCk.customer.email))) {
             var emailCk = dadosCk.customer_email || dadosCk.customer.email;
@@ -10791,11 +10851,11 @@ var server = http.createServer(async (req, res) => {
               }
             }
           } else {
-            registrarErro("pagamento", "Aviso de pagamento sem empresa identificada", {
-              rota: "/webhook/cakto", detalhe: { evento: tipoCk, objeto: dadosCk.id || null }
-            });
+            throw new Error("Aviso de pagamento sem empresa identificada: " + String(dadosCk.id || "sem id"));
           }
         }
+        await DB.update("eventos_pagamento", "id=eq." + encodeURIComponent(idCk),
+          { processado_em: new Date().toISOString() });
       } catch (e) {
         registrarErro("pagamento", "Falha ao processar " + tipoCk + ": " + e.message, {
           rota: "/webhook/cakto", metodo: "POST", detalhe: { evento: idCk }
@@ -12063,7 +12123,7 @@ var server = http.createServer(async (req, res) => {
       anotar("Webhook da Cakto configurado", "Integrações", !!CONFIG.CAKTO_WEBHOOK_SECRET,
         "CAKTO_WEBHOOK_SECRET definido",
         CONFIG.CAKTO_WEBHOOK_SECRET
-          ? "definido — cadastre a URL com ?s=<segredo> no painel da Cakto"
+          ? "definido — use a mesma chave no campo 'Chave secreta do webhook' da Cakto"
           : "ausente — pagamento entra e o acesso não abre", null);
       anotar("Notificações push configuradas", "Integrações", !!CONFIG.VAPID_PUBLIC && !!CONFIG.VAPID_PRIVATE,
         "par de chaves VAPID", CONFIG.VAPID_PUBLIC ? "chaves presentes" : "ausentes", null);
