@@ -9,7 +9,7 @@
 // do site; deixar a nota como estava faria a próxima pessoa remover
 // da vitrine um recurso que o produto tem.
 
-// v63: o pagamento aprovado vira uma comemoracao.
+// v64: escolha de plano confirma disponibilidade antes do cadastro.
 //
 //      O momento em que o dinheiro entra era o mais sem graca da
 //      jornada: um check parado e um paragrafo. Quem acabou de pagar
@@ -434,7 +434,7 @@
 //
 // REGRA: mexeu em index.html, app/index.html ou neste arquivo, sobe o
 // número. É de graça, e o bug que evita é invisível em teste.
-var CACHE = 'workap-v63';
+var CACHE = 'workap-v64';
 // Ícone das notificações push: só o símbolo, sem a palavra "workap".
 var NOTIFICATION_ICON = 'assets/icon-192.png';
 var NOTIFICATION_BADGE = 'assets/favicon-32.png';

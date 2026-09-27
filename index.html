@@ -1048,6 +1048,7 @@
       </div>
     </div>
     <div class="hero-visual">
+      <p style="text-align:center;color:#617367;font-size:.75rem;margin:0 0 8px;">Exemplo ilustrativo do painel</p>
       <div class="dashboard-card">
         <div class="dash-header">
           <div class="dash-logo">Workap</div>
@@ -2990,7 +2991,9 @@ function entrarNoModoPagou(email, convite) {
 // dias grátis" e voltava perguntando se o pagamento tinha sumido.
 function ajustarTelaDeSucesso(planoPago) {
   if (!planoPago) return;
-  var nomePlano = planoPago === 'pro' ? 'Plano Pro' : 'Plano Completo';
+  var plano = planosDisponiveis.filter(function(p){ return p.slug === planoPago; })[0];
+  var nomes = { completo: 'Plano Completo', pro: 'Plano Pro', chatbot: 'Plano Chatbot', master: 'Plano Master' };
+  var nomePlano = (plano && plano.nome) || nomes[planoPago] || 'Plano contratado';
   var def = function (id, txt) { var e = document.getElementById(id); if (e) e.textContent = txt; };
   def('trial-ok-titulo', 'Tudo pronto!');
   def('trial-ok-texto', 'Sua conta está criada e o acesso que você pagou já está liberado.');
@@ -3112,7 +3115,22 @@ function escolherPlano(slug){
   // servidor devolveu, então plano novo passa a funcionar sozinho.
   carregarPlanos().then(function(){
     var existe = planosDisponiveis.some(function(p){ return p.slug === slug; });
-    planoEscolhido = existe ? slug : 'completo';
+    if (!existe) {
+      var grade = document.getElementById('grade-planos');
+      var aviso = document.getElementById('erro-planos');
+      if (!aviso && grade) {
+        aviso = document.createElement('p');
+        aviso.id = 'erro-planos';
+        aviso.setAttribute('role', 'alert');
+        aviso.style.cssText = 'color:#a4262c;text-align:center;margin:16px auto;font-weight:600';
+        grade.parentNode.insertBefore(aviso, grade.nextSibling);
+      }
+      if (aviso) aviso.textContent = 'Não foi possível confirmar este plano agora. Confira sua conexão e tente novamente.';
+      return;
+    }
+    var aviso = document.getElementById('erro-planos');
+    if (aviso) aviso.remove();
+    planoEscolhido = slug;
     aplicarPlanoNaTela();
     abrirCheckout();
   });
@@ -3883,7 +3901,7 @@ document.getElementById('acesso-overlay').addEventListener('click',function(e){i
     <div id="funil-6" class="funil-step" style="display:none;">
       <div style="font-size:2rem;margin-bottom:12px;"><svg class=ico aria-hidden=true><use href=#i-target></use></svg></div>
       <h2 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:8px;">Escolha o seu plano</h2>
-      <p style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-bottom:24px;">Os dois começam com 7 dias grátis. Cancele quando quiser.</p>
+      <p style="color:rgba(255,255,255,0.6);font-size:0.9rem;margin-bottom:24px;">Os planos disponíveis começam com 7 dias grátis, sem cartão. Depois você decide se quer assinar.</p>
       <!-- Os cartões são montados por montarPlanosDoFunil() a partir de
            GET /planos. Antes havia UM cartão com "R$ 49,99" digitado no
            HTML e a frase "um plano único" — que deixou de ser verdade
@@ -3891,7 +3909,7 @@ document.getElementById('acesso-overlay').addEventListener('click',function(e){i
            o plano barato: o de R$ 89,90 não aparecia em lugar nenhum
            para quem entrava por aqui. -->
       <div id="funil-planos" style="display:flex;flex-direction:column;gap:14px;margin-bottom:16px;"></div>
-      <div style="font-size:0.75rem;color:rgba(255,255,255,0.55);text-align:center;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Pix, cartão ou boleto · sem fidelidade</div>
+      <div style="font-size:0.75rem;color:rgba(255,255,255,0.55);text-align:center;"><svg class=ico aria-hidden=true><use href=#i-lock></use></svg> Sem cobrança para testar · Pix, cartão ou boleto se você assinar</div>
     </div>
 
   </div>
@@ -4016,17 +4034,23 @@ function montarPlanosDoFunil(){
       caixa.textContent = '';
       var erro = document.createElement('div');
       erro.style.cssText = 'background:rgba(255,255,255,.07);border-radius:14px;padding:20px;text-align:center;color:rgba(255,255,255,.75);font-size:.85rem';
-      erro.textContent = 'Não consegui carregar os preços agora.';
+      erro.textContent = 'Não consegui carregar os planos agora. Você pode testar o Plano Completo por 7 dias sem cobrança ou tentar de novo para escolher outro plano.';
       caixa.appendChild(erro);
+
+      var tentar = document.createElement('button');
+      tentar.className = 'funil-btn';
+      tentar.textContent = 'Tentar carregar os planos novamente';
+      tentar.onclick = montarPlanosDoFunil;
+      caixa.appendChild(tentar);
 
       var alt = document.createElement('button');
       alt.className = 'funil-btn';
       alt.style.marginTop = '12px';
-      alt.textContent = 'Começar os 7 dias grátis';
+      alt.textContent = 'Testar o Plano Completo por 7 dias';
       // O trial não depende do catálogo de preços — dá para seguir o
       // cadastro mesmo com GET /planos fora. Perder a conta porque a
       // vitrine não carregou seria trocar um problema pequeno por um caro.
-      alt.onclick = function(){ fecharFunil(); setTimeout(abrirCheckout, 300); };
+      alt.onclick = function(){ planoEscolhido = 'completo'; fecharFunil(); setTimeout(abrirCheckout, 300); };
       caixa.appendChild(alt);
       return;
     }

@@ -4030,8 +4030,9 @@ async function registrarWebhookDoProdutoCakto(produtoId) {
   var destino = new URL(CONFIG.CAKTO_WEBHOOK_URL);
   if (destino.protocol !== "https:") throw new Error("O webhook da Cakto precisa usar HTTPS");
   destino.pathname = "/webhook/cakto";
-  // A API de criação não expõe campo para a chave; a query é aceita
-  // pelo receptor para esses webhooks criados automaticamente.
+  // A API de criação gera uma chave própria em fields.secret e não permite
+  // definir a chave compartilhada do painel. A query autentica os avisos
+  // destes produtos criados automaticamente; nunca registrar a URL em logs.
   destino.search = "?s=" + encodeURIComponent(CONFIG.CAKTO_WEBHOOK_SECRET);
   await caktoRequest("POST", CAKTO.criarWebhook, {
     name: "Workap - " + String(produtoId).slice(0, 36),
@@ -10625,7 +10626,7 @@ var server = http.createServer(async (req, res) => {
     //
     // A chave secreta do webhook deve ser igual à variável
     // CAKTO_WEBHOOK_SECRET — ver conferirSegredoDoWebhook(). Responde
-    // rápido de propósito: a Cakto exige resposta em 5 segundos, e o
+    // rápido de propósito: a Cakto exige resposta em 8 segundos, e o
     // trabalho pesado (e-mail) já é disparado sem esperar.
     if (method === "POST" && path === "/webhook/cakto") {
       var corpoCk = await getBody(req, 256 * 1024);
@@ -10739,7 +10740,7 @@ var server = http.createServer(async (req, res) => {
                   // de só anotar no log — ver convidarParaCriarConta.
                   //
                   // Sem await e com catch próprio: a Cakto corta o
-                  // webhook em 5 segundos e reenvia o que não respondeu.
+                  // webhook em 8 segundos e reenvia o que não respondeu.
                   // Falhar aqui não pode desfazer um pagamento que já
                   // está gravado; o owner enxerga o caso na aba
                   // Cobranças ("Pago, mas sem conta ainda") de qualquer
@@ -10754,7 +10755,7 @@ var server = http.createServer(async (req, res) => {
               }
 
               // Aviso ao dono da Workap. Sem await: a Cakto espera
-              // resposta em 5 segundos, e somar o mês mais mandar
+              // resposta em 8 segundos, e somar o mês mais mandar
               // e-mail não pode entrar nessa conta. O pagamento já está
               // gravado — o aviso é conveniência.
               if (lkCk) {
