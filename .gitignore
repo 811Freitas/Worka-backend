@@ -20,3 +20,7 @@ npm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+
+frontend/dist/
+
+frontend/.test-component.mjs

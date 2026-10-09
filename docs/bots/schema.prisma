@@ -1,0 +1,292 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+}
+enum SessionProvider {
+  WEB_JS
+  META_CLOUD
+}
+enum SessionStatus {
+  DISCONNECTED
+  CONNECTING
+  QR_PENDING
+  CONNECTED
+  FAILED
+}
+enum BotStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+}
+enum AiProvider {
+  OPENAI
+  ANTHROPIC
+}
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+enum Direction {
+  INBOUND
+  OUTBOUND
+}
+enum MessageStatus {
+  RECEIVED
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+enum LogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+}
+enum LogKind {
+  AUDIT
+  CONNECTION
+  MESSAGE
+  WEBHOOK
+  AI_CALL
+}
+enum TriggerType {
+  ALL_MESSAGES
+  KEYWORD
+  FIRST_CONTACT
+}
+
+model User {
+  id          String   @id @default(uuid()) @db.Uuid
+  authSubject String   @unique
+  email       String   @unique @db.VarChar(254)
+  name        String?  @db.VarChar(120)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+  memberships WorkspaceMember[]
+  // Credentials belong to the identity provider, never plaintext passwords.
+}
+
+model Workspace {
+  id            String @id @default(uuid()) @db.Uuid
+  name          String @db.VarChar(120)
+  slug          String @unique @db.VarChar(80)
+  timezone      String @default("America/Sao_Paulo")
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @db.Timestamptz(3)
+  members       WorkspaceMember[]
+  sessions      WhatsAppSession[]
+  bots          Bot[]
+  triggers      BotTrigger[]
+  conversations Conversation[]
+  messages      Message[]
+  logs          Log[]
+  subscription  Subscription?
+  usage         UsageBucket[]
+  webhooks      WebhookEvent[]
+}
+
+model WorkspaceMember {
+  workspaceId String @db.Uuid
+  userId      String @db.Uuid
+  role        Role @default(VIEWER)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  @@id([workspaceId, userId])
+  @@index([userId])
+}
+
+model WhatsAppSession {
+  id             String @id @default(uuid()) @db.Uuid
+  workspaceId    String @db.Uuid
+  name           String @db.VarChar(100)
+  provider       SessionProvider
+  status         SessionStatus @default(DISCONNECTED)
+  phoneE164      String? @unique @db.VarChar(20)
+  metaPhoneId    String? @unique
+  credentialRef  String? // Secret manager reference; never QR or raw tokens.
+  authStorageRef String? // Encrypted persistent worker volume / object storage.
+  lastHeartbeat  DateTime? @db.Timestamptz(3)
+  connectedAt    DateTime? @db.Timestamptz(3)
+  lastErrorCode  String?
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  bots           Bot[]
+  conversations  Conversation[]
+  @@unique([workspaceId, id])
+  @@index([workspaceId, status])
+}
+
+model Bot {
+  id          String @id @default(uuid()) @db.Uuid
+  workspaceId String @db.Uuid
+  sessionId   String? @db.Uuid
+  name        String @db.VarChar(100)
+  status      BotStatus @default(DRAFT)
+  systemPrompt String @db.Text
+  aiProvider  AiProvider @default(OPENAI)
+  model       String
+  temperature Float @default(0.5)
+  maxOutputTokens Int @default(500)
+  delayMinMs  Int @default(800)
+  delayMaxMs  Int @default(2500)
+  promptVersion Int @default(1)
+  flow        Json @default("{\"version\":1,\"nodes\":[],\"edges\":[]}")
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  session     WhatsAppSession? @relation(fields: [workspaceId, sessionId], references: [workspaceId, id], onDelete: Restrict, onUpdate: NoAction)
+  triggers    BotTrigger[]
+  // One routed bot per number initially. Many unassigned drafts are allowed.
+  @@unique([workspaceId, sessionId])
+  @@unique([workspaceId, id])
+  @@index([workspaceId, status])
+}
+
+model BotTrigger {
+  id          String @id @default(uuid()) @db.Uuid
+  workspaceId String @db.Uuid
+  botId       String @db.Uuid
+  type        TriggerType
+  value       String?
+  priority    Int @default(0)
+  enabled     Boolean @default(true)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  bot         Bot @relation(fields: [workspaceId, botId], references: [workspaceId, id], onDelete: Cascade, onUpdate: NoAction)
+  @@index([workspaceId, botId, priority])
+}
+
+model Conversation {
+  id          String @id @default(uuid()) @db.Uuid
+  workspaceId String @db.Uuid
+  sessionId   String @db.Uuid
+  contactKey  String // Encrypt or tokenize contact identifier in the application.
+  humanTakeover Boolean @default(false)
+  lastMessageAt DateTime? @db.Timestamptz(3)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  session     WhatsAppSession @relation(fields: [workspaceId, sessionId], references: [workspaceId, id], onDelete: Restrict, onUpdate: NoAction)
+  messages    Message[]
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, sessionId, contactKey])
+  @@index([workspaceId, lastMessageAt])
+}
+
+model Message {
+  id             String @id @default(uuid()) @db.Uuid
+  workspaceId    String @db.Uuid
+  conversationId String @db.Uuid
+  providerMessageId String?
+  idempotencyKey String
+  direction      Direction
+  status         MessageStatus
+  contentCiphertext Bytes? // Envelope encryption; retention policy required.
+  inputTokens    Int @default(0)
+  outputTokens   Int @default(0)
+  costUsd        Decimal @default(0) @db.Decimal(14, 8)
+  sentAt         DateTime? @db.Timestamptz(3)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  conversation   Conversation @relation(fields: [workspaceId, conversationId], references: [workspaceId, id], onDelete: Restrict, onUpdate: NoAction)
+  @@unique([workspaceId, idempotencyKey])
+  @@unique([workspaceId, conversationId, providerMessageId])
+  @@index([workspaceId, conversationId, createdAt])
+  @@index([workspaceId, direction, createdAt])
+}
+
+model Log {
+  id          String @id @default(uuid()) @db.Uuid
+  workspaceId String @db.Uuid
+  level       LogLevel
+  kind        LogKind
+  event       String @db.VarChar(120)
+  summary     String @db.VarChar(500)
+  traceId     String?
+  actorSubject String? // Immutable audit snapshot, not an authorization source.
+  metadata    Json @default("{}") // Allowlist only; no prompts, messages, QR or tokens.
+  durationMs  Int?
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, kind, createdAt])
+  @@index([workspaceId, level, createdAt])
+  @@index([workspaceId, traceId])
+}
+
+model Plan {
+  id          String @id @default(uuid()) @db.Uuid
+  code        String @unique
+  name        String
+  monthlyPriceCents Int
+  currency    String @default("BRL") @db.VarChar(3)
+  connectionLimit Int
+  botLimit    Int
+  monthlyMessageLimit Int
+  logRetentionDays Int @default(30)
+  active      Boolean @default(true)
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id          String @id @default(uuid()) @db.Uuid
+  workspaceId String @unique @db.Uuid
+  planId      String @db.Uuid
+  status      SubscriptionStatus @default(TRIALING)
+  billingProvider String
+  externalCustomerId String?
+  externalSubscriptionId String?
+  periodStart DateTime @db.Timestamptz(3)
+  periodEnd   DateTime @db.Timestamptz(3)
+  trialEndsAt DateTime? @db.Timestamptz(3)
+  cancelAtPeriodEnd Boolean @default(false)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  plan        Plan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  @@unique([billingProvider, externalSubscriptionId])
+  @@index([status, periodEnd])
+}
+
+model UsageBucket {
+  workspaceId String @db.Uuid
+  periodStart DateTime @db.Timestamptz(3)
+  periodEnd   DateTime @db.Timestamptz(3)
+  inbound     BigInt @default(0)
+  outbound    BigInt @default(0)
+  aiInputTokens BigInt @default(0)
+  aiOutputTokens BigInt @default(0)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  @@id([workspaceId, periodStart])
+}
+
+model WebhookEvent {
+  id          String @id @default(uuid()) @db.Uuid
+  workspaceId String @db.Uuid
+  provider    String
+  externalEventId String
+  payloadHash String
+  receivedAt  DateTime @default(now()) @db.Timestamptz(3)
+  processedAt DateTime? @db.Timestamptz(3)
+  attempts    Int @default(0)
+  errorCode   String?
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  @@unique([provider, externalEventId])
+  @@index([workspaceId, receivedAt])
+}
