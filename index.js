@@ -475,6 +475,7 @@ setInterval(() => {
 
 // Limites por rota (requests/janela)
 var RATE_LIMITS = {
+  "/public/bots-leads": { max: 10, window: 15 * 60 * 1000 },
   "/login":          { max: 5,   window: 15 * 60 * 1000 }, // 5/15min — anti brute force
   "/enviar-codigo":  { max: 3,   window: 10 * 60 * 1000 }, // 3/10min — anti spam
   "/verificar-codigo":{ max: 5,  window: 10 * 60 * 1000 }, // 5/10min
@@ -1315,7 +1316,7 @@ function supabase(method, table, options = {}) {
     "chamados", "chamado_mensagens",
     "chaves_api", "movimentos_estoque", "ifood_eventos",
     "chatbots", "chatbot_itens", "chatbot_atendimentos", "whatsapp_sessoes",
-    "assinatura_acoes"
+    "assinatura_acoes", "worka_bots_leads"
   ];
   // Procedimento do banco (PostgREST expõe em /rest/v1/rpc/nome).
   // Tem lista própria, separada da de tabelas, pelo mesmo motivo de
@@ -8715,6 +8716,8 @@ async function rotasDoChatbot(req, res, ctx) {
   return jsonErr(res, "Rota do chatbot não encontrada", 404);
 }
 
+var handleBotsLeads = require("./services/bots-leads").createLeadsHandler({ database: supabase, origins: CONFIG.ALLOWED_ORIGINS });
+
 var server = http.createServer(async (req, res) => {
   var ip     = getIP(req);
   var origin = req.headers["origin"] || "";
@@ -8735,6 +8738,9 @@ var server = http.createServer(async (req, res) => {
   }
 
   try {
+
+    // Public waitlist: isolated from authentication and payment routes.
+    if (path === "/public/bots-leads") return await handleBotsLeads(req, res);
 
     // ── HEALTH ──────────────────────────────────────
     if (path === "/" || path === "/health") {
