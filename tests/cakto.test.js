@@ -29,7 +29,8 @@ test('compra recorrente abre acesso e grava a próxima cobrança do payload ofic
   let updated, invalidated;
   const scope = load('async function aplicarAssinaturaCakto(', '/**\n * Confere que o webhook veio', {
     DB: { update: async (table, query, changes) => { updated = { table, query, changes }; } },
-    planoValido: plano => plano === 'chatbot',
+    CONFIG: { PLANOS: { chatbot: {} } },
+    require: name => name === './services/cakto-plan' ? require('../services/cakto-plan') : require(name),
     esquecerAcesso: id => { invalidated = id; },
     secLog() {}
   });

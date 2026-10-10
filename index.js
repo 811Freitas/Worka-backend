@@ -4160,7 +4160,8 @@ async function aplicarAssinaturaCakto(empresaId, dados, planoMeta) {
       (dados.subscription && dados.subscription.id) || dados.subscription_id ||
       (dados.product && dados.product.id) || dados.product_id);
   }
-  if (planoValido(planoMeta)) mudancas.plano = planoMeta;
+  var planoConfirmado = require("./services/cakto-plan").exactPlan(planoMeta, CONFIG.PLANOS);
+  if (planoConfirmado) mudancas.plano = planoConfirmado;
 
   await DB.update("empresas", "id=eq." + empresaId, mudancas);
   // Pagou: a porta abre AGORA. Sem isto o cliente esperaria o cache de
@@ -10222,7 +10223,11 @@ var server = http.createServer(async (req, res) => {
       var emailAss = SANITIZE.email(bodyAss.email);
       if (!emailAss) return jsonErr(res, "E-mail inválido");
 
-      var planoAss = planoValido(bodyAss.plano) ? bodyAss.plano : CONFIG.PLANO_PADRAO;
+      var selecionadoAss = await require("./services/cakto-plan").purchasablePlan(bodyAss.plano, {
+        catalog: CONFIG.PLANOS, masterActive: masterAtivo, chatbotActive: chatbotPlanoAtivo
+      });
+      if (selecionadoAss.error) return jsonErr(res, selecionadoAss.error, selecionadoAss.status);
+      var planoAss = selecionadoAss.slug;
       var infoPlano = CONFIG.PLANOS[planoAss];
 
       // nome, telefone e documento vêm junto porque são o que o

@@ -9,7 +9,7 @@ A UI fica em src/LandingPage.tsx. Copiar dist/index.html para ../index.html e di
 
 ## Integração
 POST https://worka-backend-awng.onrender.com/public/bots-leads
-Valida origem, consentimento, campos, tamanho, honeypot e rate limit. Grava no Supabase existente (worka_bots_leads), acessível apenas ao backend. Sem sessão ou assinatura criada. Abertura do produto, WhatsApp e cobrança Hotmart continuam pendentes; não apontar os novos planos ao checkout Cakto anterior.
+Valida origem, consentimento, campos, tamanho, honeypot e rate limit. Grava no Supabase existente (worka_bots_leads), acessível apenas ao backend. Sem sessão ou assinatura criada. Abertura do produto, WhatsApp e cobrança Cakto continuam pendentes; não apontar os novos planos ao checkout Cakto anterior.
 
 ## Ordem de publicação
 1. Backend e migration já testados.
